@@ -28,6 +28,27 @@ const COMMANDS: Record<
 	review: reviewCommand,
 };
 
+/**
+ * Built-in error types that (almost) always mean a bug in this codebase
+ * rather than an external failure (a bad network call, a missing editor, a
+ * provider's own error) — undefined-is-not-a-function, an out-of-range
+ * index, a reference to something that was never declared. These must keep
+ * surfacing with their real stack instead of being flattened into a single
+ * friendly line, or a genuine defect gets harder to find, not easier.
+ */
+const PROGRAMMING_ERROR_TYPES = [
+	TypeError,
+	RangeError,
+	ReferenceError,
+	SyntaxError,
+	EvalError,
+	URIError,
+];
+
+function isProgrammingError(e: unknown): boolean {
+	return PROGRAMMING_ERROR_TYPES.some((ctor) => e instanceof ctor);
+}
+
 export async function run(argv: string[], ctx: CliContext): Promise<number> {
 	const [verb, ...rest] = argv;
 	const command = verb ? COMMANDS[verb] : undefined;
@@ -50,6 +71,18 @@ export async function run(argv: string[], ctx: CliContext): Promise<number> {
 		if (e instanceof TypeError && /option|argument/i.test(e.message)) {
 			ctx.stdout(`error: ${e.message}\n${USAGE}`);
 			return 2;
+		}
+		// A parseArgs usage TypeError is handled above; any other
+		// programming-error type still propagates raw (see
+		// PROGRAMMING_ERROR_TYPES). Everything else reaching here is an
+		// external failure this process doesn't control -- a provider's
+		// API error, a missing editor binary, a network error -- and gets
+		// the same clean `error: ...` treatment as a ForgeError, so a real
+		// user never sees a raw stack trace for something they can't fix
+		// by reading a stack trace anyway.
+		if (!isProgrammingError(e) && e instanceof Error) {
+			ctx.stdout(`error: ${e.message}`);
+			return 1;
 		}
 		throw e;
 	}

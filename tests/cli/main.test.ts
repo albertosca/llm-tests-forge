@@ -581,7 +581,7 @@ describe("run(): error classification", () => {
 		expect(out.at(-1)).toContain("usage:");
 	});
 
-	test("an error that is neither a ForgeError nor a parseArgs TypeError propagates instead of being swallowed", async () => {
+	test("a non-programming-error that is neither a ForgeError nor a parseArgs TypeError is printed cleanly (exit 1), not thrown", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const { ctx: describeCtx } = await ctxIn(cwd);
 		expect(await run(["describe", "text"], describeCtx)).toBe(0);
@@ -589,27 +589,54 @@ describe("run(): error classification", () => {
 		// "edit" on the only pending item (the feature) drives openInEditor's
 		// real Bun.spawn with a deliberately broken $EDITOR, which throws
 		// synchronously (ENOENT) before there is any exit code to return.
-		// That's neither a ForgeError nor parseArgs's TypeError, so this is
-		// the one real path proving run() lets a genuine bug through instead
-		// of swallowing it -- describe --prompt-file used to be that path,
-		// but Finding 5 correctly wraps it into a ForgeError now.
-		const { ctx } = await ctxIn(cwd, ["edit"]);
+		// That's neither a ForgeError nor parseArgs's TypeError, and it is
+		// not a programming-error type either (it's a plain Error carrying
+		// a NodeJS.ErrnoException .code) -- so run() now catches it and
+		// prints the same clean `error: ...` line a real user gets for any
+		// other external failure, instead of dumping Bun's raw ENOENT stack.
+		const { ctx, out } = await ctxIn(cwd, ["edit"]);
 		const originalEditor = process.env.EDITOR;
 		process.env.EDITOR = "totally-bogus-editor-that-does-not-exist";
 		try {
-			let err: unknown;
-			try {
-				await run(["review"], ctx);
-			} catch (e) {
-				err = e;
-			}
-			expect(err).toBeInstanceOf(Error);
-			expect(err).not.toBeInstanceOf(TypeError);
-			expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
+			expect(await run(["review"], ctx)).toBe(1);
+			expect(out.at(-1)).toBe(
+				'error: Executable not found in $PATH: "totally-bogus-editor-that-does-not-exist"',
+			);
 		} finally {
 			if (originalEditor === undefined) delete process.env.EDITOR;
 			else process.env.EDITOR = originalEditor;
 		}
+	});
+
+	test("a provider/network failure from Llm.generate (non-ForgeError) is printed cleanly (exit 1), not thrown", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const { ctx, out } = await ctxIn(cwd);
+		ctx.llm = {
+			generate: async () => {
+				throw new Error("This model is currently experiencing high demand.");
+			},
+		};
+		expect(await run(["describe", "text"], ctx)).toBe(1);
+		expect(out.at(-1)).toBe(
+			"error: This model is currently experiencing high demand.",
+		);
+	});
+
+	test("a genuine programming error (TypeError) still propagates with its real stack, even from Llm.generate", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const { ctx } = await ctxIn(cwd);
+		ctx.llm = {
+			generate: async () => {
+				throw new TypeError("Cannot read properties of undefined");
+			},
+		};
+		let err: unknown;
+		try {
+			await run(["describe", "text"], ctx);
+		} catch (e) {
+			err = e;
+		}
+		expect(err).toBeInstanceOf(TypeError);
 	});
 });
 

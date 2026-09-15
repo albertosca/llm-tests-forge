@@ -80,7 +80,9 @@ Defina `FORGE_MODEL` ou passe `--model` como `provider/model`:
     bun run lint       # Biome
     bun run typecheck  # tsc --noEmit
     bun run check      # lint, depois typecheck, depois test
-    bun run test:live  # uma chamada real por verbo contra FORGE_MODEL, precisa de uma chave de provedor (FORGE_LIVE=1)
+    bun run test:live  # duas chamadas reais contra google/gemini-3.5-flash por padrão (FORGE_LIVE=1); sobrescreva com FORGE_MODEL
+
+O `test:live` precisa de `GOOGLE_API_KEY` e falha de forma explícita (não em silêncio) se ela estiver ausente. O free tier do Google é intermitente, não simplesmente indisponível, então o teste tenta de novo uma resposta 503/"high demand" até 3 vezes com uma pausa curta entre as tentativas; qualquer outra falha (cota, autenticação, um model id desconhecido, um schema que não bate) falha já na primeira ocorrência em vez de tentar de novo.
 
 Design: `docs/superpowers/specs/2026-09-14-llm-test-forge-design.md`.
 
