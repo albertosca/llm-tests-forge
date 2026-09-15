@@ -40,12 +40,19 @@ export async function reviewCommand(
 	});
 	const only = parseOnlyFlag(values.only);
 
+	// One guard above both paths: `--scenario` used to be trusted on the
+	// interactive path, where a typo answered "nothing pending" and exited
+	// 0 while `cases`, `dedupe` and `review --all` all named the same bad id
+	// and exited 1.
+	const scenarios = await readScenarios(ctx.forgeDir);
+	if (values.scenario && !scenarios.some((s) => s.id === values.scenario))
+		throw new ForgeError(`scenario "${values.scenario}" not found`, {
+			id: values.scenario,
+		});
+
 	if (values.all) {
 		const id = values.scenario;
 		if (!id) throw new UsageError("--all requires --scenario");
-		const scenarios = await readScenarios(ctx.forgeDir);
-		if (!scenarios.some((s) => s.id === id))
-			throw new ForgeError(`scenario "${id}" not found`, { id });
 		const cases = await readCases(ctx.forgeDir, id);
 		let approved = 0;
 		let skipped = 0;
@@ -68,7 +75,6 @@ export async function reviewCommand(
 	}
 
 	const feature = await readFeature(ctx.forgeDir);
-	const scenarios = await readScenarios(ctx.forgeDir);
 	const scenarioIds = values.scenario
 		? [values.scenario]
 		: await listCaseScenarios(ctx.forgeDir);

@@ -977,3 +977,85 @@ describe("review: --only that filters everything out says so", () => {
 		);
 	});
 });
+
+describe("review --scenario is checked on the interactive path too (whole-branch Finding 4)", () => {
+	test("a typo names the unknown scenario and exits 1, instead of 'nothing pending' and 0", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		let { ctx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["scenarios"], ctx)).toBe(0);
+
+		// Six scenarios really are pending here, so "nothing pending" was
+		// not only unhelpful, it was false.
+		const { ctx: reviewCtx, out } = await ctxIn(cwd);
+		expect(
+			await run(["review", "--scenario", "polite-rejection-typo"], reviewCtx),
+		).toBe(1);
+		expect(out.at(-1)).toBe(
+			'error: scenario "polite-rejection-typo" not found (id: polite-rejection-typo)',
+		);
+		expect(out.join("\n")).not.toContain("nothing pending");
+	});
+
+	test("the same typo is refused with --only, which is parsed before it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		let { ctx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+
+		const { ctx: reviewCtx, out } = await ctxIn(cwd);
+		expect(
+			await run(
+				["review", "--scenario", "totally-bogus", "--only", "cases"],
+				reviewCtx,
+			),
+		).toBe(1);
+		expect(out.at(-1)).toContain('scenario "totally-bogus" not found');
+	});
+});
+
+describe("dedupe never writes a phantom empty cases file (whole-branch Finding 5)", () => {
+	/** describe -> approve -> scenarios, so real scenarios exist with no cases. */
+	async function scenariosWithoutCases(cwd: string) {
+		let { ctx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["scenarios"], ctx)).toBe(0);
+	}
+
+	test("a known scenario with no cases yet is named, not written as an empty list", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await scenariosWithoutCases(cwd);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["dedupe", "--scenario", "polite-rejection"], ctx)).toBe(
+			1,
+		);
+		expect(out.at(-1)).toBe(
+			'error: scenario "polite-rejection" has no cases yet; run `forge cases --scenario polite-rejection` first (id: polite-rejection)',
+		);
+		expect(out.join("\n")).not.toContain("0 marked as duplicates");
+
+		const casesDir = await readdir(join(forgeDir, "cases")).catch(
+			() => [] as string[],
+		);
+		expect(casesDir).toEqual([]);
+	});
+
+	test("with no cases file anywhere, bare dedupe refuses instead of exiting 0 having done nothing", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await scenariosWithoutCases(cwd);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["dedupe"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("no cases to dedupe");
+		expect(out.at(-1)).toContain(join(cwd, ".forge", "cases"));
+	});
+});
