@@ -1,0 +1,3 @@
+{
+	"dedupe": "{\"duplicates\":[{\"id\":\"s-03\",\"duplicate_of\":\"s-01\"},{\"id\":\"s-02\",\"duplicate_of\":\"nope\"},{\"id\":\"s-04\",\"duplicate_of\":\"s-04\"},{\"id\":\"s-05\",\"duplicate_of\":\"s-01\"},{\"id\":\"s-06\",\"duplicate_of\":\"s-05\"}]}"
+}
