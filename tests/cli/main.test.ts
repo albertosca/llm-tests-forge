@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, stat, utimes, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdtemp,
+	readdir,
+	readFile,
+	stat,
+	utimes,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createContext } from "../../src/cli/context";
@@ -174,8 +182,9 @@ describe("review: interactive decisions beyond --all", () => {
 			["imported-02", "pending"],
 		]);
 		expect(cases[0]?.expected).toEqual({ fields: { type: "rejection" } });
+		// One case skipped; nothing else was pending in this scope.
 		expect(out.at(-1)).toBe(
-			"review: 1 approved, 0 rejected, 0 edited, 1 skipped",
+			"review: 1 approved, 0 rejected, 0 edited, 1 skipped, 1 still pending",
 		);
 	});
 });
@@ -219,8 +228,11 @@ describe("review: only rewrites files a decision actually touched", () => {
 		// polite-rejection has a pending case for the single "approve" to land on.
 		const { ctx: caseReviewCtx, out } = await ctxIn(cwd, ["approve"]);
 		expect(await run(["review", "--only", "cases"], caseReviewCtx)).toBe(0);
+		// One case approved, one skipped, and the four scenarios --only
+		// filtered out of this pass are still pending -- "skipped" alone
+		// would have reported 1 and hidden the other four.
 		expect(out.at(-1)).toBe(
-			"review: 1 approved, 0 rejected, 0 edited, 1 skipped",
+			"review: 1 approved, 0 rejected, 0 edited, 1 skipped, 5 still pending",
 		);
 
 		// The touched file really was rewritten (proves the assertions below
@@ -785,5 +797,183 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 		const { ctx, out } = await ctxIn(cwd);
 		expect(await run(["describe", "text again"], ctx)).toBe(0);
 		expect(out.at(-1)).toContain("written as pending");
+	});
+});
+
+describe("review: an edit that renames an item lands on disk (whole-branch Finding 3)", () => {
+	/**
+	 * A real `$EDITOR`: a tiny script that rewrites the file it is handed,
+	 * substituting one line for another. `sed -i` is spelled differently on
+	 * macOS and GNU, so this writes through a temp file instead.
+	 */
+	async function editorReplacing(
+		dir: string,
+		from: string,
+		to: string,
+	): Promise<string> {
+		const path = join(dir, `fake-editor-${from.replace(/\W/g, "")}.sh`);
+		await writeFile(
+			path,
+			`#!/bin/sh\nsed 's|^${from}$|${to}|' "$1" > "$1.tmp" && mv "$1.tmp" "$1"\n`,
+		);
+		await chmod(path, 0o755);
+		return path;
+	}
+
+	async function withEditor<T>(
+		path: string,
+		body: () => Promise<T>,
+	): Promise<T> {
+		const original = process.env.EDITOR;
+		process.env.EDITOR = path;
+		try {
+			return await body();
+		} finally {
+			if (original === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = original;
+		}
+	}
+
+	/** describe -> approve -> scenarios, leaving six pending scenarios. */
+	async function pendingScenarios(cwd: string) {
+		let { ctx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["scenarios"], ctx)).toBe(0);
+	}
+
+	async function approvedScenarioWithTwoCases(cwd: string) {
+		await pendingScenarios(cwd);
+		let { ctx } = await ctxIn(cwd, ["approve"]);
+		expect(await run(["review", "--only", "scenarios"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(
+			await run(["cases", "--scenario", "polite-rejection", "--n", "2"], ctx),
+		).toBe(0);
+	}
+
+	test("a renamed scenario is written back under its new id, and the old id is gone", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await pendingScenarios(cwd);
+		const editor = await editorReplacing(
+			cwd,
+			"id: polite-rejection",
+			"id: polite-rejection-fixed",
+		);
+
+		const { ctx, out } = await ctxIn(cwd, ["edit"]);
+		await withEditor(editor, async () => {
+			expect(await run(["review", "--only", "scenarios"], ctx)).toBe(0);
+		});
+
+		const scenarios = await readScenarios(join(cwd, ".forge"));
+		expect(scenarios.map((s) => [s.id, s.status])).toEqual([
+			["polite-rejection-fixed", "edited"],
+			["huge-signature", "pending"],
+			["ack-quiz", "pending"],
+			["newsletter", "pending"],
+			["injection", "pending"],
+			["portuguese", "pending"],
+		]);
+		expect(out.at(-1)).toBe(
+			"review: 0 approved, 0 rejected, 1 edited, 5 skipped, 5 still pending",
+		);
+	});
+
+	test("a renamed case is written back under its new id, in its own file, with no second file invented", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await approvedScenarioWithTwoCases(cwd);
+		const editor = await editorReplacing(
+			cwd,
+			"id: polite-rejection-01",
+			"id: polite-rejection-42",
+		);
+
+		const { ctx, out } = await ctxIn(cwd, ["edit"]);
+		await withEditor(editor, async () => {
+			expect(
+				await run(
+					["review", "--scenario", "polite-rejection", "--only", "cases"],
+					ctx,
+				),
+			).toBe(0);
+		});
+
+		const cases = await readCases(forgeDir, "polite-rejection");
+		expect(cases.map((c) => [c.id, c.status])).toEqual([
+			["polite-rejection-42", "edited"],
+			["polite-rejection-02", "pending"],
+		]);
+		expect(await readdir(join(forgeDir, "cases"))).toEqual([
+			"polite-rejection.yaml",
+		]);
+		expect(out.at(-1)).toBe(
+			"review: 0 approved, 0 rejected, 1 edited, 1 skipped, 1 still pending",
+		);
+	});
+
+	test("changing a case's scenario is refused by name and re-asked, inventing no cases file", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await approvedScenarioWithTwoCases(cwd);
+		const editor = await editorReplacing(
+			cwd,
+			"scenario: polite-rejection",
+			"scenario: huge-signature",
+		);
+
+		// "edit" is refused, the same item is re-asked, and the drained
+		// queue then answers "" -- which askChoice maps to skip.
+		const { ctx, out } = await ctxIn(cwd, ["edit"]);
+		await withEditor(editor, async () => {
+			expect(
+				await run(
+					["review", "--scenario", "polite-rejection", "--only", "cases"],
+					ctx,
+				),
+			).toBe(0);
+		});
+
+		expect(
+			out.some(
+				(l) =>
+					l ===
+					`cannot apply: a case's scenario cannot be changed in review (from "polite-rejection" to "huge-signature"); move the case between .forge/cases/<scenario>.yaml files instead (id: polite-rejection-01)`,
+			),
+		).toBe(true);
+		const cases = await readCases(forgeDir, "polite-rejection");
+		expect(cases.map((c) => [c.id, c.scenario, c.status])).toEqual([
+			["polite-rejection-01", "polite-rejection", "pending"],
+			["polite-rejection-02", "polite-rejection", "pending"],
+		]);
+		expect(await readdir(join(forgeDir, "cases"))).toEqual([
+			"polite-rejection.yaml",
+		]);
+		expect(out.at(-1)).toBe(
+			"review: 0 approved, 0 rejected, 0 edited, 2 skipped, 2 still pending",
+		);
+	});
+});
+
+describe("review: --only that filters everything out says so", () => {
+	test("does not report 'nothing pending' while six scenarios are pending outside the filter", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		let { ctx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["scenarios"], ctx)).toBe(0);
+
+		// The feature is approved, so nothing of kind `feature` is pending --
+		// but six scenarios are.
+		const { ctx: onlyCtx, out } = await ctxIn(cwd);
+		expect(await run(["review", "--only", "feature"], onlyCtx)).toBe(0);
+		expect(out.at(-1)).toBe(
+			"review: nothing pending matching --only feature; 6 item(s) still pending outside that filter",
+		);
 	});
 });

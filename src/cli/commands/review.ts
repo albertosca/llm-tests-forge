@@ -80,12 +80,19 @@ export async function reviewCommand(
 	const scopedScenarios = values.scenario
 		? scenarios.filter((s) => s.id === values.scenario)
 		: scenarios;
-	let items = pendingItems(feature, scopedScenarios, allCases);
-	if (only) {
-		items = items.filter((i) => i.kind === only || `${i.kind}s` === only);
-	}
+	const pending = pendingItems(feature, scopedScenarios, allCases);
+	const items = only
+		? pending.filter((i) => i.kind === only || `${i.kind}s` === only)
+		: pending;
 	if (items.length === 0) {
-		ctx.stdout("review: nothing pending");
+		// "nothing pending" has to mean nothing is pending. When --only is
+		// what emptied the list, say so and name how much is still pending
+		// outside the filter, rather than sending someone away.
+		if (only && pending.length > 0)
+			ctx.stdout(
+				`review: nothing pending matching --only ${only}; ${pending.length} item(s) still pending outside that filter`,
+			);
+		else ctx.stdout("review: nothing pending");
 		return;
 	}
 
@@ -101,33 +108,48 @@ export async function reviewCommand(
 		print: ctx.stdout,
 	});
 
-	for (const d of result.decisions) {
-		if (d.kind === "feature")
-			await writeFeature(ctx.forgeDir, d.item as Feature);
-		if (d.kind === "scenario") {
-			const idx = scenarios.findIndex((s) => s.id === d.id);
-			if (idx >= 0) scenarios[idx] = d.item as Scenario;
-		}
-		if (d.kind === "case") {
-			const c = d.item as Case;
-			const list = casesById.get(c.scenario) ?? [];
-			const idx = list.findIndex((x) => x.id === c.id);
-			if (idx >= 0) list[idx] = c;
-			casesById.set(c.scenario, list);
-		}
-	}
-	if (result.decisions.some((d) => d.kind === "scenario"))
-		await writeScenarios(ctx.forgeDir, scenarios);
+	// Every decision is matched back to the file by the id the item had
+	// when this pass started (`originalId`), never by the id it carries
+	// now: an edit is allowed to change the id, and matching on the new one
+	// found nothing, wrote nothing, and still reported the edit as applied.
+	// Each list is rebuilt from what was read off disk, so a decision that
+	// matched nothing cannot invent a file to land in either.
+	const decidedFeature = result.decisions.find((d) => d.kind === "feature");
+	if (decidedFeature)
+		await writeFeature(ctx.forgeDir, decidedFeature.item as Feature);
+
+	const decidedScenarios = new Map(
+		result.decisions
+			.filter((d) => d.kind === "scenario")
+			.map((d) => [d.originalId, d.item as Scenario] as const),
+	);
+	if (decidedScenarios.size > 0)
+		await writeScenarios(
+			ctx.forgeDir,
+			scenarios.map((s) => decidedScenarios.get(s.id) ?? s),
+		);
+
+	const decidedCases = new Map(
+		result.decisions
+			.filter((d) => d.kind === "case")
+			.map((d) => [d.originalId, d.item as Case] as const),
+	);
 	for (const [id, list] of casesById) {
-		if (
-			result.decisions.some(
-				(d) => d.kind === "case" && (d.item as Case).scenario === id,
-			)
-		)
-			await writeCases(ctx.forgeDir, id, list);
+		if (!list.some((c) => decidedCases.has(c.id))) continue;
+		await writeCases(
+			ctx.forgeDir,
+			id,
+			list.map((c) => decidedCases.get(c.id) ?? c),
+		);
 	}
 	const s = result.summary;
+	// `skipped` counts the items a person answered "skip" to; it is not the
+	// same set as "still pending", which also holds everything --only
+	// filtered out of this pass. Every decision leaves its item approved,
+	// rejected or edited, so what stays pending is exactly what was pending
+	// on entry minus the decisions taken.
+	const stillPending = pending.length - result.decisions.length;
 	ctx.stdout(
-		`review: ${s.approved} approved, ${s.rejected} rejected, ${s.edited} edited, ${s.skipped} skipped`,
+		`review: ${s.approved} approved, ${s.rejected} rejected, ${s.edited} edited, ${s.skipped} skipped, ${stillPending} still pending`,
 	);
 }

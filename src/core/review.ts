@@ -81,6 +81,10 @@ function isScenario(item: Scenario | Case): item is Scenario {
 	return "kind" in item;
 }
 
+function isCase(item: Feature | Scenario | Case): item is Case {
+	return "scenario" in item;
+}
+
 function validate<T extends Feature | Scenario | Case>(
 	original: T,
 	edited: unknown,
@@ -119,7 +123,22 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 		case "edit": {
 			if (edited === undefined)
 				throw new ForgeError("edit needs the edited item", { id: item.id });
-			return { ...validate(item, edited), status: "edited" };
+			const next = validate(item, edited);
+			// A case's `scenario` is not a field of the case, it is which
+			// file the case lives in: `.forge/cases/<scenario>.yaml`, whose
+			// scenario supplies the oracle its `expected` was written
+			// against, and whose name its id is numbered from. Honouring a
+			// change here would mean rewriting two files, renumbering the
+			// id and re-checking the expected against a different oracle —
+			// a file move, not a review decision. Refused by name so the
+			// edit is re-asked, rather than half-applied into a file the
+			// reviewer never opened.
+			if (isCase(item) && isCase(next) && next.scenario !== item.scenario)
+				throw new ForgeError(
+					`a case's scenario cannot be changed in review (from "${item.scenario}" to "${next.scenario}"); move the case between .forge/cases/<scenario>.yaml files instead`,
+					{ id: item.id },
+				);
+			return { ...next, status: "edited" };
 		}
 		case "skip":
 			return item;

@@ -231,6 +231,7 @@ describe("runReviewLoop", () => {
 		expect(r.decisions).toEqual([
 			{
 				kind: "feature",
+				originalId: feature.id,
 				id: feature.id,
 				item: { ...feature, status: "approved" },
 			},

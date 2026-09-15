@@ -26,6 +26,15 @@ export interface ReviewLoopArgs {
 export interface ReviewLoopResult {
 	decisions: {
 		kind: PendingItem["kind"];
+		/**
+		 * The id the item had on disk when this pass started, before any
+		 * edit. Ids are model-generated slugs a person reads in `$EDITOR`,
+		 * so fixing one is a likely edit — and the caller writes a decision
+		 * back by matching it against the file, which only works with the
+		 * pre-edit id. Matching on the post-edit `id` silently matched
+		 * nothing and reported the edit as written.
+		 */
+		originalId: string;
 		id: string;
 		item: Feature | Scenario | Case;
 	}[];
@@ -98,7 +107,12 @@ export async function runReviewLoop(
 					);
 					current = applyDecision(current, "edit", parse(editedText));
 					summary.edited += 1;
-					decisions.push({ kind: pending.kind, id: current.id, item: current });
+					decisions.push({
+						kind: pending.kind,
+						originalId: pending.item.id,
+						id: current.id,
+						item: current,
+					});
 					break;
 				}
 
@@ -109,7 +123,12 @@ export async function runReviewLoop(
 
 				current = applyDecision(current, answer);
 				summary[answer === "approve" ? "approved" : "rejected"] += 1;
-				decisions.push({ kind: pending.kind, id: current.id, item: current });
+				decisions.push({
+					kind: pending.kind,
+					originalId: pending.item.id,
+					id: current.id,
+					item: current,
+				});
 				break;
 			} catch (e) {
 				if (e instanceof ForgeError) {
