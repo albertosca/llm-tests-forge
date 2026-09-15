@@ -21,6 +21,11 @@ describe("toPromptfooProvider / fromPromptfooProvider", () => {
 	test("an unknown provider is a ForgeError naming the model", () => {
 		expect(() => toPromptfooProvider("mistral/x")).toThrow(ForgeError);
 		expect(() => toPromptfooProvider("mistral/x")).toThrow('"mistral/x"');
+		try {
+			toPromptfooProvider("mistral/x");
+		} catch (e) {
+			expect((e as ForgeError).details).toEqual({ id: "mistral/x" });
+		}
 	});
 	test("a model id with a slash inside keeps it (fake/ is refused, not mangled)", () => {
 		expect(() => toPromptfooProvider("fake/tests/fixtures/x.json")).toThrow(

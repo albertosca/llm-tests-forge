@@ -1636,4 +1636,47 @@ describe("emit", () => {
 		expect(await run(["emit"], ctx)).toBe(1);
 		expect(out.at(-1)).toContain("pending");
 	});
+	test("--format jsonl with zero approved cases and no blockers refuses, writes nothing, exits 1", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeSuite(forgeDir, SUITE);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit", "--format", "jsonl"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("no approved case");
+		expect(out.at(-1)).toContain(join(forgeDir, "cases"));
+		await expect(stat(join(forgeDir, "cases.jsonl"))).rejects.toThrow();
+	});
+	test("--format promptfoo (default) with zero approved cases and no blockers refuses, writes nothing, exits 1", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeSuite(forgeDir, SUITE);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("no approved case");
+		expect(out.at(-1)).toContain(join(forgeDir, "cases"));
+		await expect(
+			stat(join(forgeDir, "promptfooconfig.yaml")),
+		).rejects.toThrow();
+		await expect(stat(join(forgeDir, "forge_target.py"))).rejects.toThrow();
+	});
 });

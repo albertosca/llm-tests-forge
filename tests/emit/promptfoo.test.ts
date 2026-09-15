@@ -237,6 +237,24 @@ describe("buildPromptfooConfig", () => {
 				?.assert[0]?.value ?? "";
 		expect(runAssert(body, 'say "hi"')).toBe(true);
 	});
+	test("a label containing a backtick and a dollar-brace shape cannot break out of the emitted template literal", () => {
+		// biome-ignore lint/suspicious/noTemplateCurlyInString: the literal dollar-brace text is exactly what this test attacks with.
+		const label = "say `hi` ${x}";
+		const sel: Selection = {
+			scenarios: [sc("bt", "edge", "label")],
+			cases: [cs("bt-01", "bt", { label })],
+			blockers: [],
+		};
+		const f: Feature = {
+			...labelFeature,
+			output: { kind: "label", labels: [label] },
+		};
+		const body =
+			buildPromptfooConfig({ feature: f, suite, selection: sel }).tests[0]
+				?.assert[0]?.value ?? "";
+		expect(runAssert(body, label)).toBe(true);
+		expect(runAssert(body, "other")).toContain(label);
+	});
 	test("label oracle on a json feature without label_field is a ForgeError naming output.label_field", () => {
 		const f: Feature = {
 			...jsonFeature,

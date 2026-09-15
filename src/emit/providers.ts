@@ -15,6 +15,7 @@ export function toPromptfooProvider(model: string): string {
 	if (prefix === undefined || slash < 0)
 		throw new ForgeError(
 			`cannot emit a promptfoo provider for "${model}"; known: ${Object.keys(PREFIX).join(", ")}`,
+			{ id: model },
 		);
 	return `${prefix}${model.slice(slash + 1)}`;
 }

@@ -62,6 +62,10 @@ export async function emitCommand(
 		throw new ForgeError(
 			`emit refused: ${selection.blockers.length} item${selection.blockers.length === 1 ? " is" : "s are"} still pending; run \`forge review\`\n  ${selection.blockers.join("\n  ")}`,
 		);
+	if (selection.cases.length === 0)
+		throw new ForgeError("no approved case to emit; run `forge review` first", {
+			file: paths.casesDir,
+		});
 	if (format === "jsonl") {
 		await writeFile(paths.casesJsonl, renderCasesJsonl({ selection }), "utf8");
 		ctx.stdout(

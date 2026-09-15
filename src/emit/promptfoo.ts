@@ -59,7 +59,7 @@ function labelAssert(
 	if (feature.output.kind === "label") {
 		return {
 			type: "javascript",
-			value: `const got = String(output).trim();\nreturn got === ${want} ? true : \`output was \${JSON.stringify(got)}, expected ${label}\`;`,
+			value: `const got = String(output).trim();\nreturn got === ${want} ? true : "output was " + JSON.stringify(got) + ", expected " + ${want};`,
 		};
 	}
 	if (feature.output.kind === "json") {
@@ -72,7 +72,7 @@ function labelAssert(
 		const f = JSON.stringify(field);
 		return {
 			type: "javascript",
-			value: `${TOLERANT_PARSE}\nreturn obj[${f}] === ${want} ? true : \`${field} was \${JSON.stringify(obj[${f}])}, expected ${label}\`;`,
+			value: `${TOLERANT_PARSE}\nreturn obj[${f}] === ${want} ? true : ${f} + " was " + JSON.stringify(obj[${f}]) + ", expected " + ${want};`,
 		};
 	}
 	throw new ForgeError(
@@ -119,7 +119,9 @@ export function buildPromptfooConfig(args: {
 	const { feature, suite, selection } = args;
 	const featureFile = args.featureFile ?? "feature.yaml";
 	if (selection.cases.length === 0)
-		throw new ForgeError("no approved case to emit; run `forge review` first");
+		throw new ForgeError("no approved case to emit; run `forge review` first", {
+			file: featureFile,
+		});
 	const byId = new Map(selection.scenarios.map((s) => [s.id, s]));
 	const tests: PromptfooTest[] = selection.cases.map((c) => {
 		const scenario = byId.get(c.scenario);
