@@ -1,0 +1,643 @@
+{
+	"evalId": "eval-jp4-2026-09-15T19:07:12",
+	"results": {
+		"version": 3,
+		"timestamp": "2026-09-15T19:07:12.028Z",
+		"prompts": [
+			{
+				"id": "e8a77c6238225bc1b1072310ae5ed1d8345aa0a0016a0c23e582ea4bce30b68a",
+				"raw": "{{subject}}",
+				"label": "{{subject}}",
+				"provider": "target-haiku-4-5",
+				"metrics": {
+					"score": 4,
+					"testPassCount": 4,
+					"testFailCount": 0,
+					"testErrorCount": 0,
+					"assertPassCount": 4,
+					"assertFailCount": 0,
+					"totalLatencyMs": 10232,
+					"tokenUsage": {
+						"prompt": 0,
+						"completion": 0,
+						"cached": 0,
+						"total": 0,
+						"numRequests": 4,
+						"completionDetails": {
+							"reasoning": 0,
+							"acceptedPrediction": 0,
+							"rejectedPrediction": 0,
+							"cacheReadInputTokens": 0,
+							"cacheCreationInputTokens": 0
+						},
+						"assertions": {
+							"total": 1168,
+							"prompt": 526,
+							"completion": 127,
+							"cached": 0,
+							"numRequests": 2,
+							"completionDetails": {
+								"reasoning": 515,
+								"acceptedPrediction": 0,
+								"rejectedPrediction": 0,
+								"cacheReadInputTokens": 0,
+								"cacheCreationInputTokens": 0
+							}
+						}
+					},
+					"namedScores": {},
+					"namedScoresCount": {},
+					"namedScoreWeights": {},
+					"cost": 0
+				}
+			}
+		],
+		"results": [
+			{
+				"cost": 0,
+				"gradingResult": {
+					"pass": true,
+					"score": 1,
+					"reason": "All assertions passed",
+					"namedScores": {},
+					"tokensUsed": {
+						"total": 0,
+						"prompt": 0,
+						"completion": 0,
+						"cached": 0,
+						"numRequests": 0
+					},
+					"componentResults": [
+						{
+							"pass": true,
+							"score": 1,
+							"reason": "Assertion passed",
+							"assertion": {
+								"type": "javascript",
+								"value": "const text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nconst obj = JSON.parse(text.slice(start, end + 1));\nreturn obj.type === \"acknowledgement\" ? true : `type was ${JSON.stringify(obj.type)}, expected acknowledgement`;\n"
+							}
+						}
+					]
+				},
+				"id": "1cf56fef-4cf2-425e-8958-8d3649cfa71b",
+				"latencyMs": 3612,
+				"namedScores": {},
+				"prompt": {
+					"raw": "Thank you for applying to Acme Corp",
+					"label": "{{subject}}",
+					"config": {}
+				},
+				"promptId": "e8a77c6238225bc1b1072310ae5ed1d8345aa0a0016a0c23e582ea4bce30b68a",
+				"promptIdx": 0,
+				"provider": {
+					"id": "file://forge_target.py",
+					"label": "target-haiku-4-5"
+				},
+				"response": {
+					"output": "{\"type\": \"acknowledgement\", \"stage\": null, \"new_stage\": null, \"company\": \"Acme Corp\", \"job_title\": \"Senior Backend Engineer\", \"summary\": \"Acme Corp confirms receipt of Alberto's application and indicates the hiring team will review it.\"}",
+					"cached": false
+				},
+				"score": 1,
+				"success": true,
+				"testCase": {
+					"description": "automated ack must NOT become screening",
+					"metadata": {
+						"scenario": "ack-optional-quiz",
+						"case": "ack-optional-quiz-01"
+					},
+					"vars": {
+						"from": "no-reply@jobs.lever.co",
+						"subject": "Thank you for applying to Acme Corp",
+						"body": "Hi Alberto,\n\nThank you for applying to the Senior Backend Engineer position at Acme Corp. We have received your application and our team will review it.\n\nThe Acme Corp Talent Team"
+					},
+					"assert": [
+						{
+							"type": "javascript",
+							"value": "const text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nconst obj = JSON.parse(text.slice(start, end + 1));\nreturn obj.type === \"acknowledgement\" ? true : `type was ${JSON.stringify(obj.type)}, expected acknowledgement`;\n"
+						}
+					],
+					"options": {}
+				},
+				"testIdx": 0,
+				"tokenUsage": {
+					"prompt": 0,
+					"completion": 0,
+					"cached": 0,
+					"total": 0,
+					"numRequests": 1,
+					"completionDetails": {
+						"reasoning": 0,
+						"acceptedPrediction": 0,
+						"rejectedPrediction": 0,
+						"cacheReadInputTokens": 0,
+						"cacheCreationInputTokens": 0
+					},
+					"assertions": {
+						"total": 0,
+						"prompt": 0,
+						"completion": 0,
+						"cached": 0,
+						"numRequests": 0,
+						"completionDetails": {
+							"reasoning": 0,
+							"acceptedPrediction": 0,
+							"rejectedPrediction": 0,
+							"cacheReadInputTokens": 0,
+							"cacheCreationInputTokens": 0
+						}
+					}
+				},
+				"vars": {
+					"from": "no-reply@jobs.lever.co",
+					"subject": "Thank you for applying to Acme Corp",
+					"body": "Hi Alberto,\n\nThank you for applying to the Senior Backend Engineer position at Acme Corp. We have received your application and our team will review it.\n\nThe Acme Corp Talent Team"
+				},
+				"metadata": {
+					"scenario": "ack-optional-quiz",
+					"case": "ack-optional-quiz-01",
+					"_promptfooFileMetadata": {}
+				},
+				"failureReason": 0
+			},
+			{
+				"cost": 0,
+				"gradingResult": {
+					"pass": true,
+					"score": 1,
+					"reason": "All assertions passed",
+					"namedScores": {},
+					"tokensUsed": {
+						"total": 0,
+						"prompt": 0,
+						"completion": 0,
+						"cached": 0,
+						"numRequests": 0
+					},
+					"componentResults": [
+						{
+							"pass": true,
+							"score": 1,
+							"reason": "Assertion passed",
+							"assertion": {
+								"type": "javascript",
+								"value": "const text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nconst obj = JSON.parse(text.slice(start, end + 1));\nreturn obj.type === \"acknowledgement\" ? true : `type was ${JSON.stringify(obj.type)}, expected acknowledgement`;\n"
+							}
+						}
+					]
+				},
+				"id": "422644dd-466d-451f-bd6d-7a75fdb6a1e5",
+				"latencyMs": 3888,
+				"namedScores": {},
+				"prompt": {
+					"raw": "Thank you for applying to Acme Corp",
+					"label": "{{subject}}",
+					"config": {}
+				},
+				"promptId": "e8a77c6238225bc1b1072310ae5ed1d8345aa0a0016a0c23e582ea4bce30b68a",
+				"promptIdx": 0,
+				"provider": {
+					"id": "file://forge_target.py",
+					"label": "target-haiku-4-5"
+				},
+				"response": {
+					"output": "{\"type\": \"acknowledgement\", \"stage\": null, \"new_stage\": null, \"company\": \"Acme Corp\", \"job_title\": \"Senior Backend Engineer\", \"summary\": \"Automated confirmation that Alberto's application for Senior Backend Engineer at Acme Corp has been received and will be reviewed by the talent team.\"}",
+					"cached": false
+				},
+				"score": 1,
+				"success": true,
+				"testCase": {
+					"description": "automated ack must NOT become screening",
+					"metadata": {
+						"scenario": "ack-optional-quiz",
+						"case": "ack-optional-quiz-01"
+					},
+					"vars": {
+						"from": "no-reply@jobs.lever.co",
+						"subject": "Thank you for applying to Acme Corp",
+						"body": "Hi Alberto,\n\nThank you for applying to the Senior Backend Engineer position at Acme Corp. We have received your application and our team will review it.\n\nThe Acme Corp Talent Team"
+					},
+					"assert": [
+						{
+							"type": "javascript",
+							"value": "const text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nconst obj = JSON.parse(text.slice(start, end + 1));\nreturn obj.type === \"acknowledgement\" ? true : `type was ${JSON.stringify(obj.type)}, expected acknowledgement`;\n"
+						}
+					],
+					"options": {}
+				},
+				"testIdx": 1,
+				"tokenUsage": {
+					"prompt": 0,
+					"completion": 0,
+					"cached": 0,
+					"total": 0,
+					"numRequests": 1,
+					"completionDetails": {
+						"reasoning": 0,
+						"acceptedPrediction": 0,
+						"rejectedPrediction": 0,
+						"cacheReadInputTokens": 0,
+						"cacheCreationInputTokens": 0
+					},
+					"assertions": {
+						"total": 0,
+						"prompt": 0,
+						"completion": 0,
+						"cached": 0,
+						"numRequests": 0,
+						"completionDetails": {
+							"reasoning": 0,
+							"acceptedPrediction": 0,
+							"rejectedPrediction": 0,
+							"cacheReadInputTokens": 0,
+							"cacheCreationInputTokens": 0
+						}
+					}
+				},
+				"vars": {
+					"from": "no-reply@jobs.lever.co",
+					"subject": "Thank you for applying to Acme Corp",
+					"body": "Hi Alberto,\n\nThank you for applying to the Senior Backend Engineer position at Acme Corp. We have received your application and our team will review it.\n\nThe Acme Corp Talent Team"
+				},
+				"metadata": {
+					"scenario": "ack-optional-quiz",
+					"case": "ack-optional-quiz-01",
+					"_promptfooFileMetadata": {}
+				},
+				"failureReason": 0
+			},
+			{
+				"cost": 0,
+				"gradingResult": {
+					"pass": true,
+					"score": 1,
+					"reason": "All assertions passed",
+					"namedScores": {},
+					"tokensUsed": {
+						"total": 563,
+						"prompt": 265,
+						"completion": 55,
+						"cached": 0,
+						"numRequests": 1,
+						"completionDetails": {
+							"reasoning": 243,
+							"acceptedPrediction": 0,
+							"rejectedPrediction": 0,
+							"cacheReadInputTokens": 0,
+							"cacheCreationInputTokens": 0
+						}
+					},
+					"componentResults": [
+						{
+							"assertion": {
+								"type": "llm-rubric",
+								"provider": "google:gemini-3.5-flash",
+								"value": "The output is a JSON object whose \"type\" is \"unrelated\" and whose \"summary\" says this is a job digest or newsletter."
+							},
+							"pass": true,
+							"score": 1,
+							"reason": "The output is a JSON object where the 'type' is 'unrelated' and the 'summary' describes the email as a 'weekly job digest newsletter'.",
+							"tokensUsed": {
+								"total": 563,
+								"prompt": 265,
+								"completion": 55,
+								"cached": 0,
+								"numRequests": 1,
+								"completionDetails": {
+									"reasoning": 243,
+									"acceptedPrediction": 0,
+									"rejectedPrediction": 0
+								}
+							},
+							"metadata": {
+								"renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n{\\\"type\\\":\\\"unrelated\\\",\\\"stage\\\":null,\\\"new_stage\\\":null,\\\"company\\\":null,\\\"job_title\\\":null,\\\"summary\\\":\\\"This is a weekly job digest newsletter advertising 25 remote engineering positions, not a personalized hiring-process email from a specific company.\\\"}\\n</Output>\\n<Rubric>\\nThe output is a JSON object whose \\\"type\\\" is \\\"unrelated\\\" and whose \\\"summary\\\" says this is a job digest or newsletter.\\n</Rubric>\"}]"
+							}
+						}
+					]
+				},
+				"id": "5ba8eca7-7b05-4458-a4d7-d61ee46ad16b",
+				"latencyMs": 1240,
+				"namedScores": {},
+				"prompt": {
+					"raw": "This week's 25 best remote engineering jobs",
+					"label": "{{subject}}",
+					"config": {}
+				},
+				"promptId": "e8a77c6238225bc1b1072310ae5ed1d8345aa0a0016a0c23e582ea4bce30b68a",
+				"promptIdx": 0,
+				"provider": {
+					"id": "file://forge_target.py",
+					"label": "target-haiku-4-5"
+				},
+				"response": {
+					"output": "{\"type\": \"unrelated\", \"stage\": null, \"new_stage\": null, \"company\": null, \"job_title\": null, \"summary\": \"This is a weekly job digest newsletter advertising 25 remote engineering positions, not a personalized hiring-process email from a specific company.\"}",
+					"cached": false
+				},
+				"score": 1,
+				"success": true,
+				"testCase": {
+					"description": "newsletter is unrelated, judged by rubric",
+					"metadata": {
+						"scenario": "out-of-scope-newsletter",
+						"case": "out-of-scope-newsletter-02"
+					},
+					"vars": {
+						"from": "digest@weeklyremotejobs.example",
+						"subject": "This week's 25 best remote engineering jobs",
+						"body": "Your weekly digest is here! 25 new remote roles at companies hiring now. Click to browse."
+					},
+					"assert": [
+						{
+							"type": "llm-rubric",
+							"provider": "google:gemini-3.5-flash",
+							"value": "The output is a JSON object whose \"type\" is \"unrelated\" and whose \"summary\" says this is a job digest or newsletter."
+						}
+					],
+					"options": {}
+				},
+				"testIdx": 2,
+				"tokenUsage": {
+					"prompt": 0,
+					"completion": 0,
+					"cached": 0,
+					"total": 0,
+					"numRequests": 1,
+					"completionDetails": {
+						"reasoning": 0,
+						"acceptedPrediction": 0,
+						"rejectedPrediction": 0,
+						"cacheReadInputTokens": 0,
+						"cacheCreationInputTokens": 0
+					},
+					"assertions": {
+						"total": 563,
+						"prompt": 265,
+						"completion": 55,
+						"cached": 0,
+						"numRequests": 1,
+						"completionDetails": {
+							"reasoning": 243,
+							"acceptedPrediction": 0,
+							"rejectedPrediction": 0,
+							"cacheReadInputTokens": 0,
+							"cacheCreationInputTokens": 0
+						}
+					}
+				},
+				"vars": {
+					"from": "digest@weeklyremotejobs.example",
+					"subject": "This week's 25 best remote engineering jobs",
+					"body": "Your weekly digest is here! 25 new remote roles at companies hiring now. Click to browse."
+				},
+				"metadata": {
+					"scenario": "out-of-scope-newsletter",
+					"case": "out-of-scope-newsletter-02",
+					"_promptfooFileMetadata": {}
+				},
+				"failureReason": 0
+			},
+			{
+				"cost": 0,
+				"gradingResult": {
+					"pass": true,
+					"score": 1,
+					"reason": "All assertions passed",
+					"namedScores": {},
+					"tokensUsed": {
+						"total": 605,
+						"prompt": 261,
+						"completion": 72,
+						"cached": 0,
+						"numRequests": 1,
+						"completionDetails": {
+							"reasoning": 272,
+							"acceptedPrediction": 0,
+							"rejectedPrediction": 0,
+							"cacheReadInputTokens": 0,
+							"cacheCreationInputTokens": 0
+						}
+					},
+					"componentResults": [
+						{
+							"assertion": {
+								"type": "llm-rubric",
+								"provider": "google:gemini-3.5-flash",
+								"value": "The output is a JSON object whose \"type\" is \"unrelated\" and whose \"summary\" says this is a job digest or newsletter."
+							},
+							"pass": true,
+							"score": 1,
+							"reason": "The output is a valid JSON object where the 'type' is set to 'unrelated' and the 'summary' explicitly states that it is a 'Weekly digest of remote engineering job listings', which matches the description of a job digest or newsletter.",
+							"tokensUsed": {
+								"total": 605,
+								"prompt": 261,
+								"completion": 72,
+								"cached": 0,
+								"numRequests": 1,
+								"completionDetails": {
+									"reasoning": 272,
+									"acceptedPrediction": 0,
+									"rejectedPrediction": 0
+								}
+							},
+							"metadata": {
+								"renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n{\\\"type\\\":\\\"unrelated\\\",\\\"stage\\\":null,\\\"new_stage\\\":null,\\\"company\\\":null,\\\"job_title\\\":null,\\\"summary\\\":\\\"Weekly digest of remote engineering job listings from a job board, not a hiring-process email from a specific employer.\\\"}\\n</Output>\\n<Rubric>\\nThe output is a JSON object whose \\\"type\\\" is \\\"unrelated\\\" and whose \\\"summary\\\" says this is a job digest or newsletter.\\n</Rubric>\"}]"
+							}
+						}
+					]
+				},
+				"id": "92686071-b2f4-42a6-8a40-48454087ce8d",
+				"latencyMs": 1492,
+				"namedScores": {},
+				"prompt": {
+					"raw": "This week's 25 best remote engineering jobs",
+					"label": "{{subject}}",
+					"config": {}
+				},
+				"promptId": "e8a77c6238225bc1b1072310ae5ed1d8345aa0a0016a0c23e582ea4bce30b68a",
+				"promptIdx": 0,
+				"provider": {
+					"id": "file://forge_target.py",
+					"label": "target-haiku-4-5"
+				},
+				"response": {
+					"output": "{\"type\": \"unrelated\", \"stage\": null, \"new_stage\": null, \"company\": null, \"job_title\": null, \"summary\": \"Weekly digest of remote engineering job listings from a job board, not a hiring-process email from a specific employer.\"}",
+					"cached": false
+				},
+				"score": 1,
+				"success": true,
+				"testCase": {
+					"description": "newsletter is unrelated, judged by rubric",
+					"metadata": {
+						"scenario": "out-of-scope-newsletter",
+						"case": "out-of-scope-newsletter-02"
+					},
+					"vars": {
+						"from": "digest@weeklyremotejobs.example",
+						"subject": "This week's 25 best remote engineering jobs",
+						"body": "Your weekly digest is here! 25 new remote roles at companies hiring now. Click to browse."
+					},
+					"assert": [
+						{
+							"type": "llm-rubric",
+							"provider": "google:gemini-3.5-flash",
+							"value": "The output is a JSON object whose \"type\" is \"unrelated\" and whose \"summary\" says this is a job digest or newsletter."
+						}
+					],
+					"options": {}
+				},
+				"testIdx": 3,
+				"tokenUsage": {
+					"prompt": 0,
+					"completion": 0,
+					"cached": 0,
+					"total": 0,
+					"numRequests": 1,
+					"completionDetails": {
+						"reasoning": 0,
+						"acceptedPrediction": 0,
+						"rejectedPrediction": 0,
+						"cacheReadInputTokens": 0,
+						"cacheCreationInputTokens": 0
+					},
+					"assertions": {
+						"total": 605,
+						"prompt": 261,
+						"completion": 72,
+						"cached": 0,
+						"numRequests": 1,
+						"completionDetails": {
+							"reasoning": 272,
+							"acceptedPrediction": 0,
+							"rejectedPrediction": 0,
+							"cacheReadInputTokens": 0,
+							"cacheCreationInputTokens": 0
+						}
+					}
+				},
+				"vars": {
+					"from": "digest@weeklyremotejobs.example",
+					"subject": "This week's 25 best remote engineering jobs",
+					"body": "Your weekly digest is here! 25 new remote roles at companies hiring now. Click to browse."
+				},
+				"metadata": {
+					"scenario": "out-of-scope-newsletter",
+					"case": "out-of-scope-newsletter-02",
+					"_promptfooFileMetadata": {}
+				},
+				"failureReason": 0
+			}
+		],
+		"stats": {
+			"successes": 4,
+			"failures": 0,
+			"errors": 0,
+			"tokenUsage": {
+				"prompt": 0,
+				"completion": 0,
+				"cached": 0,
+				"total": 0,
+				"numRequests": 4,
+				"completionDetails": {
+					"reasoning": 0,
+					"acceptedPrediction": 0,
+					"rejectedPrediction": 0,
+					"cacheReadInputTokens": 0,
+					"cacheCreationInputTokens": 0
+				},
+				"assertions": {
+					"total": 1168,
+					"prompt": 526,
+					"completion": 127,
+					"cached": 0,
+					"numRequests": 2,
+					"completionDetails": {
+						"reasoning": 515,
+						"acceptedPrediction": 0,
+						"rejectedPrediction": 0,
+						"cacheReadInputTokens": 0,
+						"cacheCreationInputTokens": 0
+					}
+				}
+			},
+			"durationMs": 117268,
+			"evaluationDurationMs": 117268
+		}
+	},
+	"config": {
+		"tags": {},
+		"description": "forge probe — Python provider around moonlighter.classify_response, metadata, repeat, per-assert judge",
+		"prompts": ["{{subject}}"],
+		"providers": [
+			{
+				"id": "file://forge_target.py",
+				"label": "target-haiku-4-5",
+				"config": {
+					"model": "claude-haiku-4-5",
+					"pythonExecutable": "/path/to/your-project/.venv/bin/python"
+				}
+			}
+		],
+		"tests": [
+			{
+				"description": "automated ack must NOT become screening",
+				"metadata": {
+					"scenario": "ack-optional-quiz",
+					"case": "ack-optional-quiz-01"
+				},
+				"vars": {
+					"from": "no-reply@jobs.lever.co",
+					"subject": "Thank you for applying to Acme Corp",
+					"body": "Hi Alberto,\n\nThank you for applying to the Senior Backend Engineer position at Acme Corp. We have received your application and our team will review it.\n\nThe Acme Corp Talent Team"
+				},
+				"assert": [
+					{
+						"type": "javascript",
+						"value": "const text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nconst obj = JSON.parse(text.slice(start, end + 1));\nreturn obj.type === \"acknowledgement\" ? true : `type was ${JSON.stringify(obj.type)}, expected acknowledgement`;\n"
+					}
+				]
+			},
+			{
+				"description": "newsletter is unrelated, judged by rubric",
+				"metadata": {
+					"scenario": "out-of-scope-newsletter",
+					"case": "out-of-scope-newsletter-02"
+				},
+				"vars": {
+					"from": "digest@weeklyremotejobs.example",
+					"subject": "This week's 25 best remote engineering jobs",
+					"body": "Your weekly digest is here! 25 new remote roles at companies hiring now. Click to browse."
+				},
+				"assert": [
+					{
+						"type": "llm-rubric",
+						"provider": "google:gemini-3.5-flash",
+						"value": "The output is a JSON object whose \"type\" is \"unrelated\" and whose \"summary\" says this is a job digest or newsletter."
+					}
+				]
+			}
+		],
+		"env": {},
+		"outputPath": ["results.json"],
+		"extensions": [],
+		"metadata": {},
+		"evaluateOptions": {
+			"repeat": 2
+		}
+	},
+	"shareableUrl": null,
+	"metadata": {
+		"promptfooVersion": "0.123.0",
+		"nodeVersion": "v26.8.2",
+		"platform": "darwin",
+		"arch": "arm64",
+		"exportedAt": "2026-09-15T19:09:11.416Z",
+		"evaluationCreatedAt": "2026-09-15T19:07:12.028Z"
+	},
+	"vars": ["from", "subject", "body"],
+	"runtimeOptions": {
+		"maxConcurrency": 2,
+		"showProgressBar": false,
+		"eventSource": "cli",
+		"repeat": 2,
+		"cache": false
+	}
+}
