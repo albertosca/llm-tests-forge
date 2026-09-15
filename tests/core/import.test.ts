@@ -88,8 +88,53 @@ describe("importCases", () => {
 		});
 		expect(r.cases.map((c) => c.id)).toEqual(["imported-01", "imported-02"]);
 		expect(r.cases[1]?.input).toEqual({ email: "fresh" });
-		expect(r.skipped.map((s) => s.line)).toEqual([1, 2, 3, 4]);
-		expect(r.skipped[0]?.reason).toContain("JSON");
+		expect(r.skipped).toEqual([
+			{ line: 1, reason: "not valid JSON" },
+			{ line: 2, reason: "keys [mail] do not match feature inputs [email]" },
+			{ line: 3, reason: "exact duplicate of an existing input" },
+			{ line: 4, reason: "every input value must be a string" },
+		]);
+	});
+
+	test("skips a duplicate within the same file, even when neither copy pre-existed", async () => {
+		const jsonl = '{"email":"twice"}\n{"email":"twice"}\n';
+		const r = importCases({
+			feature: await feature(),
+			jsonl,
+			source: "s",
+			existing: [],
+		});
+		expect(r.cases.map((c) => c.id)).toEqual(["imported-01"]);
+		expect(r.cases[0]?.input).toEqual({ email: "twice" });
+		expect(r.skipped).toEqual([
+			{ line: 2, reason: "exact duplicate of an existing input" },
+		]);
+	});
+
+	test("matches keys against all of a feature's declared inputs, not just their count", async () => {
+		const f = await feature();
+		const twoInputFeature: Feature = {
+			...f,
+			inputs: [
+				{ name: "email", kind: "text" },
+				{ name: "subject", kind: "text" },
+			],
+		};
+		const jsonl = '{"email":"a","subject":"b"}\n{"email":"a"}\n';
+		const r = importCases({
+			feature: twoInputFeature,
+			jsonl,
+			source: "s",
+			existing: [],
+		});
+		expect(r.cases.map((c) => c.id)).toEqual(["imported-01"]);
+		expect(r.cases[0]?.input).toEqual({ email: "a", subject: "b" });
+		expect(r.skipped).toEqual([
+			{
+				line: 2,
+				reason: "keys [email] do not match feature inputs [email, subject]",
+			},
+		]);
 	});
 
 	test("throws listing each line's skip reason when every line in a non-empty file is skipped", async () => {
