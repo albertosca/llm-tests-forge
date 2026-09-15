@@ -17,6 +17,9 @@ import {
 	readFeature,
 	readScenarios,
 	writeCases,
+	writeFeature,
+	writeScenarios,
+	writeSuite,
 } from "../../src/core/files";
 
 /** An unambiguously old timestamp: any real write resets a file's mtime to
@@ -1356,5 +1359,145 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 		expect(out.at(-1)).toBe(
 			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 still pending",
 		);
+	});
+});
+
+const FEATURE = {
+	id: "classify-email",
+	purpose: "Classify a hiring email",
+	inputs: [{ name: "email", kind: "text" as const }],
+	output: { kind: "label" as const, labels: ["rejection", "acknowledgement"] },
+	invariants: [],
+	status: "approved" as const,
+};
+const SUITE = {
+	target: {
+		kind: "promptfoo-python" as const,
+		entry: "forge_target.py",
+		models: ["anthropic/claude-haiku-4-5"],
+	},
+	judges: ["google/gemini-3.5-flash"],
+	repeat: 2,
+	include: [],
+};
+
+async function forgeWithApprovedCases(cwd: string) {
+	const forgeDir = join(cwd, ".forge");
+	await writeFeature(forgeDir, FEATURE);
+	await writeScenarios(forgeDir, [
+		{
+			id: "polite-rejection",
+			kind: "happy",
+			oracle: "label",
+			description: "d",
+			status: "approved",
+		},
+		{
+			id: "vague-rubric",
+			kind: "ambiguous",
+			oracle: "rubric",
+			description: "d",
+			status: "approved",
+		},
+	]);
+	await writeCases(forgeDir, "polite-rejection", [
+		{
+			id: "polite-rejection-01",
+			scenario: "polite-rejection",
+			input: { email: "We will not proceed." },
+			expected: { label: "rejection" },
+			status: "approved",
+			generated_by: "t",
+		},
+	]);
+	await writeCases(forgeDir, "vague-rubric", [
+		{
+			id: "vague-rubric-01",
+			scenario: "vague-rubric",
+			input: { email: "Thanks for applying!" },
+			expected: { rubric: "says it is an automated receipt" },
+			status: "edited",
+			generated_by: "t",
+		},
+	]);
+	await writeSuite(forgeDir, SUITE);
+	return forgeDir;
+}
+
+describe("estimate", () => {
+	test("prints one target row, one judge row, the total, the prices date and the notes; exits 0", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeWithApprovedCases(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		const text = out.join("\n");
+		expect(text).toMatch(
+			/^estimate: 2 cases, 1 with a rubric; prices dated \d{4}-\d{2}-\d{2}$/m,
+		);
+		expect(text).toMatch(
+			/^ {2}target {2}anthropic\/claude-haiku-4-5 .* 4 calls/m,
+		);
+		expect(text).toMatch(/^ {2}judge {3}google\/gemini-3\.5-flash.* 2 calls/m);
+		expect(text).toContain("note: tokens are estimated as characters / 4");
+		expect(text).toContain("note: application prompt not counted");
+	});
+	test("counts the prompt file when feature.prompt_file is set, and drops the prompt note", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeFile(join(cwd, "prompt.txt"), "p".repeat(4000));
+		await writeFeature(forgeDir, { ...FEATURE, prompt_file: "prompt.txt" });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		const target = out.find((l) => l.includes("anthropic/claude-haiku-4-5"));
+		// two cases × repeat 2 = 4 calls; each call is 1000 prompt tokens + ceil(20 / 4) input tokens → 4020 in
+		expect(target).toMatch(/ {2}4 calls {4}40\d\d in/);
+		expect(out.join("\n")).not.toContain("application prompt not counted");
+	});
+	test("a missing prompt_file is a ForgeError naming it (exit 1), not a silent zero", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeFeature(forgeDir, { ...FEATURE, prompt_file: "gone.txt" });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("gone.txt");
+	});
+	test("pending items are excluded and reported, not refused", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "x" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "t",
+			},
+		]);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		expect(out).toContain(
+			"estimate: 1 pending item excluded; run `forge review` to include it:",
+		);
+		expect(out).toContain(
+			"  case polite-rejection-01 is pending (" +
+				join(forgeDir, "cases", "polite-rejection.yaml") +
+				")",
+		);
+	});
+	test("a missing suite.yaml exits 1 with the example to copy", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(1);
+		expect(out.join("\n")).toContain("suite.yaml not found");
+		expect(out.join("\n")).toContain("judges:");
+	});
+	test("an unknown flag is a usage error (exit 2)", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeWithApprovedCases(cwd);
+		const { ctx } = await ctxIn(cwd);
+		expect(await run(["estimate", "--bogus"], ctx)).toBe(2);
 	});
 });
