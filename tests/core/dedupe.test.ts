@@ -31,6 +31,7 @@ describe("dedupeCases", () => {
 			c("s-04"),
 			c("s-05", "approved"),
 			c("s-06"),
+			c("s-07", "edited"),
 		];
 		const out = await dedupeCases({ cases, model: MODEL, llm: await llm() });
 		expect(out.map((x) => x.duplicate_of)).toEqual([
@@ -44,6 +45,9 @@ describe("dedupeCases", () => {
 			// s-06 is pending and points AT the reviewed s-05 — that direction
 			// is allowed, so the mark stands.
 			"s-05",
+			// s-07 is edited: the model paired it with s-01, but a reviewed
+			// case (edited, not just approved) is never marked as a duplicate.
+			undefined,
 		]);
 		expect(out.map((x) => x.id)).toEqual([
 			"s-01",
@@ -52,6 +56,7 @@ describe("dedupeCases", () => {
 			"s-04",
 			"s-05",
 			"s-06",
+			"s-07",
 		]);
 	});
 
