@@ -101,4 +101,31 @@ describe("enumerateScenarios", () => {
 		expect(out[1]?.id).toBe("polite-rejection-2");
 		expect(out[1]?.status).toBe("pending");
 	});
+
+	test("de-duplicates two generated scenarios that slugify to the same base within one batch", async () => {
+		const { llm, model } = await llmFor("clashing-slugs-in-batch");
+		const out = await enumerateScenarios({
+			feature: await feature(),
+			existing: [],
+			kinds: ["happy"],
+			model,
+			llm,
+		});
+		expect(out).toHaveLength(2);
+		expect(out[0]?.id).toBe("polite-rejection");
+		expect(out[1]?.id).toBe("polite-rejection-2");
+	});
+
+	test("falls back to 'scenario' when a generated id slugifies to nothing", async () => {
+		const { llm, model } = await llmFor("symbols-only-id");
+		const out = await enumerateScenarios({
+			feature: await feature(),
+			existing: [],
+			kinds: ["happy"],
+			model,
+			llm,
+		});
+		expect(out).toHaveLength(1);
+		expect(out[0]?.id).toBe("scenario");
+	});
 });

@@ -22,4 +22,12 @@ describe("nextCaseId", () => {
 		expect(nextCaseId("s", [])).toBe("s-01");
 		expect(nextCaseId("s", [c("s-01"), c("s-07"), c("other-99")])).toBe("s-08");
 	});
+
+	test("ignores a non-numeric suffix instead of producing s-NaN", () => {
+		expect(nextCaseId("s", [c("s-01"), c("s-abc")])).toBe("s-02");
+	});
+
+	test("rolls past two digits without truncating", () => {
+		expect(nextCaseId("s", [c("s-99")])).toBe("s-100");
+	});
 });
