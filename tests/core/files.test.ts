@@ -1,19 +1,24 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ForgeError } from "../../src/core/errors";
 import {
 	forgePaths,
 	listCaseScenarios,
+	readAllCases,
 	readCases,
 	readFeature,
 	readScenarios,
+	readSuite,
+	readYamlFile,
 	writeCases,
 	writeFeature,
 	writeScenarios,
+	writeSuite,
 } from "../../src/core/files";
 import type { Case, Scenario } from "../../src/core/schemas";
+import { SuiteSchema } from "../../src/core/schemas";
 
 async function tmpForge(): Promise<string> {
 	const dir = await mkdtemp(join(tmpdir(), "forge-"));
@@ -128,5 +133,105 @@ describe("scenarios and cases", () => {
 		);
 		expect(await readCases(dir, "b-scn")).toEqual(cases);
 		expect(await listCaseScenarios(dir)).toEqual(["a-scn", "b-scn"]);
+	});
+});
+
+describe("forgePaths: plan 2 entries", () => {
+	test("names the emitted config, the JSONL export and both report files under .forge", () => {
+		const p = forgePaths("/x/.forge");
+		expect(p.promptfooConfig).toBe("/x/.forge/promptfooconfig.yaml");
+		expect(p.casesJsonl).toBe("/x/.forge/cases.jsonl");
+		expect(p.reportMd).toBe("/x/.forge/report.md");
+		expect(p.reportJson).toBe("/x/.forge/report.json");
+	});
+});
+
+describe("suite.yaml", () => {
+	const suite = {
+		target: {
+			kind: "promptfoo-python" as const,
+			entry: "forge_target.py",
+			models: ["anthropic/claude-haiku-4-5"],
+		},
+		judges: ["google/gemini-3.5-flash"],
+		repeat: 2,
+		include: [],
+	};
+	test("round-trips through writeSuite/readSuite", async () => {
+		const dir = join(await mkdtemp(join(tmpdir(), "forge-files-")), ".forge");
+		await writeSuite(dir, suite);
+		expect(await readSuite(dir)).toEqual(suite);
+	});
+	test("readSuite on a missing file names the path and prints an example to copy", async () => {
+		const dir = join(await mkdtemp(join(tmpdir(), "forge-files-")), ".forge");
+		const err = await readSuite(dir).catch((e: Error) => e);
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as Error).message).toContain(join(dir, "suite.yaml"));
+		expect((err as Error).message).toContain("target:");
+		expect((err as Error).message).toContain("judges:");
+	});
+});
+
+describe("readAllCases", () => {
+	test("returns one entry per cases file, keyed by scenario id, in sorted order", async () => {
+		const dir = join(await mkdtemp(join(tmpdir(), "forge-files-")), ".forge");
+		const mk = (id: string, scenario: string) => ({
+			id,
+			scenario,
+			input: { email: id },
+			status: "approved" as const,
+			generated_by: "t",
+		});
+		await writeCases(dir, "zeta", [mk("zeta-01", "zeta")]);
+		await writeCases(dir, "alpha", [
+			mk("alpha-01", "alpha"),
+			mk("alpha-02", "alpha"),
+		]);
+		const all = await readAllCases(dir);
+		expect([...all.keys()]).toEqual(["alpha", "zeta"]);
+		expect(all.get("alpha")?.map((c) => c.id)).toEqual([
+			"alpha-01",
+			"alpha-02",
+		]);
+		expect(all.get("zeta")?.map((c) => c.id)).toEqual(["zeta-01"]);
+	});
+	test("is empty when there is no cases directory", async () => {
+		const dir = join(await mkdtemp(join(tmpdir(), "forge-files-")), ".forge");
+		expect((await readAllCases(dir)).size).toBe(0);
+	});
+});
+
+describe("readYamlFile: the real cause of a read failure", () => {
+	test("a directory where a file was expected says so, not 'file not found'", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "forge-files-"));
+		const target = join(dir, "suite.yaml");
+		await mkdir(target);
+		const err = await readYamlFile(target, SuiteSchema).catch((e: Error) => e);
+		expect((err as Error).message).toContain("is a directory");
+		expect((err as Error).message).not.toContain("not found");
+	});
+	// Skipped as root (e.g. some CI/container setups): root ignores the
+	// 0o000 permission bits and the read succeeds instead of failing with
+	// EACCES, which would make this assertion meaningless there.
+	test.skipIf(process.getuid?.() === 0)(
+		"an unreadable file says 'permission denied'",
+		async () => {
+			const dir = await mkdtemp(join(tmpdir(), "forge-files-"));
+			const target = join(dir, "suite.yaml");
+			await writeFile(target, "target: {}");
+			await chmod(target, 0o000);
+			const err = await readYamlFile(target, SuiteSchema).catch(
+				(e: Error) => e,
+			);
+			await chmod(target, 0o600);
+			expect((err as Error).message).toContain("permission denied");
+		},
+	);
+	test("a missing file still says 'file not found'", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "forge-files-"));
+		const err = await readYamlFile(join(dir, "nope.yaml"), SuiteSchema).catch(
+			(e: Error) => e,
+		);
+		expect((err as Error).message).toContain("file not found");
 	});
 });

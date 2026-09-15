@@ -1,0 +1,21 @@
+# Per-model prices in USD per million tokens. Edit freely; `forge estimate`
+# and `forge report` read this file and print its date. A model that is not
+# listed is priced as the closest listed model of the same provider and the
+# line is marked "~" in the output.
+updated: 2026-09-15
+unit: usd_per_million_tokens
+sources:
+  - https://www.anthropic.com/pricing
+  - https://ai.google.dev/gemini-api/docs/pricing
+  - https://openai.com/api/pricing
+models:
+  anthropic/claude-opus-5: { input: 5, output: 25 }
+  anthropic/claude-sonnet-5: { input: 2, output: 10 }
+  anthropic/claude-sonnet-4-6: { input: 3, output: 15 }
+  anthropic/claude-haiku-4-5: { input: 1, output: 5 }
+  google/gemini-3.5-flash: { input: 1.5, output: 9 }
+  google/gemini-3.6-flash: { input: 0.75, output: 3.75 }
+  google/gemini-3.7-flash: { input: 0.75, output: 3.75 }
+  google/gemini-3.8-flash: { input: 0.75, output: 3.75 }
+  openai/gpt-5.4-mini: { input: 0.75, output: 4.5 }
+  openai/gpt-5.4: { input: 2.5, output: 15 }

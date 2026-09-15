@@ -3,6 +3,7 @@ import type { Case, Feature, Scenario } from "../../src/core/schemas";
 import {
 	CaseSchema,
 	FeatureSchema,
+	PricesSchema,
 	ScenarioSchema,
 	SuiteSchema,
 } from "../../src/core/schemas";
@@ -122,5 +123,65 @@ describe("SuiteSchema", () => {
 		});
 		expect(s.repeat).toBe(1);
 		expect(s.include).toEqual([]);
+	});
+});
+
+describe("SuiteSchema.target.python", () => {
+	test("is optional and, when present, a non-empty string", () => {
+		const base = {
+			target: {
+				kind: "promptfoo-python",
+				entry: "forge_target.py",
+				models: ["anthropic/claude-haiku-4-5"],
+			},
+			judges: ["google/gemini-3.5-flash"],
+		};
+		expect(SuiteSchema.parse(base).target.python).toBeUndefined();
+		expect(
+			SuiteSchema.parse({
+				...base,
+				target: { ...base.target, python: ".venv/bin/python" },
+			}).target.python,
+		).toBe(".venv/bin/python");
+		expect(
+			SuiteSchema.safeParse({
+				...base,
+				target: { ...base.target, python: "" },
+			}).success,
+		).toBe(false);
+	});
+});
+
+describe("PricesSchema", () => {
+	const good = {
+		updated: "2026-09-15",
+		unit: "usd_per_million_tokens",
+		sources: ["https://example.test/pricing"],
+		models: { "anthropic/claude-haiku-4-5": { input: 1, output: 5 } },
+	};
+	test("accepts a dated table with at least one model", () => {
+		expect(
+			PricesSchema.parse(good).models["anthropic/claude-haiku-4-5"],
+		).toEqual({
+			input: 1,
+			output: 5,
+		});
+	});
+	test("rejects an empty models table", () => {
+		const r = PricesSchema.safeParse({ ...good, models: {} });
+		expect(r.success).toBe(false);
+	});
+	test("rejects an updated field that is not YYYY-MM-DD", () => {
+		expect(
+			PricesSchema.safeParse({ ...good, updated: "15/09/2026" }).success,
+		).toBe(false);
+	});
+	test("rejects a negative price", () => {
+		expect(
+			PricesSchema.safeParse({
+				...good,
+				models: { m: { input: -1, output: 5 } },
+			}).success,
+		).toBe(false);
 	});
 });
