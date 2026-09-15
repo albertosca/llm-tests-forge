@@ -31,15 +31,31 @@ export interface CreateLlmOptions {
 
 const fakeCursors = new Map<string, number>();
 
+function isStringArray(value: unknown): value is string[] {
+	return Array.isArray(value) && value.every((v) => typeof v === "string");
+}
+
 async function fakeModel(path: string, verb: string): Promise<ResolvedModel> {
 	const text = await readFile(path, "utf8").catch(() => {
 		throw new ForgeError("fake responses file not found", { file: path });
 	});
-	const responses = JSON.parse(text) as Record<string, string | string[]>;
+	let responses: Record<string, unknown>;
+	try {
+		responses = JSON.parse(text) as Record<string, unknown>;
+	} catch (e) {
+		throw new ForgeError(`invalid JSON: ${(e as Error).message}`, {
+			file: path,
+		});
+	}
 	const entry = responses[verb];
 	if (entry === undefined)
 		throw new ForgeError(
 			`fake responses file has no entry for verb "${verb}"`,
+			{ file: path },
+		);
+	if (typeof entry !== "string" && !isStringArray(entry))
+		throw new ForgeError(
+			`fake responses entry for "${verb}" must be a string or an array of strings`,
 			{ file: path },
 		);
 	let reply: string;

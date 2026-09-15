@@ -136,6 +136,48 @@ describe("createLlm.generate", () => {
 		expect((err as ForgeError).details.rawPath).toBeUndefined();
 	});
 
+	test("fake provider names the file when the responses file has invalid JSON", async () => {
+		const dir = await tmpForge();
+		const llm = createLlm({ forgeDir: dir });
+		const malformed = "fake/tests/fixtures/fake-responses-malformed.txt";
+		const err = await llm
+			.generate({ schema, prompt: "p", model: malformed, verb: "probe" })
+			.catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toContain("invalid JSON");
+		expect((err as ForgeError).details.file).toBe(
+			"tests/fixtures/fake-responses-malformed.txt",
+		);
+	});
+
+	test("fake provider names the verb when a sequence entry is an empty array", async () => {
+		const dir = await tmpForge();
+		const llm = createLlm({ forgeDir: dir });
+		const err = await llm
+			.generate({ schema, prompt: "p", model: FAKE, verb: "empty" })
+			.catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toContain('entry for "empty" is empty');
+		expect((err as ForgeError).details.file).toBe(
+			"tests/fixtures/fake-responses.json",
+		);
+	});
+
+	test("fake provider rejects an entry that is neither a string nor an array of strings", async () => {
+		const dir = await tmpForge();
+		const llm = createLlm({ forgeDir: dir });
+		const err = await llm
+			.generate({ schema, prompt: "p", model: FAKE, verb: "wrong_type" })
+			.catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toContain(
+			'entry for "wrong_type" must be a string or an array of strings',
+		);
+		expect((err as ForgeError).details.file).toBe(
+			"tests/fixtures/fake-responses.json",
+		);
+	});
+
 	test("fake provider names the file when the responses file is missing", async () => {
 		const dir = await tmpForge();
 		const llm = createLlm({ forgeDir: dir });

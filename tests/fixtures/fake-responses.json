@@ -1,5 +1,7 @@
 {
 	"probe": "{\"answer\": 42}",
 	"sequence": ["{\"answer\": 1}", "{\"answer\": 2}"],
-	"broken": "```json\n{\"answer\": 42}\n```"
+	"broken": "```json\n{\"answer\": 42}\n```",
+	"empty": [],
+	"wrong_type": 42
 }
