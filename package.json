@@ -5,7 +5,7 @@
 	"license": "MIT",
 	"type": "module",
 	"bin": {
-		"forge": "src/cli/main.ts"
+		"forge": "src/cli/bin.ts"
 	},
 	"scripts": {
 		"test": "bun test",
