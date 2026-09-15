@@ -1485,6 +1485,37 @@ describe("estimate", () => {
 				")",
 		);
 	});
+	test("more than one pending item pluralizes the exclusion message, listing both in scenario order", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "x" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "t",
+			},
+		]);
+		await writeCases(forgeDir, "vague-rubric", [
+			{
+				id: "vague-rubric-01",
+				scenario: "vague-rubric",
+				input: { email: "y" },
+				expected: { rubric: "z" },
+				status: "pending",
+				generated_by: "t",
+			},
+		]);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		expect(out.slice(-3)).toEqual([
+			"estimate: 2 pending items excluded; run `forge review` to include them:",
+			`  case polite-rejection-01 is pending (${join(forgeDir, "cases", "polite-rejection.yaml")})`,
+			`  case vague-rubric-01 is pending (${join(forgeDir, "cases", "vague-rubric.yaml")})`,
+		]);
+	});
 	test("a missing suite.yaml exits 1 with the example to copy", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDir = join(cwd, ".forge");
