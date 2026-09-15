@@ -36,6 +36,14 @@ const COMMANDS: Record<
  * surfacing with their real stack instead of being flattened into a single
  * friendly line, or a genuine defect gets harder to find, not easier.
  */
+// This discriminator assumes: nothing in this codebase ever throws a
+// plain `new Error(...)` for a bug (`grep -rn "throw new Error("` inside
+// src/ should stay empty -- real errors go through ForgeError/UsageError),
+// and no dependency subclasses a built-in error type to report an
+// external failure (the `ai` SDK's AISDKError and the `yaml` package's
+// YAMLError both extend Error directly, not TypeError et al.). Either one
+// breaking, unnoticed, would misclassify a real bug as a clean CLI error
+// or a clean CLI error as a bug.
 const PROGRAMMING_ERROR_TYPES = [
 	TypeError,
 	RangeError,

@@ -13,7 +13,7 @@
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit",
 		"check": "bun run lint && bun run typecheck && bun test",
-		"test:live": "FORGE_LIVE=1 bun test tests/live"
+		"test:live": "FORGE_LIVE=1 bun test tests/live --config=bunfig.live.toml"
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "4.0.53",

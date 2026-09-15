@@ -13,17 +13,19 @@
  * pause between them; anything else (a 429 quota error, an auth error, an
  * unknown model id, a schema failure from generateObject, or an assertion
  * failure) fails on the very first occurrence -- retrying those would hide
- * exactly the failures this test exists to catch.
+ * exactly the failures this test exists to catch. The classify-and-retry
+ * logic itself lives in `./retry.ts`, not here, so it has its own offline,
+ * network-free unit tests in `retry.test.ts` instead of being untested
+ * dead ground behind `describe.skipIf`.
  */
 import { describe, expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
-import type { CliContext } from "../../src/cli/context";
 import { createContext } from "../../src/cli/context";
 import { run } from "../../src/cli/main";
 import { readFeature, readScenarios, writeFeature } from "../../src/core/files";
+import { DEFAULT_RETRY_CONFIG, retryTransient } from "./retry";
 
 const live = process.env.FORGE_LIVE === "1";
 const model = process.env.FORGE_MODEL ?? "google/gemini-3.5-flash";
@@ -31,45 +33,6 @@ const model = process.env.FORGE_MODEL ?? "google/gemini-3.5-flash";
 const MISSING_GOOGLE_KEY =
 	"GOOGLE_API_KEY is not set. Export it before running `bun run test:live` " +
 	"(FORGE_LIVE=1) -- see https://ai.google.dev/gemini-api/docs/api-key.";
-
-/** Matches only the provider's own transient-overload signal (503 /
- * UNAVAILABLE / "high demand"), never a 429 quota error, an auth failure,
- * an unknown-model error, or a schema-validation failure -- those must
- * fail immediately, not be mistaken for "the provider is busy". */
-const TRANSIENT_PATTERN = /\b(503|unavailable|high demand)\b/i;
-const MAX_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 3_000;
-
-/**
- * Runs one forge verb, retrying only when the printed failure is the
- * provider's own transient-overload signal. Any other non-zero exit (a
- * schema failure, an auth error, a quota error, an unknown model id) fails
- * immediately with the exact printed message, so a reader can tell "the
- * provider was busy" from "the code is broken" without reading a stack
- * trace -- a genuine programming error (not caught by `run()` at all,
- * per its own classification) still propagates past this helper with its
- * real stack, unchanged.
- */
-async function runRetryingTransient(
-	argv: string[],
-	ctx: CliContext,
-	out: string[],
-): Promise<void> {
-	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-		const code = await run(argv, ctx);
-		if (code === 0) return;
-		const lastLine = out.at(-1) ?? "(no output)";
-		if (!TRANSIENT_PATTERN.test(lastLine))
-			throw new Error(
-				`\`forge ${argv[0]}\` failed with a non-transient error on attempt ${attempt}/${MAX_ATTEMPTS} (not retried -- this looks like a real defect, not the provider being busy): ${lastLine}`,
-			);
-		if (attempt === MAX_ATTEMPTS)
-			throw new Error(
-				`\`forge ${argv[0]}\` was still a transient provider-overload failure after ${MAX_ATTEMPTS} attempts (the provider was busy, not the code): ${lastLine}`,
-			);
-		await sleep(RETRY_DELAY_MS);
-	}
-}
 
 describe.skipIf(!live)(
 	"live: describe and scenarios against a real model",
@@ -87,13 +50,19 @@ describe.skipIf(!live)(
 			const out: string[] = [];
 			ctx.stdout = (l) => out.push(l);
 
-			await runRetryingTransient(
-				[
-					"describe",
-					"The bot receives one hiring-process email (from, subject, body) and classifies it as rejection, acknowledgement, interview, screening, offer, info_request or unrelated, answering JSON only. Automated confirmations are acknowledgement, never screening.",
-				],
-				ctx,
-				out,
+			await retryTransient(
+				"`forge describe`",
+				async () => ({
+					code: await run(
+						[
+							"describe",
+							"The bot receives one hiring-process email (from, subject, body) and classifies it as rejection, acknowledgement, interview, screening, offer, info_request or unrelated, answering JSON only. Automated confirmations are acknowledgement, never screening.",
+						],
+						ctx,
+					),
+					message: out.at(-1) ?? "(no output)",
+				}),
+				DEFAULT_RETRY_CONFIG,
 			);
 			const feature = await readFeature(join(cwd, ".forge"));
 			expect(feature.output.labels).toContain("acknowledgement");
@@ -102,7 +71,14 @@ describe.skipIf(!live)(
 				status: "approved",
 			});
 
-			await runRetryingTransient(["scenarios"], ctx, out);
+			await retryTransient(
+				"`forge scenarios`",
+				async () => ({
+					code: await run(["scenarios"], ctx),
+					message: out.at(-1) ?? "(no output)",
+				}),
+				DEFAULT_RETRY_CONFIG,
+			);
 			const scenarios = await readScenarios(join(cwd, ".forge"));
 			expect(new Set(scenarios.map((s) => s.kind)).size).toBe(6);
 			console.log(out.join("\n"));
