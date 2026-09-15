@@ -46,31 +46,54 @@ export async function reviewCommand(
 	// 0 while `cases`, `dedupe` and `review --all` all named the same bad id
 	// and exited 1.
 	const scenarios = await readScenarios(ctx.forgeDir);
-	if (values.scenario && !scenarios.some((s) => s.id === values.scenario))
+	const named = values.scenario
+		? scenarios.find((s) => s.id === values.scenario)
+		: undefined;
+	if (values.scenario !== undefined && named === undefined)
 		throw new ForgeError(`scenario "${values.scenario}" not found`, {
 			id: values.scenario,
 		});
-
 	if (values.all) {
-		const id = values.scenario;
-		if (!id) throw new UsageError("--all requires --scenario");
+		// `named` can only be undefined here if --scenario was absent: a
+		// --scenario naming nothing already threw above. This is checked
+		// before the feature is read, so an unusable command line is
+		// reported as one even in a directory with no .forge at all.
+		if (named === undefined) throw new UsageError("--all requires --scenario");
+		const id = named.id;
+		const feature = await readFeature(ctx.forgeDir);
 		const cases = await readCases(ctx.forgeDir, id);
 		let approved = 0;
-		let skipped = 0;
+		let noExpected = 0;
+		let offOracle = 0;
 		const updated = cases.map((c) => {
 			if (c.status !== "pending") return c;
 			if (c.expected === undefined) {
-				skipped += 1;
+				noExpected += 1;
+				return c;
+			}
+			// Bulk approval is for someone who already read the file, not a
+			// way around the oracle contract every other path enforces.
+			const problem = expectedMatchesOracle(c.expected, named.oracle, feature);
+			if (problem !== null) {
+				offOracle += 1;
+				ctx.stdout(`review: ${c.id}: ${problem}`);
 				return c;
 			}
 			approved += 1;
 			return applyDecision(c, "approve");
 		});
 		if (approved > 0) await writeCases(ctx.forgeDir, id, updated);
+		const notes: string[] = [];
+		if (noExpected > 0)
+			notes.push(
+				`${noExpected} left pending (no expected set — run \`forge review --scenario ${id}\` to fill them in)`,
+			);
+		if (offOracle > 0)
+			notes.push(
+				`${offOracle} left pending (expected does not match the ${named.oracle} oracle — see above)`,
+			);
 		ctx.stdout(
-			skipped > 0
-				? `review: approved ${approved} pending case(s) of ${id}; ${skipped} left pending (no expected set — run \`forge review --scenario ${id}\` to fill them in)`
-				: `review: approved ${approved} pending case(s) of ${id}`,
+			`review: approved ${approved} pending case(s) of ${id}${notes.length > 0 ? `; ${notes.join("; ")}` : ""}`,
 		);
 		return;
 	}

@@ -1151,3 +1151,55 @@ describe("review: an expected already on disk is held to the oracle too", () => 
 		);
 	});
 });
+
+describe("review --all does not bulk-approve past the oracle", () => {
+	test("a case whose label is not one of the feature's labels stays pending, named in the output", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		let { ctx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["scenarios"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review", "--only", "scenarios"], ctx)).toBe(0);
+
+		// One good case and one whose label the feature never declared.
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "two" },
+				expected: { label: "maybe" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		const { ctx: allCtx, out } = await ctxIn(cwd);
+		expect(
+			await run(["review", "--scenario", "polite-rejection", "--all"], allCtx),
+		).toBe(0);
+
+		expect(out).toContain(
+			`review: polite-rejection-02: label "maybe" is not one of the feature's labels`,
+		);
+		expect(out.at(-1)).toBe(
+			"review: approved 1 pending case(s) of polite-rejection; 1 left pending (expected does not match the label oracle — see above)",
+		);
+		const cases = await readCases(forgeDir, "polite-rejection");
+		expect(cases.map((c) => [c.id, c.status])).toEqual([
+			["polite-rejection-01", "approved"],
+			["polite-rejection-02", "pending"],
+		]);
+	});
+});

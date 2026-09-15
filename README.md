@@ -10,8 +10,10 @@ Describe what your feature does, and the forge enumerates scenarios of six kinds
 
 ## Install
 
-Requires [bun](https://bun.sh) 1.4 or newer.
+Requires [bun](https://bun.sh) 1.4 or newer. This is not published to npm yet, so install it from a clone.
 
+    git clone https://github.com/albertosca/llm-test-forge.git
+    cd llm-test-forge
     bun install
     bun link      # exposes `forge` on your PATH
 
@@ -22,7 +24,7 @@ Run these in order, from the root of the application whose LLM feature you are t
     export FORGE_MODEL=google/gemini-3.5-flash
     forge describe "The bot classifies hiring emails into rejection, acknowledgement, interview, screening, offer, info_request or unrelated" --prompt-file src/prompt.txt
 
-Writes `.forge/feature.yaml` as a pending, structured description of the feature (purpose, inputs, output shape, invariants). `--prompt-file` is optional; pass it when the application has a real system prompt worth copying rules from.
+Writes `.forge/feature.yaml` as a pending, structured description of the feature (purpose, inputs, output shape, invariants). `--prompt-file` is optional; pass it when the application has a real system prompt worth copying rules from. Running `describe` again over a feature you have already reviewed is refused, because it would overwrite the invariants you wrote by hand; pass `--force` when replacing it is what you want.
 
     forge review
 
@@ -54,6 +56,18 @@ Reviews everything still pending: cases (confirming or fixing the expected outpu
 
 At the end, `.forge/` holds `feature.yaml`, `scenarios.yaml`, and `cases/<scenario>.yaml` — plain YAML, meant to be committed and diffed like any other test fixture.
 
+### What to commit under `.forge/`
+
+Commit `feature.yaml`, `scenarios.yaml` and `cases/<scenario>.yaml`: they are the reviewed suite, and their diffs are the point. Gitignore `usage.jsonl` and `failures/`, which hold token counts and raw model output from your own runs, and decide deliberately about `cases/imported.yaml` — `import` fills it with real production inputs, which may be data you cannot put in a repository.
+
+### Exit codes
+
+| Code | Means |
+|---|---|
+| `0` | the verb did what it says |
+| `1` | the work failed: a file that is not there, a model that refused, a feature still pending review |
+| `2` | the command line is unusable: an unknown verb or option, a bad flag value, a missing required argument, no model configured |
+
 ## What this does not do yet
 
 - It does not run the suite against a model and compare outputs.
@@ -76,11 +90,13 @@ Set `FORGE_MODEL` or pass `--model` as `provider/model`:
 
 ## Develop
 
-    bun test          # unit tests, no network, 100% coverage gate
+    bun test          # unit tests, no network, coverage gate
     bun run lint       # Biome
     bun run typecheck  # tsc --noEmit
     bun run check      # lint, then typecheck, then test
     bun run test:live  # two real calls against google/gemini-3.5-flash by default (FORGE_LIVE=1); override with FORGE_MODEL
+
+The coverage gate is bun's own: a 0.95 floor on **lines and functions**, with `src/cli/bin.ts` excluded. Bun measures no branch coverage at all, so a file at 100% can still have untested guard arms — read the gate as a floor, not as proof the suite is complete.
 
 `test:live` needs `GOOGLE_API_KEY` and fails loudly (not silently) if it's unset. Google's free tier is intermittent rather than simply down, so the test retries a 503/"high demand" response up to 3 attempts with a short pause between them; any other failure (quota, auth, an unknown model id, a schema mismatch) fails on the first occurrence instead of retrying.
 
