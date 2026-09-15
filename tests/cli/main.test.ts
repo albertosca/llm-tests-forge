@@ -124,12 +124,12 @@ describe("forge CLI end to end (fake provider)", () => {
 		expect(out.join("\n")).toContain("usage:");
 	});
 
-	test("missing model is a ForgeError naming the flag", async () => {
+	test("missing model is a usage error (exit 2) naming the flag", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const out: string[] = [];
 		const ctx = createContext({ cwd, env: {}, stdin: async () => "" });
 		ctx.stdout = (l) => out.push(l);
-		expect(await run(["describe", "x"], ctx)).toBe(1);
+		expect(await run(["describe", "x"], ctx)).toBe(2);
 		expect(out.at(-1)).toContain("--model");
 	});
 });
@@ -270,7 +270,7 @@ describe("scenarios: --kinds restricts required coverage", () => {
 		const { ctx: scenariosCtx, out } = await ctxIn(cwd);
 		expect(
 			await run(["scenarios", "--kinds", "happy,bogus"], scenariosCtx),
-		).toBe(1);
+		).toBe(2);
 		expect(out.at(-1)).toContain('"bogus"');
 		expect(out.at(-1)).toContain("happy");
 	});
@@ -289,7 +289,7 @@ describe("scenarios: --more validation (Finding 3)", () => {
 		await approvedFeature(cwd);
 
 		const { ctx, out } = await ctxIn(cwd);
-		expect(await run(["scenarios", "--more", "abc"], ctx)).toBe(1);
+		expect(await run(["scenarios", "--more", "abc"], ctx)).toBe(2);
 		expect(out.at(-1)).toContain("--more");
 		expect(out.at(-1)).toContain('"abc"');
 		expect(out.at(-1)).toContain("positive integer");
@@ -300,7 +300,7 @@ describe("scenarios: --more validation (Finding 3)", () => {
 		await approvedFeature(cwd);
 
 		const { ctx, out } = await ctxIn(cwd);
-		expect(await run(["scenarios", "--more", "0"], ctx)).toBe(1);
+		expect(await run(["scenarios", "--more", "0"], ctx)).toBe(2);
 		expect(out.at(-1)).toContain("--more");
 		expect(out.at(-1)).toContain('"0"');
 	});
@@ -362,7 +362,7 @@ describe("cases: --n validation (Finding 3)", () => {
 		const { ctx, out } = await ctxIn(cwd);
 		expect(
 			await run(["cases", "--scenario", "polite-rejection", "--n", "abc"], ctx),
-		).toBe(1);
+		).toBe(2);
 		expect(out.at(-1)).toContain("--n");
 		expect(out.at(-1)).toContain('"abc"');
 		expect(out.at(-1)).toContain("positive integer");
@@ -378,7 +378,7 @@ describe("cases: --n validation (Finding 3)", () => {
 		const { ctx, out } = await ctxIn(cwd);
 		expect(
 			await run(["cases", "--scenario", "polite-rejection", "--n=0"], ctx),
-		).toBe(1);
+		).toBe(2);
 		expect(out.at(-1)).toContain("--n");
 		expect(out.at(-1)).toContain('"0"');
 		expect(out.at(-1)).toContain("positive integer");
@@ -511,7 +511,7 @@ describe("review --only validation (Finding 4)", () => {
 		expect(await run(["describe", "text"], describeCtx)).toBe(0);
 
 		const { ctx, out } = await ctxIn(cwd);
-		expect(await run(["review", "--only", "totally-bogus-kind"], ctx)).toBe(1);
+		expect(await run(["review", "--only", "totally-bogus-kind"], ctx)).toBe(2);
 		expect(out.at(-1)).toContain('"totally-bogus-kind"');
 		expect(out.at(-1)).not.toContain("nothing pending");
 		expect((await readFeature(join(cwd, ".forge"))).status).toBe("pending");
@@ -531,7 +531,7 @@ describe("import: zero positional arguments (Minor)", () => {
 	test("fails naming what is missing, instead of crashing", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const { ctx, out } = await ctxIn(cwd);
-		expect(await run(["import"], ctx)).toBe(1);
+		expect(await run(["import"], ctx)).toBe(2);
 		expect(out.at(-1)).toContain("import needs a JSONL file path");
 	});
 });
@@ -573,7 +573,7 @@ describe("import: --oracle validation", () => {
 		const jsonl = join(cwd, "prod.jsonl");
 		await writeFile(jsonl, '{"email":"x"}\n');
 		const { ctx, out } = await ctxIn(cwd);
-		expect(await run(["import", jsonl, "--oracle", "bogus"], ctx)).toBe(1);
+		expect(await run(["import", jsonl, "--oracle", "bogus"], ctx)).toBe(2);
 		expect(out.at(-1)).toContain('"bogus"');
 		expect(out.at(-1)).toContain("label");
 	});

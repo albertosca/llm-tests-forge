@@ -20,8 +20,13 @@ export class ForgeError extends Error {
 
 /**
  * A ForgeError that additionally marks the failure as a CLI usage mistake
- * (bad flags or arguments) rather than a runtime failure — the CLI's
- * `run()` maps this to exit code 2 instead of 1. Kept as its own class,
+ * rather than a runtime failure — the CLI's `run()` maps this to exit code
+ * 2 instead of 1. Every bad flag value and every missing required argument
+ * is one of these, wherever it is raised: an unusable command line is the
+ * same failure whether the parser, a flag validator or the model resolver
+ * notices it, and it exits 2 in all three cases. A failure that only shows
+ * up while doing the work — a file that is not there, a model that refuses,
+ * a feature that is still pending — is a plain ForgeError and exits 1. Kept as its own class,
  * not a `ForgeErrorDetails` field, so this routing marker never leaks into
  * the printed message the way overloading `details.file` with a
  * non-file value once did.

@@ -53,6 +53,9 @@ describe("enumerateScenarios", () => {
 		expect(err).toBeInstanceOf(ForgeError);
 		expect((err as ForgeError).message).toContain("edge");
 		expect((err as ForgeError).message).toContain("language");
+		// Every failure names the item it is about; here that is the feature.
+		expect((err as ForgeError).details.id).toBe("classify-email");
+		expect((err as ForgeError).message).toContain("(id: classify-email)");
 	});
 
 	test("--kinds restricts coverage to the listed kinds", async () => {
@@ -67,16 +70,18 @@ describe("enumerateScenarios", () => {
 		expect(out).toHaveLength(1);
 	});
 
-	test("zero scenarios is an error, never a silent empty file", async () => {
+	test("zero scenarios is an error naming the feature, never a silent empty file", async () => {
 		const { llm, model } = await llmFor("empty");
-		await expect(
-			enumerateScenarios({
-				feature: await feature(),
-				existing: [],
-				model,
-				llm,
-			}),
-		).rejects.toThrow(ForgeError);
+		const err = await enumerateScenarios({
+			feature: await feature(),
+			existing: [],
+			model,
+			llm,
+		}).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toBe(
+			"the model returned zero scenarios (id: classify-email)",
+		);
 	});
 
 	test("--more keeps reviewed scenarios untouched and makes ids unique", async () => {

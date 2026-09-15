@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { generateCases } from "../../core/cases";
-import { ForgeError } from "../../core/errors";
+import { ForgeError, UsageError } from "../../core/errors";
 import {
 	forgePaths,
 	readCases,
@@ -18,7 +18,7 @@ function parsePositiveIntFlag(
 	if (raw === undefined) return undefined;
 	const n = Number(raw);
 	if (!Number.isInteger(n) || n <= 0)
-		throw new ForgeError(
+		throw new UsageError(
 			`${flag} "${raw}" is not valid; expected a positive integer`,
 		);
 	return n;

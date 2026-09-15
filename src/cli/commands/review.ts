@@ -21,7 +21,7 @@ const ONLY_VALUES = ["feature", "scenarios", "cases"];
 function parseOnlyFlag(raw: string | undefined): string | undefined {
 	if (raw === undefined) return undefined;
 	if (!ONLY_VALUES.includes(raw))
-		throw new ForgeError(
+		throw new UsageError(
 			`--only "${raw}" is not valid; choose one of: ${ONLY_VALUES.join(", ")}`,
 		);
 	return raw;

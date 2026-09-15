@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { ForgeError } from "../core/errors";
+import { UsageError } from "../core/errors";
 import { createLlm, type Llm } from "../llm/generate";
 
 export interface CliContext {
@@ -33,7 +33,7 @@ export function createContext(opts: CreateContextOptions): CliContext {
 		llm: createLlm({ forgeDir }),
 		get model(): string {
 			if (!model)
-				throw new ForgeError(
+				throw new UsageError(
 					"no model: pass --model provider/model or set FORGE_MODEL",
 				);
 			return model;

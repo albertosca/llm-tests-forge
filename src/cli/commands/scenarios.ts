@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util";
-import { ForgeError } from "../../core/errors";
+import { UsageError } from "../../core/errors";
 import {
 	forgePaths,
 	readFeature,
@@ -17,7 +17,7 @@ function parseKindsFlag(raw: string | undefined): Kind[] | undefined {
 		const value = part.trim();
 		const result = Kind.safeParse(value);
 		if (!result.success)
-			throw new ForgeError(
+			throw new UsageError(
 				`--kinds "${value}" is not valid; choose from: ${Kind.options.join(", ")}`,
 			);
 		return result.data;
@@ -31,7 +31,7 @@ function parsePositiveIntFlag(
 	if (raw === undefined) return undefined;
 	const n = Number(raw);
 	if (!Number.isInteger(n) || n <= 0)
-		throw new ForgeError(
+		throw new UsageError(
 			`${flag} "${raw}" is not valid; expected a positive integer`,
 		);
 	return n;

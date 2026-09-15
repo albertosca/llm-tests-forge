@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { parseArgs } from "node:util";
-import { ForgeError } from "../../core/errors";
+import { ForgeError, UsageError } from "../../core/errors";
 import {
 	forgePaths,
 	readCases,
@@ -19,7 +19,7 @@ function parseOracleFlag(raw: string | undefined): Oracle | undefined {
 	if (raw === undefined) return undefined;
 	const result = Oracle.safeParse(raw);
 	if (!result.success)
-		throw new ForgeError(
+		throw new UsageError(
 			`--oracle "${raw}" is not valid; choose one of: ${Oracle.options.join(", ")}`,
 		);
 	return result.data;
@@ -35,7 +35,7 @@ export async function importCommand(
 		allowPositionals: true,
 	});
 	const file = positionals[0];
-	if (!file) throw new ForgeError("import needs a JSONL file path");
+	if (!file) throw new UsageError("import needs a JSONL file path");
 	const oracle = parseOracleFlag(values.oracle);
 	const feature = await readFeature(ctx.forgeDir);
 	requireApprovedFeature(feature, forgePaths(ctx.forgeDir).feature);

@@ -65,7 +65,9 @@ export async function enumerateScenarios(
 		verb: "scenarios",
 	});
 	if (object.scenarios.length === 0)
-		throw new ForgeError("the model returned zero scenarios");
+		throw new ForgeError("the model returned zero scenarios", {
+			id: args.feature.id,
+		});
 
 	if (args.more === undefined) {
 		const present = new Set(object.scenarios.map((s) => s.kind));
@@ -73,6 +75,7 @@ export async function enumerateScenarios(
 		if (missing.length > 0)
 			throw new ForgeError(
 				`generated scenarios miss these kinds: ${missing.join(", ")}; rerun, or restrict with --kinds`,
+				{ id: args.feature.id },
 			);
 	}
 
