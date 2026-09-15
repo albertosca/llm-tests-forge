@@ -92,13 +92,32 @@ describe("importCases", () => {
 		expect(r.skipped[0]?.reason).toContain("JSON");
 	});
 
-	test("throws when nothing was accepted", async () => {
+	test("throws listing each line's skip reason when every line in a non-empty file is skipped", async () => {
+		const jsonl = 'not json\n{"mail":"wrong key"}\n';
+		const f = await feature();
+		const err = (() => {
+			try {
+				importCases({ feature: f, jsonl, source: "prod.jsonl", existing: [] });
+			} catch (e) {
+				return e;
+			}
+		})();
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toContain("line 1: not valid JSON");
+		expect((err as ForgeError).message).toContain(
+			"line 2: keys [mail] do not match feature inputs [email]",
+		);
+		expect((err as ForgeError).details.file).toBe("prod.jsonl");
+	});
+
+	test("throws with a distinct message when the file has no lines to skip", async () => {
+		const f = await feature();
 		const err = (() => {
 			try {
 				importCases({
-					feature: {} as never,
+					feature: f,
 					jsonl: "",
-					source: "s",
+					source: "prod.jsonl",
 					existing: [],
 				});
 			} catch (e) {
@@ -106,6 +125,9 @@ describe("importCases", () => {
 			}
 		})();
 		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toContain("file is empty");
+		expect((err as ForgeError).message).not.toContain("line 1");
+		expect((err as ForgeError).details.file).toBe("prod.jsonl");
 	});
 
 	test("skips JSON that parses but is not a plain object (array, number, null)", async () => {

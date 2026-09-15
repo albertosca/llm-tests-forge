@@ -19,7 +19,7 @@ export interface ImportResult {
 }
 
 function deriveOracle(feature: Feature): Oracle {
-	switch (feature.output?.kind) {
+	switch (feature.output.kind) {
 		case "label":
 			return "label";
 		case "json":
@@ -41,7 +41,7 @@ function sameInput(
 }
 
 export function importCases(args: ImportArgs): ImportResult {
-	const inputNames = (args.feature.inputs ?? []).map((i) => i.name);
+	const inputNames = args.feature.inputs.map((i) => i.name);
 	const accepted: Case[] = [...args.existing];
 	const skipped: { line: number; reason: string }[] = [];
 	const lines = args.jsonl.split("\n");
