@@ -4,9 +4,9 @@ import type { Llm } from "../llm/generate";
 import { loadTemplate, render } from "../llm/templates";
 import { ForgeError } from "./errors";
 import { nextCaseId } from "./ids";
+import { expectedMatchesOracle } from "./oracle";
 import {
 	type Case,
-	type Expected,
 	ExpectedSchema,
 	type Feature,
 	type Scenario,
@@ -38,29 +38,6 @@ function oracleInstructions(feature: Feature, scenario: Scenario): string {
 			return `\`expected.fields\` is an object with only the output fields whose value can be checked exactly (from: ${(feature.output.fields ?? []).join(", ")}). Omit fields whose value is a judgement call.`;
 		case "rubric":
 			return "`expected.rubric` is one sentence a reviewer could answer yes or no about the output, specific to this case.";
-	}
-}
-
-export function expectedMatchesOracle(
-	expected: Expected,
-	scenario: Scenario,
-	feature: Feature,
-): string | null {
-	switch (scenario.oracle) {
-		case "label":
-			if (expected.label === undefined)
-				return "oracle is label but expected.label is missing";
-			if (!(feature.output.labels ?? []).includes(expected.label))
-				return `label "${expected.label}" is not one of the feature's labels`;
-			return null;
-		case "fields":
-			return expected.fields === undefined
-				? "oracle is fields but expected.fields is missing"
-				: null;
-		case "rubric":
-			return expected.rubric === undefined
-				? "oracle is rubric but expected.rubric is missing"
-				: null;
 	}
 }
 
@@ -131,7 +108,7 @@ export async function generateCases(args: GenerateCasesArgs): Promise<Case[]> {
 		}
 		const problem = expectedMatchesOracle(
 			candidate.expected,
-			args.scenario,
+			args.scenario.oracle,
 			args.feature,
 		);
 		if (problem) {

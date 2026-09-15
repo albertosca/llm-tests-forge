@@ -66,6 +66,7 @@ describe("runReviewLoop", () => {
 			ask: scripted(["approve", "reject"]),
 			openEditor: async (t) => t,
 			askExpected: async () => ({ label: "x" }),
+			checkExpected: () => null,
 			oracleOf: () => "label",
 			print: (l) => printed.push(l),
 		});
@@ -92,6 +93,7 @@ describe("runReviewLoop", () => {
 				asked += 1;
 				return { label: "rejection" };
 			},
+			checkExpected: () => null,
 			oracleOf: () => "label",
 			print: () => {},
 		});
@@ -115,6 +117,7 @@ describe("runReviewLoop", () => {
 				asked += 1;
 				return { label: "rejection" };
 			},
+			checkExpected: () => null,
 			oracleOf: () => "label",
 			print: () => {},
 		});
@@ -147,6 +150,7 @@ describe("runReviewLoop", () => {
 			ask: scripted(["edit", "edit", "approve"]),
 			openEditor: async () => edits.shift() ?? "",
 			askExpected: async () => ({ label: "x" }),
+			checkExpected: () => null,
 			oracleOf: () => "label",
 			print: (l) => printed.push(l),
 		});
@@ -181,6 +185,7 @@ describe("runReviewLoop", () => {
 				askExpected: async () => {
 					throw new Error("boom");
 				},
+				checkExpected: () => null,
 				oracleOf: () => "label",
 				print: () => {},
 			}),
@@ -200,6 +205,7 @@ describe("runReviewLoop", () => {
 				ask: scripted(["yolo"]),
 				openEditor: async (t) => t,
 				askExpected: async () => ({ label: "x" }),
+				checkExpected: () => null,
 				oracleOf: () => "label",
 				print: () => {},
 			});
@@ -219,6 +225,7 @@ describe("runReviewLoop", () => {
 			ask: scripted(["reject", "approve"]),
 			openEditor: async (t) => t,
 			askExpected: async () => ({ label: "x" }),
+			checkExpected: () => null,
 			oracleOf: () => "label",
 			print: (l) => printed.push(l),
 		});
@@ -244,12 +251,41 @@ describe("runReviewLoop", () => {
 		).toBe(true);
 	});
 
+	test("an edited expected outside the scenario's oracle is refused by name and the item is re-asked", async () => {
+		// The prompt checks what it asks for, but $EDITOR is a second way
+		// the same value arrives -- the rule has to hold on both.
+		const edits = [
+			stringify({ ...withExp, expected: { label: "not-a-label" } }),
+			stringify({ ...withExp, expected: { label: "a" } }),
+		];
+		const printed: string[] = [];
+		const r = await runReviewLoop({
+			items: [{ kind: "case", item: withExp }],
+			ask: scripted(["edit", "edit"]),
+			openEditor: async () => edits.shift() ?? "",
+			askExpected: async () => ({ label: "a" }),
+			checkExpected: (c) =>
+				c.expected?.label === "a"
+					? null
+					: `label "${c.expected?.label}" is not one of the feature's labels`,
+			oracleOf: () => "label",
+			print: (l) => printed.push(l),
+		});
+
+		expect(printed).toContain(
+			`cannot apply: expected does not match the oracle: label "not-a-label" is not one of the feature's labels (id: ${withExp.id})`,
+		);
+		expect(r.summary.edited).toBe(1);
+		expect(caseAt(r, 0).expected).toEqual({ label: "a" });
+	});
+
 	test("skip leaves no decision", async () => {
 		const r = await runReviewLoop({
 			items: [{ kind: "scenario", item: scn }],
 			ask: scripted(["skip"]),
 			openEditor: async (t) => t,
 			askExpected: async () => ({ label: "x" }),
+			checkExpected: () => null,
 			oracleOf: () => "label",
 			print: () => {},
 		});

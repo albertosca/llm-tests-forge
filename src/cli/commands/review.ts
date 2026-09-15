@@ -9,6 +9,7 @@ import {
 	writeFeature,
 	writeScenarios,
 } from "../../core/files";
+import { expectedMatchesOracle } from "../../core/oracle";
 import { applyDecision, pendingItems } from "../../core/review";
 import type { Case, Feature, Oracle, Scenario } from "../../core/schemas";
 import type { CliContext } from "../context";
@@ -109,7 +110,16 @@ export async function reviewCommand(
 		items,
 		ask: (q, choices) => askChoice(q, choices, io),
 		openEditor: openInEditor,
-		askExpected: (c, oracle) => askExpectedFor(c, oracle, io),
+		// The human's expected value answers to the same oracle contract as
+		// the model's, checked with the same function.
+		askExpected: (c, oracle) =>
+			askExpectedFor(c, oracle, io, (expected) =>
+				expectedMatchesOracle(expected, oracle, feature),
+			),
+		checkExpected: (c, oracle) =>
+			c.expected === undefined
+				? null
+				: expectedMatchesOracle(c.expected, oracle, feature),
 		oracleOf,
 		print: ctx.stdout,
 	});

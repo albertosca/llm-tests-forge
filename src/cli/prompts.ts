@@ -26,15 +26,27 @@ export async function askChoice(
 	}
 }
 
-export async function askExpectedFor(
+/**
+ * How many times an unusable answer is re-asked before giving up. An empty
+ * answer is re-asked rather than accepted, and stdin can be at EOF — a pipe,
+ * `< /dev/null`, a drained test queue — where every further read returns the
+ * empty string forever. Re-asking without a bound would hang there instead
+ * of failing. The ForgeError raised on exhaustion is caught by the review
+ * loop, which re-asks the item itself and then takes the same EOF as "skip".
+ */
+const EXPECTED_ATTEMPTS = 3;
+
+/** One round of asking, or `null` when the answer was empty. */
+async function askExpectedOnce(
 	c: Case,
 	oracle: Oracle,
 	io: Io,
-): Promise<Expected> {
+): Promise<Expected | null> {
 	switch (oracle) {
 		case "label": {
 			io.stdout(`expected label for ${c.id}:`);
-			return { label: (await io.stdin()).trim() };
+			const label = (await io.stdin()).trim();
+			return label === "" ? null : { label };
 		}
 		case "fields": {
 			io.stdout(`expected fields for ${c.id} as field=value, comma separated:`);
@@ -43,12 +55,44 @@ export async function askExpectedFor(
 				const [k, ...rest] = pair.split("=");
 				if (k?.trim()) fields[k.trim()] = rest.join("=").trim();
 			}
-			return { fields };
+			return Object.keys(fields).length === 0 ? null : { fields };
 		}
 		case "rubric": {
 			io.stdout(`rubric sentence for ${c.id}:`);
-			return { rubric: (await io.stdin()).trim() };
+			const rubric = (await io.stdin()).trim();
+			return rubric === "" ? null : { rubric };
 		}
+	}
+}
+
+/**
+ * Asks the person for a case's expected output and does not take an
+ * unusable answer for it. Pressing Enter used to write `expected: {label:
+ * ""}` (or `{fields: {}}`, which any output at all satisfies) and mark the
+ * case approved — the competitors' inputs-only suite wearing a field name.
+ * `check` is the same rule the model's generated cases are held to, passed
+ * in by the caller so this module stays free of the feature and the
+ * scenario.
+ */
+export async function askExpectedFor(
+	c: Case,
+	oracle: Oracle,
+	io: Io,
+	check: (expected: Expected) => string | null,
+): Promise<Expected> {
+	for (let attempt = 1; ; attempt += 1) {
+		const candidate = await askExpectedOnce(c, oracle, io);
+		const problem =
+			candidate === null
+				? `an expected ${oracle} is required`
+				: check(candidate);
+		if (candidate !== null && problem === null) return candidate;
+		if (attempt === EXPECTED_ATTEMPTS)
+			throw new ForgeError(
+				`no usable expected value after ${EXPECTED_ATTEMPTS} attempts: ${problem}`,
+				{ id: c.id },
+			);
+		io.stdout(`${problem}; try again`);
 	}
 }
 

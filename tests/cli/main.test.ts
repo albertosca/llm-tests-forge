@@ -1059,3 +1059,95 @@ describe("dedupe never writes a phantom empty cases file (whole-branch Finding 5
 		expect(out.at(-1)).toContain(join(cwd, ".forge", "cases"));
 	});
 });
+
+describe("review holds the human to the same oracle contract as the model (whole-branch Finding 6)", () => {
+	test("a label outside the feature's labels is refused by name and re-asked, and only the valid one is written", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		let { ctx } = await ctxIn(cwd);
+		expect(
+			await run(["describe", "The bot classifies hiring emails"], ctx),
+		).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+
+		// --oracle label pins the imported scenario to the label oracle, the
+		// one the feature's `labels` list constrains.
+		const jsonl = join(cwd, "prod.jsonl");
+		await writeFile(jsonl, '{"email":"real one"}\n{"email":"real two"}\n');
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["import", jsonl, "--oracle", "label"], ctx)).toBe(0);
+
+		const { ctx: reviewCtx, out } = await ctxIn(cwd, [
+			"approve",
+			"maybe",
+			"rejection",
+		]);
+		expect(
+			await run(
+				["review", "--scenario", "imported", "--only", "cases"],
+				reviewCtx,
+			),
+		).toBe(0);
+
+		expect(out).toContain(
+			`label "maybe" is not one of the feature's labels; try again`,
+		);
+		const cases = await readCases(forgeDir, "imported");
+		expect(cases.map((c) => [c.id, c.status])).toEqual([
+			["imported-01", "approved"],
+			["imported-02", "pending"],
+		]);
+		expect(cases[0]?.expected).toEqual({ label: "rejection" });
+		expect(cases[1]?.expected).toBeUndefined();
+	});
+});
+
+describe("review: an expected already on disk is held to the oracle too", () => {
+	test("approving a case whose label is not one of the feature's labels is refused and the file is left alone", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		let { ctx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["scenarios"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review", "--only", "scenarios"], ctx)).toBe(0);
+
+		// A hand-written cases file: the label was never checked against
+		// the feature on its way in.
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "maybe" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		// "approve" is refused, the item is re-asked, and the drained queue
+		// answers "" -- which askChoice maps to skip.
+		const { ctx: reviewCtx, out } = await ctxIn(cwd, ["approve"]);
+		expect(
+			await run(
+				["review", "--scenario", "polite-rejection", "--only", "cases"],
+				reviewCtx,
+			),
+		).toBe(0);
+
+		expect(out).toContain(
+			'cannot apply: expected does not match the oracle: label "maybe" is not one of the feature\'s labels (id: polite-rejection-01)',
+		);
+		const cases = await readCases(forgeDir, "polite-rejection");
+		expect(cases.map((c) => [c.id, c.status])).toEqual([
+			["polite-rejection-01", "pending"],
+		]);
+		expect(out.at(-1)).toBe(
+			"review: 0 approved, 0 rejected, 0 edited, 1 skipped, 1 still pending",
+		);
+	});
+});

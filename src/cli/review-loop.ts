@@ -19,6 +19,13 @@ export interface ReviewLoopArgs {
 	ask: (question: string, choices: string[]) => Promise<string>;
 	openEditor: (yamlText: string) => Promise<string>;
 	askExpected: (c: Case, oracle: Oracle) => Promise<Expected>;
+	/**
+	 * The oracle contract, applied to a case's `expected` however it got
+	 * there: typed at the prompt, typed into `$EDITOR`, or already on disk.
+	 * Returns `null` when the value is acceptable, or a sentence naming
+	 * what is wrong with it.
+	 */
+	checkExpected: (c: Case, oracle: Oracle) => string | null;
 	oracleOf: (scenarioId: string) => Oracle;
 	print: (line: string) => void;
 }
@@ -76,6 +83,27 @@ export async function runReviewLoop(
 	const decisions: ReviewLoopResult["decisions"] = [];
 	const summary = { approved: 0, rejected: 0, edited: 0, skipped: 0 };
 
+	/**
+	 * Nothing leaves this loop approved or edited carrying an expected
+	 * value the scenario's oracle does not accept — the prompt checks what
+	 * it asks for, but `$EDITOR` and the file on disk are two other ways
+	 * the same value arrives. A rejected case is not checked: rejecting a
+	 * case with a bad expected is how you get rid of it.
+	 */
+	const refuseExpectedOutsideOracle = (
+		kind: PendingItem["kind"],
+		item: Feature | Scenario | Case,
+	): void => {
+		if (kind !== "case") return;
+		const c = item as Case;
+		if (c.expected === undefined) return;
+		const problem = args.checkExpected(c, args.oracleOf(c.scenario));
+		if (problem !== null)
+			throw new ForgeError(`expected does not match the oracle: ${problem}`, {
+				id: c.id,
+			});
+	};
+
 	for (const pending of args.items) {
 		let current: Feature | Scenario | Case = pending.item;
 		for (;;) {
@@ -106,6 +134,7 @@ export async function runReviewLoop(
 						stringify(current, { lineWidth: 0 }),
 					);
 					current = applyDecision(current, "edit", parse(editedText));
+					refuseExpectedOutsideOracle(pending.kind, current);
 					summary.edited += 1;
 					decisions.push({
 						kind: pending.kind,
@@ -122,6 +151,8 @@ export async function runReviewLoop(
 				}
 
 				current = applyDecision(current, answer);
+				if (answer === "approve")
+					refuseExpectedOutsideOracle(pending.kind, current);
 				summary[answer === "approve" ? "approved" : "rejected"] += 1;
 				decisions.push({
 					kind: pending.kind,

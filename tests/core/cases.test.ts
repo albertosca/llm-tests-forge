@@ -3,7 +3,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { expectedMatchesOracle, generateCases } from "../../src/core/cases";
+import { generateCases } from "../../src/core/cases";
 import { ForgeError } from "../../src/core/errors";
 import type { Case, Feature, Scenario } from "../../src/core/schemas";
 import { createLlm, type GenerateArgs, type Llm } from "../../src/llm/generate";
@@ -253,73 +253,5 @@ describe("generateCases", () => {
 			llm,
 		});
 		expect(out[0]?.expected).toEqual({ fields: { type: "rejection" } });
-	});
-});
-
-describe("expectedMatchesOracle", () => {
-	test("label: null when the label is one of the feature's labels", async () => {
-		expect(
-			expectedMatchesOracle({ label: "rejection" }, scenario, await feature()),
-		).toBeNull();
-	});
-
-	test("label: reports a missing expected.label", async () => {
-		const msg = expectedMatchesOracle(
-			{ fields: { type: "rejection" } },
-			scenario,
-			await feature(),
-		);
-		expect(msg).toBe("oracle is label but expected.label is missing");
-	});
-
-	test("label: reports a label outside the feature's labels", async () => {
-		const msg = expectedMatchesOracle(
-			{ label: "maybe" },
-			scenario,
-			await feature(),
-		);
-		expect(msg).toBe(`label "maybe" is not one of the feature's labels`);
-	});
-
-	test("fields: null when expected.fields is present", async () => {
-		const fieldsScenario: Scenario = { ...scenario, oracle: "fields" };
-		expect(
-			expectedMatchesOracle(
-				{ fields: { type: "rejection" } },
-				fieldsScenario,
-				await feature(),
-			),
-		).toBeNull();
-	});
-
-	test("fields: reports a missing expected.fields", async () => {
-		const fieldsScenario: Scenario = { ...scenario, oracle: "fields" };
-		const msg = expectedMatchesOracle(
-			{ label: "rejection" },
-			fieldsScenario,
-			await feature(),
-		);
-		expect(msg).toBe("oracle is fields but expected.fields is missing");
-	});
-
-	test("rubric: null when expected.rubric is present", async () => {
-		const rubricScenario: Scenario = { ...scenario, oracle: "rubric" };
-		expect(
-			expectedMatchesOracle(
-				{ rubric: "checks something" },
-				rubricScenario,
-				await feature(),
-			),
-		).toBeNull();
-	});
-
-	test("rubric: reports a missing expected.rubric", async () => {
-		const rubricScenario: Scenario = { ...scenario, oracle: "rubric" };
-		const msg = expectedMatchesOracle(
-			{ label: "rejection" },
-			rubricScenario,
-			await feature(),
-		);
-		expect(msg).toBe("oracle is rubric but expected.rubric is missing");
 	});
 });
