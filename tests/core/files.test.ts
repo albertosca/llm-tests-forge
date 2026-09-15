@@ -58,6 +58,33 @@ describe("feature round trip", () => {
 		await writeFile(forgePaths(dir).feature, "id: only-an-id\n");
 		const err = await readFeature(dir).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toContain("does not match schema");
+		expect((err as ForgeError).message).toContain("feature.yaml");
+	});
+
+	test("missing file throws ForgeError naming the file", async () => {
+		const dir = await tmpForge();
+		const err = await readFeature(dir).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toContain("file not found");
+		expect((err as ForgeError).message).toContain("feature.yaml");
+		expect((err as ForgeError).details.file).toBe(forgePaths(dir).feature);
+	});
+
+	test("malformed YAML syntax throws ForgeError naming the file", async () => {
+		const dir = await tmpForge();
+		await writeFeature(dir, {
+			id: "a",
+			purpose: "b",
+			inputs: [{ name: "x", kind: "text" }],
+			output: { kind: "text" },
+			invariants: [],
+			status: "pending",
+		});
+		await writeFile(forgePaths(dir).feature, "id: [unterminated\n");
+		const err = await readFeature(dir).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toContain("invalid YAML");
 		expect((err as ForgeError).message).toContain("feature.yaml");
 	});
 });

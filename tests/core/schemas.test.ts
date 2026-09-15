@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { Case, Feature, Scenario } from "../../src/core/schemas";
 import {
 	CaseSchema,
 	FeatureSchema,
@@ -18,7 +19,7 @@ const feature = {
 	},
 	invariants: ["Answer is JSON only"],
 	status: "pending",
-};
+} satisfies Feature;
 
 describe("FeatureSchema", () => {
 	test("accepts a full feature", () => {
@@ -39,6 +40,12 @@ describe("FeatureSchema", () => {
 		expect(
 			FeatureSchema.safeParse({
 				...feature,
+				output: { kind: "label", labels: [] },
+			}).success,
+		).toBe(false);
+		expect(
+			FeatureSchema.safeParse({
+				...feature,
 				output: { kind: "label", labels: ["a", "b"] },
 			}).success,
 		).toBe(true);
@@ -53,7 +60,7 @@ describe("ScenarioSchema", () => {
 			oracle: "label",
 			description: "a polite no",
 			status: "pending",
-		};
+		} satisfies Scenario;
 		expect(ScenarioSchema.parse(ok)).toEqual(ok);
 		expect(ScenarioSchema.safeParse({ ...ok, kind: "weird" }).success).toBe(
 			false,
@@ -72,13 +79,13 @@ describe("CaseSchema", () => {
 			input: { email: "..." },
 			status: "pending",
 			generated_by: "google/gemini-3.5-flash",
-		};
+		} satisfies Case;
 		expect(CaseSchema.parse(c)).toEqual(c);
 		const withExpected = {
 			...c,
 			expected: { label: "rejection" },
 			duplicate_of: "polite-rejection-02",
-		};
+		} satisfies Case;
 		expect(CaseSchema.parse(withExpected)).toEqual(withExpected);
 	});
 	test("expected must carry exactly one of label, fields, rubric", () => {

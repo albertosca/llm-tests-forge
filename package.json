@@ -11,7 +11,8 @@
 		"test": "bun test",
 		"lint": "biome check .",
 		"format": "biome format --write .",
-		"check": "bun run lint && bun test"
+		"typecheck": "tsc --noEmit",
+		"check": "bun run lint && bun run typecheck && bun test"
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "4.0.53",
@@ -23,6 +24,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.13",
-		"@types/bun": "latest"
+		"@types/bun": "latest",
+		"typescript": "7.0.2"
 	}
 }
