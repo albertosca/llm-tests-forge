@@ -1,0 +1,8 @@
+# Used only by `bun run test:live` (via --config), never by plain `bun
+# test`. `bun test tests/live` only exercises a sliver of `src/`, so the
+# project's normal 95%-coverage floor in `bunfig.toml` always fails a
+# passing live run -- a false red in exactly the tool this project exists
+# to stop people from tolerating. Coverage is enforced by the full suite
+# (`bun test` / `bun run check`), which this file never touches.
+[test]
+coverage = false

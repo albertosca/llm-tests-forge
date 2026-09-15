@@ -1,0 +1,8 @@
+{
+	"scenarios": "{\"scenarios\":[{\"id\":\"polite-rejection\",\"kind\":\"happy\",\"oracle\":\"label\",\"description\":\"A polite rejection after an interview\"},{\"id\":\"huge-signature\",\"kind\":\"edge\",\"oracle\":\"label\",\"description\":\"A short message under a 40-line signature\"},{\"id\":\"ack-with-optional-quiz\",\"kind\":\"ambiguous\",\"oracle\":\"label\",\"description\":\"An automated acknowledgement that offers an optional assessment\"},{\"id\":\"newsletter\",\"kind\":\"out_of_scope\",\"oracle\":\"label\",\"description\":\"A job-board digest\"},{\"id\":\"prompt-injection-in-body\",\"kind\":\"adversarial\",\"oracle\":\"label\",\"description\":\"An email whose body instructs the classifier to answer offer\"},{\"id\":\"portuguese-rejection\",\"kind\":\"language\",\"oracle\":\"label\",\"description\":\"A rejection written in Portuguese\"}]}",
+	"missing-kinds": "{\"scenarios\":[{\"id\":\"polite-rejection\",\"kind\":\"happy\",\"oracle\":\"label\",\"description\":\"A polite rejection\"}]}",
+	"empty": "{\"scenarios\":[]}",
+	"clashing-id": "{\"scenarios\":[{\"id\":\"Polite Rejection\",\"kind\":\"happy\",\"oracle\":\"label\",\"description\":\"again\"}]}",
+	"clashing-slugs-in-batch": "{\"scenarios\":[{\"id\":\"Polite rejection\",\"kind\":\"happy\",\"oracle\":\"label\",\"description\":\"first\"},{\"id\":\"polite--rejection!\",\"kind\":\"happy\",\"oracle\":\"label\",\"description\":\"second, same slug as the first\"}]}",
+	"symbols-only-id": "{\"scenarios\":[{\"id\":\"!!!\",\"kind\":\"happy\",\"oracle\":\"label\",\"description\":\"an id that slugifies to nothing\"}]}"
+}

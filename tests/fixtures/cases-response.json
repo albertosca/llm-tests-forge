@@ -1,0 +1,9 @@
+{
+	"cases": "{\"cases\":[{\"input\":{\"email\":\"From: hr@globex.com\\nSubject: Update\\n\\nWe decided to move forward with other candidates.\"},\"expected\":{\"label\":\"rejection\"}},{\"input\":{\"email\":\"From: rh@brasiltech.com.br\\nSubject: Retorno\\n\\nInfelizmente não avançaremos.\"},\"expected\":{\"label\":\"rejection\"}}]}",
+	"bad-label": "{\"cases\":[{\"input\":{\"email\":\"x\"},\"expected\":{\"label\":\"maybe\"}},{\"input\":{\"email\":\"y\"},\"expected\":{\"label\":\"rejection\"}}]}",
+	"all-bad": "{\"cases\":[{\"input\":{\"email\":\"x\"},\"expected\":{\"label\":\"maybe\"}},{\"input\":{\"mail\":\"y\"},\"expected\":{\"label\":\"rejection\"}}]}",
+	"rubric": "{\"cases\":[{\"input\":{\"email\":\"x\"},\"expected\":{\"rubric\":\"summary mentions the optional quiz\"}}]}",
+	"fields": "{\"cases\":[{\"input\":{\"email\":\"z\"},\"expected\":{\"fields\":{\"type\":\"rejection\"}}}]}",
+	"bad-keys": "{\"cases\":[{\"input\":{\"mail\":\"x\"},\"expected\":{\"label\":\"rejection\"}},{\"input\":{\"email\":\"y\"},\"expected\":{\"label\":\"rejection\"}}]}",
+	"same-batch-dup": "{\"cases\":[{\"input\":{\"email\":\"same\"},\"expected\":{\"label\":\"rejection\"}},{\"input\":{\"email\":\"same\"},\"expected\":{\"label\":\"rejection\"}}]}"
+}

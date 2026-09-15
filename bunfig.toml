@@ -1,0 +1,7 @@
+[test]
+coverage = true
+coverageThreshold = { lines = 0.95, functions = 0.95 }
+# The real CLI entrypoint: shebang, real-stdin reader, and the
+# process.exit(...) bootstrap. No branching or logic lives there for a
+# test to assert against — see src/cli/bin.ts's own doc comment.
+coveragePathIgnorePatterns = ["src/cli/bin.ts"]

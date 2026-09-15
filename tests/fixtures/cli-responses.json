@@ -1,0 +1,6 @@
+{
+	"describe": "{\"id\":\"classify-email\",\"purpose\":\"Classify a hiring-process email\",\"inputs\":[{\"name\":\"email\",\"kind\":\"text\"}],\"output\":{\"kind\":\"json\",\"fields\":[\"type\",\"summary\"],\"label_field\":\"type\",\"labels\":[\"rejection\",\"acknowledgement\",\"unrelated\"]},\"invariants\":[\"Answer is JSON only\"]}",
+	"scenarios": "{\"scenarios\":[{\"id\":\"polite-rejection\",\"kind\":\"happy\",\"oracle\":\"label\",\"description\":\"a\"},{\"id\":\"huge-signature\",\"kind\":\"edge\",\"oracle\":\"label\",\"description\":\"b\"},{\"id\":\"ack-quiz\",\"kind\":\"ambiguous\",\"oracle\":\"label\",\"description\":\"c\"},{\"id\":\"newsletter\",\"kind\":\"out_of_scope\",\"oracle\":\"label\",\"description\":\"d\"},{\"id\":\"injection\",\"kind\":\"adversarial\",\"oracle\":\"label\",\"description\":\"e\"},{\"id\":\"portuguese\",\"kind\":\"language\",\"oracle\":\"label\",\"description\":\"f\"}]}",
+	"cases": "{\"cases\":[{\"input\":{\"email\":\"one\"},\"expected\":{\"label\":\"rejection\"}},{\"input\":{\"email\":\"two\"},\"expected\":{\"label\":\"rejection\"}}]}",
+	"dedupe": "{\"duplicates\":[{\"id\":\"polite-rejection-02\",\"duplicate_of\":\"polite-rejection-01\"}]}"
+}
