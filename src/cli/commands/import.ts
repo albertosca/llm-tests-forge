@@ -3,6 +3,7 @@ import { basename } from "node:path";
 import { parseArgs } from "node:util";
 import { ForgeError } from "../../core/errors";
 import {
+	forgePaths,
 	readCases,
 	readFeature,
 	readScenarios,
@@ -12,6 +13,7 @@ import {
 import { IMPORTED_SCENARIO_ID, importCases } from "../../core/import";
 import { Oracle } from "../../core/schemas";
 import type { CliContext } from "../context";
+import { requireApprovedFeature } from "../gates";
 
 function parseOracleFlag(raw: string | undefined): Oracle | undefined {
 	if (raw === undefined) return undefined;
@@ -36,6 +38,7 @@ export async function importCommand(
 	if (!file) throw new ForgeError("import needs a JSONL file path");
 	const oracle = parseOracleFlag(values.oracle);
 	const feature = await readFeature(ctx.forgeDir);
+	requireApprovedFeature(feature, forgePaths(ctx.forgeDir).feature);
 	const jsonl = await readFile(file, "utf8").catch(() => {
 		throw new ForgeError("file not found", { file });
 	});

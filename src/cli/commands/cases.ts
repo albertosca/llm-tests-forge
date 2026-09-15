@@ -2,12 +2,14 @@ import { parseArgs } from "node:util";
 import { generateCases } from "../../core/cases";
 import { ForgeError } from "../../core/errors";
 import {
+	forgePaths,
 	readCases,
 	readFeature,
 	readScenarios,
 	writeCases,
 } from "../../core/files";
 import type { CliContext } from "../context";
+import { requireApprovedFeature } from "../gates";
 
 function parsePositiveIntFlag(
 	flag: string,
@@ -36,6 +38,7 @@ export async function casesCommand(
 	});
 	const n = parsePositiveIntFlag("--n", values.n) ?? 5;
 	const feature = await readFeature(ctx.forgeDir);
+	requireApprovedFeature(feature, forgePaths(ctx.forgeDir).feature);
 	const scenarios = await readScenarios(ctx.forgeDir);
 	const targets = values.scenario
 		? scenarios.filter((s) => s.id === values.scenario)

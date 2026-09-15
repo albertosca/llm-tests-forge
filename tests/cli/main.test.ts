@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, stat, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createContext } from "../../src/cli/context";
@@ -146,6 +146,8 @@ describe("review: interactive decisions beyond --all", () => {
 		expect(
 			await run(["describe", "The bot classifies hiring emails"], describeCtx),
 		).toBe(0);
+		const { ctx: approveCtx } = await ctxIn(cwd, ["approve"]);
+		expect(await run(["review"], approveCtx)).toBe(0);
 
 		const jsonl = join(cwd, "prod.jsonl");
 		await writeFile(jsonl, '{"email":"real one"}\n{"email":"real two"}\n');
@@ -423,6 +425,8 @@ describe("review --all: never approves a case with no expected (Finding 2)", () 
 		expect(
 			await run(["describe", "The bot classifies hiring emails"], describeCtx),
 		).toBe(0);
+		const { ctx: approveCtx } = await ctxIn(cwd, ["approve"]);
+		expect(await run(["review"], approveCtx)).toBe(0);
 
 		const jsonl = join(cwd, "prod.jsonl");
 		await writeFile(jsonl, '{"email":"real one"}\n{"email":"real two"}\n');
@@ -538,6 +542,8 @@ describe("import: missing file", () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const { ctx: describeCtx } = await ctxIn(cwd);
 		expect(await run(["describe", "text"], describeCtx)).toBe(0);
+		const { ctx: approveCtx } = await ctxIn(cwd, ["approve"]);
+		expect(await run(["review"], approveCtx)).toBe(0);
 
 		const { ctx, out } = await ctxIn(cwd);
 		const missing = join(cwd, "nope.jsonl");
@@ -656,5 +662,128 @@ describe("createContext defaults", () => {
 			console.log = original;
 		}
 		expect(lines).toEqual(["hello"]);
+	});
+});
+
+describe("the downstream gate: nothing runs on a pending feature (whole-branch Finding 1)", () => {
+	/** A freshly described feature, left pending on purpose. */
+	async function pendingFeature(cwd: string) {
+		const { ctx } = await ctxIn(cwd);
+		expect(
+			await run(["describe", "The bot classifies hiring emails"], ctx),
+		).toBe(0);
+		expect((await readFeature(join(cwd, ".forge"))).status).toBe("pending");
+	}
+
+	/** Refuses loudly if the verb reaches the model at all. */
+	function noModelCalls(ctx: Awaited<ReturnType<typeof ctxIn>>["ctx"]) {
+		ctx.llm = {
+			generate: async () => {
+				throw new Error("the model was called for a pending feature");
+			},
+		};
+	}
+
+	test("scenarios refuses, naming feature.yaml and the feature id", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await pendingFeature(cwd);
+
+		const { ctx, out } = await ctxIn(cwd);
+		noModelCalls(ctx);
+		expect(await run(["scenarios"], ctx)).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: feature is pending; run \`forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
+		);
+	});
+
+	test("cases refuses before spending a single token", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await pendingFeature(cwd);
+
+		const { ctx, out } = await ctxIn(cwd);
+		noModelCalls(ctx);
+		expect(await run(["cases"], ctx)).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: feature is pending; run \`forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
+		);
+	});
+
+	test("import refuses instead of exiting 0, and writes no cases file", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await pendingFeature(cwd);
+		const jsonl = join(cwd, "prod.jsonl");
+		await writeFile(jsonl, '{"email":"real one"}\n');
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["import", jsonl], ctx)).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: feature is pending; run \`forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
+		);
+		const wrote = await stat(
+			join(cwd, ".forge", "cases", "imported.yaml"),
+		).then(
+			() => true,
+			() => false,
+		);
+		expect(wrote).toBe(false);
+	});
+});
+
+describe("describe never destroys a reviewed feature (whole-branch Finding 2)", () => {
+	/** Describes a feature and approves it, so the next describe is destructive. */
+	async function approvedFeature(cwd: string) {
+		let { ctx } = await ctxIn(cwd);
+		expect(
+			await run(["describe", "The bot classifies hiring emails"], ctx),
+		).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		expect((await readFeature(join(cwd, ".forge"))).status).toBe("approved");
+	}
+
+	test("refuses, names the file and how to override, and leaves the file byte-identical", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const featurePath = join(cwd, ".forge", "feature.yaml");
+		await approvedFeature(cwd);
+		// A hand-added invariant: the input this refusal exists to protect.
+		const reviewed = await readFile(featurePath, "utf8");
+		await writeFile(
+			featurePath,
+			`${reviewed}invariants_note: never auto-generated\n`,
+		);
+		const before = await readFile(featurePath, "utf8");
+		await utimes(featurePath, LONG_AGO, LONG_AGO);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["describe", "something else entirely"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain(
+			'feature "classify-email" is already approved',
+		);
+		expect(out.at(-1)).toContain("--force");
+		expect(out.at(-1)).toContain(featurePath);
+		expect(await readFile(featurePath, "utf8")).toBe(before);
+		expect((await stat(featurePath)).mtime.getTime()).toBe(LONG_AGO.getTime());
+	});
+
+	test("--force does overwrite it, back to pending", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await approvedFeature(cwd);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["describe", "--force", "something else entirely"], ctx),
+		).toBe(0);
+		expect(out.at(-1)).toContain("written as pending");
+		expect((await readFeature(join(cwd, ".forge"))).status).toBe("pending");
+	});
+
+	test("a still-pending feature is not reviewed work, so re-describing over it is allowed", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const { ctx: first } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], first)).toBe(0);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["describe", "text again"], ctx)).toBe(0);
+		expect(out.at(-1)).toContain("written as pending");
 	});
 });

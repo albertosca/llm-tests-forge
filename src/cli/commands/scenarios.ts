@@ -9,6 +9,7 @@ import {
 import { enumerateScenarios } from "../../core/scenarios";
 import { Kind } from "../../core/schemas";
 import type { CliContext } from "../context";
+import { requireApprovedFeature } from "../gates";
 
 function parseKindsFlag(raw: string | undefined): Kind[] | undefined {
 	if (raw === undefined) return undefined;
@@ -49,10 +50,7 @@ export async function scenariosCommand(
 		},
 	});
 	const feature = await readFeature(ctx.forgeDir);
-	if (feature.status === "pending")
-		throw new ForgeError("feature is pending; run `forge review` first", {
-			file: forgePaths(ctx.forgeDir).feature,
-		});
+	requireApprovedFeature(feature, forgePaths(ctx.forgeDir).feature);
 	const kinds = parseKindsFlag(values.kinds);
 	const more = parsePositiveIntFlag("--more", values.more);
 	const existing = await readScenarios(ctx.forgeDir);

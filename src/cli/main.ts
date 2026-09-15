@@ -8,7 +8,8 @@ import { scenariosCommand } from "./commands/scenarios";
 import type { CliContext } from "./context";
 
 export const USAGE = `usage: forge <verb> [options]
-  describe <text...> [--prompt-file f] [--model m]   free text (or stdin) -> .forge/feature.yaml (pending)
+  describe <text...> [--prompt-file f] [--force] [--model m]
+                                                     free text (or stdin) -> .forge/feature.yaml (pending)
   scenarios [--kinds a,b] [--more n] [--model m]      feature -> .forge/scenarios.yaml
   cases [--n 5] [--scenario id] [--model m]           approved scenarios -> .forge/cases/<id>.yaml
   dedupe [--scenario id] [--model m]                  mark likely duplicates (duplicate_of)

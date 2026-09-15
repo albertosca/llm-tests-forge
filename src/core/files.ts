@@ -79,6 +79,21 @@ export async function readFeature(forgeDir: string): Promise<Feature> {
 	return readYamlFile(forgePaths(forgeDir).feature, FeatureSchema);
 }
 
+/**
+ * The same read as `readFeature`, but `undefined` instead of a throw when
+ * no feature has been written yet — for `describe`, which must tell "no
+ * feature here" apart from "a feature that must not be overwritten". A
+ * file that exists but is unreadable or invalid still throws: silently
+ * treating it as absent is how reviewed work gets destroyed.
+ */
+export async function readFeatureIfPresent(
+	forgeDir: string,
+): Promise<Feature | undefined> {
+	const path = forgePaths(forgeDir).feature;
+	if (!(await exists(path))) return undefined;
+	return readYamlFile(path, FeatureSchema);
+}
+
 export async function writeFeature(
 	forgeDir: string,
 	feature: Feature,
