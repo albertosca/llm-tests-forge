@@ -26,6 +26,11 @@ export interface ReviewLoopArgs {
 	 * what is wrong with it.
 	 */
 	checkExpected: (c: Case, oracle: Oracle) => string | null;
+	/**
+	 * Every id already present in the file this item lives in, so an edit
+	 * cannot rename it onto one of its siblings.
+	 */
+	takenIdsFor: (item: PendingItem) => ReadonlySet<string>;
 	oracleOf: (scenarioId: string) => Oracle;
 	print: (line: string) => void;
 }
@@ -133,8 +138,18 @@ export async function runReviewLoop(
 					const editedText = await args.openEditor(
 						stringify(current, { lineWidth: 0 }),
 					);
-					current = applyDecision(current, "edit", parse(editedText));
-					refuseExpectedOutsideOracle(pending.kind, current);
+					// `current` is only replaced once the new value has passed
+					// every check: a refused decision left it holding a status
+					// the file does not have, which the retry then printed and
+					// $EDITOR opened on.
+					const edited = applyDecision(
+						current,
+						"edit",
+						parse(editedText),
+						args.takenIdsFor(pending),
+					);
+					refuseExpectedOutsideOracle(pending.kind, edited);
+					current = edited;
 					summary.edited += 1;
 					decisions.push({
 						kind: pending.kind,
@@ -150,9 +165,10 @@ export async function runReviewLoop(
 					break;
 				}
 
-				current = applyDecision(current, answer);
+				const decided = applyDecision(current, answer);
 				if (answer === "approve")
-					refuseExpectedOutsideOracle(pending.kind, current);
+					refuseExpectedOutsideOracle(pending.kind, decided);
+				current = decided;
 				summary[answer === "approve" ? "approved" : "rejected"] += 1;
 				decisions.push({
 					kind: pending.kind,

@@ -104,10 +104,21 @@ function validate<T extends Feature | Scenario | Case>(
 	return result.data as T;
 }
 
+/** No siblings to collide with: the default for callers that have none. */
+const NO_TAKEN_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * `takenIds` is every id already present in the item's own file, the item's
+ * own included. An edit may rename an item — that is how a model-generated
+ * slug gets fixed — but renaming it onto an id a sibling already uses makes
+ * two entries indistinguishable, and the review pass then resolves one over
+ * the other. Refused by name, so the loop re-asks.
+ */
 export function applyDecision<T extends Feature | Scenario | Case>(
 	item: T,
 	decision: Decision,
 	edited?: T,
+	takenIds: ReadonlySet<string> = NO_TAKEN_IDS,
 ): T {
 	switch (decision) {
 		case "approve":
@@ -133,6 +144,11 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// a file move, not a review decision. Refused by name so the
 			// edit is re-asked, rather than half-applied into a file the
 			// reviewer never opened.
+			if (next.id !== item.id && takenIds.has(next.id))
+				throw new ForgeError(
+					`id "${next.id}" is already used by another item in the same file; pick an id nothing else uses`,
+					{ id: item.id },
+				);
 			if (isCase(item) && isCase(next) && next.scenario !== item.scenario)
 				throw new ForgeError(
 					`a case's scenario cannot be changed in review (from "${item.scenario}" to "${next.scenario}"); move the case between .forge/cases/<scenario>.yaml files instead`,

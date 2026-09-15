@@ -139,6 +139,16 @@ export async function reviewCommand(
 			askExpectedFor(c, oracle, io, (expected) =>
 				expectedMatchesOracle(expected, oracle, feature),
 			),
+		// Collisions are per file: scenarios share scenarios.yaml, cases share
+		// their scenario's file, and the feature is alone in its own.
+		takenIdsFor: (item) => {
+			if (item.kind === "scenario") return new Set(scenarios.map((s) => s.id));
+			if (item.kind === "case")
+				return new Set(
+					(casesById.get(item.item.scenario) ?? []).map((c) => c.id),
+				);
+			return new Set();
+		},
 		checkExpected: (c, oracle) =>
 			c.expected === undefined
 				? null
@@ -153,6 +163,21 @@ export async function reviewCommand(
 	// found nothing, wrote nothing, and still reported the edit as applied.
 	// Each list is rebuilt from what was read off disk, so a decision that
 	// matched nothing cannot invent a file to land in either.
+	// One decision belongs to one item. `Map.get` alone applied it to every
+	// entry sharing that id AND handed each the same object reference, so a
+	// file with two entries under one id came back with the second replaced
+	// by a YAML alias of the first -- its input, its expected and its own
+	// review gone, reported as "1 approved". Taking the entry out of the map
+	// on first hit makes "at most one" structural: the second entry finds
+	// nothing and keeps itself. (Carrying an array index instead would mean
+	// threading the file position through PendingItem and the loop, which
+	// reorders cases; this keeps the guarantee where the write happens.)
+	const take = <T>(decided: Map<string, T>, id: string): T | undefined => {
+		const hit = decided.get(id);
+		if (hit !== undefined) decided.delete(id);
+		return hit;
+	};
+
 	const decidedFeature = result.decisions.find((d) => d.kind === "feature");
 	if (decidedFeature)
 		await writeFeature(ctx.forgeDir, decidedFeature.item as Feature);
@@ -165,7 +190,7 @@ export async function reviewCommand(
 	if (decidedScenarios.size > 0)
 		await writeScenarios(
 			ctx.forgeDir,
-			scenarios.map((s) => decidedScenarios.get(s.id) ?? s),
+			scenarios.map((s) => take(decidedScenarios, s.id) ?? s),
 		);
 
 	const decidedCases = new Map(
@@ -178,7 +203,7 @@ export async function reviewCommand(
 		await writeCases(
 			ctx.forgeDir,
 			id,
-			list.map((c) => decidedCases.get(c.id) ?? c),
+			list.map((c) => take(decidedCases, c.id) ?? c),
 		);
 	}
 	const s = result.summary;

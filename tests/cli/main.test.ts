@@ -1203,3 +1203,158 @@ describe("review --all does not bulk-approve past the oracle", () => {
 		]);
 	});
 });
+
+describe("review: a decision applies to at most one entry (regression)", () => {
+	test("two cases sharing an id: approving one leaves the other intact, with its own fields and status", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		let { ctx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["scenarios"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review", "--only", "scenarios"], ctx)).toBe(0);
+
+		// A cases file where two entries carry the same id -- the state the
+		// review loop must not resolve by writing one decision over both.
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "the first one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "the second one" },
+				expected: { label: "acknowledgement" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		const { ctx: reviewCtx, out } = await ctxIn(cwd, ["approve"]);
+		expect(
+			await run(
+				["review", "--scenario", "polite-rejection", "--only", "cases"],
+				reviewCtx,
+			),
+		).toBe(0);
+		// Only one item is offered: pendingItems places one entry per id, so
+		// the twin is not reviewed this pass. That is a limitation, not the
+		// defect under test -- the defect is what happens to it on write.
+		expect(out.at(-1)).toBe(
+			"review: 1 approved, 0 rejected, 0 edited, 0 skipped, 0 still pending",
+		);
+
+		// Length alone would pass against a YAML alias: assert the second
+		// entry's own content and its own status survived.
+		const cases = await readCases(forgeDir, "polite-rejection");
+		expect(cases.map((c) => [c.input.email, c.status])).toEqual([
+			["the first one", "approved"],
+			["the second one", "pending"],
+		]);
+		expect(cases[1]?.expected).toEqual({ label: "acknowledgement" });
+		// Two distinct objects, not one written twice.
+		expect(cases[0]).not.toBe(cases[1]);
+		const raw = await readFile(
+			join(forgeDir, "cases", "polite-rejection.yaml"),
+			"utf8",
+		);
+		expect(raw).not.toContain("*");
+		expect(raw).not.toContain("&");
+	});
+});
+
+describe("review: an edit cannot rename an item onto an id already in its file", () => {
+	async function editorReplacing(
+		dir: string,
+		from: string,
+		to: string,
+	): Promise<string> {
+		const path = join(dir, `fake-editor-${from.replace(/\W/g, "")}.sh`);
+		await writeFile(
+			path,
+			`#!/bin/sh\nsed 's|^${from}$|${to}|' "$1" > "$1.tmp" && mv "$1.tmp" "$1"\n`,
+		);
+		await chmod(path, 0o755);
+		return path;
+	}
+
+	async function withEditor<T>(
+		path: string,
+		body: () => Promise<T>,
+	): Promise<T> {
+		const original = process.env.EDITOR;
+		process.env.EDITOR = path;
+		try {
+			return await body();
+		} finally {
+			if (original === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = original;
+		}
+	}
+
+	test("renaming a scenario onto a sibling's id is refused, and both scenarios survive", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		let { ctx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["scenarios"], ctx)).toBe(0);
+
+		const editor = await editorReplacing(
+			cwd,
+			"id: polite-rejection",
+			"id: huge-signature",
+		);
+		const { ctx: reviewCtx, out } = await ctxIn(cwd, ["edit"]);
+		await withEditor(editor, async () => {
+			expect(await run(["review", "--only", "scenarios"], reviewCtx)).toBe(0);
+		});
+
+		expect(out).toContain(
+			'cannot apply: id "huge-signature" is already used by another item in the same file; pick an id nothing else uses (id: polite-rejection)',
+		);
+		const scenarios = await readScenarios(join(cwd, ".forge"));
+		expect(scenarios.map((s) => [s.id, s.status])).toEqual([
+			["polite-rejection", "pending"],
+			["huge-signature", "pending"],
+			["ack-quiz", "pending"],
+			["newsletter", "pending"],
+			["injection", "pending"],
+			["portuguese", "pending"],
+		]);
+	});
+
+	test("the feature has no siblings, so editing it is not blocked by its own id", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const { ctx: describeCtx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], describeCtx)).toBe(0);
+
+		const editor = await editorReplacing(
+			cwd,
+			"purpose: Classify a hiring-process email",
+			"purpose: Classify a hiring-process email, reviewed by hand",
+		);
+		const { ctx, out } = await ctxIn(cwd, ["edit"]);
+		await withEditor(editor, async () => {
+			expect(await run(["review"], ctx)).toBe(0);
+		});
+
+		const feature = await readFeature(join(cwd, ".forge"));
+		expect(feature.purpose).toBe(
+			"Classify a hiring-process email, reviewed by hand",
+		);
+		expect(feature.status).toBe("edited");
+		expect(out.at(-1)).toBe(
+			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 still pending",
+		);
+	});
+});

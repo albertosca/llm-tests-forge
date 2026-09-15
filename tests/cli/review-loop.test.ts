@@ -67,6 +67,7 @@ describe("runReviewLoop", () => {
 			openEditor: async (t) => t,
 			askExpected: async () => ({ label: "x" }),
 			checkExpected: () => null,
+			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
 			print: (l) => printed.push(l),
 		});
@@ -94,6 +95,7 @@ describe("runReviewLoop", () => {
 				return { label: "rejection" };
 			},
 			checkExpected: () => null,
+			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
 			print: () => {},
 		});
@@ -118,6 +120,7 @@ describe("runReviewLoop", () => {
 				return { label: "rejection" };
 			},
 			checkExpected: () => null,
+			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
 			print: () => {},
 		});
@@ -151,6 +154,7 @@ describe("runReviewLoop", () => {
 			openEditor: async () => edits.shift() ?? "",
 			askExpected: async () => ({ label: "x" }),
 			checkExpected: () => null,
+			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
 			print: (l) => printed.push(l),
 		});
@@ -186,6 +190,7 @@ describe("runReviewLoop", () => {
 					throw new Error("boom");
 				},
 				checkExpected: () => null,
+				takenIdsFor: () => new Set(),
 				oracleOf: () => "label",
 				print: () => {},
 			}),
@@ -206,6 +211,7 @@ describe("runReviewLoop", () => {
 				openEditor: async (t) => t,
 				askExpected: async () => ({ label: "x" }),
 				checkExpected: () => null,
+				takenIdsFor: () => new Set(),
 				oracleOf: () => "label",
 				print: () => {},
 			});
@@ -226,6 +232,7 @@ describe("runReviewLoop", () => {
 			openEditor: async (t) => t,
 			askExpected: async () => ({ label: "x" }),
 			checkExpected: () => null,
+			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
 			print: (l) => printed.push(l),
 		});
@@ -268,6 +275,7 @@ describe("runReviewLoop", () => {
 				c.expected?.label === "a"
 					? null
 					: `label "${c.expected?.label}" is not one of the feature's labels`,
+			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
 			print: (l) => printed.push(l),
 		});
@@ -279,6 +287,51 @@ describe("runReviewLoop", () => {
 		expect(caseAt(r, 0).expected).toEqual({ label: "a" });
 	});
 
+	test("an edit renaming an item onto a sibling's id is refused by name and re-asked", async () => {
+		const edits = [
+			stringify({ ...scn, id: "already-taken" }),
+			stringify({ ...scn, id: "free-id" }),
+		];
+		const printed: string[] = [];
+		const r = await runReviewLoop({
+			items: [{ kind: "scenario", item: scn }],
+			ask: scripted(["edit", "edit"]),
+			openEditor: async () => edits.shift() ?? "",
+			askExpected: async () => ({ label: "x" }),
+			checkExpected: () => null,
+			takenIdsFor: () => new Set([scn.id, "already-taken"]),
+			oracleOf: () => "label",
+			print: (l) => printed.push(l),
+		});
+
+		expect(printed).toContain(
+			`cannot apply: id "already-taken" is already used by another item in the same file; pick an id nothing else uses (id: ${scn.id})`,
+		);
+		expect(r.decisions.map((d) => [d.originalId, d.id])).toEqual([
+			[scn.id, "free-id"],
+		]);
+	});
+
+	test("a refused decision leaves the item printed with the status it still has on disk", async () => {
+		// The oracle refusal used to fire after `current` had already been
+		// reassigned, so the retry printed `status: approved` for an item
+		// that was still pending everywhere else.
+		const printed: string[] = [];
+		await runReviewLoop({
+			items: [{ kind: "case", item: withExp }],
+			ask: scripted(["approve"]),
+			openEditor: async (t) => t,
+			askExpected: async () => ({ label: "x" }),
+			checkExpected: () => 'label "x" is not one of the feature\'s labels',
+			takenIdsFor: () => new Set(),
+			oracleOf: () => "label",
+			print: (l) => printed.push(l),
+		});
+
+		expect(printed.filter((l) => l.includes("status: approved"))).toEqual([]);
+		expect(printed.filter((l) => l.includes("status: pending")).length).toBe(2);
+	});
+
 	test("skip leaves no decision", async () => {
 		const r = await runReviewLoop({
 			items: [{ kind: "scenario", item: scn }],
@@ -286,6 +339,7 @@ describe("runReviewLoop", () => {
 			openEditor: async (t) => t,
 			askExpected: async () => ({ label: "x" }),
 			checkExpected: () => null,
+			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
 			print: () => {},
 		});
