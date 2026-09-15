@@ -1,0 +1,15 @@
+id: classify-email
+purpose: Classify a hiring-process email received by a job candidate
+inputs:
+  - name: email
+    kind: text
+    notes: from, subject and body of one email
+output:
+  kind: json
+  fields: [type, stage, new_stage, company, job_title, summary]
+  label_field: type
+  labels: [rejection, acknowledgement, interview, screening, offer, info_request, unrelated]
+invariants:
+  - Automated confirmations are acknowledgement, never screening
+  - Answer is JSON only, no prose
+status: approved
