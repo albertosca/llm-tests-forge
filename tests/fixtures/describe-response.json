@@ -1,0 +1,3 @@
+{
+	"describe": "{\"id\":\"classify-email\",\"purpose\":\"Classify a hiring-process email received by a job candidate\",\"inputs\":[{\"name\":\"email\",\"kind\":\"text\",\"notes\":\"from, subject and body\"}],\"output\":{\"kind\":\"json\",\"fields\":[\"type\",\"summary\"],\"label_field\":\"type\",\"labels\":[\"rejection\",\"acknowledgement\",\"unrelated\"]},\"invariants\":[\"Answer is JSON only\"]}"
+}
