@@ -234,4 +234,16 @@ describe("readYamlFile: the real cause of a read failure", () => {
 		);
 		expect((err as Error).message).toContain("file not found");
 	});
+	test("an OS error with no special-cased code (ENOTDIR) falls through to 'cannot read: <message>'", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "forge-files-"));
+		const notADir = join(dir, "afile");
+		await writeFile(notADir, "hi");
+		const target = join(notADir, "child.yaml");
+		const rawErr = await readFile(target, "utf8").catch((e: Error) => e);
+		const err = await readYamlFile(target, SuiteSchema).catch((e: Error) => e);
+		expect((rawErr as NodeJS.ErrnoException).code).toBe("ENOTDIR");
+		expect((err as Error).message).toBe(
+			`cannot read: ${(rawErr as Error).message} (file: ${target})`,
+		);
+	});
 });
