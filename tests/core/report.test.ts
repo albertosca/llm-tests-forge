@@ -185,9 +185,8 @@ describe("buildReport", () => {
 		]);
 	});
 
-	test("a case that passes once and fails once is flaky, and its failure reason is kept", () => {
-		const report = build([
-			row({ case: "a-01", model: "m" }),
+	test("a case that passes once and fails twice is flaky, and the repeated reason is kept once", () => {
+		const failing = () =>
 			row({
 				case: "a-01",
 				model: "m",
@@ -202,23 +201,28 @@ describe("buildReport", () => {
 						},
 					],
 				},
-			}),
+			});
+		const report = build([
+			row({ case: "a-01", model: "m" }),
+			failing(),
+			// the same failure again: one reason to read, not two
+			failing(),
 		]);
 		expect(report.cases).toEqual([
 			{
 				case: "a-01",
 				scenario: "a",
 				model: "m",
-				runs: 2,
+				runs: 3,
 				passed: 1,
-				failed: 1,
+				failed: 2,
 				errored: 0,
 				stability: "flaky",
 				reasons: ['type was "offer"'],
 			},
 		]);
 		expect(report.flaky).toEqual(["a-01 @ m"]);
-		expect(report.passRate).toBe(0.5);
+		expect(report.passRate).toBe(0.3333);
 	});
 
 	test("every run erroring is errored; every run failing is failing", () => {
@@ -234,6 +238,19 @@ describe("buildReport", () => {
 		]);
 		expect(report.cases[0]?.errored).toBe(2);
 		expect(report.passRate).toBe(0);
+		expect(report.flaky).toEqual([]);
+	});
+
+	test("a provider with no label is named by its id", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "unused",
+				provider: { id: "file://forge_target.py" },
+			}),
+		]);
+		expect(report.cases[0]?.model).toBe("file://forge_target.py");
+		expect(report.costs[0]?.model).toBe("file://forge_target.py");
 		expect(report.flaky).toEqual([]);
 	});
 
@@ -314,6 +331,40 @@ describe("buildReport", () => {
 			withRuns: 1,
 			withoutCase: ["r"],
 		});
+	});
+
+	test("an edited scenario and an edited case count exactly like approved ones", () => {
+		const report = build(
+			[row({ case: "a-01", model: "m" }), row({ case: "e-01", model: "m" })],
+			{
+				scenarios: [sc("a", "label"), sc("e", "label", "edited")],
+				cases: [cs("a-01", "a"), cs("e-01", "e", "edited")],
+			},
+		);
+		expect(report.scenarios).toEqual([
+			{
+				scenario: "a",
+				kind: "happy",
+				run: 1,
+				passed: 1,
+				failed: 0,
+				errored: 0,
+			},
+			{
+				scenario: "e",
+				kind: "happy",
+				run: 1,
+				passed: 1,
+				failed: 0,
+				errored: 0,
+			},
+		]);
+		expect(report.coverage).toEqual({
+			approvedScenarios: 2,
+			withRuns: 2,
+			withoutCase: [],
+		});
+		expect(report.cases.map((c) => c.case)).toEqual(["a-01", "e-01"]);
 	});
 
 	test("two judges that disagree are reported; agreeing judges and a lone judge are not", () => {
@@ -425,6 +476,21 @@ describe("buildReport", () => {
 		expect(report.costs[0]?.realDollars).toBe((400 * 1 + 80 * 5) / 1e6);
 		expect(report.costs[0]?.approximatePrice).toBe(false);
 		expect(report.targetUsageReported).toBe(true);
+	});
+
+	test("a reported cost is never marked approximate, even for a model the table has never heard of", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "anthropic/claude-haiku-9",
+				cost: 0.001,
+				tokenUsage: { prompt: 400, completion: 80, total: 480 },
+			}),
+		]);
+		// priceFor would approximate this model, but no price was looked up:
+		// promptfoo billed the call and told us what it cost.
+		expect(report.costs[0]?.realDollars).toBe(0.001);
+		expect(report.costs[0]?.approximatePrice).toBe(false);
 	});
 
 	test("the estimate line for the same model and role gives the error percent", () => {

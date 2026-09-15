@@ -321,7 +321,10 @@ function costsOf(args: {
 				realDollars: reported
 					? sum(mine, (m) => m.row.cost ?? 0)
 					: (inputTokens * price.input + outputTokens * price.output) / 1e6,
-				approximatePrice: price.approximate,
+				// `~` says "this dollar figure came from the closest listed
+				// model". When promptfoo reported the cost itself no table
+				// lookup happened, so marking it would be a lie.
+				approximatePrice: reported ? false : price.approximate,
 				estimate,
 			}),
 		);
