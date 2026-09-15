@@ -1,4 +1,4 @@
-import { ForgeError } from "../core/errors";
+import { ForgeError, UsageError } from "../core/errors";
 import { casesCommand } from "./commands/cases";
 import { dedupeCommand } from "./commands/dedupe";
 import { describeCommand } from "./commands/describe";
@@ -39,9 +39,13 @@ export async function run(argv: string[], ctx: CliContext): Promise<number> {
 		await command(rest, ctx);
 		return 0;
 	} catch (e) {
+		if (e instanceof UsageError) {
+			ctx.stdout(`error: ${e.message}`);
+			return 2;
+		}
 		if (e instanceof ForgeError) {
 			ctx.stdout(`error: ${e.message}`);
-			return e.details.file === "usage" ? 2 : 1;
+			return 1;
 		}
 		if (e instanceof TypeError && /option|argument/i.test(e.message)) {
 			ctx.stdout(`error: ${e.message}\n${USAGE}`);

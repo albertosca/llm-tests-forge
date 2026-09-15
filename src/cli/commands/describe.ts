@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { describeFeature } from "../../core/describe";
+import { ForgeError } from "../../core/errors";
 import { forgePaths, writeFeature } from "../../core/files";
 import type { CliContext } from "../context";
 
@@ -20,7 +21,9 @@ export async function describeCommand(
 		positionals.length > 0 ? positionals.join(" ") : await ctx.stdin();
 	const promptFile = values["prompt-file"];
 	const promptText = promptFile
-		? await readFile(promptFile, "utf8")
+		? await readFile(promptFile, "utf8").catch(() => {
+				throw new ForgeError("file not found", { file: promptFile });
+			})
 		: undefined;
 	const feature = await describeFeature({
 		text,

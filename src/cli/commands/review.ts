@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util";
-import { ForgeError } from "../../core/errors";
+import { ForgeError, UsageError } from "../../core/errors";
 import {
 	listCaseScenarios,
 	readCases,
@@ -9,11 +9,22 @@ import {
 	writeFeature,
 	writeScenarios,
 } from "../../core/files";
-import { pendingItems } from "../../core/review";
+import { applyDecision, pendingItems } from "../../core/review";
 import type { Case, Feature, Oracle, Scenario } from "../../core/schemas";
 import type { CliContext } from "../context";
 import { askChoice, askExpectedFor, openInEditor } from "../prompts";
 import { runReviewLoop } from "../review-loop";
+
+const ONLY_VALUES = ["feature", "scenarios", "cases"];
+
+function parseOnlyFlag(raw: string | undefined): string | undefined {
+	if (raw === undefined) return undefined;
+	if (!ONLY_VALUES.includes(raw))
+		throw new ForgeError(
+			`--only "${raw}" is not valid; choose one of: ${ONLY_VALUES.join(", ")}`,
+		);
+	return raw;
+}
 
 export async function reviewCommand(
 	args: string[],
@@ -27,17 +38,32 @@ export async function reviewCommand(
 			all: { type: "boolean" },
 		},
 	});
+	const only = parseOnlyFlag(values.only);
 
 	if (values.all) {
 		const id = values.scenario;
-		if (!id)
-			throw new ForgeError("--all requires --scenario", { file: "usage" });
+		if (!id) throw new UsageError("--all requires --scenario");
+		const scenarios = await readScenarios(ctx.forgeDir);
+		if (!scenarios.some((s) => s.id === id))
+			throw new ForgeError(`scenario "${id}" not found`, { id });
 		const cases = await readCases(ctx.forgeDir, id);
-		const updated = cases.map((c) =>
-			c.status === "pending" ? { ...c, status: "approved" as const } : c,
+		let approved = 0;
+		let skipped = 0;
+		const updated = cases.map((c) => {
+			if (c.status !== "pending") return c;
+			if (c.expected === undefined) {
+				skipped += 1;
+				return c;
+			}
+			approved += 1;
+			return applyDecision(c, "approve");
+		});
+		if (approved > 0) await writeCases(ctx.forgeDir, id, updated);
+		ctx.stdout(
+			skipped > 0
+				? `review: approved ${approved} pending case(s) of ${id}; ${skipped} left pending (no expected set — run \`forge review --scenario ${id}\` to fill them in)`
+				: `review: approved ${approved} pending case(s) of ${id}`,
 		);
-		await writeCases(ctx.forgeDir, id, updated);
-		ctx.stdout(`review: approved every pending case of ${id}`);
 		return;
 	}
 
@@ -55,8 +81,7 @@ export async function reviewCommand(
 		? scenarios.filter((s) => s.id === values.scenario)
 		: scenarios;
 	let items = pendingItems(feature, scopedScenarios, allCases);
-	if (values.only) {
-		const only = values.only;
+	if (only) {
 		items = items.filter((i) => i.kind === only || `${i.kind}s` === only);
 	}
 	if (items.length === 0) {

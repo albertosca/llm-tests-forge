@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createContext } from "../../src/cli/context";
 import { modelFlag, run } from "../../src/cli/main";
-import { readCases, readFeature, readScenarios } from "../../src/core/files";
+import {
+	readCases,
+	readFeature,
+	readScenarios,
+	writeCases,
+} from "../../src/core/files";
 
 /** An unambiguously old timestamp: any real write resets a file's mtime to
  * "now", which is trivially distinguishable from this regardless of the
@@ -257,6 +262,36 @@ describe("scenarios: --kinds restricts required coverage", () => {
 	});
 });
 
+describe("scenarios: --more validation (Finding 3)", () => {
+	async function approvedFeature(cwd: string) {
+		let { ctx } = await ctxIn(cwd, ["approve"]);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+	}
+
+	test("rejects a non-numeric --more, naming the flag and the bad value", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await approvedFeature(cwd);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["scenarios", "--more", "abc"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("--more");
+		expect(out.at(-1)).toContain('"abc"');
+		expect(out.at(-1)).toContain("positive integer");
+	});
+
+	test("rejects a non-positive --more (embedding a literal NaN/0 into the model prompt is not acceptable)", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await approvedFeature(cwd);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["scenarios", "--more", "0"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("--more");
+		expect(out.at(-1)).toContain('"0"');
+	});
+});
+
 describe("cases: scenario lookup failures", () => {
 	// Both cases below need at least one real scenario on disk: an empty
 	// `scenarios.yaml` would make the id/status filter a no-op over an
@@ -278,6 +313,10 @@ describe("cases: scenario lookup failures", () => {
 		const { ctx, out } = await ctxIn(cwd);
 		expect(await run(["cases", "--scenario", "no-such-scenario"], ctx)).toBe(1);
 		expect(out.at(-1)).toContain('scenario "no-such-scenario" not found');
+		// The scenario id is carried in ForgeError's structured `details`,
+		// not only interpolated into the message string -- ForgeError's own
+		// constructor surfaces `details.id` as this "(id: ...)" suffix.
+		expect(out.at(-1)).toContain("(id: no-such-scenario)");
 	});
 
 	test("refuses when no scenario is approved and none was named", async () => {
@@ -287,6 +326,210 @@ describe("cases: scenario lookup failures", () => {
 		const { ctx, out } = await ctxIn(cwd);
 		expect(await run(["cases"], ctx)).toBe(1);
 		expect(out.at(-1)).toContain("no approved scenario");
+	});
+});
+
+describe("cases: --n validation (Finding 3)", () => {
+	async function approvedScenario(cwd: string) {
+		let { ctx } = await ctxIn(cwd, ["approve"]);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["scenarios"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review", "--only", "scenarios"], ctx)).toBe(0);
+	}
+
+	test("rejects a non-numeric --n, naming the flag and the bad value", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await approvedScenario(cwd);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["cases", "--scenario", "polite-rejection", "--n", "abc"], ctx),
+		).toBe(1);
+		expect(out.at(-1)).toContain("--n");
+		expect(out.at(-1)).toContain('"abc"');
+		expect(out.at(-1)).toContain("positive integer");
+	});
+
+	test("rejects a non-positive --n", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await approvedScenario(cwd);
+
+		// `--n -1` (as two args) is ambiguous to Node's own parseArgs (it
+		// looks like a second flag) and gets rejected before ever reaching
+		// our validator; `--n=0` is unambiguously a value and lands there.
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["cases", "--scenario", "polite-rejection", "--n=0"], ctx),
+		).toBe(1);
+		expect(out.at(-1)).toContain("--n");
+		expect(out.at(-1)).toContain('"0"');
+		expect(out.at(-1)).toContain("positive integer");
+	});
+});
+
+describe("dedupe: --scenario existence check (Finding 1)", () => {
+	test("fails naming the scenario instead of writing a phantom empty cases file", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		const { ctx: describeCtx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], describeCtx)).toBe(0);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["dedupe", "--scenario", "totally-bogus"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain('scenario "totally-bogus" not found');
+
+		const phantom = await stat(
+			join(forgeDir, "cases", "totally-bogus.yaml"),
+		).then(
+			() => true,
+			() => false,
+		);
+		expect(phantom).toBe(false);
+	});
+});
+
+describe("review --all: --scenario existence check (Finding 1)", () => {
+	test("fails naming the scenario instead of reporting a fake success", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		const { ctx: describeCtx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], describeCtx)).toBe(0);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["review", "--scenario", "totally-bogus", "--all"], ctx),
+		).toBe(1);
+		expect(out.at(-1)).toContain('scenario "totally-bogus" not found');
+
+		const phantom = await stat(
+			join(forgeDir, "cases", "totally-bogus.yaml"),
+		).then(
+			() => true,
+			() => false,
+		);
+		expect(phantom).toBe(false);
+	});
+});
+
+describe("review --all: never approves a case with no expected (Finding 2)", () => {
+	test("imported cases (no expected by design) stay pending, and the summary names how many and why", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		const { ctx: describeCtx } = await ctxIn(cwd);
+		expect(
+			await run(["describe", "The bot classifies hiring emails"], describeCtx),
+		).toBe(0);
+
+		const jsonl = join(cwd, "prod.jsonl");
+		await writeFile(jsonl, '{"email":"real one"}\n{"email":"real two"}\n');
+		const { ctx: importCtx } = await ctxIn(cwd);
+		expect(await run(["import", jsonl], importCtx)).toBe(0);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["review", "--scenario", "imported", "--all"], ctx)).toBe(
+			0,
+		);
+
+		const cases = await readCases(forgeDir, "imported");
+		expect(cases.every((c) => c.status === "pending")).toBe(true);
+		expect(cases.every((c) => c.expected === undefined)).toBe(true);
+		expect(out.at(-1)).toBe(
+			"review: approved 0 pending case(s) of imported; 2 left pending (no expected set — run `forge review --scenario imported` to fill them in)",
+		);
+	});
+
+	test("in a mix, approves only the cases that have an expected and leaves the rest pending", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		let { ctx } = await ctxIn(cwd, ["approve"]);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["scenarios"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review", "--only", "scenarios"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(
+			await run(["cases", "--scenario", "polite-rejection", "--n", "2"], ctx),
+		).toBe(0);
+
+		// Both generated cases have `expected` from the fixture; strip it
+		// from the second to simulate a case that has none (e.g. hand-edited),
+		// so this test proves the partial case, not just the all-or-nothing one.
+		const generated = await readCases(forgeDir, "polite-rejection");
+		const first = generated[0];
+		const second = generated[1];
+		if (!first || !second) throw new Error("expected two generated cases");
+		const { expected: _expected, ...secondWithoutExpected } = second;
+		await writeCases(forgeDir, "polite-rejection", [
+			first,
+			secondWithoutExpected,
+		]);
+
+		const { ctx: allCtx, out } = await ctxIn(cwd);
+		expect(
+			await run(["review", "--scenario", "polite-rejection", "--all"], allCtx),
+		).toBe(0);
+
+		const after = await readCases(forgeDir, "polite-rejection");
+		expect(after[0]?.status).toBe("approved");
+		expect(after[1]?.status).toBe("pending");
+		expect(after[1]?.expected).toBeUndefined();
+		expect(out.at(-1)).toBe(
+			"review: approved 1 pending case(s) of polite-rejection; 1 left pending (no expected set — run `forge review --scenario polite-rejection` to fill them in)",
+		);
+	});
+});
+
+describe("review --only validation (Finding 4)", () => {
+	test("rejects an unknown --only value instead of reporting a false 'nothing pending'", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const { ctx: describeCtx } = await ctxIn(cwd);
+		// A freshly described feature is pending -- genuinely pending work
+		// exists, so "nothing pending" would be a lie here.
+		expect(await run(["describe", "text"], describeCtx)).toBe(0);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["review", "--only", "totally-bogus-kind"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain('"totally-bogus-kind"');
+		expect(out.at(-1)).not.toContain("nothing pending");
+		expect((await readFeature(join(cwd, ".forge"))).status).toBe("pending");
+	});
+});
+
+describe("review --all requires --scenario: message and exit code (Minor)", () => {
+	test("exits 2 and does not leak the internal usage routing marker", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["review", "--all"], ctx)).toBe(2);
+		expect(out.at(-1)).toBe("error: --all requires --scenario");
+	});
+});
+
+describe("import: zero positional arguments (Minor)", () => {
+	test("fails naming what is missing, instead of crashing", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["import"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("import needs a JSONL file path");
+	});
+});
+
+describe("describe: --prompt-file missing", () => {
+	test("fails cleanly with a ForgeError naming the file, instead of a raw ENOENT", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const missing = join(cwd, "missing-prompt.md");
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["describe", "text", "--prompt-file", missing], ctx)).toBe(
+			1,
+		);
+		expect(out.at(-1)).toContain("file not found");
+		expect(out.at(-1)).toContain(missing);
 	});
 });
 
@@ -340,19 +583,33 @@ describe("run(): error classification", () => {
 
 	test("an error that is neither a ForgeError nor a parseArgs TypeError propagates instead of being swallowed", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
-		const { ctx } = await ctxIn(cwd);
-		let err: unknown;
+		const { ctx: describeCtx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], describeCtx)).toBe(0);
+
+		// "edit" on the only pending item (the feature) drives openInEditor's
+		// real Bun.spawn with a deliberately broken $EDITOR, which throws
+		// synchronously (ENOENT) before there is any exit code to return.
+		// That's neither a ForgeError nor parseArgs's TypeError, so this is
+		// the one real path proving run() lets a genuine bug through instead
+		// of swallowing it -- describe --prompt-file used to be that path,
+		// but Finding 5 correctly wraps it into a ForgeError now.
+		const { ctx } = await ctxIn(cwd, ["edit"]);
+		const originalEditor = process.env.EDITOR;
+		process.env.EDITOR = "totally-bogus-editor-that-does-not-exist";
 		try {
-			await run(
-				["describe", "text", "--prompt-file", join(cwd, "missing-prompt.md")],
-				ctx,
-			);
-		} catch (e) {
-			err = e;
+			let err: unknown;
+			try {
+				await run(["review"], ctx);
+			} catch (e) {
+				err = e;
+			}
+			expect(err).toBeInstanceOf(Error);
+			expect(err).not.toBeInstanceOf(TypeError);
+			expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
+		} finally {
+			if (originalEditor === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = originalEditor;
 		}
-		expect(err).toBeInstanceOf(Error);
-		expect(err).not.toBeInstanceOf(TypeError);
-		expect((err as NodeJS.ErrnoException).code).toBe("ENOENT");
 	});
 });
 

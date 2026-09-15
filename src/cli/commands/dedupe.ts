@@ -1,6 +1,12 @@
 import { parseArgs } from "node:util";
 import { dedupeCases } from "../../core/dedupe";
-import { listCaseScenarios, readCases, writeCases } from "../../core/files";
+import { ForgeError } from "../../core/errors";
+import {
+	listCaseScenarios,
+	readCases,
+	readScenarios,
+	writeCases,
+} from "../../core/files";
 import type { CliContext } from "../context";
 
 export async function dedupeCommand(
@@ -14,6 +20,13 @@ export async function dedupeCommand(
 			model: { type: "string" },
 		},
 	});
+	if (values.scenario) {
+		const scenarios = await readScenarios(ctx.forgeDir);
+		if (!scenarios.some((s) => s.id === values.scenario))
+			throw new ForgeError(`scenario "${values.scenario}" not found`, {
+				id: values.scenario,
+			});
+	}
 	const ids = values.scenario
 		? [values.scenario]
 		: await listCaseScenarios(ctx.forgeDir);

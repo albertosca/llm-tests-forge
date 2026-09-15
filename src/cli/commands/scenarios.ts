@@ -23,6 +23,19 @@ function parseKindsFlag(raw: string | undefined): Kind[] | undefined {
 	});
 }
 
+function parsePositiveIntFlag(
+	flag: string,
+	raw: string | undefined,
+): number | undefined {
+	if (raw === undefined) return undefined;
+	const n = Number(raw);
+	if (!Number.isInteger(n) || n <= 0)
+		throw new ForgeError(
+			`${flag} "${raw}" is not valid; expected a positive integer`,
+		);
+	return n;
+}
+
 export async function scenariosCommand(
 	args: string[],
 	ctx: CliContext,
@@ -41,8 +54,7 @@ export async function scenariosCommand(
 			file: forgePaths(ctx.forgeDir).feature,
 		});
 	const kinds = parseKindsFlag(values.kinds);
-	const more =
-		values.more === undefined ? undefined : Number.parseInt(values.more, 10);
+	const more = parsePositiveIntFlag("--more", values.more);
 	const existing = await readScenarios(ctx.forgeDir);
 	const all = await enumerateScenarios({
 		feature,
