@@ -2,8 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { parse, stringify } from "yaml";
 import type { ReviewLoopResult } from "../../src/cli/review-loop";
 import { runReviewLoop } from "../../src/cli/review-loop";
+import { ForgeError } from "../../src/core/errors";
 import type { PendingItem } from "../../src/core/review";
-import type { Case, Scenario } from "../../src/core/schemas";
+import type { Case, Feature, Scenario } from "../../src/core/schemas";
 
 /**
  * Pulls the case out of a decided item at `i`, failing loudly if the loop
@@ -17,6 +18,14 @@ function caseAt(r: ReviewLoopResult, i: number): Case {
 	return d.item as Case;
 }
 
+const feature: Feature = {
+	id: "f",
+	purpose: "p",
+	inputs: [{ name: "email", kind: "text" }],
+	output: { kind: "label", labels: ["a", "b"] },
+	invariants: [],
+	status: "pending",
+};
 const scn: Scenario = {
 	id: "s",
 	kind: "happy",
@@ -118,20 +127,48 @@ describe("runReviewLoop", () => {
 		expect(caseAt(r, 0).status).toBe("edited");
 	});
 
-	test("edit round-trips through the editor and an invalid edit re-asks", async () => {
+	test("an invalid edit re-asks the SAME item rather than abandoning it for the next one", async () => {
+		// A single-item version of this test cannot tell "re-asked" apart
+		// from "silently gave up and the loop just ended" — both leave the
+		// first item undecided. With a second item present, the two
+		// hypotheses diverge: re-asking keeps printing item 1's prompt
+		// (twice) before item 2 ever appears; abandoning it would print
+		// item 1 once, then jump straight to item 2.
 		const edits = [
 			stringify({ ...withExp, status: "weird" }),
 			stringify({ ...withExp, input: { email: "edited" } }),
 		];
+		const printed: string[] = [];
 		const r = await runReviewLoop({
-			items: [{ kind: "case", item: withExp }],
-			ask: scripted(["edit", "edit"]),
+			items: [
+				{ kind: "case", item: withExp },
+				{ kind: "scenario", item: scn },
+			],
+			ask: scripted(["edit", "edit", "approve"]),
 			openEditor: async () => edits.shift() ?? "",
 			askExpected: async () => ({ label: "x" }),
 			oracleOf: () => "label",
-			print: () => {},
+			print: (l) => printed.push(l),
 		});
-		expect(r.summary.edited).toBe(1);
+
+		// indexOf/lastIndexOf would collapse the two identical item-1 headers
+		// to the same position, so collect every matching index by hand.
+		const item1Indices = printed
+			.map((l, i) => (l === `--- case ${withExp.id} ---` ? i : -1))
+			.filter((i) => i !== -1);
+		const item2Indices = printed
+			.map((l, i) => (l === `--- scenario ${scn.id} ---` ? i : -1))
+			.filter((i) => i !== -1);
+		expect(item1Indices.length).toBe(2);
+		expect(item2Indices.length).toBe(1);
+		expect(Math.max(...item1Indices)).toBeLessThan(Math.min(...item2Indices));
+
+		expect(r.summary).toEqual({
+			approved: 1,
+			rejected: 0,
+			edited: 1,
+			skipped: 0,
+		});
 		expect(caseAt(r, 0).input.email).toBe("edited");
 	});
 
@@ -148,6 +185,62 @@ describe("runReviewLoop", () => {
 				print: () => {},
 			}),
 		).rejects.toThrow("boom");
+	});
+
+	test("an out-of-contract answer from ask() raises a named ForgeError instead of crashing anonymously", async () => {
+		// Before the fix, this fed `applyDecision` a `Decision` outside its
+		// switch, which fell through returning `undefined` and then crashed
+		// at `current.id` with an anonymous `TypeError` — asserting only
+		// "it threw" would pass in both the buggy and the fixed world, so
+		// this pins the specific class and the message content instead.
+		let err: unknown;
+		try {
+			await runReviewLoop({
+				items: [{ kind: "scenario", item: scn }],
+				ask: scripted(["yolo"]),
+				openEditor: async (t) => t,
+				askExpected: async () => ({ label: "x" }),
+				oracleOf: () => "label",
+				print: () => {},
+			});
+		} catch (e) {
+			err = e;
+		}
+		expect(err).toBeInstanceOf(ForgeError);
+		expect(err).not.toBeInstanceOf(TypeError);
+		expect((err as ForgeError).message).toContain('"yolo"');
+		expect((err as ForgeError).message).toContain(scn.id);
+	});
+
+	test("drives a feature item through a failed reject (which re-asks) then an approve", async () => {
+		const printed: string[] = [];
+		const r = await runReviewLoop({
+			items: [{ kind: "feature", item: feature }],
+			ask: scripted(["reject", "approve"]),
+			openEditor: async (t) => t,
+			askExpected: async () => ({ label: "x" }),
+			oracleOf: () => "label",
+			print: (l) => printed.push(l),
+		});
+		expect(r.summary).toEqual({
+			approved: 1,
+			rejected: 0,
+			edited: 0,
+			skipped: 0,
+		});
+		expect(r.decisions).toEqual([
+			{
+				kind: "feature",
+				id: feature.id,
+				item: { ...feature, status: "approved" },
+			},
+		]);
+		expect(
+			printed.some(
+				(l) =>
+					l.startsWith("cannot apply:") && l.includes("cannot be rejected"),
+			),
+		).toBe(true);
 	});
 
 	test("skip leaves no decision", async () => {

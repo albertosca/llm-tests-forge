@@ -68,6 +68,66 @@ describe("pendingItems", () => {
 			),
 		).toEqual([]);
 	});
+
+	function caseIds(items: ReturnType<typeof pendingItems>): string[] {
+		return items.filter((i) => i.kind === "case").map((i) => i.item.id);
+	}
+
+	test("a duplicate_of target missing from cases entirely keeps its own file-order position", () => {
+		const items = pendingItems(
+			feature,
+			[],
+			[
+				cs("s1-01", "s1", "pending"),
+				cs("s1-02", "s1", "pending", "does-not-exist"),
+			],
+		);
+		expect(caseIds(items)).toEqual(["s1-01", "s1-02"]);
+	});
+
+	test("a duplicate_of target present but not pending keeps the duplicate at its own file-order position", () => {
+		const items = pendingItems(
+			feature,
+			[],
+			[cs("s1-01", "s1", "approved"), cs("s1-02", "s1", "pending", "s1-01")],
+		);
+		// s1-01 is not pending, so it never appears; s1-02 is still listed,
+		// unmoved, since there is no pending target to sit next to.
+		expect(caseIds(items)).toEqual(["s1-02"]);
+	});
+
+	test("two cases duplicating the same target are both placed after it, in their own relative order", () => {
+		const items = pendingItems(
+			feature,
+			[],
+			[
+				cs("s1-01", "s1", "pending"),
+				cs("s1-02", "s1", "pending"),
+				cs("s1-03", "s1", "pending", "s1-01"),
+				cs("s1-04", "s1", "pending", "s1-01"),
+			],
+		);
+		expect(caseIds(items)).toEqual(["s1-01", "s1-03", "s1-04", "s1-02"]);
+	});
+
+	test("a duplicate-of-duplicate chain is single-hop only: the first link is not chased through the second (documented limitation)", () => {
+		// A duplicates B, B duplicates C, file order [A, C, B] — the exact
+		// shape that exposed the limitation now written into pendingItems's
+		// docstring. B gets pulled to sit after C (satisfying B's own
+		// adjacency, and coincidentally where it already was in file order),
+		// but A is never re-chased to follow B once B has moved: A keeps its
+		// own file-order slot instead of ending up next to B.
+		const items = pendingItems(
+			feature,
+			[],
+			[
+				cs("A", "s1", "pending", "B"),
+				cs("C", "s1", "pending"),
+				cs("B", "s1", "pending", "C"),
+			],
+		);
+		expect(caseIds(items)).toEqual(["A", "C", "B"]);
+	});
 });
 
 describe("applyDecision", () => {
@@ -168,6 +228,24 @@ describe("applyDecision", () => {
 			err = e;
 		}
 		expect(err).toBeInstanceOf(ForgeError);
+	});
+
+	test("an unrecognized decision throws instead of silently returning undefined", () => {
+		// `Decision` has no zod schema behind it, so a caller holding an
+		// unvalidated string (e.g. via `any`, the way `runReviewLoop` would
+		// receive one from a buggy injected `ask`) can reach applyDecision
+		// with a value outside the four literals. JSON round-tripping
+		// produces that genuinely-unknown value without an `as any`/`as
+		// never` cast.
+		const bogus = JSON.parse(JSON.stringify("bogus"));
+		let err: unknown;
+		try {
+			applyDecision(scn("s", "pending"), bogus);
+		} catch (e) {
+			err = e;
+		}
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toContain('"bogus"');
 	});
 });
 

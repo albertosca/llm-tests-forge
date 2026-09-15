@@ -22,7 +22,27 @@ export type PendingItem =
  * pending cases in file order — except a case carrying `duplicate_of` is
  * moved to sit immediately after the case it points at, when that case is
  * also in the pending list. A case whose `duplicate_of` target is missing
- * or already reviewed keeps its own file-order position.
+ * from `cases` entirely, or present but not pending, keeps its own
+ * file-order position.
+ *
+ * This placement is single-hop only, by deliberate choice, not an
+ * oversight: it does not follow chains of duplicates-of-duplicates. A
+ * case is only pulled out of its file-order slot when the case it points
+ * at is reached in a single left-to-right pass over the pending cases —
+ * if that target is itself pulled out of its own slot first (because it
+ * duplicates something else), cases pointing at the target are not
+ * re-chased to follow it there. For example, with A duplicating B and B
+ * duplicating C, in file order [A, C, B]: B ends up adjacent to C
+ * (satisfying B's own adjacency), but A does not end up adjacent to B.
+ * Nothing is lost or corrupted when this happens — every case still
+ * appears exactly once — and a topological placement that would chase
+ * chains correctly is out of scope for this task, since
+ * duplicate-of-duplicate chains are rare in practice.
+ *
+ * `pendingItems` also assumes, rather than guarantees, that `cases`
+ * arrives already grouped by scenario — the caller (one cases file per
+ * scenario, concatenated) is responsible for that; this function does
+ * not re-group.
  */
 export function pendingItems(
 	feature: Feature,
@@ -103,6 +123,15 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 		}
 		case "skip":
 			return item;
+		default:
+			// `Decision` is a plain string union with no schema behind it — a
+			// caller holding an unvalidated string typed loosely as `Decision`
+			// (via `any`) could reach here at runtime even though every
+			// literal is exhausted above. Name the bad value rather than
+			// silently returning `undefined`.
+			throw new ForgeError(`unrecognized decision "${decision}"`, {
+				id: item.id,
+			});
 	}
 }
 

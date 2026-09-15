@@ -39,6 +39,10 @@ export interface ReviewLoopResult {
 
 const CHOICES: Decision[] = ["approve", "reject", "edit", "skip"];
 
+function isDecision(x: string): x is Decision {
+	return x === "approve" || x === "reject" || x === "edit" || x === "skip";
+}
+
 /**
  * Drives one interactive pass over `items`. Every side effect — prompting,
  * opening an editor, asking for an expected outcome, printing — arrives as
@@ -50,6 +54,12 @@ const CHOICES: Decision[] = ["approve", "reject", "edit", "skip"];
  * is reported and the same item is re-asked, rather than moving on. `skip`
  * produces no decision at all — the caller writes back only what is
  * decided, and a skipped item must not be rewritten.
+ *
+ * `ask` is contractually bound to answer with one of the `choices` it was
+ * given, but that contract is not enforced by any schema — an injected
+ * implementation that violates it (a bug in `ask` itself, not a mistake by
+ * the human answering it) raises a named `ForgeError` that propagates out
+ * of this function, rather than being retried like a bad edit would be.
  */
 export async function runReviewLoop(
 	args: ReviewLoopArgs,
@@ -62,10 +72,14 @@ export async function runReviewLoop(
 		for (;;) {
 			args.print(`--- ${pending.kind} ${current.id} ---`);
 			args.print(stringify(current, { lineWidth: 0 }).trimEnd());
-			const answer = (await args.ask(
-				`${pending.kind} ${current.id}:`,
-				CHOICES,
-			)) as Decision;
+			const raw = await args.ask(`${pending.kind} ${current.id}:`, CHOICES);
+			if (!isDecision(raw)) {
+				throw new ForgeError(
+					`ask() returned an answer outside its own choices: "${raw}" (expected one of: ${CHOICES.join(", ")})`,
+					{ id: current.id },
+				);
+			}
+			const answer = raw;
 
 			try {
 				if (
