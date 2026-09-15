@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { parse } from "yaml";
 import { createContext } from "../../src/cli/context";
 import { modelFlag, run } from "../../src/cli/main";
 import {
@@ -1530,5 +1531,109 @@ describe("estimate", () => {
 		await forgeWithApprovedCases(cwd);
 		const { ctx } = await ctxIn(cwd);
 		expect(await run(["estimate", "--bogus"], ctx)).toBe(2);
+	});
+});
+
+describe("emit", () => {
+	test("writes promptfooconfig.yaml and the shim, prints what it wrote, exits 0", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(0);
+		const cfg = parse(
+			await readFile(join(forgeDir, "promptfooconfig.yaml"), "utf8"),
+		);
+		expect(
+			cfg.tests.map((t: { description: string }) => t.description),
+		).toEqual(["polite-rejection-01", "vague-rubric-01"]);
+		expect(cfg.providers[0].id).toBe("file://forge_target.py");
+		expect(await readFile(join(forgeDir, "forge_target.py"), "utf8")).toContain(
+			'INPUTS = ["email"]',
+		);
+		expect(out).toContain(
+			`emit: wrote ${join(forgeDir, "promptfooconfig.yaml")} (2 cases, 2 scenarios, 1 target model, 1 judge)`,
+		);
+		expect(out).toContain(
+			`emit: wrote ${join(forgeDir, "forge_target.py")}; edit run_application() to call your application`,
+		);
+	});
+	test("never overwrites an existing shim, and says it kept it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		const shim = join(forgeDir, "forge_target.py");
+		await writeFile(shim, "# mine\n");
+		await utimes(shim, LONG_AGO, LONG_AGO);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(0);
+		expect(await readFile(shim, "utf8")).toBe("# mine\n");
+		expect((await stat(shim)).mtime.getTime()).toBe(LONG_AGO.getTime());
+		expect(out).toContain(`emit: kept existing ${shim}`);
+	});
+	test("refuses on pending items, lists every one, writes nothing, exits 1", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "x" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "t",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "y" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "t",
+			},
+		]);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(1);
+		const text = out.join("\n");
+		expect(text).toContain(
+			"error: emit refused: 2 items are still pending; run `forge review`",
+		);
+		expect(text).toContain("case polite-rejection-01 is pending");
+		expect(text).toContain("case polite-rejection-02 is pending");
+		await expect(
+			stat(join(forgeDir, "promptfooconfig.yaml")),
+		).rejects.toThrow();
+		await expect(stat(join(forgeDir, "forge_target.py"))).rejects.toThrow();
+	});
+	test("--format jsonl writes cases.jsonl and no shim", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit", "--format", "jsonl"], ctx)).toBe(0);
+		const lines = (await readFile(join(forgeDir, "cases.jsonl"), "utf8"))
+			.trim()
+			.split("\n")
+			.map((l) => JSON.parse(l));
+		expect(lines.map((l) => l.id)).toEqual([
+			"polite-rejection-01",
+			"vague-rubric-01",
+		]);
+		await expect(stat(join(forgeDir, "forge_target.py"))).rejects.toThrow();
+		expect(out).toContain(
+			`emit: wrote ${join(forgeDir, "cases.jsonl")} (2 cases)`,
+		);
+	});
+	test("an unknown --format is a usage error naming the valid values", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeWithApprovedCases(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit", "--format", "xml"], ctx)).toBe(2);
+		expect(out.at(-1)).toContain("promptfoo, jsonl");
+	});
+	test("a pending feature is refused before anything is read (exit 1)", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeFeature(forgeDir, { ...FEATURE, status: "pending" });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("pending");
 	});
 });
