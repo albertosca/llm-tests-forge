@@ -85,6 +85,7 @@ describe("estimateSuite", () => {
 				cs("a-02", "a", "y".repeat(40), { label: "rejection" }),
 			],
 			blockers: [],
+			reviewable: 0,
 		};
 		const e = estimateSuite({
 			suite: suite(
@@ -123,6 +124,7 @@ describe("estimateSuite", () => {
 			scenarios: [sc("a", "label")],
 			cases: [cs("a-01", "a", "x".repeat(40), { label: "rejection" })],
 			blockers: [],
+			reviewable: 0,
 		};
 		const e = estimateSuite({
 			suite: suite(
@@ -148,6 +150,7 @@ describe("estimateSuite", () => {
 				cs("r-01", "r", "y".repeat(40), { rubric: "z".repeat(80) }),
 			],
 			blockers: [],
+			reviewable: 0,
 		};
 		const e = estimateSuite({
 			suite: suite(
@@ -184,6 +187,7 @@ describe("estimateSuite", () => {
 			scenarios: [sc("a", "label")],
 			cases: [cs("a-01", "a", "x", { label: "rejection" })],
 			blockers: [],
+			reviewable: 0,
 		};
 		const e = estimateSuite({
 			suite: suite(
@@ -209,7 +213,7 @@ describe("estimateSuite", () => {
 				["google/gemini-3.5-flash"],
 				1,
 			),
-			selection: { scenarios: [], cases: [], blockers: [] },
+			selection: { scenarios: [], cases: [], blockers: [], reviewable: 0 },
 			feature,
 			prices,
 			promptTokens: 0,

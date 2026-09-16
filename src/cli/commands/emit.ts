@@ -52,16 +52,30 @@ export async function emitCommand(
 	const feature = await readFeature(ctx.forgeDir);
 	requireApprovedFeature(feature, paths.feature);
 	const suite = await readSuite(ctx.forgeDir);
+	// The shim is written into, and run from, `.forge/`; a path here would
+	// let suite.yaml write a file anywhere on the disk.
+	const entry = suite.target.entry;
+	if (entry.includes("/") || entry.includes("\\") || entry.includes(".."))
+		throw new ForgeError(
+			"target.entry must be a file name inside .forge, not a path",
+			{ file: paths.suite },
+		);
 	const selection = selectCases({
 		suite,
 		scenarios: await readScenarios(ctx.forgeDir),
 		casesByScenario: await readAllCases(ctx.forgeDir),
 		paths,
+		feature,
 	});
-	if (selection.blockers.length > 0)
+	if (selection.blockers.length > 0) {
+		const n = selection.blockers.length;
+		// A rejected item is not something `forge review` can give back, so
+		// the hint is printed only when at least one blocker is reviewable.
+		const hint = selection.reviewable > 0 ? "; run `forge review`" : "";
 		throw new ForgeError(
-			`emit refused: ${selection.blockers.length} item${selection.blockers.length === 1 ? " is" : "s are"} still pending; run \`forge review\`\n  ${selection.blockers.join("\n  ")}`,
+			`emit refused: ${n} item${n === 1 ? " blocks" : "s block"} it${hint}\n  ${selection.blockers.join("\n  ")}`,
 		);
+	}
 	if (selection.cases.length === 0)
 		throw new ForgeError("no approved case to emit; run `forge review` first", {
 			file: paths.casesDir,

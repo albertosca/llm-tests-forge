@@ -65,6 +65,7 @@ const selection: Selection = {
 		cs("vague-01", "vague", { rubric: "says it is a receipt" }),
 	],
 	blockers: [],
+	reviewable: 0,
 };
 
 /** Run an emitted javascript assert the way promptfoo does: as a function body with `output` in scope. */
@@ -208,6 +209,7 @@ describe("buildPromptfooConfig", () => {
 			scenarios: [sc("f", "edge", "fields")],
 			cases: [cs("f-01", "f", { fields: { company: "Acme", type: "offer" } })],
 			blockers: [],
+			reviewable: 0,
 		};
 		const cfg = buildPromptfooConfig({
 			feature: jsonFeature,
@@ -227,6 +229,7 @@ describe("buildPromptfooConfig", () => {
 			scenarios: [sc("q", "edge", "label")],
 			cases: [cs("q-01", "q", { label: 'say "hi"' })],
 			blockers: [],
+			reviewable: 0,
 		};
 		const f: Feature = {
 			...labelFeature,
@@ -244,6 +247,7 @@ describe("buildPromptfooConfig", () => {
 			scenarios: [sc("bt", "edge", "label")],
 			cases: [cs("bt-01", "bt", { label })],
 			blockers: [],
+			reviewable: 0,
 		};
 		const f: Feature = {
 			...labelFeature,
@@ -275,7 +279,7 @@ describe("buildPromptfooConfig", () => {
 			buildPromptfooConfig({
 				feature: labelFeature,
 				suite,
-				selection: { scenarios: [], cases: [], blockers: [] },
+				selection: { scenarios: [], cases: [], blockers: [], reviewable: 0 },
 			}),
 		).toThrow("no approved case");
 	});
@@ -284,10 +288,50 @@ describe("buildPromptfooConfig", () => {
 			scenarios: [sc("polite-rejection", "happy", "label")],
 			cases: [cs("orphan-01", "not-selected", { label: "rejection" })],
 			blockers: [],
+			reviewable: 0,
 		};
 		expect(() =>
 			buildPromptfooConfig({ feature: labelFeature, suite, selection: sel }),
 		).toThrow(/orphan-01.*not selected/);
+	});
+	test("a label-oracle case whose expected has no label is a ForgeError, never a vacuous assert", () => {
+		const sel: Selection = {
+			scenarios: [sc("polite-rejection", "happy", "label")],
+			cases: [
+				cs("polite-rejection-01", "polite-rejection", {
+					fields: { type: "rejection" },
+				}),
+			],
+			blockers: [],
+			reviewable: 0,
+		};
+		expect(() =>
+			buildPromptfooConfig({ feature: labelFeature, suite, selection: sel }),
+		).toThrow(
+			"case polite-rejection-01: oracle is label but expected.label is missing",
+		);
+	});
+	test("a fields-oracle case whose expected has no fields is a ForgeError, never an empty want", () => {
+		const sel: Selection = {
+			scenarios: [sc("shape", "happy", "fields")],
+			cases: [cs("shape-01", "shape", { label: "rejection" })],
+			blockers: [],
+			reviewable: 0,
+		};
+		expect(() =>
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection: sel }),
+		).toThrow("case shape-01: oracle is fields but expected.fields is missing");
+	});
+	test("a rubric-oracle case whose expected has no rubric is a ForgeError, never an empty rubric", () => {
+		const sel: Selection = {
+			scenarios: [sc("vague", "ambiguous", "rubric")],
+			cases: [cs("vague-01", "vague", { label: "rejection" })],
+			blockers: [],
+			reviewable: 0,
+		};
+		expect(() =>
+			buildPromptfooConfig({ feature: labelFeature, suite, selection: sel }),
+		).toThrow("case vague-01: oracle is rubric but expected.rubric is missing");
 	});
 	test("a case with no expected is a ForgeError naming the case (hand-built Selection guard)", () => {
 		const sel: Selection = {
@@ -302,6 +346,7 @@ describe("buildPromptfooConfig", () => {
 				},
 			],
 			blockers: [],
+			reviewable: 0,
 		};
 		expect(() =>
 			buildPromptfooConfig({ feature: labelFeature, suite, selection: sel }),

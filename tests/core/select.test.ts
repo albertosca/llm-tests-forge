@@ -1,16 +1,32 @@
 import { describe, expect, test } from "bun:test";
 import { ForgeError } from "../../src/core/errors";
 import { forgePaths } from "../../src/core/files";
-import type { Case, Scenario, Suite } from "../../src/core/schemas";
+import type { Case, Feature, Scenario, Suite } from "../../src/core/schemas";
 import { selectCases } from "../../src/core/select";
 
 const paths = forgePaths("/p/.forge");
-const scenario = (id: string, status: Scenario["status"]): Scenario => ({
+const feature: Feature = {
+	id: "classify-email",
+	purpose: "p",
+	inputs: [{ name: "email", kind: "text" }],
+	output: { kind: "label", labels: ["rejection", "acknowledgement"] },
+	invariants: [],
+	status: "approved",
+};
+const scenario = (
+	id: string,
+	status: Scenario["status"],
+	oracle: Scenario["oracle"] = "label",
+): Scenario => ({
 	id,
 	kind: "happy",
-	oracle: "label",
+	oracle,
 	description: id,
 	status,
+});
+const withExpected = (c: Case, expected: Case["expected"]): Case => ({
+	...c,
+	expected,
 });
 const kase = (
 	id: string,
@@ -58,6 +74,7 @@ describe("selectCases", () => {
 				["c", [kase("c-01", "c", "approved")]],
 			]),
 			paths,
+			feature,
 		});
 		expect(s.scenarios.map((x) => x.id)).toEqual(["a", "b"]);
 		expect(s.cases.map((c) => c.id)).toEqual(["a-01", "a-03", "b-01"]);
@@ -71,6 +88,7 @@ describe("selectCases", () => {
 				["a", [kase("a-01", "a", "pending"), kase("a-02", "a", "approved")]],
 			]),
 			paths,
+			feature,
 		});
 		expect(s.cases.map((c) => c.id)).toEqual(["a-02"]);
 		expect(s.blockers).toEqual([
@@ -83,6 +101,7 @@ describe("selectCases", () => {
 			scenarios: [scenario("a", "approved")],
 			casesByScenario: new Map([["a", [kase("a-01", "a", "approved", false)]]]),
 			paths,
+			feature,
 		});
 		expect(s.cases).toEqual([]);
 		expect(s.blockers).toEqual([
@@ -103,6 +122,7 @@ describe("selectCases", () => {
 				["z", [kase("z-01", "z", "approved")]],
 			]),
 			paths,
+			feature,
 		});
 		expect(s.scenarios.map((x) => x.id)).toEqual(["b", "a"]);
 		expect(s.cases.map((c) => c.id)).toEqual(["b-01", "a-01"]);
@@ -113,6 +133,7 @@ describe("selectCases", () => {
 			scenarios: [scenario("a", "pending")],
 			casesByScenario: new Map([["a", [kase("a-01", "a", "approved")]]]),
 			paths,
+			feature,
 		});
 		expect(s.scenarios).toEqual([]);
 		expect(s.cases).toEqual([]);
@@ -126,6 +147,7 @@ describe("selectCases", () => {
 			scenarios: [scenario("a", "rejected")],
 			casesByScenario: new Map(),
 			paths,
+			feature,
 		});
 		expect(s.blockers).toEqual([
 			"scenario a is rejected (/p/.forge/scenarios.yaml)",
@@ -138,6 +160,7 @@ describe("selectCases", () => {
 				scenarios: [scenario("a", "approved")],
 				casesByScenario: new Map(),
 				paths,
+				feature,
 			}),
 		).toThrow(ForgeError);
 		try {
@@ -146,6 +169,7 @@ describe("selectCases", () => {
 				scenarios: [],
 				casesByScenario: new Map(),
 				paths,
+				feature,
 			});
 		} catch (e) {
 			expect((e as ForgeError).message).toContain(
@@ -157,12 +181,129 @@ describe("selectCases", () => {
 			});
 		}
 	});
+	test("with an empty include, a pending scenario is a blocker and its approved case is not selected", () => {
+		const s = selectCases({
+			suite: suite(),
+			scenarios: [scenario("a", "pending"), scenario("b", "approved")],
+			casesByScenario: new Map([
+				["a", [kase("a-01", "a", "approved")]],
+				["b", [kase("b-01", "b", "approved")]],
+			]),
+			paths,
+			feature,
+		});
+		expect(s.scenarios.map((x) => x.id)).toEqual(["b"]);
+		expect(s.cases.map((c) => c.id)).toEqual(["b-01"]);
+		expect(s.blockers).toEqual([
+			"scenario a is pending (/p/.forge/scenarios.yaml)",
+		]);
+	});
+	test("with an empty include, a rejected scenario stays silent", () => {
+		const s = selectCases({
+			suite: suite(),
+			scenarios: [scenario("a", "rejected")],
+			casesByScenario: new Map([["a", [kase("a-01", "a", "approved")]]]),
+			paths,
+			feature,
+		});
+		expect(s.blockers).toEqual([]);
+		expect(s.cases).toEqual([]);
+	});
+	test("a pending item is reviewable; a rejected scenario is not", () => {
+		const pending = selectCases({
+			suite: suite(),
+			scenarios: [scenario("a", "approved")],
+			casesByScenario: new Map([["a", [kase("a-01", "a", "pending")]]]),
+			paths,
+			feature,
+		});
+		expect(pending.reviewable).toBe(1);
+		const rejected = selectCases({
+			suite: suite(["a"]),
+			scenarios: [scenario("a", "rejected")],
+			casesByScenario: new Map(),
+			paths,
+			feature,
+		});
+		expect(rejected.blockers).toEqual([
+			"scenario a is rejected (/p/.forge/scenarios.yaml)",
+		]);
+		expect(rejected.reviewable).toBe(0);
+	});
+	test("a label-oracle case whose expected carries only fields is a blocker, not an emitted assert", () => {
+		const s = selectCases({
+			suite: suite(),
+			scenarios: [scenario("a", "approved", "label")],
+			casesByScenario: new Map([
+				[
+					"a",
+					[
+						withExpected(kase("a-01", "a", "approved"), {
+							fields: { type: "rejection" },
+						}),
+					],
+				],
+			]),
+			paths,
+			feature,
+		});
+		expect(s.cases).toEqual([]);
+		expect(s.blockers).toEqual([
+			"case a-01: oracle is label but expected.label is missing (/p/.forge/cases/a.yaml)",
+		]);
+		expect(s.reviewable).toBe(1);
+	});
+	test("a fields-oracle case whose expected carries only a label is a blocker", () => {
+		const s = selectCases({
+			suite: suite(),
+			scenarios: [scenario("a", "approved", "fields")],
+			casesByScenario: new Map([["a", [kase("a-01", "a", "approved")]]]),
+			paths,
+			feature,
+		});
+		expect(s.cases).toEqual([]);
+		expect(s.blockers).toEqual([
+			"case a-01: oracle is fields but expected.fields is missing (/p/.forge/cases/a.yaml)",
+		]);
+	});
+	test("a rubric-oracle case whose expected carries only a label is a blocker", () => {
+		const s = selectCases({
+			suite: suite(),
+			scenarios: [scenario("a", "approved", "rubric")],
+			casesByScenario: new Map([["a", [kase("a-01", "a", "approved")]]]),
+			paths,
+			feature,
+		});
+		expect(s.cases).toEqual([]);
+		expect(s.blockers).toEqual([
+			"case a-01: oracle is rubric but expected.rubric is missing (/p/.forge/cases/a.yaml)",
+		]);
+	});
+	test("a label the feature does not list is a blocker naming the label", () => {
+		const s = selectCases({
+			suite: suite(),
+			scenarios: [scenario("a", "approved", "label")],
+			casesByScenario: new Map([
+				[
+					"a",
+					[withExpected(kase("a-01", "a", "approved"), { label: "maybe" })],
+				],
+			]),
+			paths,
+			feature,
+		});
+		expect(s.cases).toEqual([]);
+		expect(s.blockers).toEqual([
+			'case a-01: label "maybe" is not one of the feature\'s labels (/p/.forge/cases/a.yaml)',
+		]);
+	});
 	test("an approved scenario with no cases file is selected with zero cases (report needs it for coverage)", () => {
 		const s = selectCases({
 			suite: suite(),
 			scenarios: [scenario("a", "approved")],
 			casesByScenario: new Map(),
 			paths,
+			feature,
 		});
 		expect(s.scenarios.map((x) => x.id)).toEqual(["a"]);
 		expect(s.cases).toEqual([]);

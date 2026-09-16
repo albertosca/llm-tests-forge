@@ -89,7 +89,15 @@ function fieldsAssert(fields: Record<string, unknown>): PromptfooAssert {
 	};
 }
 
+/**
+ * The oracle decides which half of `expected` is read, so each arm narrows
+ * to it rather than defaulting: a missing value used to become `""` or
+ * `{}`, which emits an assert that passes against anything. `selectCases`
+ * refuses such a pair before emit is reached; these throws are what a
+ * library caller who built a `Selection` by hand gets instead.
+ */
 function assertsFor(
+	caseId: string,
 	expected: Expected,
 	scenario: Scenario,
 	feature: Feature,
@@ -98,15 +106,32 @@ function assertsFor(
 ): PromptfooAssert[] {
 	switch (scenario.oracle) {
 		case "label":
-			return [labelAssert(feature, expected.label ?? "", featureFile)];
+			if (expected.label === undefined)
+				throw new ForgeError(
+					`case ${caseId}: oracle is label but expected.label is missing`,
+					{ id: caseId },
+				);
+			return [labelAssert(feature, expected.label, featureFile)];
 		case "fields":
-			return [fieldsAssert(expected.fields ?? {})];
-		case "rubric":
+			if (expected.fields === undefined)
+				throw new ForgeError(
+					`case ${caseId}: oracle is fields but expected.fields is missing`,
+					{ id: caseId },
+				);
+			return [fieldsAssert(expected.fields)];
+		case "rubric": {
+			const rubric = expected.rubric;
+			if (rubric === undefined)
+				throw new ForgeError(
+					`case ${caseId}: oracle is rubric but expected.rubric is missing`,
+					{ id: caseId },
+				);
 			return suite.judges.map((j) => ({
 				type: "llm-rubric" as const,
-				value: expected.rubric ?? "",
+				value: rubric,
 				provider: toPromptfooProvider(j),
 			}));
+		}
 	}
 }
 
@@ -142,7 +167,14 @@ export function buildPromptfooConfig(args: {
 				oracle: scenario.oracle,
 			},
 			vars: c.input,
-			assert: assertsFor(c.expected, scenario, feature, suite, featureFile),
+			assert: assertsFor(
+				c.id,
+				c.expected,
+				scenario,
+				feature,
+				suite,
+				featureFile,
+			),
 		};
 	});
 	const firstInput = feature.inputs[0]?.name ?? "input";

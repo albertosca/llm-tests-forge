@@ -34,6 +34,7 @@ describe("renderCasesJsonl", () => {
 				},
 			],
 			blockers: [],
+			reviewable: 0,
 		};
 		const text = renderCasesJsonl({ selection });
 		expect(text.endsWith("\n")).toBe(true);
@@ -73,6 +74,7 @@ describe("renderCasesJsonl", () => {
 				},
 			],
 			blockers: [],
+			reviewable: 0,
 		};
 		expect(() => renderCasesJsonl({ selection })).toThrow("z-01");
 	});
