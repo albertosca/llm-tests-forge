@@ -6,6 +6,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -17,15 +19,35 @@ jobs:
         with:
           name: coverage
           path: coverage/lcov.info
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.2
-      - run: bun install --frozen-lockfile
-      - run: bun run lint
+      # The coverage badge reads a JSON file on the `badges` branch through
+      # shields.io's endpoint badge, so no third-party account is involved.
+      # The figure is the line coverage lcov reports, which is what the
+      # 1.0 gate in bunfig.toml enforces per file.
+      - name: Compute line coverage from lcov
+        id: coverage
+        run: |
+          pct=$(awk -F: '/^LF:/{lf+=$2} /^LH:/{lh+=$2} END{printf "%.1f", 100*lh/lf}' coverage/lcov.info)
+          echo "pct=$pct" >> "$GITHUB_OUTPUT"
+          echo "line coverage: $pct%"
+      - name: Publish the coverage badge data to the badges branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          PCT: ${{ steps.coverage.outputs.pct }}
+        run: |
+          bun -e 'const p = Number(process.env.PCT); const color = p >= 95 ? "brightgreen" : p >= 80 ? "yellow" : "red"; require("node:fs").writeFileSync("/tmp/coverage.json", `${JSON.stringify({ schemaVersion: 1, label: "coverage", message: `${p}%`, color })}\n`)'
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin badges >/dev/null; then
+            git fetch origin badges
+            git checkout -B badges origin/badges
+          else
+            git checkout --orphan badges
+            git rm -rf --quiet .
+          fi
+          cp /tmp/coverage.json coverage.json
+          git add coverage.json
+          git commit -m "Update the coverage badge: ${PCT}%" || echo "coverage unchanged"
+          git push origin badges
   typecheck:
     runs-on: ubuntu-latest
     steps:

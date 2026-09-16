@@ -1,6 +1,6 @@
 🇺🇸 [English](README.md) · 🇧🇷 [Português](README.pt.md)
 
-[![ci](https://github.com/albertosca/llm-test-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-test-forge/actions/workflows/ci.yml)
+[![ci](https://github.com/albertosca/llm-test-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-test-forge/actions/workflows/ci.yml) [![lint](https://github.com/albertosca/llm-test-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-test-forge/actions/workflows/lint.yml) [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-test-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-test-forge/actions/workflows/ci.yml)
 
 # llm-test-forge
 
