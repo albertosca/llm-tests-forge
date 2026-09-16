@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { ForgeError } from "../../core/errors";
 import {
@@ -10,6 +10,7 @@ import {
 import {
 	forgePaths,
 	readAllCases,
+	readFailure,
 	readFeature,
 	readScenarios,
 	readSuite,
@@ -21,18 +22,22 @@ import { requireApprovedFeature } from "../gates";
 
 /**
  * `feature.prompt_file` is relative to the application root (the parent of
- * `.forge/`), which is where `describe --prompt-file` resolved it from. A
- * file that is named but cannot be read is an error, not a zero: a zero
- * here would silently understate every target line.
+ * `.forge/`), which is where `describe --prompt-file` resolved it from --
+ * unless it is itself absolute, in which case `resolve` (unlike `join`)
+ * leaves it untouched rather than mangling it under the application root.
+ * A file that is named but cannot be read is an error, not a zero: a zero
+ * here would silently understate every target line, and the OS's own
+ * reason (missing, a directory, unreadable) is worth keeping rather than
+ * flattening every cause into "not readable".
  */
 export async function promptTokensFor(
 	forgeDir: string,
 	promptFile: string | undefined,
 ): Promise<number> {
 	if (promptFile === undefined) return 0;
-	const path = join(forgeDir, "..", promptFile);
-	const text = await readFile(path, "utf8").catch(() => {
-		throw new ForgeError("prompt_file not readable", { file: path });
+	const path = resolve(forgeDir, "..", promptFile);
+	const text = await readFile(path, "utf8").catch((e: unknown) => {
+		throw new ForgeError(`prompt_file ${readFailure(e)}`, { file: path });
 	});
 	return approxTokens(text);
 }

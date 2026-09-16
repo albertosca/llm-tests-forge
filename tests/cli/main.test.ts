@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	chmod,
+	mkdir,
 	mkdtemp,
 	readdir,
 	readFile,
@@ -1461,6 +1462,31 @@ describe("estimate", () => {
 		const { ctx, out } = await ctxIn(cwd);
 		expect(await run(["estimate"], ctx)).toBe(1);
 		expect(out.at(-1)).toContain("gone.txt");
+	});
+	test("an absolute prompt_file is read from that path, not joined under the application root", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		const outside = await mkdtemp(join(tmpdir(), "forge-prompt-"));
+		const absolutePrompt = join(outside, "prompt.txt");
+		await writeFile(absolutePrompt, "p".repeat(4000));
+		await writeFeature(forgeDir, { ...FEATURE, prompt_file: absolutePrompt });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		const target = out.find((l) => l.includes("anthropic/claude-haiku-4-5"));
+		// Same math as the relative-path case above: 4 calls, each 1000 prompt
+		// tokens + ceil(20 / 4) input tokens -> 4020 in. An absolute
+		// prompt_file that got joined under forgeDir/.. instead of resolved
+		// would not exist there, and this would read as a missing-file error.
+		expect(target).toMatch(/ {2}4 calls {4}40\d\d in/);
+	});
+	test("a prompt_file that is a directory names the real cause (exit 1), not 'file not found'", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await mkdir(join(cwd, "prompt-dir"));
+		await writeFeature(forgeDir, { ...FEATURE, prompt_file: "prompt-dir" });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("is a directory");
 	});
 	test("pending items are excluded and reported, not refused", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));

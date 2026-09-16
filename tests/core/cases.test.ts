@@ -207,6 +207,23 @@ describe("generateCases", () => {
 		expect((err as ForgeError).details.rawPath).toBeDefined();
 	});
 
+	test("throws a distinct message when the model returns no candidates at all, not '(0 dropped: )'", async () => {
+		const { llm, model } = await llmFor("empty-cases");
+		const err = await generateCases({
+			feature: await feature(),
+			scenario,
+			existing: [],
+			n: 2,
+			model,
+			llm,
+		}).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toContain(
+			"no usable case generated for scenario: the model returned no candidates",
+		);
+		expect((err as ForgeError).message).not.toContain("dropped");
+	});
+
 	test("throws when every generated case is invalid", async () => {
 		const { llm, model } = await llmFor("all-bad");
 		const err = await generateCases({

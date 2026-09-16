@@ -2,6 +2,7 @@ import { stringify } from "yaml";
 import { z } from "zod";
 import type { Llm } from "../llm/generate";
 import { loadTemplate, render } from "../llm/templates";
+import { sameInput } from "./compare";
 import { ForgeError } from "./errors";
 import { nextCaseId } from "./ids";
 import { expectedMatchesOracle } from "./oracle";
@@ -66,17 +67,6 @@ function oracleInstructions(feature: Feature, scenario: Scenario): string {
 		case "rubric":
 			return "`expected.rubric` is one sentence a reviewer could answer yes or no about the output, specific to this case.";
 	}
-}
-
-function sameInput(
-	a: Record<string, string>,
-	b: Record<string, string>,
-): boolean {
-	const ka = Object.keys(a).sort();
-	const kb = Object.keys(b).sort();
-	return (
-		ka.length === kb.length && ka.every((k, i) => k === kb[i] && a[k] === b[k])
-	);
 }
 
 export async function generateCases(args: GenerateCasesArgs): Promise<Case[]> {
@@ -147,7 +137,9 @@ export async function generateCases(args: GenerateCasesArgs): Promise<Case[]> {
 	}
 	if (accepted.length === args.existing.length) {
 		throw new ForgeError(
-			`no usable case generated for scenario (${reasons.length} dropped: ${reasons.join("; ")})`,
+			reasons.length === 0
+				? "no usable case generated for scenario: the model returned no candidates"
+				: `no usable case generated for scenario (${reasons.length} dropped: ${reasons.join("; ")})`,
 			{ id: args.scenario.id },
 		);
 	}

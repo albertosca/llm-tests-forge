@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { generateCases } from "../../core/cases";
-import { ForgeError, UsageError } from "../../core/errors";
+import { ForgeError } from "../../core/errors";
 import {
 	forgePaths,
 	readCases,
@@ -9,20 +9,8 @@ import {
 	writeCases,
 } from "../../core/files";
 import type { CliContext } from "../context";
+import { parsePositiveIntFlag } from "../flags";
 import { requireApprovedFeature } from "../gates";
-
-function parsePositiveIntFlag(
-	flag: string,
-	raw: string | undefined,
-): number | undefined {
-	if (raw === undefined) return undefined;
-	const n = Number(raw);
-	if (!Number.isInteger(n) || n <= 0)
-		throw new UsageError(
-			`${flag} "${raw}" is not valid; expected a positive integer`,
-		);
-	return n;
-}
 
 export async function casesCommand(
 	args: string[],
