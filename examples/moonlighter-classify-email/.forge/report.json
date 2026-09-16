@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-09-16T00:53:16.050Z",
+  "generatedAt": "2026-09-16T01:11:17.596Z",
   "promptfooVersion": "0.123.0",
   "rows": 48,
   "matched": 48,
   "unmatched": [],
-  "passRate": 1,
+  "passRate": 0.9375,
   "cases": [
     {
       "case": "automated-receipt-vs-actual-screening-01",
@@ -88,22 +88,27 @@
       "scenario": "empty-subject-and-minimal-body",
       "model": "anthropic/claude-haiku-4-5",
       "runs": 2,
-      "passed": 2,
+      "passed": 1,
       "failed": 0,
-      "errored": 0,
-      "stability": "stable",
-      "reasons": []
+      "errored": 1,
+      "stability": "flaky",
+      "reasons": [
+        "The output classified the email as 'screening', which the rubric explicitly says should be avoided in favor of labels like 'unrelated' or 'acknowledgement' when no concrete hiring action or stage is mentioned."
+      ]
     },
     {
       "case": "empty-subject-and-minimal-body-03",
       "scenario": "empty-subject-and-minimal-body",
       "model": "anthropic/claude-haiku-4-5",
       "runs": 2,
-      "passed": 2,
+      "passed": 0,
       "failed": 0,
-      "errored": 0,
-      "stability": "stable",
-      "reasons": []
+      "errored": 2,
+      "stability": "errored",
+      "reasons": [
+        "The rubric requires both job_title and company to be null/empty when no identifying details are present. While job_title is null, company is set to 'Harbor Oak Recruiting' rather than null or empty, so the output does not fully satisfy the rubric.",
+        "The rubric requires both job_title and company to be null/empty when the email provides no identifying details. While job_title is null, company is set to 'Harbor Oak Recruiting', which is not null or empty. This violates the rubric's requirement."
+      ]
     },
     {
       "case": "fake-instructions-in-email-body-01",
@@ -271,7 +276,9 @@
       "reasons": []
     }
   ],
-  "flaky": [],
+  "flaky": [
+    "empty-subject-and-minimal-body-02 @ anthropic/claude-haiku-4-5"
+  ],
   "scenarios": [
     {
       "scenario": "standard-interview-request-email",
@@ -301,9 +308,9 @@
       "scenario": "empty-subject-and-minimal-body",
       "kind": "edge",
       "run": 6,
-      "passed": 6,
+      "passed": 3,
       "failed": 0,
-      "errored": 0
+      "errored": 3
     },
     {
       "scenario": "automated-receipt-vs-actual-screening",
@@ -358,11 +365,11 @@
     {
       "model": "anthropic/claude-sonnet-5",
       "role": "judge",
-      "inputTokens": 2198,
-      "outputTokens": 473,
-      "realDollars": 0.009126,
+      "inputTokens": 2295,
+      "outputTokens": 1042,
+      "realDollars": 0.01501,
       "estimatedDollars": 0.009168,
-      "errorPercent": -0.5,
+      "errorPercent": 63.7,
       "approximatePrice": false
     }
   ],

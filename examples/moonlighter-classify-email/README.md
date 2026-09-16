@@ -2,7 +2,7 @@
 
 The target is [moonlighter](https://github.com/albertosca/moonlighter), a job-application tracker. Its `classify_response` (`packages/email/moonlighter/tracking/classification.py`) takes one email a candidate received and returns a JSON object with `type`, `stage`, `new_stage`, `company`, `job_title` and `summary`, where `type` is one of seven labels. The rule this suite exists to protect is the one that is easiest to get wrong: an automated "we have received your application" is `acknowledgement`, never `screening` and never `interview` — the process has not started. `prompt.txt` in this directory is that function's prompt, copied verbatim, with the untrusted-email block and the stage list replaced by placeholders.
 
-Everything under `.forge/` here was produced by `forge` and reviewed by hand, then run once against the real application. `results.json` and `.forge/report.*` are the output of that single run, dated in `report.json` (`generatedAt: 2026-09-16T00:53:16.050Z`, promptfoo 0.123.0) — they are a record of one run on one day, not something regenerated on every commit.
+Everything under `.forge/` here was produced by `forge` and reviewed by hand, then run against the real application. `results.json` and `.forge/report.*` are the output of that run, dated in `report.json` (`generatedAt: 2026-09-16T01:11:17.596Z`, promptfoo 0.123.0) — they are a record of one run on one day, not something regenerated on every commit.
 
 ## Models used, and why Google is absent
 
@@ -59,7 +59,7 @@ One was **edited**: `formal-job-offer-letter` came back with `oracle: fields`. R
 
 `forge dedupe` flagged 12 of the 24 with `duplicate_of`. All 12 were **kept**. Three cases drawn from one scenario are near-duplicates by construction — that is what a scenario is — and `dedupe` flags without removing, on purpose. The flagged inputs differ in company, role, channel and wording, so each is still a distinct test; the flag is a prompt to look, and looking is what happened.
 
-The one expected value worth arguing about is `empty-subject-and-minimal-body-03`, whose rubric asks for `company` to be null on a one-word email from a recruiting domain. A model that infers the company from the sender would fail it. It was left as generated: a failure there would be a finding about the application, not about the case.
+The one expected value worth arguing about is `empty-subject-and-minimal-body-03`, whose rubric asks for `company` to be null on a one-word email from a recruiting domain. A model that infers the company from the sender would fail it. It was left as generated — and it did fail, twice, for exactly that reason: see "The three failures" below. That is a finding about the application, not about the case.
 
 ## The estimate
 
@@ -73,21 +73,36 @@ The one expected value worth arguing about is `empty-subject-and-minimal-body-03
 ## The run
 
     $ bunx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml -o results.json --no-cache --no-progress-bar -j 2
-    ✓ 48 passed (100%)  ·  0 failed (0%)  ·  0 errors (0%)  ·  Duration: 36s (concurrency: 2)
+    ✓ 45 passed (93.75%)  ·  ✗ 3 failed (6.25%)  ·  0 errors (0%)  ·  Duration: 40s (concurrency: 2)
 
     $ bun ../../src/cli/bin.ts report results.json
-    report: 48 of 48 rows matched; pass rate 100.0%; 0 flaky; 0 judge disagreements
+    report: 48 of 48 rows matched; pass rate 93.8%; 1 flaky; 0 judge disagreements
 
-Every scenario ran 6 times (3 cases × `repeat: 2`) and passed 6 times. The judge cost came in at $0.009126 against an estimate of $0.009168 — 0.5% low. The target line reads $0.000000 against $0.051836, which is not a saving: the shim reports zero tokens (see below), so `report.md` says so in as many words rather than printing a number it does not have.
+Every scenario ran 6 times (3 cases × `repeat: 2`). Seven of the eight passed 6 times; `empty-subject-and-minimal-body` passed 3 of 6, and those three failures are described below. The judge cost came in at $0.015010 against an estimate of $0.009168 — 64% high, because a failing `llm-rubric` writes a long explanation and the estimate assumes a short one. The target line reads $0.000000 against $0.051836, which is not a saving: the shim reports zero tokens (see below), so `report.md` says so in as many words rather than printing a number it does not have.
 
 Two kinds of noise on stderr are expected and are not failures: promptfoo 0.123.0 prints `ExperimentalWarning: DecompressInterceptor`, and the Python worker prints an `asyncio` traceback ending in `RuntimeError: Event loop is closed` when it tears down moonlighter's HTTP client after the loop has closed. All 48 rows still carry a result.
+
+### This run is the second one, and the first one was wrong
+
+The first run of this suite reported 48 of 48 passing, and that number was an artefact of the shim. `run_application` rebuilt moonlighter's `{from_, subject, body}` by splitting the `email` input on the first blank line, which suited neither shape the cases are written in: 21 of the 24 carry the body's first line on a `Body:` marker, which the split swallowed into the header block, and the three `empty-subject-and-minimal-body` cases have no blank line at all, so their body arrived **empty**. Those three are the suite's only `rubric` cases, so every judge call in the first run graded a `From:` header with nothing behind it — moonlighter's own summaries for them read "Email is empty".
+
+The shim now parses the header lines one at a time (see `parse_email`), and the run above is the repeat with the real bodies. It is a worse-looking number and a better measurement: the three failures below only became visible once the classifier could see the words "update", "following up" and "thanks". No case file was touched.
+
+### The three failures
+
+They are worth reading, because they are what the suite is for:
+
+- **`empty-subject-and-minimal-body-03`, both runs.** The rubric asks for `company` to be null on a one-word email with no identifying details; moonlighter answered `company: "Harbor Oak Recruiting"`, inferred from the sender's domain. The judge scored it 0 and 0.3 with that reason both times. This is the case flagged during review as the one worth arguing about — whether inferring a company from a recruiting domain is correct behaviour is a real question about moonlighter, not a defect in the case, so it stays as generated.
+- **`empty-subject-and-minimal-body-02`, one run of two.** On the body "following up", moonlighter answered `unrelated` once and `screening` once. `forge report` lists it under **flaky** for exactly that reason: same input, two repeats, two answers. A one-word email is genuinely ambiguous, and the rubric's demand that it not be called `screening` is the stricter reading.
+
+One caveat about how `report.md` presents them: its per-scenario table counts these three as **errored** rather than **failed**, although promptfoo counted them as `3 failed, 0 errors`. That is a defect in `forge report`, not a description of the run — promptfoo puts a failing assert's reason in each row's `error` field, and the report reads any non-empty `error` as an execution failure.
 
 ## Two honest limitations of the shim
 
 `.forge/forge_target.py` is the generated shim with `run_application` filled in. It calls `classify_response` directly, so the suite measures the real application, not a copy of its prompt. Two things it does not do well:
 
 1. **It reports no tokens.** moonlighter's `make_api_caller()` does not hand back usage, so the shim returns `input_tokens: 0`, `output_tokens: 0` and the target row of the cost table is empty. Wiring moonlighter's own call log through would make that line real.
-2. **It reassembles the email by splitting on the first blank line.** The forge carries one `email` string; moonlighter wants `{from_, subject, body}`. Where a generated case wrote the body on the same line as a `Body:` prefix, that first line is read as a header and does not reach `body`; where a case has no blank line at all (the three one-word `empty-subject-and-minimal-body` cases), `body` arrives empty — which is why moonlighter's own summaries for those three say "Email is empty". They still classify as `unrelated` and still pass, but the suite is testing a slightly thinner input than the case file shows.
+2. **It has to guess at the email's shape.** The forge carries one `email` string and moonlighter wants three fields, so `parse_email` reads leading `From:`/`Subject:` lines, skips blank lines, drops a `Body:` marker if one is there, and treats the rest as the body. That covers both shapes these cases use, but it is a parser written against the cases it has seen. Giving the feature `from`, `subject` and `body` as three separate inputs would remove the guessing entirely.
 
 ## Rerunning it
 
