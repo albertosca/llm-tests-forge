@@ -2781,7 +2781,7 @@ describe("report", () => {
 		expect(out.at(-1)).toContain("pending");
 	});
 
-	test("a baseline written before `failing` existed is still accepted", async () => {
+	test("a baseline in the shape the previous version wrote is still accepted", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDir = await forgeMatchingFixture(cwd);
 		const first = await ctxIn(cwd);
@@ -2790,14 +2790,27 @@ describe("report", () => {
 		const baseline = JSON.parse(
 			await readFile(join(forgeDir, "report.json"), "utf8"),
 		);
+		// The shape a report.json carried before this branch, read off
+		// e980d07's examples/moonlighter-classify-email/.forge/report.json:
+		// `coverage.approvedScenarios` rather than `reviewedScenarios`, and
+		// no `failing` at all. Both changed here, and a baseline is by
+		// definition a file an older binary wrote.
+		baseline.coverage = {
+			approvedScenarios: baseline.coverage.reviewedScenarios,
+			withRuns: baseline.coverage.withRuns,
+			withoutCase: baseline.coverage.withoutCase,
+		};
 		delete baseline.failing;
+		// Something to diff against, so the run proves the old file was read
+		// rather than merely accepted: pretend the first case failed then.
+		baseline.cases[0].stability = "failing";
 		await writeFile(previous, JSON.stringify(baseline));
 		const second = await ctxIn(cwd);
 		expect(
 			await run(["report", RESULTS, "--baseline", previous], second.ctx),
 		).toBe(0);
 		expect(second.out).toContain(
-			"report: since baseline: 0 regressions, 0 fixed",
+			"report: since baseline: 0 regressions, 1 fixed",
 		);
 	});
 

@@ -965,6 +965,39 @@ describe("buildReport", () => {
 		expect(failing).toEqual(["a-01 @ m"]);
 		expect(ReportSchema.parse(withoutFailing).failing).toEqual([]);
 	});
+	test("a baseline whose coverage still says `approvedScenarios` reads back as `reviewedScenarios`", () => {
+		// The key was renamed during the backlog sweep; every report.json
+		// written before it carries the old spelling, and rejecting those
+		// makes `--baseline` refuse the only files a person has.
+		const report = build([row({ case: "a-01", model: "m" })]);
+		const { reviewedScenarios, ...rest } = report.coverage;
+		const old = { ...report, coverage: { ...rest, approvedScenarios: 4 } };
+		const parsed = ReportSchema.parse(old);
+		expect(parsed.coverage.reviewedScenarios).toBe(4);
+		expect(parsed.coverage.withRuns).toBe(report.coverage.withRuns);
+		// 2, not the 4 the old key carries: the number really came from the
+		// old spelling rather than from the report being re-derived.
+		expect(reviewedScenarios).toBe(2);
+	});
+	test("a coverage carrying both spellings keeps the new one", () => {
+		const report = build([row({ case: "a-01", model: "m" })]);
+		const both = {
+			...report,
+			coverage: { ...report.coverage, approvedScenarios: 99 },
+		};
+		expect(ReportSchema.parse(both).coverage.reviewedScenarios).toBe(
+			report.coverage.reviewedScenarios,
+		);
+	});
+	test("a coverage carrying neither spelling is still refused", () => {
+		const report = build([row({ case: "a-01", model: "m" })]);
+		const { reviewedScenarios, ...rest } = report.coverage;
+		const parsed = ReportSchema.safeParse({ ...report, coverage: rest });
+		expect(parsed.success).toBe(false);
+		expect(parsed.error?.issues[0]?.path.join(".")).toBe(
+			"coverage.reviewedScenarios",
+		);
+	});
 	test("two unmatched rows carrying the same testIdx are told apart by position", () => {
 		// promptfoo repeats testIdx across repeats, so the index alone names
 		// two different rows the same way.

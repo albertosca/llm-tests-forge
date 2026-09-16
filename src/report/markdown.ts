@@ -105,10 +105,13 @@ function disagreement(r: Report): string[] {
 		return out;
 	}
 	const columns = Math.max(...r.disagreements.map((d) => d.judges.length));
+	// "disagreeing runs", not "runs": every other table in the report counts
+	// how often the pair ran, and this column counts only the runs the
+	// judges split on — the same word for two different numbers.
 	const header = [
 		"case",
 		"model",
-		"runs",
+		"disagreeing runs",
 		...Array.from({ length: columns }, (_, i) => `judge ${i + 1}`),
 	];
 	out.push(

@@ -97,7 +97,9 @@ describe("readResults", () => {
 		const dir = await mkdtemp(join(tmpdir(), "forge-report-"));
 		const err = await readResults(dir).catch((e: Error) => e);
 		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as Error).message).toContain("cannot read");
+		// The same sentence `readYamlFile` gives for the same OS code: one
+		// reader of a path should not explain EISDIR differently from another.
+		expect((err as Error).message).toContain("is a directory, expected a file");
 		expect((err as Error).message).toContain(dir);
 	});
 });

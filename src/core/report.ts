@@ -77,6 +77,39 @@ const BaselineDiffEntrySchema = z.object({
 });
 
 /**
+ * `reviewedScenarios` was called `approvedScenarios` until 2026-09-16.
+ * `--baseline` takes a `report.json` an earlier run wrote, and the whole
+ * point of the flag is that the earlier run is older than this binary: a
+ * schema that knows only the new spelling rejects every file a person
+ * actually has, naming it "not a forge report". The old key is read as the
+ * new one when the new one is absent, and ignored when both are there, so
+ * a file this version wrote is never reinterpreted by a stale field.
+ */
+function onlyApprovedScenarios(
+	value: unknown,
+): value is { approvedScenarios: unknown } {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"approvedScenarios" in value &&
+		!("reviewedScenarios" in value)
+	);
+}
+
+const CoverageSchema = z.preprocess(
+	(value) =>
+		onlyApprovedScenarios(value)
+			? { ...value, reviewedScenarios: value.approvedScenarios }
+			: value,
+	z.object({
+		/** Scenarios a person passed on: `approved` and `edited` alike. */
+		reviewedScenarios: z.number(),
+		withRuns: z.number(),
+		withoutCase: z.array(z.string()),
+	}),
+);
+
+/**
  * Every field comes from this schema so `report.json` can be handed back as
  * `--baseline` without a second, drifting definition of what a report is.
  */
@@ -100,12 +133,7 @@ export const ReportSchema = z.object({
 	/** `"case @ model"` for every CaseRun whose stability is `flaky`. */
 	flaky: z.array(z.string()),
 	scenarios: z.array(ScenarioStatSchema),
-	coverage: z.object({
-		/** Scenarios a person passed on: `approved` and `edited` alike. */
-		reviewedScenarios: z.number(),
-		withRuns: z.number(),
-		withoutCase: z.array(z.string()),
-	}),
+	coverage: CoverageSchema,
 	disagreements: z.array(DisagreementSchema),
 	costs: z.array(ModelCostSchema),
 	targetUsageReported: z.boolean(),

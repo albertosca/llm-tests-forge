@@ -132,7 +132,9 @@ describe("renderReportMarkdown", () => {
 	test("puts each judge's verdict in its own column", () => {
 		const md = lines(REPORT);
 		expect(md).toContain("## Judge disagreement");
-		expect(md).toContain("| case | model | runs | judge 1 | judge 2 |");
+		expect(md).toContain(
+			"| case | model | disagreeing runs | judge 1 | judge 2 |",
+		);
 		expect(md).toContain(
 			"| r-01 | m | 1 | google/gemini-3.5-flash: pass — ok | anthropic/claude-sonnet-5: fail — no |",
 		);
@@ -313,7 +315,9 @@ describe("renderReportMarkdown", () => {
 	test("no disagreement says so", () => {
 		const md = lines({ ...REPORT, disagreements: [] });
 		expect(md).toContain("No disagreement.");
-		expect(md).not.toContain("| case | model | runs | judge 1 | judge 2 |");
+		expect(md).not.toContain(
+			"| case | model | disagreeing runs | judge 1 | judge 2 |",
+		);
 	});
 
 	test("every approved scenario having a case drops the clause about missing ones", () => {
@@ -468,7 +472,7 @@ describe("renderReportMarkdown", () => {
 		);
 		expect(md.indexOf(listed)).toBeLessThan(md.indexOf("## Flaky cases"));
 	});
-	test("the runs column counts the repeats a case disagreed on", () => {
+	test("the disagreeing runs column counts the repeats a case disagreed on", () => {
 		const md = lines({
 			...REPORT,
 			disagreements: [
@@ -513,7 +517,7 @@ describe("renderReportMarkdown", () => {
 			],
 		});
 		expect(md).toContain(
-			"| case | model | runs | judge 1 | judge 2 | judge 3 |",
+			"| case | model | disagreeing runs | judge 1 | judge 2 | judge 3 |",
 		);
 		expect(md).toContain(
 			"| r-01 | m | 1 | one: pass — ok | two: fail — no | three: pass — fine |",
