@@ -6,17 +6,24 @@ import { plural } from "./text";
 /** Tokens promptfoo's grading prompt adds around the output and the rubric (measured ~200 on 2026-09-15). */
 export const JUDGE_PROMPT_OVERHEAD = 200;
 /**
- * Judge answer size including the reasoning some providers bill as output.
- * Measured as `completion + completionDetails.reasoning` over every
- * `llm-rubric` component: mean 174 across the 6 components of
- * `examples/moonlighter-classify-email/results.json` (2026-09-16), and mean
- * 321 across the 2 of `tests/fixtures/promptfoo-results-0.123.0.json` — set
- * from the larger, more representative example run. A judge that rejects
- * writes far more than one that passes: the 3 passing components above
- * measured 68–85 tokens with no reasoning at all, while the 3 rejecting
- * ones ranged 92–359, two of them paying for hidden reasoning tokens to
- * explain the rejection. A real tokenizer would replace this constant; the
- * estimate is a guess either way, calibrated rather than exact.
+ * Judge answer size including the reasoning some providers bill as output,
+ * measured as `completion + completionDetails.reasoning` over every
+ * `llm-rubric` component of a run.
+ *
+ * 174 was fit to the example run of 2026-09-16 (1042 tokens over 6
+ * components). The example has been re-run since, and the committed
+ * `examples/moonlighter-classify-email/results.json` now measures
+ * [102, 71, 69, 71, 167, 186] = 666 over the same 6 components, a mean of
+ * 111; `tests/fixtures/promptfoo-results-0.123.0.json` measures 321 over
+ * its 2. The constant stays at 174 on purpose: what moves it is how many
+ * rubric cases the judge rejects — a rejection writes an explanation and
+ * pays for hidden reasoning tokens (the 4 passing components above wrote
+ * 69–102 with no reasoning at all, the 2 rejecting ones 167 and 186 with
+ * 44 and 54 of it), and no constant can know that count before the run. A
+ * number fit to the cheaper of two observed runs would understate the bill
+ * whenever the suite starts failing, which is exactly when the estimate is
+ * read. A real tokenizer would replace this constant; the estimate is a
+ * guess either way, calibrated rather than exact.
  */
 export const JUDGE_OUTPUT_TOKENS = 174;
 
@@ -152,24 +159,45 @@ export function estimateSuite(args: {
 	};
 }
 
+/** What a line with no price at all prints where a dollar figure would go. */
+const NOT_PRICED = "not priced";
+
 export function renderEstimate(e: Estimate): string {
 	const out = [
 		`estimate: ${plural(e.cases, "case")}, ${e.rubricCases} with a rubric; prices dated ${e.pricesUpdated}`,
 	];
-	const rows = e.lines.map((l) => {
+	const rendered = e.lines.map((l) => {
 		const marked = l.priced && l.approximate;
 		const name = `${l.model}${marked ? " ~" : ""}`.padEnd(34);
-		const dollarText = l.priced ? `$${l.dollars.toFixed(6)}` : "not priced";
-		const row = `  ${l.role.padEnd(7)} ${name} ${String(l.calls).padStart(4)} calls ${String(l.inputTokens).padStart(7)} in ${String(l.outputTokens).padStart(7)} out  ${dollarText}`;
-		return marked ? `${row}  (priced as ${l.pricedAs})` : row;
+		const dollarText = l.priced ? `$${l.dollars.toFixed(6)}` : NOT_PRICED;
+		// The column the dollar figure starts at, taken from the prefix that
+		// puts it there rather than by searching the finished row for a "$":
+		// a row that says "not priced" carries no "$" at all, and a search
+		// over rows where none does returned -1, which rendered the total as
+		// "  total$0.000000" — the one number a person must not misread.
+		const prefix = `  ${l.role.padEnd(7)} ${name} ${String(l.calls).padStart(4)} calls ${String(l.inputTokens).padStart(7)} in ${String(l.outputTokens).padStart(7)} out  `;
+		const row = `${prefix}${dollarText}`;
+		return {
+			row: marked ? `${row}  (priced as ${l.pricedAs})` : row,
+			dollarAt: prefix.length,
+		};
 	});
-	out.push(...rows);
-	// The dollar column sits wherever the widest data row put its "$";
+	out.push(...rendered.map((r) => r.row));
+	// The dollar column sits wherever the widest data row starts its figure;
 	// "  total" is 7 characters, so that many fewer spaces are needed.
-	const dollarCol = Math.max(...rows.map((r) => r.indexOf("$")));
+	const dollarCol = Math.max(0, ...rendered.map((r) => r.dollarAt));
 	const label = "  total";
+	const unpriced = e.lines.filter((l) => !l.priced).length;
+	// `totalDollars` sums the priced lines, so with none of them priced the
+	// sum is a true zero of nothing at all: printing "$0.000000" would read
+	// as a free run. Either way the count of omitted lines is named, because
+	// the total is the number a person acts on.
+	const figure =
+		unpriced === e.lines.length ? NOT_PRICED : `$${e.totalDollars.toFixed(6)}`;
+	const omitted =
+		unpriced === 0 ? "" : `  (${plural(unpriced, "line")} not priced)`;
 	out.push(
-		`${label}${" ".repeat(Math.max(0, dollarCol - label.length))}$${e.totalDollars.toFixed(6)}`,
+		`${label}${" ".repeat(Math.max(0, dollarCol - label.length))}${figure}${omitted}`,
 	);
 	for (const n of e.notes) out.push(`note: ${n}`);
 	return out.join("\n");

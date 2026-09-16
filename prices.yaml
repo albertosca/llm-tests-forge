@@ -3,12 +3,13 @@
 # listed is priced as the closest listed model of the same provider and the
 # line is marked "~" in the output. A model whose provider has no row at all
 # is not priced: the line reads "not priced" instead of a dollar figure.
-updated: 2026-09-15
+updated: 2026-09-16
 unit: usd_per_million_tokens
 sources:
   - https://www.anthropic.com/pricing
   - https://ai.google.dev/gemini-api/docs/pricing
   - https://openai.com/api/pricing
+  - "local models are not metered; the ollama rows are 0 because there is no bill, not because a price is missing"
 models:
   anthropic/claude-opus-5: { input: 5, output: 25 }
   anthropic/claude-sonnet-5: { input: 2, output: 10 }

@@ -211,25 +211,34 @@ describe("estimateSuite", () => {
 			"~ marks a model priced as the closest listed model",
 		);
 	});
-	test("a model whose provider has no row at all is not priced, and is excluded from the total", () => {
+	test("a model whose provider has no row at all is not priced, and the total is the priced line alone", () => {
 		const selection: Selection = {
 			scenarios: [sc("a", "label")],
 			cases: [cs("a-01", "a", "x".repeat(40), { label: "rejection" })],
 			blockers: [],
 			reviewable: 0,
 		};
+		// Two lines, not one: with a single unpriced line the total is zero
+		// whether the filter works or not, so the test could not fail.
 		const e = estimateSuite({
-			suite: suite(["ollama/llama3"], ["google/gemini-3.5-flash"], 1),
+			suite: suite(
+				["ollama/llama3", "anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
 			selection,
 			feature,
 			prices,
 			promptTokens: 0,
 		});
-		const target = e.lines.find((l) => l.role === "target");
-		expect(target?.priced).toBe(false);
-		expect(target?.pricedAs).toBe("ollama/llama3");
-		expect(target?.dollars).toBe(0);
-		expect(e.totalDollars).toBe(0);
+		const unpriced = e.lines.find((l) => l.model === "ollama/llama3");
+		const haiku = e.lines.find((l) => l.model === "anthropic/claude-haiku-4-5");
+		expect(unpriced?.priced).toBe(false);
+		expect(unpriced?.pricedAs).toBe("ollama/llama3");
+		expect(unpriced?.dollars).toBe(0);
+		expect(haiku?.priced).toBe(true);
+		expect(haiku?.dollars).toBeGreaterThan(0);
+		expect(e.totalDollars).toBe(haiku?.dollars ?? -1);
 		expect(e.notes).toContain(
 			"not priced: ollama/llama3 has no row in prices.yaml",
 		);
@@ -341,6 +350,86 @@ describe("renderEstimate", () => {
 		expect(unpriced).not.toContain("~");
 		expect(lines).toContain(
 			"note: not priced: ollama/llama3 has no row in prices.yaml",
+		);
+	});
+	test("the total row says how many lines it left out when one of them is unpriced", () => {
+		const text = renderEstimate({
+			cases: 1,
+			rubricCases: 0,
+			pricesUpdated: "2026-09-15",
+			totalDollars: 0.0004,
+			notes: [],
+			lines: [
+				{
+					model: "anthropic/claude-haiku-4-5",
+					role: "target",
+					calls: 4,
+					inputTokens: 220,
+					outputTokens: 32,
+					dollars: 0.0004,
+					pricedAs: "anthropic/claude-haiku-4-5",
+					approximate: false,
+					priced: true,
+				},
+				{
+					model: "ollama/llama3",
+					role: "target",
+					calls: 4,
+					inputTokens: 220,
+					outputTokens: 32,
+					dollars: 0,
+					pricedAs: "ollama/llama3",
+					approximate: false,
+					priced: false,
+				},
+			],
+		});
+		expect(text.split("\n")).toContain(
+			"  total                                                                         $0.000400  (1 line not priced)",
+		);
+	});
+	test("with every line unpriced the total reads 'not priced', not $0.000000", () => {
+		const text = renderEstimate({
+			cases: 1,
+			rubricCases: 0,
+			pricesUpdated: "2026-09-15",
+			totalDollars: 0,
+			notes: [],
+			lines: [
+				{
+					model: "ollama/llama3",
+					role: "target",
+					calls: 4,
+					inputTokens: 220,
+					outputTokens: 32,
+					dollars: 0,
+					pricedAs: "ollama/llama3",
+					approximate: false,
+					priced: false,
+				},
+				{
+					model: "ollama/qwen3",
+					role: "target",
+					calls: 4,
+					inputTokens: 220,
+					outputTokens: 32,
+					dollars: 0,
+					pricedAs: "ollama/qwen3",
+					approximate: false,
+					priced: false,
+				},
+			],
+		});
+		const lines = text.split("\n");
+		const totalRow = lines.find((l) => l.startsWith("  total"));
+		expect(totalRow).toBe(
+			"  total                                                                         not priced  (2 lines not priced)",
+		);
+		// The total sits in the same column as the rows it summarises, which
+		// a column computed from a "$" no row carries could not do.
+		const dataRow = lines.find((l) => l.includes("ollama/qwen3"));
+		expect(totalRow?.indexOf("not priced")).toBe(
+			dataRow?.indexOf("not priced"),
 		);
 	});
 	test("the total's $ lines up with a data row's $ regardless of model-name width (39 chars, 120000 calls)", () => {

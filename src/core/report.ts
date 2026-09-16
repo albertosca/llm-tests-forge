@@ -393,7 +393,10 @@ function costLine(args: {
 		inputTokens: args.inputTokens,
 		outputTokens: args.outputTokens,
 		realDollars: realDollars === null ? null : round(realDollars, 6),
-		estimatedDollars: line ? round(line.dollars, 6) : null,
+		// An unpriced line's `dollars` is 0 because no rate existed, not
+		// because the run was free: the estimate column says so with a dash
+		// rather than pricing the model at nothing.
+		estimatedDollars: line?.priced ? round(line.dollars, 6) : null,
 		errorPercent:
 			realDollars !== null && line && line.dollars > 0
 				? round(((realDollars - line.dollars) / line.dollars) * 100, 1)

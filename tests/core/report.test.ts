@@ -831,6 +831,44 @@ describe("buildReport", () => {
 		expect(other.costs[0]?.errorPercent).toBeNull();
 	});
 
+	test("an unpriced estimate line reports no estimated dollars, not zero", () => {
+		// `dollars` is 0 on a line whose provider has no row in prices.yaml,
+		// and 0 read as a dollar figure says the run was free.
+		const estimate: Estimate = {
+			lines: [
+				{
+					model: "ollama/llama3",
+					role: "target",
+					calls: 2,
+					inputTokens: 300,
+					outputTokens: 40,
+					dollars: 0,
+					pricedAs: "ollama/llama3",
+					approximate: true,
+					priced: false,
+				},
+			],
+			cases: 1,
+			rubricCases: 0,
+			totalDollars: 0,
+			pricesUpdated: "2026-09-15",
+			notes: [],
+		};
+		const report = build(
+			[
+				row({
+					case: "a-01",
+					model: "ollama/llama3",
+					cost: 0.001,
+					tokenUsage: { prompt: 400, completion: 80, total: 480 },
+				}),
+			],
+			{ estimate },
+		);
+		expect(report.costs[0]?.estimatedDollars).toBeNull();
+		expect(report.costs[0]?.errorPercent).toBeNull();
+	});
+
 	test("an estimate of zero dollars gives no error percent to divide by", () => {
 		const estimate: Estimate = {
 			lines: [
