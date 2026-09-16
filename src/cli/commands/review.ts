@@ -1,6 +1,8 @@
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { ForgeError, UsageError } from "../../core/errors";
 import {
+	forgePaths,
 	listCaseScenarios,
 	readCases,
 	readFeature,
@@ -40,12 +42,26 @@ export async function reviewCommand(
 		},
 	});
 	const only = parseOnlyFlag(values.only);
+	// `--all` used to parse `--only`, reject an invalid value, and then
+	// ignore a valid one: `--all --only feature` approved a scenario's
+	// cases while naming a kind it never looks at. There is no honest
+	// reading of the pair -- `--all` decides one thing only -- so it is
+	// refused rather than silently narrowed or silently widened.
+	if (values.all && only !== undefined)
+		throw new UsageError(
+			"--all cannot be combined with --only; --all approves one scenario's cases",
+		);
 
 	// One guard above both paths: `--scenario` used to be trusted on the
 	// interactive path, where a typo answered "nothing pending" and exited
 	// 0 while `cases`, `dedupe` and `review --all` all named the same bad id
 	// and exited 1.
-	const scenarios = await readScenarios(ctx.forgeDir);
+	const paths = forgePaths(ctx.forgeDir);
+	// `scenarios` and `feature` below move with the pass: `onDecided`
+	// replaces the entry a decision just produced, so the oracle a later
+	// case is checked against is the one this pass approved, not the one
+	// that was on disk when it started.
+	let scenarios = await readScenarios(ctx.forgeDir);
 	const named = values.scenario
 		? scenarios.find((s) => s.id === values.scenario)
 		: undefined;
@@ -98,7 +114,11 @@ export async function reviewCommand(
 		return;
 	}
 
-	const feature = await readFeature(ctx.forgeDir);
+	let feature = await readFeature(ctx.forgeDir);
+	// The list as it was read off disk. Decisions are matched back to the
+	// file against these ids, which the live `scenarios` no longer carries
+	// once a decision renames one.
+	const scenariosAsRead = scenarios;
 	const scenarioIds = values.scenario
 		? [values.scenario]
 		: await listCaseScenarios(ctx.forgeDir);
@@ -106,6 +126,21 @@ export async function reviewCommand(
 	for (const id of scenarioIds)
 		casesById.set(id, await readCases(ctx.forgeDir, id));
 	const allCases = [...casesById.values()].flat();
+	// `pendingItems` places one entry per id, so a file holding two under
+	// the same one offers the first and passes over the second in silence —
+	// and the write-back deliberately applies a decision to at most one
+	// entry, so the twin survives untouched and unreviewed forever. Nothing
+	// here fixes the file; saying it out loud, before the pass, is what
+	// nobody was doing.
+	for (const [scenarioId, list] of casesById) {
+		const seen = new Map<string, number>();
+		for (const c of list) seen.set(c.id, (seen.get(c.id) ?? 0) + 1);
+		for (const [caseId, count] of seen)
+			if (count > 1)
+				ctx.stdout(
+					`review: ${join(paths.casesDir, `${scenarioId}.yaml`)} holds ${count} entries under id "${caseId}"; only the first is offered — fix the file`,
+				);
+	}
 
 	const scopedScenarios = values.scenario
 		? scenarios.filter((s) => s.id === values.scenario)
@@ -126,8 +161,35 @@ export async function reviewCommand(
 		return;
 	}
 
-	const oracleOf = (scenarioId: string): Oracle =>
-		scenarios.find((s) => s.id === scenarioId)?.oracle ?? "rubric";
+	// A case whose scenario is not in scenarios.yaml has no oracle. This
+	// used to answer `rubric` and ask the person for a rubric sentence —
+	// the wrong question, against a file nobody can review until it is
+	// fixed.
+	const oracleOf = (c: Case): Oracle => {
+		const scenario = scenarios.find((s) => s.id === c.scenario);
+		if (scenario === undefined)
+			throw new ForgeError(
+				`case ${c.id} names scenario "${c.scenario}", which is not in scenarios.yaml`,
+				{ file: paths.scenarios, id: c.id },
+			);
+		return scenario.oracle;
+	};
+	// Resolved for every case before the first prompt, not when the loop
+	// reaches one: decisions are written only after the loop returns, so
+	// failing in the middle of a pass would throw away every decision
+	// already taken. A broken file is also not a decision to retry — the
+	// loop's own catch would re-ask the same unanswerable item forever.
+	for (const item of items) if (item.kind === "case") oracleOf(item.item);
+
+	/**
+	 * Scenarios whose `oracle` this pass changed, keyed by the id their
+	 * cases file is named for (the id on disk, which an edit may rename
+	 * away from).
+	 */
+	const oracleChanges = new Map<
+		string,
+		{ id: string; from: Oracle; to: Oracle }
+	>();
 	const io = { stdin: ctx.stdin, stdout: ctx.stdout };
 	const result = await runReviewLoop({
 		items,
@@ -154,6 +216,25 @@ export async function reviewCommand(
 				? null
 				: expectedMatchesOracle(c.expected, oracle, feature),
 		oracleOf,
+		onDecided: (kind, item, originalId) => {
+			if (kind === "feature") {
+				feature = item as Feature;
+				return;
+			}
+			if (kind !== "scenario") return;
+			const decided = item as Scenario;
+			// Read before the replacement below overwrites it: the old
+			// oracle is what says which of its cases this decision
+			// invalidates, and it exists nowhere else once the pass moves on.
+			const before = scenarios.find((s) => s.id === originalId);
+			if (before !== undefined && before.oracle !== decided.oracle)
+				oracleChanges.set(originalId, {
+					id: decided.id,
+					from: before.oracle,
+					to: decided.oracle,
+				});
+			scenarios = scenarios.map((s) => (s.id === originalId ? decided : s));
+		},
 		print: ctx.stdout,
 	});
 
@@ -190,7 +271,7 @@ export async function reviewCommand(
 	if (decidedScenarios.size > 0)
 		await writeScenarios(
 			ctx.forgeDir,
-			scenarios.map((s) => take(decidedScenarios, s.id) ?? s),
+			scenariosAsRead.map((s) => take(decidedScenarios, s.id) ?? s),
 		);
 
 	const decidedCases = new Map(
@@ -198,13 +279,56 @@ export async function reviewCommand(
 			.filter((d) => d.kind === "case")
 			.map((d) => [d.originalId, d.item as Case] as const),
 	);
+	// A scenario's oracle is the contract its cases' `expected` was written
+	// against, so changing it in review invalidates them wholesale. Nothing
+	// used to notice until each case came up again — and `selectCases`
+	// refuses the pair, so `estimate`, `emit` and `report` all stopped on a
+	// scenario nobody had touched. The cases go back to `pending` with
+	// their `expected` kept: it is the reviewer's own answer, and only they
+	// can say what it becomes under the new oracle.
+	const reopen = (c: Case): Case => ({ ...c, status: "pending" });
+	// An edit may rename a case, and `duplicate_of` is the only field that
+	// names another case by id. Left behind, the pointer dangles: no data
+	// is lost, but `pendingItems` stops placing the pair together and
+	// `dedupe`'s own answer reads as being about a case that is not there.
+	// Rewritten in the same write as the rename, so the file is never
+	// briefly inconsistent on disk.
+	const renamedCases = new Map(
+		result.decisions
+			.filter((d) => d.kind === "case" && d.originalId !== d.id)
+			.map((d) => [d.originalId, d.id] as const),
+	);
+	const followRename = (c: Case): Case => {
+		const renamed =
+			c.duplicate_of === undefined
+				? undefined
+				: renamedCases.get(c.duplicate_of);
+		return renamed === undefined ? c : { ...c, duplicate_of: renamed };
+	};
 	for (const [id, list] of casesById) {
-		if (!list.some((c) => decidedCases.has(c.id))) continue;
-		await writeCases(
-			ctx.forgeDir,
-			id,
-			list.map((c) => take(decidedCases, c.id) ?? c),
-		);
+		const oracleChange = oracleChanges.get(id);
+		const decided = list.some((c) => decidedCases.has(c.id));
+		if (!decided && oracleChange === undefined) continue;
+		let next = list.map((c) => followRename(take(decidedCases, c.id) ?? c));
+		let reopened = 0;
+		if (oracleChange !== undefined) {
+			next = next.map((c) => {
+				if (c.status !== "approved" && c.status !== "edited") return c;
+				if (
+					c.expected !== undefined &&
+					expectedMatchesOracle(c.expected, oracleChange.to, feature) === null
+				)
+					return c;
+				reopened += 1;
+				return reopen(c);
+			});
+			ctx.stdout(
+				`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to}; ${reopened} case(s) re-opened`,
+			);
+		}
+		// An oracle change whose cases all still fit leaves the file exactly
+		// as it was read, and a file no decision touched is not rewritten.
+		if (decided || reopened > 0) await writeCases(ctx.forgeDir, id, next);
 	}
 	const s = result.summary;
 	// `skipped` counts the items a person answered "skip" to; it is not the

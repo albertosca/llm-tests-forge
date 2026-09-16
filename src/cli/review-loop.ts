@@ -31,7 +31,28 @@ export interface ReviewLoopArgs {
 	 * cannot rename it onto one of its siblings.
 	 */
 	takenIdsFor: (item: PendingItem) => ReadonlySet<string>;
-	oracleOf: (scenarioId: string) => Oracle;
+	/**
+	 * The oracle a case answers to. Takes the case rather than its
+	 * scenario id so the caller can name the case when the scenario it
+	 * points at does not exist — that is a broken file, and answering it
+	 * with a default oracle asked the person the wrong question instead.
+	 */
+	oracleOf: (c: Case) => Oracle;
+	/**
+	 * Called once per decision, as it is taken, with the item as decided
+	 * and the id it had on disk when the pass started. The pass reads the
+	 * feature and the scenario list through `checkExpected`, `askExpected`
+	 * and `oracleOf`; without this the caller could only hand them over as
+	 * a snapshot, so a label added by editing the feature was still absent
+	 * when a case using it came up two items later, and approving it was
+	 * refused. `originalId` is passed because an edit may rename the item,
+	 * and matching the new id against the pre-pass list finds nothing.
+	 */
+	onDecided?: (
+		kind: PendingItem["kind"],
+		item: Feature | Scenario | Case,
+		originalId: string,
+	) => void;
 	print: (line: string) => void;
 }
 
@@ -88,6 +109,17 @@ export async function runReviewLoop(
 	const decisions: ReviewLoopResult["decisions"] = [];
 	const summary = { approved: 0, rejected: 0, edited: 0, skipped: 0 };
 
+	/** The one place a decision is recorded, so `onDecided` cannot be
+	 * wired to some of the branches and not the others. */
+	const record = (
+		kind: PendingItem["kind"],
+		originalId: string,
+		item: Feature | Scenario | Case,
+	): void => {
+		decisions.push({ kind, originalId, id: item.id, item });
+		args.onDecided?.(kind, item, originalId);
+	};
+
 	/**
 	 * Nothing leaves this loop approved or edited carrying an expected
 	 * value the scenario's oracle does not accept — the prompt checks what
@@ -102,7 +134,7 @@ export async function runReviewLoop(
 		if (kind !== "case") return;
 		const c = item as Case;
 		if (c.expected === undefined) return;
-		const problem = args.checkExpected(c, args.oracleOf(c.scenario));
+		const problem = args.checkExpected(c, args.oracleOf(c));
 		if (problem !== null)
 			throw new ForgeError(`expected does not match the oracle: ${problem}`, {
 				id: c.id,
@@ -129,7 +161,7 @@ export async function runReviewLoop(
 					(answer === "approve" || answer === "edit") &&
 					(current as Case).expected === undefined
 				) {
-					const oracle = args.oracleOf((current as Case).scenario);
+					const oracle = args.oracleOf(current as Case);
 					const expected = await args.askExpected(current as Case, oracle);
 					current = withExpected(current as Case, expected);
 				}
@@ -151,12 +183,7 @@ export async function runReviewLoop(
 					refuseExpectedOutsideOracle(pending.kind, edited);
 					current = edited;
 					summary.edited += 1;
-					decisions.push({
-						kind: pending.kind,
-						originalId: pending.item.id,
-						id: current.id,
-						item: current,
-					});
+					record(pending.kind, pending.item.id, current);
 					break;
 				}
 
@@ -170,12 +197,7 @@ export async function runReviewLoop(
 					refuseExpectedOutsideOracle(pending.kind, decided);
 				current = decided;
 				summary[answer === "approve" ? "approved" : "rejected"] += 1;
-				decisions.push({
-					kind: pending.kind,
-					originalId: pending.item.id,
-					id: current.id,
-					item: current,
-				});
+				record(pending.kind, pending.item.id, current);
 				break;
 			} catch (e) {
 				if (e instanceof ForgeError) {

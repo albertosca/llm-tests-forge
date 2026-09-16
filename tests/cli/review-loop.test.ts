@@ -332,6 +332,32 @@ describe("runReviewLoop", () => {
 		expect(printed.filter((l) => l.includes("status: pending")).length).toBe(2);
 	});
 
+	test("reports every decision to onDecided as it is taken, under the id the item had on entry, and reports nothing for a skip", async () => {
+		const seen: [string, string, string][] = [];
+		await runReviewLoop({
+			items: [
+				{ kind: "scenario", item: scn },
+				{ kind: "case", item: withExp },
+				{ kind: "case", item: noExp },
+			],
+			ask: scripted(["edit", "approve", "skip"]),
+			openEditor: async () => stringify({ ...scn, id: "renamed" }),
+			askExpected: async () => ({ label: "x" }),
+			checkExpected: () => null,
+			takenIdsFor: () => new Set(),
+			oracleOf: () => "label",
+			onDecided: (kind, item, originalId) =>
+				seen.push([kind, item.id, originalId]),
+			print: () => {},
+		});
+		// The renamed scenario is reported under "s", the id the caller can
+		// still find in the file it read; the skipped case is not reported.
+		expect(seen).toEqual([
+			["scenario", "renamed", "s"],
+			["case", withExp.id, withExp.id],
+		]);
+	});
+
 	test("skip leaves no decision", async () => {
 		const r = await runReviewLoop({
 			items: [{ kind: "scenario", item: scn }],

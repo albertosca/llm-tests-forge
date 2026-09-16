@@ -105,6 +105,26 @@ describe("createLlm.generate", () => {
 		).toEqual({ answer: 2 });
 	});
 
+	test("each createLlm starts a sequence at its first entry, and a second instance does not inherit the first one's cursor", async () => {
+		const first = createLlm({ forgeDir: await tmpForge() });
+		const second = createLlm({ forgeDir: await tmpForge() });
+		const next = async (llm: ReturnType<typeof createLlm>) =>
+			(
+				await llm.generate({
+					schema,
+					prompt: "p",
+					model: FAKE,
+					verb: "sequence",
+				})
+			).object;
+		// The cursor used to be module state keyed by file and verb, so the
+		// second consumer in the same process inherited a position it never
+		// set -- and which entry it got depended on the test order.
+		expect(await next(first)).toEqual({ answer: 1 });
+		expect(await next(first)).toEqual({ answer: 2 });
+		expect(await next(second)).toEqual({ answer: 1 });
+	});
+
 	test("fake provider with a fenced response still fails loudly (generateObject does not strip fences)", async () => {
 		const dir = await tmpForge();
 		const llm = createLlm({ forgeDir: dir });
