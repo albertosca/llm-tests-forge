@@ -225,6 +225,24 @@ describe("applyDecision", () => {
 			`a scenario's id cannot be changed in review (from "s" to "renamed"): it names .forge/cases/<id>.yaml — rename the file and each case's scenario field by hand (id: s)`,
 		);
 
+		// Even when the new id is one a sibling already holds: the collision
+		// rule would answer "pick an id nothing else uses", and no id would
+		// do, because a scenario's id cannot be changed at all.
+		let taken: unknown;
+		try {
+			applyDecision(
+				scn("s", "pending"),
+				"edit",
+				{ ...scn("s", "pending"), id: "sibling" },
+				new Set(["s", "sibling"]),
+			);
+		} catch (e) {
+			taken = e;
+		}
+		expect((taken as ForgeError).message).toBe(
+			`a scenario's id cannot be changed in review (from "s" to "sibling"): it names .forge/cases/<id>.yaml — rename the file and each case's scenario field by hand (id: s)`,
+		);
+
 		// The rule is about the id alone: every other field of a scenario is
 		// still editable, and a case may still be renamed.
 		expect(

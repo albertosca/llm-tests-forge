@@ -1353,7 +1353,7 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 		}
 	}
 
-	test("renaming a scenario onto a sibling's id is refused, and both scenarios survive", async () => {
+	test("renaming a scenario onto a sibling's id is refused as a scenario rename, not as a collision", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		let { ctx } = await ctxIn(cwd);
 		expect(await run(["describe", "text"], ctx)).toBe(0);
@@ -1372,9 +1372,13 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 			expect(await run(["review", "--only", "scenarios"], reviewCtx)).toBe(0);
 		});
 
+		// A scenario's id cannot be changed to anything, so "pick an id
+		// nothing else uses" was advice no free id could satisfy: the
+		// refusal a person can act on is the one that names the file move.
 		expect(out).toContain(
-			'cannot apply: id "huge-signature" is already used by another item in the same file; pick an id nothing else uses (id: polite-rejection)',
+			'cannot apply: a scenario\'s id cannot be changed in review (from "polite-rejection" to "huge-signature"): it names .forge/cases/<id>.yaml — rename the file and each case\'s scenario field by hand (id: polite-rejection)',
 		);
+		expect(out.join("\n")).not.toContain("pick an id nothing else uses");
 		const scenarios = await readScenarios(join(cwd, ".forge"));
 		expect(scenarios.map((s) => [s.id, s.status])).toEqual([
 			["polite-rejection", "pending"],
@@ -1788,7 +1792,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 			{ label: "acknowledgement" },
 		]);
 		expect(out).toContain(
-			"review: scenario polite-rejection changed oracle label → rubric; 2 case(s) re-opened",
+			"review: scenario polite-rejection changed oracle label → rubric; 2 case(s) re-opened — edit each to give it an expected the new oracle accepts",
 		);
 		// One scenario was pending and was decided, so the pass itself left
 		// nothing pending — the two it reports are the two it re-opened.
@@ -1846,7 +1850,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 			["polite-rejection-03", "rejected"],
 		]);
 		expect(out).toContain(
-			"review: scenario polite-rejection changed oracle label → rubric; 1 case(s) re-opened",
+			"review: scenario polite-rejection changed oracle label → rubric; 1 case(s) re-opened — edit each to give it an expected the new oracle accepts",
 		);
 	});
 
@@ -1881,7 +1885,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 
 		expect((await readScenarios(forgeDir))[0]?.oracle).toBe("rubric");
 		expect(out).toContain(
-			"review: scenario polite-rejection changed oracle label → rubric; 0 case(s) re-opened",
+			"review: scenario polite-rejection changed oracle label → rubric; 0 case(s) re-opened — edit each to give it an expected the new oracle accepts",
 		);
 		// No case changed, so the file no decision touched is not rewritten.
 		expect((await stat(casesPath)).mtime.getTime()).toBe(LONG_AGO.getTime());

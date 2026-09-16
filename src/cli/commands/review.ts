@@ -331,7 +331,11 @@ export async function reviewCommand(
 				return reopen(c);
 			});
 			ctx.stdout(
-				`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to}; ${reopened} case(s) re-opened`,
+				// What to do next, not just what happened: a re-opened case keeps
+				// the expected it was approved with, which the new oracle no
+				// longer accepts, so approving it again is refused until it is
+				// edited. Nothing said so, and the next pass looked broken.
+				`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to}; ${reopened} case(s) re-opened — edit each to give it an expected the new oracle accepts`,
 			);
 			totalReopened += reopened;
 		}
