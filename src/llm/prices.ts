@@ -12,6 +12,8 @@ export interface ModelPrice {
 	/** The table row used; equals `model` when the match was exact. */
 	pricedAs: string;
 	approximate: boolean;
+	/** False when the model's provider has no row at all: `input`/`output` are 0, not a real price. */
+	priced: boolean;
 }
 
 export async function loadPrices(path: string = PRICES_PATH): Promise<Prices> {
@@ -25,30 +27,37 @@ function commonPrefix(a: string, b: string): number {
 }
 
 /**
- * Exact row, else the same-provider row sharing the longest prefix, else the
- * first row of the table. Everything but the exact match is `approximate`,
- * and the caller prints which row was used — a guess the person cannot see
- * is worse than no estimate.
+ * Exact row, else the same-provider row sharing the longest prefix, else not
+ * priced at all: a provider with no row in the table (a local model, a new
+ * provider the table hasn't caught up with) has no basis for a guess, so it
+ * is priced at 0 and marked `priced: false` rather than borrowing another
+ * provider's rate — the caller prints which row was used, and a guess the
+ * person cannot see is worse than no estimate.
  */
 export function priceFor(model: string, prices: Prices): ModelPrice {
 	const exact = prices.models[model];
-	if (exact) return { ...exact, pricedAs: model, approximate: false };
+	if (exact)
+		return { ...exact, pricedAs: model, approximate: false, priced: true };
 	const provider = model.split("/")[0] ?? "";
-	const names = Object.keys(prices.models);
 	let best: string | undefined;
+	let bestPrice: Prices["models"][string] | undefined;
 	let bestLen = -1;
-	for (const name of names) {
+	for (const [name, price] of Object.entries(prices.models)) {
 		if (!name.startsWith(`${provider}/`)) continue;
 		const len = commonPrefix(name, model);
 		if (len > bestLen) {
 			best = name;
+			bestPrice = price;
 			bestLen = len;
 		}
 	}
-	const row = best ?? names[0];
-	// PricesSchema refines `models` to be non-empty, so `names[0]` exists;
-	// the fallback below only satisfies noUncheckedIndexedAccess.
-	const chosen = row ?? model;
-	const price = prices.models[chosen] ?? { input: 0, output: 0 };
-	return { ...price, pricedAs: chosen, approximate: true };
+	if (best === undefined || bestPrice === undefined)
+		return {
+			input: 0,
+			output: 0,
+			pricedAs: model,
+			approximate: true,
+			priced: false,
+		};
+	return { ...bestPrice, pricedAs: best, approximate: true, priced: true };
 }

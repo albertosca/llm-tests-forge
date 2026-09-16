@@ -77,7 +77,7 @@ function isFeature(item: Feature | Scenario | Case): item is Feature {
 	return "purpose" in item;
 }
 
-function isScenario(item: Scenario | Case): item is Scenario {
+function isScenario(item: Feature | Scenario | Case): item is Scenario {
 	return "kind" in item;
 }
 
@@ -135,6 +135,32 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			if (edited === undefined)
 				throw new ForgeError("edit needs the edited item", { id: item.id });
 			const next = validate(item, edited);
+			// Refused before the sibling-collision rule below, not after: a
+			// scenario's id cannot be changed to anything at all, so a
+			// rename that also lands on a sibling's id was being answered
+			// with "pick an id nothing else uses" — advice no free id can
+			// satisfy. A scenario's id is the name of `.forge/cases/<id>.yaml`
+			// and the value every one of its cases carries in `scenario`.
+			// Renaming it here rewrote scenarios.yaml alone: in the same pass
+			// every case of that scenario was then refused as naming a
+			// scenario "not in scenarios.yaml" — false at that moment, since
+			// the file still held it — and the next `forge review` exited 1
+			// on everything. Refused by name so the edit is re-asked, rather
+			// than half applied across files the reviewer never opened.
+			if (isScenario(item) && isScenario(next) && next.id !== item.id)
+				throw new ForgeError(
+					`a scenario's id cannot be changed in review (from "${item.id}" to "${next.id}"): it names .forge/cases/<id>.yaml — rename the file and each case's scenario field by hand`,
+					{ id: item.id },
+				);
+			// Two entries of the same file sharing an id are
+			// indistinguishable, and the review pass then resolves one over
+			// the other. Reached only by a case or the feature: a scenario's
+			// rename is refused above whatever id it picked.
+			if (next.id !== item.id && takenIds.has(next.id))
+				throw new ForgeError(
+					`id "${next.id}" is already used by another item in the same file; pick an id nothing else uses`,
+					{ id: item.id },
+				);
 			// A case's `scenario` is not a field of the case, it is which
 			// file the case lives in: `.forge/cases/<scenario>.yaml`, whose
 			// scenario supplies the oracle its `expected` was written
@@ -144,11 +170,6 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// a file move, not a review decision. Refused by name so the
 			// edit is re-asked, rather than half-applied into a file the
 			// reviewer never opened.
-			if (next.id !== item.id && takenIds.has(next.id))
-				throw new ForgeError(
-					`id "${next.id}" is already used by another item in the same file; pick an id nothing else uses`,
-					{ id: item.id },
-				);
 			if (isCase(item) && isCase(next) && next.scenario !== item.scenario)
 				throw new ForgeError(
 					`a case's scenario cannot be changed in review (from "${item.scenario}" to "${next.scenario}"); move the case between .forge/cases/<scenario>.yaml files instead`,

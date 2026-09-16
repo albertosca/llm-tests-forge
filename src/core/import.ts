@@ -1,3 +1,4 @@
+import { sameInput } from "./compare";
 import { ForgeError } from "./errors";
 import { nextCaseId } from "./ids";
 import type { Case, Feature, Oracle, Scenario } from "./schemas";
@@ -27,17 +28,6 @@ function deriveOracle(feature: Feature): Oracle {
 		default:
 			return "rubric";
 	}
-}
-
-function sameInput(
-	a: Record<string, string>,
-	b: Record<string, string>,
-): boolean {
-	const ka = Object.keys(a).sort();
-	const kb = Object.keys(b).sort();
-	return (
-		ka.length === kb.length && ka.every((k, i) => k === kb[i] && a[k] === b[k])
-	);
 }
 
 export function importCases(args: ImportArgs): ImportResult {

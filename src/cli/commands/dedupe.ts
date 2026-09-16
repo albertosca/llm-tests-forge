@@ -8,6 +8,7 @@ import {
 	readScenarios,
 	writeCases,
 } from "../../core/files";
+import type { Case } from "../../core/schemas";
 import type { CliContext } from "../context";
 
 export async function dedupeCommand(
@@ -35,6 +36,12 @@ export async function dedupeCommand(
 		throw new ForgeError("no cases to dedupe; run `forge cases` first", {
 			file: forgePaths(ctx.forgeDir).casesDir,
 		});
+	// Every file is read and checked before the first one is written. This
+	// check used to live in the loop below, where a bad scenario in the
+	// middle of the list exited non-zero with the scenarios before it
+	// already rewritten — half-applied, which is not what the rest of the
+	// pipeline promises.
+	const casesById = new Map<string, Case[]>();
 	for (const id of ids) {
 		const cases = await readCases(ctx.forgeDir, id);
 		// A known scenario with no cases yet is the second entrance to the
@@ -47,6 +54,9 @@ export async function dedupeCommand(
 				`scenario "${id}" has no cases yet; run \`forge cases --scenario ${id}\` first`,
 				{ id },
 			);
+		casesById.set(id, cases);
+	}
+	for (const [id, cases] of casesById) {
 		const marked = await dedupeCases({
 			cases,
 			model: values.model ?? ctx.model,

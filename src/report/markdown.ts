@@ -1,4 +1,4 @@
-import type { CaseRun, Report } from "../core/report";
+import { type CaseRun, notPassingCleanly, type Report } from "../core/report";
 
 /** What a null reads as in a table cell. */
 const NONE = "—";
@@ -29,7 +29,7 @@ function headline(r: Report): string {
 	const errored = r.cases.reduce((n, c) => n + c.errored, 0);
 	const parts = [
 		`**Pass rate:** ${percent(r.passRate)} (${passed} of ${runs} runs, ${errored} errored)`,
-		`**failing:** ${r.failing.length}`,
+		`**failing or errored:** ${r.failing.length}`,
 		`**flaky:** ${r.flaky.length}`,
 		`**judge disagreements:** ${r.disagreements.length}`,
 	];
@@ -71,18 +71,21 @@ const caseRow = (c: CaseRun): string[] => [
  * case that never passed is the first thing to look at, and a report that
  * only listed the flaky ones left it to be found by reading a per-scenario
  * count.
+ *
+ * The rows are picked by stability rather than by looking each `CaseRun` up
+ * in `report.failing`/`report.flaky`: those lists hold the display string
+ * `"<case> @ <model>"`, which two different pairs can spell the same way
+ * when a case id contains ` @ `. The lists stay as the JSON summary.
  */
 function caseSection(args: {
 	title: string;
 	empty: string;
-	keys: string[];
+	pick: (c: CaseRun) => boolean;
 	report: Report;
 }): string[] {
-	const { title, empty, keys, report } = args;
+	const { title, empty, pick, report } = args;
 	const out = [`## ${title}`, ""];
-	const runs = report.cases.filter((c) =>
-		keys.includes(`${c.case} @ ${c.model}`),
-	);
+	const runs = report.cases.filter(pick);
 	if (runs.length === 0) out.push(empty);
 	else
 		out.push(
@@ -102,9 +105,13 @@ function disagreement(r: Report): string[] {
 		return out;
 	}
 	const columns = Math.max(...r.disagreements.map((d) => d.judges.length));
+	// "disagreeing runs", not "runs": every other table in the report counts
+	// how often the pair ran, and this column counts only the runs the
+	// judges split on — the same word for two different numbers.
 	const header = [
 		"case",
 		"model",
+		"disagreeing runs",
 		...Array.from({ length: columns }, (_, i) => `judge ${i + 1}`),
 	];
 	out.push(
@@ -115,7 +122,7 @@ function disagreement(r: Report): string[] {
 					(j) => `${j.judge}: ${j.pass ? "pass" : "fail"} — ${j.reason}`,
 				);
 				while (cells.length < columns) cells.push("");
-				return [d.case, d.model, ...cells];
+				return [d.case, d.model, String(d.occurrences), ...cells];
 			}),
 		),
 	);
@@ -124,7 +131,7 @@ function disagreement(r: Report): string[] {
 }
 
 function perScenario(r: Report): string[] {
-	const coverage = `Coverage: ${r.coverage.withRuns} of ${r.coverage.approvedScenarios} approved scenarios ran`;
+	const coverage = `Coverage: ${r.coverage.withRuns} of ${r.coverage.reviewedScenarios} reviewed scenarios ran`;
 	return [
 		"## Per scenario",
 		"",
@@ -227,15 +234,15 @@ export function renderReportMarkdown(r: Report): string {
 		"",
 		...regressions(r),
 		...caseSection({
-			title: "Failing cases",
-			empty: "No failing case.",
-			keys: r.failing,
+			title: "Failing or errored cases",
+			empty: "No failing or errored case.",
+			pick: notPassingCleanly,
 			report: r,
 		}),
 		...caseSection({
 			title: "Flaky cases",
 			empty: "No flaky case.",
-			keys: r.flaky,
+			pick: (c) => c.stability === "flaky",
 			report: r,
 		}),
 		...disagreement(r),

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import { ForgeError } from "../core/errors";
+import { readFailure } from "../core/files";
 
 /**
  * promptfoo's `results.json` as far as the forge needs it, and no further.
@@ -96,13 +97,7 @@ export type PromptfooRow = PromptfooResults["results"]["results"][number];
  */
 export async function readResults(path: string): Promise<PromptfooResults> {
 	const text = await readFile(path, "utf8").catch((e: unknown) => {
-		const code = (e as { code?: string }).code;
-		throw new ForgeError(
-			code === "ENOENT"
-				? "file not found"
-				: `cannot read: ${(e as Error).message}`,
-			{ file: path },
-		);
+		throw new ForgeError(readFailure(e), { file: path });
 	});
 	let data: unknown;
 	try {

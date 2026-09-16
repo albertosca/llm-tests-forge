@@ -1,13 +1,15 @@
 # Per-model prices in USD per million tokens. Edit freely; `forge estimate`
 # and `forge report` read this file and print its date. A model that is not
 # listed is priced as the closest listed model of the same provider and the
-# line is marked "~" in the output.
-updated: 2026-09-15
+# line is marked "~" in the output. A model whose provider has no row at all
+# is not priced: the line reads "not priced" instead of a dollar figure.
+updated: 2026-09-16
 unit: usd_per_million_tokens
 sources:
   - https://www.anthropic.com/pricing
   - https://ai.google.dev/gemini-api/docs/pricing
   - https://openai.com/api/pricing
+  - "local models are not metered; the ollama rows are 0 because there is no bill, not because a price is missing"
 models:
   anthropic/claude-opus-5: { input: 5, output: 25 }
   anthropic/claude-sonnet-5: { input: 2, output: 10 }
@@ -19,3 +21,6 @@ models:
   google/gemini-3.8-flash: { input: 0.75, output: 3.75 }
   openai/gpt-5.4-mini: { input: 0.75, output: 4.5 }
   openai/gpt-5.4: { input: 2.5, output: 15 }
+  # Local models cost nothing per token: no API bill, so both rates are 0.
+  ollama/llama3: { input: 0, output: 0 }
+  ollama/qwen3: { input: 0, output: 0 }

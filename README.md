@@ -54,7 +54,7 @@ Reads one `{"input-name": "value"}` JSON object per line from real production lo
 
     forge review
 
-Reviews everything still pending: cases (confirming or fixing the expected output), and any imported case (setting its expected output for the first time).
+Reviews everything still pending: cases (confirming or fixing the expected output), and any imported case (setting its expected output for the first time). Two things review will not change for you: a scenario's `id` and a case's `scenario`, because both name the file the cases live in (`.forge/cases/<scenario>.yaml`) — rename the file and the ids by hand instead. And editing a scenario's `oracle` re-opens the approved cases of that scenario whose expected the new oracle no longer accepts: each one then needs `edit` to be given an expected in the new shape, not `approve`.
 
 At the end, `.forge/` holds `feature.yaml`, `scenarios.yaml`, and `cases/<scenario>.yaml` — plain YAML, meant to be committed and diffed like any other test fixture.
 
@@ -72,7 +72,7 @@ The remaining three verbs turn that suite into a run. They read `.forge/suite.ya
 
     forge estimate
 
-Prices the run before you spend it: cases × target models × `repeat`, plus one judge call per `rubric` case per judge, target model and `repeat`, against `prices.yaml` (which is yours to edit — the output prints the date it carries, and marks with `~` any model it had to price as its closest listed sibling). Tokens are counted as characters ÷ 4, so read it as an order of magnitude. It makes no API call.
+Prices the run before you spend it: cases × target models × `repeat`, plus one judge call per `rubric` case per judge, target model and `repeat`, against `prices.yaml` (which is yours to edit — the output prints the date it carries, and marks with `~` any model it had to price as its closest listed sibling). A model whose provider has no row at all is not priced as anything: its line reads `not priced`, and the total leaves it out and says how many lines it left out. Tokens are counted as characters ÷ 4, so read it as an order of magnitude. It makes no API call.
 
     forge emit
 
@@ -84,7 +84,7 @@ Promptfoo runs the suite; the forge does not run it for you and does not need pr
 
     forge report results.json [--baseline .forge/report.json]
 
-Reads promptfoo's output into `.forge/report.md` and `.forge/report.json`: pass rate, a per-scenario table, which approved scenarios never ran, cases that passed on one repeat and failed on another, judges that disagreed (with both reasons), and real cost against the estimate. With `--baseline`, an earlier `report.json` is compared and regressions are listed first.
+Reads promptfoo's output into `.forge/report.md` and `.forge/report.json`: pass rate, a per-scenario table, which reviewed scenarios never ran, cases that passed on one repeat and failed on another, judges that disagreed (with both reasons), and real cost against the estimate. With `--baseline`, an earlier `report.json` is compared and regressions are listed first; a `--baseline` written by an older version of the forge is accepted, keys it spelled differently included.
 
 ### What to commit under `.forge/`
 

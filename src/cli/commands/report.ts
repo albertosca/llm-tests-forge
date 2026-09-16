@@ -11,6 +11,7 @@ import {
 } from "../../core/files";
 import { buildReport, type Report, ReportSchema } from "../../core/report";
 import { selectCases } from "../../core/select";
+import { plural } from "../../core/text";
 import { loadPrices } from "../../llm/prices";
 import { renderReportMarkdown } from "../../report/markdown";
 import { readResults } from "../../report/results";
@@ -105,7 +106,7 @@ export async function reportCommand(
 		"utf8",
 	);
 	ctx.stdout(
-		`report: ${report.matched} of ${report.rows} rows matched; pass rate ${(report.passRate * 100).toFixed(1)}%; ${report.failing.length} failing; ${report.flaky.length} flaky; ${report.disagreements.length} judge disagreement${report.disagreements.length === 1 ? "" : "s"}`,
+		`report: ${report.matched} of ${report.rows} rows matched; pass rate ${(report.passRate * 100).toFixed(1)}%; ${report.failing.length} failing or errored; ${report.flaky.length} flaky; ${plural(report.disagreements.length, "judge disagreement")}`,
 	);
 	if (report.baseline)
 		ctx.stdout(

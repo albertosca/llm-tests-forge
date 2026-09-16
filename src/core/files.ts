@@ -1,7 +1,7 @@
 import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { parse, stringify } from "yaml";
-import type { ZodType } from "zod";
+import type { core, ZodType } from "zod";
 import { z } from "zod";
 import { ForgeError } from "./errors";
 import {
@@ -52,13 +52,24 @@ async function exists(path: string): Promise<boolean> {
 	);
 }
 
+function hasCode(e: unknown): e is { code: string } {
+	return (
+		typeof e === "object" &&
+		e !== null &&
+		"code" in e &&
+		typeof (e as { code: unknown }).code === "string"
+	);
+}
+
 /**
  * The OS tells us why a read failed; passing that on is the difference
  * between "the file is not there" and "you pointed at a directory" or
- * "you cannot read it" — three different fixes for the person.
+ * "you cannot read it" — three different fixes for the person. Exported for
+ * `estimate.ts`'s `promptTokensFor`, which reads a second file outside
+ * `readYamlFile` and needs the same causes.
  */
-function readFailure(e: unknown): string {
-	const code = (e as { code?: string }).code;
+export function readFailure(e: unknown): string {
+	const code = hasCode(e) ? e.code : undefined;
 	switch (code) {
 		case "ENOENT":
 			return "file not found";
@@ -70,6 +81,30 @@ function readFailure(e: unknown): string {
 		default:
 			return `cannot read: ${(e as Error).message}`;
 	}
+}
+
+/**
+ * `does not match schema` reports each issue by its zod path, e.g.
+ * `2.oracle: ...` for the third array element -- a bare index tells the
+ * person nothing about which reviewed item broke. When the issue is on an
+ * array element that itself carries a string `id` (every top-level forge
+ * list does), name that id and the index instead of the bare number; every
+ * other issue (a non-array file, or an array element without an `id`)
+ * keeps the plain `path: message` form.
+ */
+function describeIssue(issue: core.$ZodIssue, data: unknown): string {
+	const index = issue.path[0];
+	const item =
+		typeof index === "number" && Array.isArray(data) ? data[index] : undefined;
+	const id =
+		typeof item === "object" && item !== null && "id" in item
+			? (item as { id: unknown }).id
+			: undefined;
+	if (typeof index === "number" && typeof id === "string") {
+		const rest = issue.path.slice(1).join(".");
+		return `item "${id}" (index ${index})${rest ? `.${rest}` : ""}: ${issue.message}`;
+	}
+	return `${issue.path.join(".")}: ${issue.message}`;
 }
 
 export async function readYamlFile<T>(
@@ -90,7 +125,7 @@ export async function readYamlFile<T>(
 	const result = schema.safeParse(data);
 	if (!result.success) {
 		throw new ForgeError(
-			`does not match schema: ${result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+			`does not match schema: ${result.error.issues.map((i) => describeIssue(i, data)).join("; ")}`,
 			{ file: path },
 		);
 	}

@@ -9,6 +9,11 @@ describe("ForgeError", () => {
 		expect(e).toBeInstanceOf(Error);
 	});
 
+	test("an empty-string detail is still present, not treated as absent", () => {
+		expect(new ForgeError("m", { id: "" }).message).toBe("m (id: )");
+		expect(new ForgeError("m", {}).message).toBe("m");
+	});
+
 	test("appends file, id and raw path to the message", () => {
 		const e = new ForgeError("bad label", {
 			file: ".forge/cases/x.yaml",

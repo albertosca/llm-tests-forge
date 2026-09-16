@@ -29,13 +29,22 @@ export interface CreateLlmOptions {
 	now?: () => Date;
 }
 
-const fakeCursors = new Map<string, number>();
-
 function isStringArray(value: unknown): value is string[] {
 	return Array.isArray(value) && value.every((v) => typeof v === "string");
 }
 
-async function fakeModel(path: string, verb: string): Promise<ResolvedModel> {
+/**
+ * `cursors` is where this fake is in each `<file>::<verb>` sequence. It
+ * belongs to one `Llm` instance, passed in rather than held here: as
+ * module state it lived for the whole process, so a second consumer — a
+ * second `createContext`, a test running after another — inherited a
+ * position it never set and got an entry it did not ask for.
+ */
+async function fakeModel(
+	path: string,
+	verb: string,
+	cursors: Map<string, number>,
+): Promise<ResolvedModel> {
 	const text = await readFile(path, "utf8").catch(() => {
 		throw new ForgeError("fake responses file not found", { file: path });
 	});
@@ -61,14 +70,14 @@ async function fakeModel(path: string, verb: string): Promise<ResolvedModel> {
 	let reply: string;
 	if (Array.isArray(entry)) {
 		const key = `${path}::${verb}`;
-		const i = fakeCursors.get(key) ?? 0;
+		const i = cursors.get(key) ?? 0;
 		const picked = entry[Math.min(i, entry.length - 1)];
 		if (picked === undefined)
 			throw new ForgeError(`fake responses entry for "${verb}" is empty`, {
 				file: path,
 			});
 		reply = picked;
-		fakeCursors.set(key, i + 1);
+		cursors.set(key, i + 1);
 	} else {
 		reply = entry;
 	}
@@ -89,10 +98,14 @@ export function createLlm(opts: CreateLlmOptions): Llm {
 	const paths = forgePaths(opts.forgeDir);
 	const now = opts.now ?? (() => new Date());
 	const resolve = opts.resolve ?? resolveModel;
+	/** This instance's position in each fake response sequence. */
+	const fakeCursors = new Map<string, number>();
 
 	async function pickModel(spec: string, verb: string): Promise<ResolvedModel> {
 		const { provider, model } = parseModelSpec(spec);
-		return provider === "fake" ? fakeModel(model, verb) : resolve(spec);
+		return provider === "fake"
+			? fakeModel(model, verb, fakeCursors)
+			: resolve(spec);
 	}
 
 	return {

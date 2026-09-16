@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	chmod,
+	mkdir,
 	mkdtemp,
 	readdir,
 	readFile,
@@ -11,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse } from "yaml";
+import type { CliContext } from "../../src/cli/context";
 import { createContext } from "../../src/cli/context";
 import { modelFlag, run } from "../../src/cli/main";
 import {
@@ -126,6 +128,11 @@ describe("forge CLI end to end (fake provider)", () => {
 		expect(await run([], ctx)).toBe(2);
 		expect(await run(["frobnicate"], ctx)).toBe(2);
 		expect(out.join("\n")).toContain("usage:");
+		// The two forms are mutually exclusive, and a bracket list said the
+		// opposite until `--all --only` started being refused.
+		expect(out.join("\n")).toContain(
+			"review [--scenario id] [--only feature|scenarios|cases] | review --scenario id --all",
+		);
 	});
 
 	test("missing model is a usage error (exit 2) naming the flag", async () => {
@@ -188,7 +195,7 @@ describe("review: interactive decisions beyond --all", () => {
 		expect(cases[0]?.expected).toEqual({ fields: { type: "rejection" } });
 		// One case skipped; nothing else was pending in this scope.
 		expect(out.at(-1)).toBe(
-			"review: 1 approved, 0 rejected, 0 edited, 1 skipped, 1 still pending",
+			"review: 1 approved, 0 rejected, 0 edited, 1 skipped, 0 re-opened, 1 still pending",
 		);
 	});
 });
@@ -236,7 +243,7 @@ describe("review: only rewrites files a decision actually touched", () => {
 		// filtered out of this pass are still pending -- "skipped" alone
 		// would have reported 1 and hidden the other four.
 		expect(out.at(-1)).toBe(
-			"review: 1 approved, 0 rejected, 0 edited, 1 skipped, 5 still pending",
+			"review: 1 approved, 0 rejected, 0 edited, 1 skipped, 0 re-opened, 5 still pending",
 		);
 
 		// The touched file really was rewritten (proves the assertions below
@@ -858,32 +865,74 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 		).toBe(0);
 	}
 
-	test("a renamed scenario is written back under its new id, and the old id is gone", async () => {
+	test("renaming a scenario is refused by name and re-asked, and the next review pass still works", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
-		await pendingScenarios(cwd);
+		const forgeDir = join(cwd, ".forge");
+		// The scenario has to be pending to be offered, and has to have
+		// cases for the rename to be able to orphan them.
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "two" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
 		const editor = await editorReplacing(
 			cwd,
 			"id: polite-rejection",
 			"id: polite-rejection-fixed",
 		);
 
+		// "edit" is refused, the same item is re-asked, and the drained
+		// queue then answers "" -- which askChoice maps to skip.
 		const { ctx, out } = await ctxIn(cwd, ["edit"]);
 		await withEditor(editor, async () => {
 			expect(await run(["review", "--only", "scenarios"], ctx)).toBe(0);
 		});
 
-		const scenarios = await readScenarios(join(cwd, ".forge"));
-		expect(scenarios.map((s) => [s.id, s.status])).toEqual([
-			["polite-rejection-fixed", "edited"],
-			["huge-signature", "pending"],
-			["ack-quiz", "pending"],
-			["newsletter", "pending"],
-			["injection", "pending"],
-			["portuguese", "pending"],
-		]);
-		expect(out.at(-1)).toBe(
-			"review: 0 approved, 0 rejected, 1 edited, 5 skipped, 5 still pending",
+		expect(out).toContain(
+			`cannot apply: a scenario's id cannot be changed in review (from "polite-rejection" to "polite-rejection-fixed"): it names .forge/cases/<id>.yaml — rename the file and each case's scenario field by hand (id: polite-rejection)`,
 		);
+		const scenarios = await readScenarios(forgeDir);
+		expect(scenarios.map((s) => [s.id, s.status])).toEqual([
+			["polite-rejection", "pending"],
+		]);
+
+		// The half-applied rename used to leave every case of that scenario
+		// naming an id scenarios.yaml no longer held, which the next pass
+		// refused wholesale. A second run still offers them.
+		const { ctx: nextCtx, out: nextOut } = await ctxIn(cwd, ["approve"]);
+		expect(
+			await run(
+				["review", "--scenario", "polite-rejection", "--only", "cases"],
+				nextCtx,
+			),
+		).toBe(0);
+		expect(nextOut).toContain("--- case polite-rejection-01 ---");
+		expect(
+			(await readCases(forgeDir, "polite-rejection")).map((c) => c.status),
+		).toEqual(["approved", "pending"]);
 	});
 
 	test("a renamed case is written back under its new id, in its own file, with no second file invented", async () => {
@@ -915,7 +964,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 			"polite-rejection.yaml",
 		]);
 		expect(out.at(-1)).toBe(
-			"review: 0 approved, 0 rejected, 1 edited, 1 skipped, 1 still pending",
+			"review: 0 approved, 0 rejected, 1 edited, 1 skipped, 0 re-opened, 1 still pending",
 		);
 	});
 
@@ -957,7 +1006,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 			"polite-rejection.yaml",
 		]);
 		expect(out.at(-1)).toBe(
-			"review: 0 approved, 0 rejected, 0 edited, 2 skipped, 2 still pending",
+			"review: 0 approved, 0 rejected, 0 edited, 2 skipped, 0 re-opened, 2 still pending",
 		);
 	});
 });
@@ -1151,7 +1200,7 @@ describe("review: an expected already on disk is held to the oracle too", () => 
 			["polite-rejection-01", "pending"],
 		]);
 		expect(out.at(-1)).toBe(
-			"review: 0 approved, 0 rejected, 0 edited, 1 skipped, 1 still pending",
+			"review: 0 approved, 0 rejected, 0 edited, 1 skipped, 0 re-opened, 1 still pending",
 		);
 	});
 });
@@ -1253,7 +1302,7 @@ describe("review: a decision applies to at most one entry (regression)", () => {
 		// the twin is not reviewed this pass. That is a limitation, not the
 		// defect under test -- the defect is what happens to it on write.
 		expect(out.at(-1)).toBe(
-			"review: 1 approved, 0 rejected, 0 edited, 0 skipped, 0 still pending",
+			"review: 1 approved, 0 rejected, 0 edited, 0 skipped, 0 re-opened, 0 still pending",
 		);
 
 		// Length alone would pass against a YAML alias: assert the second
@@ -1304,7 +1353,7 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 		}
 	}
 
-	test("renaming a scenario onto a sibling's id is refused, and both scenarios survive", async () => {
+	test("renaming a scenario onto a sibling's id is refused as a scenario rename, not as a collision", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		let { ctx } = await ctxIn(cwd);
 		expect(await run(["describe", "text"], ctx)).toBe(0);
@@ -1323,9 +1372,13 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 			expect(await run(["review", "--only", "scenarios"], reviewCtx)).toBe(0);
 		});
 
+		// A scenario's id cannot be changed to anything, so "pick an id
+		// nothing else uses" was advice no free id could satisfy: the
+		// refusal a person can act on is the one that names the file move.
 		expect(out).toContain(
-			'cannot apply: id "huge-signature" is already used by another item in the same file; pick an id nothing else uses (id: polite-rejection)',
+			'cannot apply: a scenario\'s id cannot be changed in review (from "polite-rejection" to "huge-signature"): it names .forge/cases/<id>.yaml — rename the file and each case\'s scenario field by hand (id: polite-rejection)',
 		);
+		expect(out.join("\n")).not.toContain("pick an id nothing else uses");
 		const scenarios = await readScenarios(join(cwd, ".forge"));
 		expect(scenarios.map((s) => [s.id, s.status])).toEqual([
 			["polite-rejection", "pending"],
@@ -1358,7 +1411,7 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 		);
 		expect(feature.status).toBe("edited");
 		expect(out.at(-1)).toBe(
-			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 still pending",
+			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 0 still pending",
 		);
 	});
 });
@@ -1425,6 +1478,600 @@ async function forgeWithApprovedCases(cwd: string) {
 	return forgeDir;
 }
 
+/**
+ * A forge whose feature is approved and whose single `polite-rejection`
+ * scenario is approved, without the six scenarios the `scenarios` verb
+ * would generate — the starting point for the review decisions below.
+ */
+async function forgeWithApprovedScenario(
+	cwd: string,
+	oracle: "label" | "rubric" = "label",
+) {
+	const forgeDir = join(cwd, ".forge");
+	await writeFeature(forgeDir, FEATURE);
+	await writeScenarios(forgeDir, [
+		{
+			id: "polite-rejection",
+			kind: "happy",
+			oracle,
+			description: "d",
+			status: "approved",
+		},
+	]);
+	return forgeDir;
+}
+
+describe("review names a case whose scenario is missing instead of asking for a rubric", () => {
+	test("exits 1 naming the case and the scenario it points at, and decides nothing", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		// The file is named for a scenario that exists; the case inside
+		// points at one that does not. `oracleOf` used to answer "rubric"
+		// here and ask the person for a rubric sentence for a case whose
+		// oracle nobody knows.
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "ghost",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		const { ctx, out } = await ctxIn(cwd, ["approve"]);
+		expect(
+			await run(
+				["review", "--scenario", "polite-rejection", "--only", "cases"],
+				ctx,
+			),
+		).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: case polite-rejection-01 names scenario "ghost", which is not in scenarios.yaml (file: ${join(forgeDir, "scenarios.yaml")}, id: polite-rejection-01)`,
+		);
+		// Refused before the first prompt, so nothing was asked and nothing
+		// was written: a broken file is not a decision to retry.
+		expect(out.some((l) => l.includes("rubric sentence"))).toBe(false);
+		const cases = await readCases(forgeDir, "polite-rejection");
+		expect(cases.map((c) => c.status)).toEqual(["pending"]);
+	});
+});
+
+describe("import --oracle cannot silently change an existing imported scenario", () => {
+	/** An approved feature and one JSONL line, ready to import. */
+	async function importable(cwd: string, name: string, email: string) {
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		const path = join(cwd, name);
+		await writeFile(path, `${JSON.stringify({ email })}\n`);
+		return { forgeDir, path };
+	}
+
+	test("a second import with a different --oracle exits 1 naming the oracle on disk, and writes no case", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const { forgeDir, path } = await importable(cwd, "prod.jsonl", "one");
+		// `rubric` is not what this feature derives (its output is a label),
+		// so the scenario on disk proves the first --oracle was honoured.
+		const { ctx: firstCtx } = await ctxIn(cwd);
+		expect(await run(["import", path, "--oracle", "rubric"], firstCtx)).toBe(0);
+
+		const second = join(cwd, "more.jsonl");
+		await writeFile(second, '{"email":"two"}\n');
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["import", second, "--oracle", "label"], ctx)).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: scenario "imported" already exists with oracle rubric; --oracle cannot change it — edit .forge/scenarios.yaml (file: ${join(forgeDir, "scenarios.yaml")}, id: imported)`,
+		);
+		// Refused before any write: the second line did not land, and the
+		// scenario still carries the oracle its cases were reviewed against.
+		expect((await readCases(forgeDir, "imported")).map((c) => c.id)).toEqual([
+			"imported-01",
+		]);
+		expect((await readScenarios(forgeDir)).map((s) => s.oracle)).toEqual([
+			"rubric",
+		]);
+	});
+
+	test("a second import repeating the same --oracle is accepted and imports its line", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const { forgeDir, path } = await importable(cwd, "prod.jsonl", "one");
+		const { ctx: firstCtx } = await ctxIn(cwd);
+		expect(await run(["import", path, "--oracle", "rubric"], firstCtx)).toBe(0);
+
+		const second = join(cwd, "more.jsonl");
+		await writeFile(second, '{"email":"two"}\n');
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["import", second, "--oracle", "rubric"], ctx)).toBe(0);
+		expect(out.at(-1)).toContain("1 new pending cases");
+		expect((await readCases(forgeDir, "imported")).map((c) => c.id)).toEqual([
+			"imported-01",
+			"imported-02",
+		]);
+	});
+});
+
+describe("review --all refuses --only instead of parsing it and ignoring it", () => {
+	test("exits 2 naming both flags, and the case --all would have approved stays pending", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(
+				[
+					"review",
+					"--scenario",
+					"polite-rejection",
+					"--all",
+					"--only",
+					"cases",
+				],
+				ctx,
+			),
+		).toBe(2);
+		expect(out.at(-1)).toContain("--all");
+		expect(out.at(-1)).toContain("--only");
+		const cases = await readCases(forgeDir, "polite-rejection");
+		expect(cases.map((c) => c.status)).toEqual(["pending"]);
+	});
+});
+
+describe("review: a decision taken in this pass is visible to the rest of it", () => {
+	/**
+	 * A real `$EDITOR` that duplicates the line matching `line`, replacing
+	 * `from` with `to` in the copy — an append that keeps the original
+	 * line's indentation, whatever it is. `sed` cannot portably insert a
+	 * newline in a replacement (BSD and GNU disagree), so this uses awk.
+	 */
+	async function editorAppendingLabel(dir: string, from: string, to: string) {
+		const path = join(dir, "fake-editor-label.sh");
+		await writeFile(
+			path,
+			`#!/bin/sh\nawk '/${from}$/ { print; sub(/${from}$/, "${to}"); print; next } { print }' "$1" > "$1.tmp" && mv "$1.tmp" "$1"\n`,
+		);
+		await chmod(path, 0o755);
+		return path;
+	}
+
+	test("a label added by editing the feature is accepted for a case approved later in the same pass", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, {
+			...FEATURE,
+			output: { kind: "label", labels: ["rejection"] },
+			status: "pending",
+		});
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "shortlist" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		const editor = await editorAppendingLabel(
+			cwd,
+			"- rejection",
+			"- shortlist",
+		);
+		const original = process.env.EDITOR;
+		process.env.EDITOR = editor;
+		// The feature is pending, so it is offered first: "edit" adds the
+		// label, then "approve" lands on the case that uses it.
+		const { ctx, out } = await ctxIn(cwd, ["edit", "approve"]);
+		try {
+			expect(await run(["review"], ctx)).toBe(0);
+		} finally {
+			if (original === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = original;
+		}
+
+		expect((await readFeature(forgeDir)).output.labels).toEqual([
+			"rejection",
+			"shortlist",
+		]);
+		const cases = await readCases(forgeDir, "polite-rejection");
+		expect(cases.map((c) => c.status)).toEqual(["approved"]);
+		// Refused against the feature as it was read off disk, the case
+		// would have been re-asked and then skipped by the drained queue.
+		expect(out.some((l) => l.includes('label "shortlist" is not one of'))).toBe(
+			false,
+		);
+		expect(out.at(-1)).toBe(
+			"review: 1 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 0 still pending",
+		);
+	});
+});
+
+describe("review: editing a scenario's oracle re-opens the cases it invalidates", () => {
+	/** A real `$EDITOR`: replaces one whole line with another. */
+	async function editorReplacing(dir: string, from: string, to: string) {
+		const path = join(dir, `fake-editor-${from.replace(/\W/g, "")}.sh`);
+		await writeFile(
+			path,
+			`#!/bin/sh\nsed 's|^${from}$|${to}|' "$1" > "$1.tmp" && mv "$1.tmp" "$1"\n`,
+		);
+		await chmod(path, 0o755);
+		return path;
+	}
+
+	async function withEditor<T>(path: string, body: () => Promise<T>) {
+		const original = process.env.EDITOR;
+		process.env.EDITOR = path;
+		try {
+			return await body();
+		} finally {
+			if (original === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = original;
+		}
+	}
+
+	/** One pending `label` scenario, reviewed with a scripted "edit" that
+	 * turns it into a `rubric` one. */
+	async function editOracleToRubric(
+		cwd: string,
+		out: string[],
+		ctx: CliContext,
+	) {
+		const editor = await editorReplacing(
+			cwd,
+			"oracle: label",
+			"oracle: rubric",
+		);
+		await withEditor(editor, async () => {
+			expect(await run(["review"], ctx)).toBe(0);
+		});
+		return out;
+	}
+
+	test("two approved label cases go back to pending, keep their expected, and the change is reported", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "approved",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "two" },
+				expected: { label: "acknowledgement" },
+				status: "edited",
+				generated_by: "hand",
+			},
+		]);
+
+		const { ctx, out } = await ctxIn(cwd, ["edit"]);
+		await editOracleToRubric(cwd, out, ctx);
+
+		expect((await readScenarios(forgeDir))[0]?.oracle).toBe("rubric");
+		const cases = await readCases(forgeDir, "polite-rejection");
+		expect(cases.map((c) => c.status)).toEqual(["pending", "pending"]);
+		// The expected is kept, not thrown away: it is the reviewer's own
+		// answer, and what it has to be rewritten into is up to them.
+		expect(cases.map((c) => c.expected)).toEqual([
+			{ label: "rejection" },
+			{ label: "acknowledgement" },
+		]);
+		expect(out).toContain(
+			"review: scenario polite-rejection changed oracle label → rubric; 2 case(s) re-opened — edit each to give it an expected the new oracle accepts",
+		);
+		// One scenario was pending and was decided, so the pass itself left
+		// nothing pending — the two it reports are the two it re-opened.
+		expect(out.at(-1)).toBe(
+			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 2 re-opened, 2 still pending",
+		);
+	});
+
+	test("a case whose expected already fits the new oracle stays approved, and a rejected one is not re-opened", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { rubric: "says it is a rejection" },
+				status: "approved",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "two" },
+				status: "approved",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-03",
+				scenario: "polite-rejection",
+				input: { email: "three" },
+				expected: { label: "rejection" },
+				status: "rejected",
+				generated_by: "hand",
+			},
+		]);
+
+		const { ctx, out } = await ctxIn(cwd, ["edit"]);
+		await editOracleToRubric(cwd, out, ctx);
+
+		const cases = await readCases(forgeDir, "polite-rejection");
+		expect(cases.map((c) => [c.id, c.status])).toEqual([
+			["polite-rejection-01", "approved"],
+			["polite-rejection-02", "pending"],
+			["polite-rejection-03", "rejected"],
+		]);
+		expect(out).toContain(
+			"review: scenario polite-rejection changed oracle label → rubric; 1 case(s) re-opened — edit each to give it an expected the new oracle accepts",
+		);
+	});
+
+	test("an oracle change that invalidates nothing reports zero and leaves the cases file untouched", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { rubric: "says it is a rejection" },
+				status: "approved",
+				generated_by: "hand",
+			},
+		]);
+		const casesPath = join(forgeDir, "cases", "polite-rejection.yaml");
+		await utimes(casesPath, LONG_AGO, LONG_AGO);
+
+		const { ctx, out } = await ctxIn(cwd, ["edit"]);
+		await editOracleToRubric(cwd, out, ctx);
+
+		expect((await readScenarios(forgeDir))[0]?.oracle).toBe("rubric");
+		expect(out).toContain(
+			"review: scenario polite-rejection changed oracle label → rubric; 0 case(s) re-opened — edit each to give it an expected the new oracle accepts",
+		);
+		// No case changed, so the file no decision touched is not rewritten.
+		expect((await stat(casesPath)).mtime.getTime()).toBe(LONG_AGO.getTime());
+	});
+});
+
+describe("review: what a rename does to the pointers at it, and what a twin id does to the pass", () => {
+	async function editorReplacing(dir: string, from: string, to: string) {
+		const path = join(dir, `fake-editor-${from.replace(/\W/g, "")}.sh`);
+		await writeFile(
+			path,
+			`#!/bin/sh\nsed 's|^${from}$|${to}|' "$1" > "$1.tmp" && mv "$1.tmp" "$1"\n`,
+		);
+		await chmod(path, 0o755);
+		return path;
+	}
+
+	test("a case renamed in review takes every duplicate_of pointing at it along, in the same write", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "two" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+				duplicate_of: "polite-rejection-01",
+			},
+		]);
+
+		const editor = await editorReplacing(
+			cwd,
+			"id: polite-rejection-01",
+			"id: polite-rejection-42",
+		);
+		const original = process.env.EDITOR;
+		process.env.EDITOR = editor;
+		// "edit" renames the first case; the drained queue then skips the
+		// second, so nothing but the rename touches it.
+		const { ctx } = await ctxIn(cwd, ["edit"]);
+		try {
+			expect(
+				await run(
+					["review", "--scenario", "polite-rejection", "--only", "cases"],
+					ctx,
+				),
+			).toBe(0);
+		} finally {
+			if (original === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = original;
+		}
+
+		const cases = await readCases(forgeDir, "polite-rejection");
+		expect(cases.map((c) => [c.id, c.duplicate_of])).toEqual([
+			["polite-rejection-42", undefined],
+			["polite-rejection-02", "polite-rejection-42"],
+		]);
+		// The pointer moved, the skipped case was not otherwise decided.
+		expect(cases.map((c) => c.status)).toEqual(["edited", "pending"]);
+	});
+
+	test("review --all says it too: the twin is not a property of the interactive path", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "the first one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "the second one" },
+				expected: { label: "acknowledgement" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["review", "--scenario", "polite-rejection", "--all"], ctx),
+		).toBe(0);
+		expect(out).toContain(
+			`review: ${join(forgeDir, "cases", "polite-rejection.yaml")} holds 2 entries under id "polite-rejection-01"; only the first is offered — fix the file`,
+		);
+	});
+
+	test("a cases file holding two entries under one id says so, naming the id and the file", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "the first one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "the second one" },
+				expected: { label: "acknowledgement" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		const { ctx, out } = await ctxIn(cwd, ["approve"]);
+		expect(
+			await run(
+				["review", "--scenario", "polite-rejection", "--only", "cases"],
+				ctx,
+			),
+		).toBe(0);
+		expect(out).toContain(
+			`review: ${join(forgeDir, "cases", "polite-rejection.yaml")} holds 2 entries under id "polite-rejection-01"; only the first is offered — fix the file`,
+		);
+	});
+});
+
+describe("dedupe checks every scenario before it writes the first one", () => {
+	test("an empty cases file later in the list is refused with the earlier file untouched", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "zzz-empty",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		// One case is below the two `dedupeCases` needs to ask anything, so
+		// this scenario reaches the write with nothing to change — which is
+		// exactly the write that must not happen.
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+		await writeCases(forgeDir, "zzz-empty", []);
+		// `listCaseScenarios` sorts, so polite-rejection is reached first.
+		const first = join(forgeDir, "cases", "polite-rejection.yaml");
+		await utimes(first, LONG_AGO, LONG_AGO);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["dedupe"], ctx)).toBe(1);
+		expect(out.at(-1)).toBe(
+			'error: scenario "zzz-empty" has no cases yet; run `forge cases --scenario zzz-empty` first (id: zzz-empty)',
+		);
+		expect((await stat(first)).mtime.getTime()).toBe(LONG_AGO.getTime());
+		expect(out.some((l) => l.includes("marked as duplicates"))).toBe(false);
+	});
+});
+
 describe("estimate", () => {
 	test("prints one target row, one judge row, the total, the prices date and the notes; exits 0", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -1441,6 +2088,36 @@ describe("estimate", () => {
 		expect(text).toMatch(/^ {2}judge {3}google\/gemini-3\.5-flash.* 2 calls/m);
 		expect(text).toContain("note: tokens are estimated as characters / 4");
 		expect(text).toContain("note: application prompt not counted");
+	});
+	test("a single selected case with no rubric pluralizes to singular", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "solo",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "solo", [
+			{
+				id: "solo-01",
+				scenario: "solo",
+				input: { email: "x" },
+				expected: { label: "rejection" },
+				status: "approved",
+				generated_by: "t",
+			},
+		]);
+		await writeSuite(forgeDir, SUITE);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		expect(out[0]).toMatch(
+			/^estimate: 1 case, 0 with a rubric; prices dated \d{4}-\d{2}-\d{2}$/m,
+		);
 	});
 	test("counts the prompt file when feature.prompt_file is set, and drops the prompt note", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -1461,6 +2138,31 @@ describe("estimate", () => {
 		const { ctx, out } = await ctxIn(cwd);
 		expect(await run(["estimate"], ctx)).toBe(1);
 		expect(out.at(-1)).toContain("gone.txt");
+	});
+	test("an absolute prompt_file is read from that path, not joined under the application root", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		const outside = await mkdtemp(join(tmpdir(), "forge-prompt-"));
+		const absolutePrompt = join(outside, "prompt.txt");
+		await writeFile(absolutePrompt, "p".repeat(4000));
+		await writeFeature(forgeDir, { ...FEATURE, prompt_file: absolutePrompt });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		const target = out.find((l) => l.includes("anthropic/claude-haiku-4-5"));
+		// Same math as the relative-path case above: 4 calls, each 1000 prompt
+		// tokens + ceil(20 / 4) input tokens -> 4020 in. An absolute
+		// prompt_file that got joined under forgeDir/.. instead of resolved
+		// would not exist there, and this would read as a missing-file error.
+		expect(target).toMatch(/ {2}4 calls {4}40\d\d in/);
+	});
+	test("a prompt_file that is a directory names the real cause (exit 1), not 'file not found'", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await mkdir(join(cwd, "prompt-dir"));
+		await writeFeature(forgeDir, { ...FEATURE, prompt_file: "prompt-dir" });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("is a directory");
 	});
 	test("pending items are excluded and reported, not refused", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -1616,6 +2318,36 @@ describe("emit", () => {
 		);
 		expect(out).toContain(
 			`emit: wrote ${join(forgeDir, "forge_target.py")}; edit run_application() to call your application`,
+		);
+	});
+	test("a single case, scenario, target model and judge pluralizes to singular", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "solo",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "solo", [
+			{
+				id: "solo-01",
+				scenario: "solo",
+				input: { email: "x" },
+				expected: { label: "rejection" },
+				status: "approved",
+				generated_by: "t",
+			},
+		]);
+		await writeSuite(forgeDir, SUITE);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(0);
+		expect(out).toContain(
+			`emit: wrote ${join(forgeDir, "promptfooconfig.yaml")} (1 case, 1 scenario, 1 target model, 1 judge)`,
 		);
 	});
 	test("never overwrites an existing shim, and says it kept it", async () => {
@@ -1875,9 +2607,9 @@ describe("report", () => {
 		expect(json.promptfooVersion).toBe("0.123.0");
 		const md = await readFile(join(forgeDir, "report.md"), "utf8");
 		expect(md).toContain("**Pass rate:** 100.0% (4 of 4 runs, 0 errored)");
-		expect(md).toContain("No failing case.");
+		expect(md).toContain("No failing or errored case.");
 		expect(out).toContain(
-			"report: 4 of 4 rows matched; pass rate 100.0%; 0 failing; 0 flaky; 0 judge disagreements",
+			"report: 4 of 4 rows matched; pass rate 100.0%; 0 failing or errored; 0 flaky; 0 judge disagreements",
 		);
 		expect(out).toContain(
 			`report: wrote ${join(forgeDir, "report.md")} and ${join(forgeDir, "report.json")}`,
@@ -1896,7 +2628,15 @@ describe("report", () => {
 			(c: { role: string }) => c.role === "judge",
 		) as { model: string; estimatedDollars: number };
 		expect(judge.model).toBe("google/gemini-3.5-flash");
-		expect(judge.estimatedDollars).toBeGreaterThan(0);
+		// Computed from the real prices.yaml row for google/gemini-3.5-flash
+		// (input 1.5, output 9 per million tokens) and the one rubric case
+		// forgeMatchingFixture selects (out-of-scope-newsletter-02, whose
+		// rubric text is the single character "r", 1 token): perJudgeCalls
+		// is 1 target model * repeat 2 = 2; input tokens per call are the
+		// label output guess (8) + the rubric (1) + JUDGE_PROMPT_OVERHEAD
+		// (200) = 209, so 418 total; output tokens are 2 calls *
+		// JUDGE_OUTPUT_TOKENS (174) = 348.
+		expect(judge.estimatedDollars).toBe((418 * 1.5 + 348 * 9) / 1_000_000);
 	});
 
 	test("--baseline reads a previous report.json and reports what changed", async () => {
@@ -1944,14 +2684,14 @@ describe("report", () => {
 		);
 		expect(json.matched).toBe(2);
 		expect(json.unmatched).toEqual([
-			"row 2: target-haiku-4-5: out-of-scope-newsletter-02 (not in the current selection)",
-			"row 3: target-haiku-4-5: out-of-scope-newsletter-02 (not in the current selection)",
+			"row 2 (testIdx 2): target-haiku-4-5: out-of-scope-newsletter-02 (not in the current selection)",
+			"row 3 (testIdx 3): target-haiku-4-5: out-of-scope-newsletter-02 (not in the current selection)",
 		]);
 		expect(json.cases.map((c: { case: string }) => c.case)).toEqual([
 			"ack-optional-quiz-01",
 		]);
 		expect(out).toContain(
-			"report: 2 of 4 rows matched; pass rate 100.0%; 0 failing; 0 flaky; 0 judge disagreements",
+			"report: 2 of 4 rows matched; pass rate 100.0%; 0 failing or errored; 0 flaky; 0 judge disagreements",
 		);
 	});
 
@@ -1982,6 +2722,9 @@ describe("report", () => {
 		expect(await run(["report", RESULTS], ctx)).toBe(1);
 		expect(out.at(-1)).toContain(RESULTS);
 		expect(out.at(-1)).toContain("forge emitted");
+		expect(out.at(-1)).toContain(
+			'first metadata.case seen: "ack-optional-quiz-01", 4 rows',
+		);
 		await expect(stat(join(forgeDir, "report.md"))).rejects.toThrow();
 	});
 
@@ -2040,6 +2783,39 @@ describe("report", () => {
 		const { ctx, out } = await ctxIn(cwd);
 		expect(await run(["report", RESULTS], ctx)).toBe(1);
 		expect(out.at(-1)).toContain("pending");
+	});
+
+	test("a baseline in the shape the previous version wrote is still accepted", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeMatchingFixture(cwd);
+		const first = await ctxIn(cwd);
+		expect(await run(["report", RESULTS], first.ctx)).toBe(0);
+		const previous = join(cwd, "previous.json");
+		const baseline = JSON.parse(
+			await readFile(join(forgeDir, "report.json"), "utf8"),
+		);
+		// The shape a report.json carried before this branch, read off
+		// e980d07's examples/moonlighter-classify-email/.forge/report.json:
+		// `coverage.approvedScenarios` rather than `reviewedScenarios`, and
+		// no `failing` at all. Both changed here, and a baseline is by
+		// definition a file an older binary wrote.
+		baseline.coverage = {
+			approvedScenarios: baseline.coverage.reviewedScenarios,
+			withRuns: baseline.coverage.withRuns,
+			withoutCase: baseline.coverage.withoutCase,
+		};
+		delete baseline.failing;
+		// Something to diff against, so the run proves the old file was read
+		// rather than merely accepted: pretend the first case failed then.
+		baseline.cases[0].stability = "failing";
+		await writeFile(previous, JSON.stringify(baseline));
+		const second = await ctxIn(cwd);
+		expect(
+			await run(["report", RESULTS, "--baseline", previous], second.ctx),
+		).toBe(0);
+		expect(second.out).toContain(
+			"report: since baseline: 0 regressions, 1 fixed",
+		);
 	});
 
 	test("report.json is readable back as its own baseline", async () => {

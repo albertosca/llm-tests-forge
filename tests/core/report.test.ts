@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { ForgeError } from "../../src/core/errors";
 import type { Estimate } from "../../src/core/estimate";
 import { readAllCases, readScenarios } from "../../src/core/files";
-import { buildReport } from "../../src/core/report";
+import { buildReport, ReportSchema } from "../../src/core/report";
 import type { Case, Prices, Scenario } from "../../src/core/schemas";
 import { type PromptfooResults, readResults } from "../../src/report/results";
 
@@ -163,7 +163,7 @@ describe("buildReport", () => {
 			},
 		]);
 		expect(report.coverage).toEqual({
-			approvedScenarios: 2,
+			reviewedScenarios: 2,
 			withRuns: 2,
 			withoutCase: [],
 		});
@@ -174,11 +174,13 @@ describe("buildReport", () => {
 				inputTokens: 0,
 				outputTokens: 0,
 				// The shim reported no usage at all, so there is no real cost
-				// to print: zero would read as a free run.
+				// to print: zero would read as a free run. "target-haiku-4-5"
+				// also has no provider prefix in prices.yaml, so it was never
+				// priced as anything -- not even approximately.
 				realDollars: null,
 				estimatedDollars: null,
 				errorPercent: null,
-				approximatePrice: true,
+				approximatePrice: false,
 			},
 			{
 				model: "google/gemini-3.5-flash",
@@ -193,7 +195,7 @@ describe("buildReport", () => {
 		]);
 	});
 
-	test("the committed example run: 45 of 48 rows pass, three asserts fail, nothing errored", async () => {
+	test("the committed example run: 46 of 48 rows pass, two asserts fail, nothing errored", async () => {
 		const exampleForge = resolve("examples/moonlighter-classify-email/.forge");
 		const report = buildReport({
 			results: await readResults(
@@ -210,14 +212,12 @@ describe("buildReport", () => {
 		});
 		expect(report.rows).toBe(48);
 		expect(report.matched).toBe(48);
-		expect(report.passRate).toBe(0.9375);
+		expect(report.passRate).toBe(0.9583);
 		const failed = report.scenarios.reduce((n, s) => n + s.failed, 0);
 		const errored = report.scenarios.reduce((n, s) => n + s.errored, 0);
-		// promptfoo itself reports 3 failed and 0 errors for this file
-		expect([failed, errored]).toEqual([3, 0]);
-		expect(report.flaky).toEqual([
-			"empty-subject-and-minimal-body-02 @ anthropic/claude-haiku-4-5",
-		]);
+		// promptfoo itself reports 2 failed and 0 errors for this file
+		expect([failed, errored]).toEqual([2, 0]);
+		expect(report.flaky).toEqual([]);
 		expect(report.failing).toEqual([
 			"empty-subject-and-minimal-body-03 @ anthropic/claude-haiku-4-5",
 		]);
@@ -324,7 +324,7 @@ describe("buildReport", () => {
 			]),
 		});
 		expect(report.unmatched).toEqual([
-			"row 1: m: a-02 (not in the current selection)",
+			"row 1 (testIdx 1): m: a-02 (not in the current selection)",
 		]);
 	});
 
@@ -333,7 +333,7 @@ describe("buildReport", () => {
 			row({ case: "a-01", model: "m" }),
 			row({ case: "ghost-01", model: "m" }),
 		]);
-		expect(report.unmatched).toEqual(["row 1: m: ghost-01"]);
+		expect(report.unmatched).toEqual(["row 1 (testIdx 1): m: ghost-01"]);
 	});
 
 	test("a case that passes once and fails twice is flaky, and the repeated reason is kept once", () => {
@@ -479,6 +479,18 @@ describe("buildReport", () => {
 		expect(failed.cases[0]?.reasons).toEqual(["output did not match"]);
 	});
 
+	test("an unlabelled provider this forge wrote is named the forge's way", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "unused",
+				provider: { id: "anthropic:messages:claude-haiku-4-5" },
+			}),
+		]);
+		expect(report.cases[0]?.model).toBe("anthropic/claude-haiku-4-5");
+		expect(report.costs[0]?.model).toBe("anthropic/claude-haiku-4-5");
+	});
+
 	test("a provider with no label is named by its id", () => {
 		const report = build([
 			row({
@@ -517,8 +529,8 @@ describe("buildReport", () => {
 			row({ case: "ignored", model: "m", metadata: undefined }),
 		]);
 		expect(report.unmatched).toEqual([
-			"row 1: m: ghost-01",
-			"row 2: m: no metadata.case",
+			"row 1 (testIdx 1): m: ghost-01",
+			"row 2 (testIdx 2): m: no metadata.case",
 		]);
 		expect(report.rows).toBe(3);
 		expect(report.matched).toBe(1);
@@ -565,7 +577,7 @@ describe("buildReport", () => {
 			},
 		]);
 		expect(report.coverage).toEqual({
-			approvedScenarios: 2,
+			reviewedScenarios: 2,
 			withRuns: 1,
 			withoutCase: ["r"],
 		});
@@ -598,7 +610,7 @@ describe("buildReport", () => {
 			},
 		]);
 		expect(report.coverage).toEqual({
-			approvedScenarios: 2,
+			reviewedScenarios: 2,
 			withRuns: 2,
 			withoutCase: [],
 		});
@@ -643,6 +655,7 @@ describe("buildReport", () => {
 			{
 				case: "r-01",
 				model: "m",
+				occurrences: 1,
 				judges: [
 					{ judge: "google/gemini-3.5-flash", pass: true, reason: "ok" },
 					{ judge: "anthropic/claude-sonnet-5", pass: false, reason: "no" },
@@ -670,12 +683,57 @@ describe("buildReport", () => {
 			{
 				case: "r-01",
 				model: "m",
+				occurrences: 1,
 				judges: [
 					{ judge: "bedrock:anthropic.claude", pass: true, reason: "" },
 					{ judge: "unknown judge", pass: false, reason: "no" },
 				],
 			},
 		]);
+	});
+
+	test("a judge whose provider has no row in prices.yaml gets no real dollar figure", () => {
+		const report = build([
+			row({
+				case: "r-01",
+				model: "m",
+				success: false,
+				gradingResult: {
+					pass: false,
+					componentResults: [rubric(false, "no", "ollama/llama3")],
+				},
+			}),
+		]);
+		const judge = report.costs.find((c) => c.role === "judge");
+		expect(judge?.model).toBe("ollama/llama3");
+		expect(judge?.realDollars).toBeNull();
+		expect(judge?.approximatePrice).toBe(false);
+	});
+
+	test("an unpriced target that reports its own cost is believed, needing no rate", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "ollama/llama3",
+				cost: 0.0055,
+				tokenUsage: { prompt: 400, completion: 80, total: 480 },
+			}),
+		]);
+		expect(report.costs[0]?.realDollars).toBe(0.0055);
+		expect(report.costs[0]?.approximatePrice).toBe(false);
+	});
+
+	test("an unpriced target with tokens but no cost has no real dollar figure to compute", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "ollama/llama3",
+				cost: 0,
+				tokenUsage: { prompt: 400, completion: 80, total: 480 },
+			}),
+		]);
+		expect(report.costs[0]?.realDollars).toBeNull();
+		expect(report.costs[0]?.approximatePrice).toBe(false);
 	});
 
 	test("a target that reports cost uses it; tokens are summed either way", () => {
@@ -743,6 +801,7 @@ describe("buildReport", () => {
 					dollars: 0.0005,
 					pricedAs: "anthropic/claude-haiku-4-5",
 					approximate: false,
+					priced: true,
 				},
 			],
 			cases: 1,
@@ -772,6 +831,44 @@ describe("buildReport", () => {
 		expect(other.costs[0]?.errorPercent).toBeNull();
 	});
 
+	test("an unpriced estimate line reports no estimated dollars, not zero", () => {
+		// `dollars` is 0 on a line whose provider has no row in prices.yaml,
+		// and 0 read as a dollar figure says the run was free.
+		const estimate: Estimate = {
+			lines: [
+				{
+					model: "ollama/llama3",
+					role: "target",
+					calls: 2,
+					inputTokens: 300,
+					outputTokens: 40,
+					dollars: 0,
+					pricedAs: "ollama/llama3",
+					approximate: true,
+					priced: false,
+				},
+			],
+			cases: 1,
+			rubricCases: 0,
+			totalDollars: 0,
+			pricesUpdated: "2026-09-15",
+			notes: [],
+		};
+		const report = build(
+			[
+				row({
+					case: "a-01",
+					model: "ollama/llama3",
+					cost: 0.001,
+					tokenUsage: { prompt: 400, completion: 80, total: 480 },
+				}),
+			],
+			{ estimate },
+		);
+		expect(report.costs[0]?.estimatedDollars).toBeNull();
+		expect(report.costs[0]?.errorPercent).toBeNull();
+	});
+
 	test("an estimate of zero dollars gives no error percent to divide by", () => {
 		const estimate: Estimate = {
 			lines: [
@@ -784,6 +881,7 @@ describe("buildReport", () => {
 					dollars: 0,
 					pricedAs: "m",
 					approximate: true,
+					priced: true,
 				},
 			],
 			cases: 0,
@@ -859,5 +957,179 @@ describe("buildReport", () => {
 			},
 		});
 		expect(empty.promptfooVersion).toBeNull();
+	});
+	test("a baseline written before `failing` existed parses with an empty list", () => {
+		const { failing, ...withoutFailing } = build([
+			row({ case: "a-01", model: "m", success: false }),
+		]);
+		expect(failing).toEqual(["a-01 @ m"]);
+		expect(ReportSchema.parse(withoutFailing).failing).toEqual([]);
+	});
+	test("a baseline whose coverage still says `approvedScenarios` reads back as `reviewedScenarios`", () => {
+		// The key was renamed during the backlog sweep; every report.json
+		// written before it carries the old spelling, and rejecting those
+		// makes `--baseline` refuse the only files a person has.
+		const report = build([row({ case: "a-01", model: "m" })]);
+		const { reviewedScenarios, ...rest } = report.coverage;
+		const old = { ...report, coverage: { ...rest, approvedScenarios: 4 } };
+		const parsed = ReportSchema.parse(old);
+		expect(parsed.coverage.reviewedScenarios).toBe(4);
+		expect(parsed.coverage.withRuns).toBe(report.coverage.withRuns);
+		// 2, not the 4 the old key carries: the number really came from the
+		// old spelling rather than from the report being re-derived.
+		expect(reviewedScenarios).toBe(2);
+	});
+	test("a coverage carrying both spellings keeps the new one", () => {
+		const report = build([row({ case: "a-01", model: "m" })]);
+		const both = {
+			...report,
+			coverage: { ...report.coverage, approvedScenarios: 99 },
+		};
+		expect(ReportSchema.parse(both).coverage.reviewedScenarios).toBe(
+			report.coverage.reviewedScenarios,
+		);
+	});
+	test("a coverage carrying neither spelling is still refused", () => {
+		const report = build([row({ case: "a-01", model: "m" })]);
+		const { reviewedScenarios, ...rest } = report.coverage;
+		const parsed = ReportSchema.safeParse({ ...report, coverage: rest });
+		expect(parsed.success).toBe(false);
+		expect(parsed.error?.issues[0]?.path.join(".")).toBe(
+			"coverage.reviewedScenarios",
+		);
+	});
+	test("two unmatched rows carrying the same testIdx are told apart by position", () => {
+		// promptfoo repeats testIdx across repeats, so the index alone names
+		// two different rows the same way.
+		const report = build([], {
+			results: {
+				results: {
+					results: [
+						{ ...row({ case: "a-01", model: "m" }), testIdx: 7 },
+						{ ...row({ case: "ghost-01", model: "m" }), testIdx: 7 },
+						{ ...row({ case: "ghost-01", model: "m" }), testIdx: 7 },
+					],
+				},
+				metadata: { promptfooVersion: "0.123.0" },
+			},
+		});
+		expect(report.unmatched).toEqual([
+			"row 1 (testIdx 7): m: ghost-01",
+			"row 2 (testIdx 7): m: ghost-01",
+		]);
+	});
+	test("zero matched rows names the first metadata.case the file did carry", () => {
+		let caught: unknown;
+		try {
+			build([
+				row({ case: "ghost-01", model: "m" }),
+				row({ case: "ghost-02", model: "m" }),
+			]);
+		} catch (e) {
+			caught = e;
+		}
+		expect((caught as ForgeError).message).toBe(
+			'no result matches a case in .forge/cases (first metadata.case seen: "ghost-01", 2 rows); was this results.json produced from a config forge emitted? (file: r.json)',
+		);
+	});
+
+	test("zero matched rows with no metadata.case anywhere says none rather than quoting an id", () => {
+		let caught: unknown;
+		try {
+			build([
+				row({ case: "x", model: "m", metadata: undefined }),
+				row({ case: "y", model: "m", metadata: {} }),
+			]);
+		} catch (e) {
+			caught = e;
+		}
+		expect((caught as ForgeError).message).toBe(
+			"no result matches a case in .forge/cases (first metadata.case seen: none, 2 rows); was this results.json produced from a config forge emitted? (file: r.json)",
+		);
+	});
+	test("a case that passes one run and errors another is partly-errored, not flaky", () => {
+		const report = build([
+			row({ case: "a-01", model: "m" }),
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "overloaded",
+				failureReason: 2,
+				response: { error: "overloaded" },
+				gradingResult: {},
+			}),
+		]);
+		expect(report.cases[0]?.stability).toBe("partly-errored");
+		expect(report.failing).toEqual(["a-01 @ m"]);
+		expect(report.flaky).toEqual([]);
+	});
+
+	test("a case that also failed an assert stays flaky even with an error among its runs", () => {
+		const report = build([
+			row({ case: "a-01", model: "m" }),
+			row({ case: "a-01", model: "m", success: false }),
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "overloaded",
+				failureReason: 2,
+				response: { error: "overloaded" },
+				gradingResult: {},
+			}),
+		]);
+		expect(report.cases[0]?.stability).toBe("flaky");
+		expect(report.flaky).toEqual(["a-01 @ m"]);
+		expect(report.failing).toEqual([]);
+	});
+
+	test("a case that only fails and errors, never passing, is failing", () => {
+		const report = build([
+			row({ case: "a-01", model: "m", success: false }),
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "overloaded",
+				failureReason: 2,
+				response: { error: "overloaded" },
+				gradingResult: {},
+			}),
+		]);
+		expect(report.cases[0]?.stability).toBe("failing");
+		expect(report.failing).toEqual(["a-01 @ m"]);
+	});
+	test("a case that disagrees on every repeat is one entry counting the repeats", () => {
+		const disagreeing = (first: string, second: string) =>
+			row({
+				case: "r-01",
+				model: "m",
+				success: false,
+				gradingResult: {
+					pass: false,
+					componentResults: [
+						rubric(true, first, "google:gemini-3.5-flash"),
+						rubric(false, second, "anthropic:messages:claude-sonnet-5"),
+					],
+				},
+			});
+		const report = build([
+			disagreeing("ok", "no"),
+			disagreeing("still ok", "still no"),
+		]);
+		// The verdicts kept are the first disagreeing run's; the second run's
+		// wording is counted, not stored.
+		expect(report.disagreements).toEqual([
+			{
+				case: "r-01",
+				model: "m",
+				occurrences: 2,
+				judges: [
+					{ judge: "google/gemini-3.5-flash", pass: true, reason: "ok" },
+					{ judge: "anthropic/claude-sonnet-5", pass: false, reason: "no" },
+				],
+			},
+		]);
 	});
 });

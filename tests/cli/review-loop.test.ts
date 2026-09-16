@@ -288,27 +288,30 @@ describe("runReviewLoop", () => {
 	});
 
 	test("an edit renaming an item onto a sibling's id is refused by name and re-asked", async () => {
+		// A case, not a scenario: a scenario's id is the name of its cases
+		// file and `applyDecision` refuses to change it at all, so only a
+		// case can reach the sibling-collision rule by being renamed.
 		const edits = [
-			stringify({ ...scn, id: "already-taken" }),
-			stringify({ ...scn, id: "free-id" }),
+			stringify({ ...withExp, id: "already-taken" }),
+			stringify({ ...withExp, id: "free-id" }),
 		];
 		const printed: string[] = [];
 		const r = await runReviewLoop({
-			items: [{ kind: "scenario", item: scn }],
+			items: [{ kind: "case", item: withExp }],
 			ask: scripted(["edit", "edit"]),
 			openEditor: async () => edits.shift() ?? "",
 			askExpected: async () => ({ label: "x" }),
 			checkExpected: () => null,
-			takenIdsFor: () => new Set([scn.id, "already-taken"]),
+			takenIdsFor: () => new Set([withExp.id, "already-taken"]),
 			oracleOf: () => "label",
 			print: (l) => printed.push(l),
 		});
 
 		expect(printed).toContain(
-			`cannot apply: id "already-taken" is already used by another item in the same file; pick an id nothing else uses (id: ${scn.id})`,
+			`cannot apply: id "already-taken" is already used by another item in the same file; pick an id nothing else uses (id: ${withExp.id})`,
 		);
 		expect(r.decisions.map((d) => [d.originalId, d.id])).toEqual([
-			[scn.id, "free-id"],
+			[withExp.id, "free-id"],
 		]);
 	});
 
@@ -330,6 +333,32 @@ describe("runReviewLoop", () => {
 
 		expect(printed.filter((l) => l.includes("status: approved"))).toEqual([]);
 		expect(printed.filter((l) => l.includes("status: pending")).length).toBe(2);
+	});
+
+	test("reports every decision to onDecided as it is taken, under the id the item had on entry, and reports nothing for a skip", async () => {
+		const seen: [string, string, string][] = [];
+		await runReviewLoop({
+			items: [
+				{ kind: "case", item: withExp },
+				{ kind: "scenario", item: scn },
+				{ kind: "case", item: noExp },
+			],
+			ask: scripted(["edit", "approve", "skip"]),
+			openEditor: async () => stringify({ ...withExp, id: "s-42" }),
+			askExpected: async () => ({ label: "x" }),
+			checkExpected: () => null,
+			takenIdsFor: () => new Set(),
+			oracleOf: () => "label",
+			onDecided: (kind, item, originalId) =>
+				seen.push([kind, item.id, originalId]),
+			print: () => {},
+		});
+		// The renamed case is reported under "s-01", the id the caller can
+		// still find in the file it read; the skipped case is not reported.
+		expect(seen).toEqual([
+			["case", "s-42", withExp.id],
+			["scenario", scn.id, scn.id],
+		]);
 	});
 
 	test("skip leaves no decision", async () => {

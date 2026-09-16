@@ -9,6 +9,7 @@ import {
 import { enumerateScenarios } from "../../core/scenarios";
 import { Kind } from "../../core/schemas";
 import type { CliContext } from "../context";
+import { parsePositiveIntFlag } from "../flags";
 import { requireApprovedFeature } from "../gates";
 
 function parseKindsFlag(raw: string | undefined): Kind[] | undefined {
@@ -22,19 +23,6 @@ function parseKindsFlag(raw: string | undefined): Kind[] | undefined {
 			);
 		return result.data;
 	});
-}
-
-function parsePositiveIntFlag(
-	flag: string,
-	raw: string | undefined,
-): number | undefined {
-	if (raw === undefined) return undefined;
-	const n = Number(raw);
-	if (!Number.isInteger(n) || n <= 0)
-		throw new UsageError(
-			`${flag} "${raw}" is not valid; expected a positive integer`,
-		);
-	return n;
 }
 
 export async function scenariosCommand(

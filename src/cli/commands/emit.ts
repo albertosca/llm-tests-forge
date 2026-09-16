@@ -10,6 +10,7 @@ import {
 	readSuite,
 } from "../../core/files";
 import { selectCases } from "../../core/select";
+import { plural } from "../../core/text";
 import { renderCasesJsonl } from "../../emit/jsonl";
 import {
 	buildPromptfooConfig,
@@ -83,7 +84,7 @@ export async function emitCommand(
 	if (format === "jsonl") {
 		await writeFile(paths.casesJsonl, renderCasesJsonl({ selection }), "utf8");
 		ctx.stdout(
-			`emit: wrote ${paths.casesJsonl} (${selection.cases.length} cases)`,
+			`emit: wrote ${paths.casesJsonl} (${plural(selection.cases.length, "case")})`,
 		);
 		return;
 	}
@@ -95,7 +96,7 @@ export async function emitCommand(
 	});
 	await writeFile(paths.promptfooConfig, renderPromptfooConfig(config), "utf8");
 	ctx.stdout(
-		`emit: wrote ${paths.promptfooConfig} (${selection.cases.length} cases, ${selection.scenarios.length} scenarios, ${suite.target.models.length} target model${suite.target.models.length === 1 ? "" : "s"}, ${suite.judges.length} judge${suite.judges.length === 1 ? "" : "s"})`,
+		`emit: wrote ${paths.promptfooConfig} (${plural(selection.cases.length, "case")}, ${plural(selection.scenarios.length, "scenario")}, ${plural(suite.target.models.length, "target model")}, ${plural(suite.judges.length, "judge")})`,
 	);
 	const shim = join(ctx.forgeDir, suite.target.entry);
 	if (await exists(shim)) {

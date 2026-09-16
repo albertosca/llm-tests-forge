@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-09-16T01:48:20.374Z",
+  "generatedAt": "2026-09-16T16:44:08.804Z",
   "promptfooVersion": "0.123.0",
   "rows": 48,
   "matched": 48,
   "unmatched": [],
-  "passRate": 0.9375,
+  "passRate": 0.9583,
   "cases": [
     {
       "case": "standard-interview-request-email-01",
@@ -121,13 +121,11 @@
       "scenario": "empty-subject-and-minimal-body",
       "model": "anthropic/claude-haiku-4-5",
       "runs": 2,
-      "passed": 1,
-      "failed": 1,
+      "passed": 2,
+      "failed": 0,
       "errored": 0,
-      "stability": "flaky",
-      "reasons": [
-        "The output classified the email as 'screening', which the rubric explicitly says should be avoided in favor of labels like 'unrelated' or 'acknowledgement' when no concrete hiring action or stage is mentioned."
-      ]
+      "stability": "stable",
+      "reasons": []
     },
     {
       "case": "empty-subject-and-minimal-body-03",
@@ -139,8 +137,8 @@
       "errored": 0,
       "stability": "failing",
       "reasons": [
-        "The rubric requires both job_title and company to be null/empty when no identifying details are present. While job_title is null, company is set to 'Harbor Oak Recruiting' rather than null or empty, so the output does not fully satisfy the rubric.",
-        "The rubric requires both job_title and company to be null/empty when the email provides no identifying details. While job_title is null, company is set to 'Harbor Oak Recruiting', which is not null or empty. This violates the rubric's requirement."
+        "The rubric requires both job_title and company to be null or empty, but the output sets company to 'Harbor Oak Recruiting' instead of null, so it fails the requirement.",
+        "The rubric requires both job_title and company to be null/empty, but while job_title is null, company is set to 'Harbor Oak Recruiting' rather than null or empty."
       ]
     },
     {
@@ -279,9 +277,7 @@
   "failing": [
     "empty-subject-and-minimal-body-03 @ anthropic/claude-haiku-4-5"
   ],
-  "flaky": [
-    "empty-subject-and-minimal-body-02 @ anthropic/claude-haiku-4-5"
-  ],
+  "flaky": [],
   "scenarios": [
     {
       "scenario": "standard-interview-request-email",
@@ -311,8 +307,8 @@
       "scenario": "empty-subject-and-minimal-body",
       "kind": "edge",
       "run": 6,
-      "passed": 3,
-      "failed": 3,
+      "passed": 4,
+      "failed": 2,
       "errored": 0
     },
     {
@@ -349,7 +345,7 @@
     }
   ],
   "coverage": {
-    "approvedScenarios": 8,
+    "reviewedScenarios": 8,
     "withRuns": 8,
     "withoutCase": []
   },
@@ -358,24 +354,24 @@
     {
       "model": "anthropic/claude-haiku-4-5",
       "role": "target",
-      "inputTokens": 0,
-      "outputTokens": 0,
-      "realDollars": null,
+      "inputTokens": 23588,
+      "outputTokens": 4526,
+      "realDollars": 0.046218,
       "estimatedDollars": 0.051836,
-      "errorPercent": null,
+      "errorPercent": -10.8,
       "approximatePrice": false
     },
     {
       "model": "anthropic/claude-sonnet-5",
       "role": "judge",
-      "inputTokens": 2295,
-      "outputTokens": 1042,
-      "realDollars": 0.01501,
-      "estimatedDollars": 0.009168,
-      "errorPercent": 63.7,
+      "inputTokens": 2305,
+      "outputTokens": 666,
+      "realDollars": 0.01127,
+      "estimatedDollars": 0.014808,
+      "errorPercent": -23.9,
       "approximatePrice": false
     }
   ],
-  "targetUsageReported": false,
+  "targetUsageReported": true,
   "baseline": null
 }

@@ -8,6 +8,7 @@ import {
 	listCaseScenarios,
 	readAllCases,
 	readCases,
+	readFailure,
 	readFeature,
 	readScenarios,
 	readSuite,
@@ -201,6 +202,77 @@ describe("readAllCases", () => {
 	});
 });
 
+describe("readYamlFile: array schema errors name the element, not just the path", () => {
+	test("an issue on an array item with a string id reports the id and the index", async () => {
+		const dir = await tmpForge();
+		await mkdir(dir, { recursive: true });
+		await writeFile(
+			forgePaths(dir).scenarios,
+			`- id: first-id
+  kind: happy
+  oracle: label
+  description: a
+  status: pending
+- id: second-id
+  kind: happy
+  oracle: label
+  description: b
+  status: pending
+- id: third-id
+  kind: happy
+  oracle: bogus
+  description: c
+  status: pending
+`,
+		);
+		const err = await readScenarios(dir).catch((e: Error) => e);
+		expect((err as Error).message).toContain(
+			'item "third-id" (index 2).oracle:',
+		);
+		expect((err as Error).message).toContain(forgePaths(dir).scenarios);
+	});
+	test("an issue on an array item with no string id keeps the plain index.field form", async () => {
+		const dir = await tmpForge();
+		await mkdir(dir, { recursive: true });
+		await writeFile(
+			forgePaths(dir).scenarios,
+			`- id: first-id
+  kind: happy
+  oracle: label
+  description: a
+  status: pending
+- id: second-id
+  kind: happy
+  oracle: label
+  description: b
+  status: pending
+- kind: happy
+  oracle: bogus
+  description: c
+  status: pending
+`,
+		);
+		const err = await readScenarios(dir).catch((e: Error) => e);
+		expect((err as Error).message).toContain("2.oracle: Invalid option");
+		expect((err as Error).message).not.toContain('item "');
+		expect((err as Error).message).toContain(forgePaths(dir).scenarios);
+	});
+	test("a schema error on a non-array file keeps the plain 'field: message' form", async () => {
+		const dir = await tmpForge();
+		await writeFeature(dir, {
+			id: "a",
+			purpose: "b",
+			inputs: [{ name: "x", kind: "text" }],
+			output: { kind: "text" },
+			invariants: [],
+			status: "pending",
+		});
+		await writeFile(forgePaths(dir).feature, "id: only-an-id\n");
+		const err = await readFeature(dir).catch((e: Error) => e);
+		expect((err as Error).message).toContain("purpose: Invalid input");
+	});
+});
+
 describe("readYamlFile: the real cause of a read failure", () => {
 	test("a directory where a file was expected says so, not 'file not found'", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "forge-files-"));
@@ -233,6 +305,9 @@ describe("readYamlFile: the real cause of a read failure", () => {
 			(e: Error) => e,
 		);
 		expect((err as Error).message).toContain("file not found");
+	});
+	test("an error with no code at all (not from fs) falls through to 'cannot read: <message>'", () => {
+		expect(readFailure(new Error("boom"))).toBe("cannot read: boom");
 	});
 	test("an OS error with no special-cased code (ENOTDIR) falls through to 'cannot read: <message>'", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "forge-files-"));

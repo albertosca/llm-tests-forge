@@ -59,11 +59,38 @@ def parse_email(text: str) -> tuple[str, str, str]:
 
 
 async def run_application(inputs: dict, model: str) -> dict:
+    """Classify one email and report what the call cost.
+
+    moonlighter hands usage to no caller: `make_api_caller`'s `_call` passes the
+    counts straight to `record_call`, which it imported into `moonlighter.core.llm`
+    at module level. Because `_call` looks that name up in its module's globals on
+    every call, rebinding it on the module object is seen by the call below, and
+    the original is put back in `finally`. The rebinding is process-wide, so it
+    holds only because promptfoo's Python worker runs one case at a time (`-j N`
+    is N worker processes, not N calls in one) — see the shim's limitations in
+    this example's README.
+    """
+    import moonlighter.core.llm as llm_module
+
     from_, subject, body = parse_email(inputs["email"])
     message = {"from_": from_, "subject": subject, "body": body}
     model_id = model.split("/", 1)[1] if "/" in model else model
-    result = await classify_response(message, STAGES, make_api_caller(), model_id)
-    return {"output": result, "input_tokens": 0, "output_tokens": 0}
+    captured = {"input_tokens": 0, "output_tokens": 0}
+    original = llm_module.record_call
+
+    def capturing_record_call(seconds, input_tokens=0, output_tokens=0):
+        # A classification is one call today, but summing keeps the count right
+        # if moonlighter ever retries or chains a second call behind this one.
+        captured["input_tokens"] += input_tokens
+        captured["output_tokens"] += output_tokens
+        return original(seconds, input_tokens=input_tokens, output_tokens=output_tokens)
+
+    llm_module.record_call = capturing_record_call
+    try:
+        result = await classify_response(message, STAGES, make_api_caller(), model_id)
+    finally:
+        llm_module.record_call = original
+    return {"output": result, **captured}
 
 
 async def call_api(prompt, options, context):

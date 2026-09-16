@@ -74,6 +74,9 @@ describe("approxTokens / guessOutputTokens", () => {
 		expect(guessOutputTokens({ kind: "json" })).toBe(64);
 		expect(guessOutputTokens({ kind: "text" })).toBe(256);
 	});
+	test("an empty fields array is still a json shape, not the fieldless guess", () => {
+		expect(guessOutputTokens({ kind: "json", fields: [] })).toBe(24);
+	});
 });
 
 describe("estimateSuite", () => {
@@ -110,6 +113,7 @@ describe("estimateSuite", () => {
 				dollars: (220 * 1 + 32 * 5) / 1_000_000,
 				pricedAs: "anthropic/claude-haiku-4-5",
 				approximate: false,
+				priced: true,
 			},
 		]);
 		expect(e.totalDollars).toBe((220 * 1 + 32 * 5) / 1_000_000);
@@ -175,6 +179,7 @@ describe("estimateSuite", () => {
 			dollars: (perCall * 4 * 0.3 + JUDGE_OUTPUT_TOKENS * 4 * 2.5) / 1_000_000,
 			pricedAs: "google/gemini-3.5-flash",
 			approximate: false,
+			priced: true,
 		});
 		expect(e.lines.map((l) => `${l.role}:${l.model}`)).toEqual([
 			"target:anthropic/claude-haiku-4-5",
@@ -204,6 +209,38 @@ describe("estimateSuite", () => {
 		expect(e.lines[0]?.pricedAs).toBe("anthropic/claude-haiku-4-5");
 		expect(e.notes).toContain(
 			"~ marks a model priced as the closest listed model",
+		);
+	});
+	test("a model whose provider has no row at all is not priced, and the total is the priced line alone", () => {
+		const selection: Selection = {
+			scenarios: [sc("a", "label")],
+			cases: [cs("a-01", "a", "x".repeat(40), { label: "rejection" })],
+			blockers: [],
+			reviewable: 0,
+		};
+		// Two lines, not one: with a single unpriced line the total is zero
+		// whether the filter works or not, so the test could not fail.
+		const e = estimateSuite({
+			suite: suite(
+				["ollama/llama3", "anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature,
+			prices,
+			promptTokens: 0,
+		});
+		const unpriced = e.lines.find((l) => l.model === "ollama/llama3");
+		const haiku = e.lines.find((l) => l.model === "anthropic/claude-haiku-4-5");
+		expect(unpriced?.priced).toBe(false);
+		expect(unpriced?.pricedAs).toBe("ollama/llama3");
+		expect(unpriced?.dollars).toBe(0);
+		expect(haiku?.priced).toBe(true);
+		expect(haiku?.dollars).toBeGreaterThan(0);
+		expect(e.totalDollars).toBe(haiku?.dollars ?? -1);
+		expect(e.notes).toContain(
+			"not priced: ollama/llama3 has no row in prices.yaml",
 		);
 	});
 	test("a suite with zero selected cases estimates zero and says so, rather than throwing", () => {
@@ -242,6 +279,7 @@ describe("renderEstimate", () => {
 					dollars: 0.0004,
 					pricedAs: "anthropic/claude-haiku-4-5",
 					approximate: false,
+					priced: true,
 				},
 				{
 					model: "google/gemini-9",
@@ -252,6 +290,7 @@ describe("renderEstimate", () => {
 					dollars: 0.0008,
 					pricedAs: "google/gemini-3.5-flash",
 					approximate: true,
+					priced: true,
 				},
 			],
 		});
@@ -270,5 +309,157 @@ describe("renderEstimate", () => {
 		);
 		expect(lines).toContain("note: n1");
 		expect(lines).toContain("note: n2");
+	});
+	test("an unpriced line prints 'not priced' in the dollar column, with no ~ or (priced as ...)", () => {
+		const text = renderEstimate({
+			cases: 1,
+			rubricCases: 0,
+			pricesUpdated: "2026-09-15",
+			totalDollars: 0.0004,
+			notes: ["not priced: ollama/llama3 has no row in prices.yaml"],
+			lines: [
+				{
+					model: "anthropic/claude-haiku-4-5",
+					role: "target",
+					calls: 4,
+					inputTokens: 220,
+					outputTokens: 32,
+					dollars: 0.0004,
+					pricedAs: "anthropic/claude-haiku-4-5",
+					approximate: false,
+					priced: true,
+				},
+				{
+					model: "ollama/llama3",
+					role: "target",
+					calls: 4,
+					inputTokens: 220,
+					outputTokens: 32,
+					dollars: 0,
+					pricedAs: "ollama/llama3",
+					approximate: true,
+					priced: false,
+				},
+			],
+		});
+		const lines = text.split("\n");
+		const unpriced = lines.find((l) => l.includes("ollama/llama3"));
+		expect(unpriced).toContain("not priced");
+		expect(unpriced).not.toContain("$");
+		expect(unpriced).not.toContain("(priced as");
+		expect(unpriced).not.toContain("~");
+		expect(lines).toContain(
+			"note: not priced: ollama/llama3 has no row in prices.yaml",
+		);
+	});
+	test("the total row says how many lines it left out when one of them is unpriced", () => {
+		const text = renderEstimate({
+			cases: 1,
+			rubricCases: 0,
+			pricesUpdated: "2026-09-15",
+			totalDollars: 0.0004,
+			notes: [],
+			lines: [
+				{
+					model: "anthropic/claude-haiku-4-5",
+					role: "target",
+					calls: 4,
+					inputTokens: 220,
+					outputTokens: 32,
+					dollars: 0.0004,
+					pricedAs: "anthropic/claude-haiku-4-5",
+					approximate: false,
+					priced: true,
+				},
+				{
+					model: "ollama/llama3",
+					role: "target",
+					calls: 4,
+					inputTokens: 220,
+					outputTokens: 32,
+					dollars: 0,
+					pricedAs: "ollama/llama3",
+					approximate: false,
+					priced: false,
+				},
+			],
+		});
+		expect(text.split("\n")).toContain(
+			"  total                                                                         $0.000400  (1 line not priced)",
+		);
+	});
+	test("with every line unpriced the total reads 'not priced', not $0.000000", () => {
+		const text = renderEstimate({
+			cases: 1,
+			rubricCases: 0,
+			pricesUpdated: "2026-09-15",
+			totalDollars: 0,
+			notes: [],
+			lines: [
+				{
+					model: "ollama/llama3",
+					role: "target",
+					calls: 4,
+					inputTokens: 220,
+					outputTokens: 32,
+					dollars: 0,
+					pricedAs: "ollama/llama3",
+					approximate: false,
+					priced: false,
+				},
+				{
+					model: "ollama/qwen3",
+					role: "target",
+					calls: 4,
+					inputTokens: 220,
+					outputTokens: 32,
+					dollars: 0,
+					pricedAs: "ollama/qwen3",
+					approximate: false,
+					priced: false,
+				},
+			],
+		});
+		const lines = text.split("\n");
+		const totalRow = lines.find((l) => l.startsWith("  total"));
+		expect(totalRow).toBe(
+			"  total                                                                         not priced  (2 lines not priced)",
+		);
+		// The total sits in the same column as the rows it summarises, which
+		// a column computed from a "$" no row carries could not do.
+		const dataRow = lines.find((l) => l.includes("ollama/qwen3"));
+		expect(totalRow?.indexOf("not priced")).toBe(
+			dataRow?.indexOf("not priced"),
+		);
+	});
+	test("the total's $ lines up with a data row's $ regardless of model-name width (39 chars, 120000 calls)", () => {
+		const longModel = `anthropic/${"x".repeat(29)}`; // 10 + 29 = 39 chars
+		expect(longModel.length).toBe(39);
+		const text = renderEstimate({
+			cases: 1,
+			rubricCases: 0,
+			pricesUpdated: "2026-09-15",
+			totalDollars: 1.2,
+			notes: [],
+			lines: [
+				{
+					model: longModel,
+					role: "target",
+					calls: 120000,
+					inputTokens: 220,
+					outputTokens: 32,
+					dollars: 1.2,
+					pricedAs: longModel,
+					approximate: false,
+					priced: true,
+				},
+			],
+		});
+		const lines = text.split("\n");
+		const dataRow = lines.find((l) => l.includes(longModel));
+		const totalRow = lines.find((l) => l.startsWith("  total"));
+		expect(dataRow).toBeDefined();
+		expect(totalRow).toBeDefined();
+		expect(totalRow?.indexOf("$")).toBe(dataRow?.indexOf("$"));
 	});
 });

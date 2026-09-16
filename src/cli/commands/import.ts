@@ -37,8 +37,26 @@ export async function importCommand(
 	const file = positionals[0];
 	if (!file) throw new UsageError("import needs a JSONL file path");
 	const oracle = parseOracleFlag(values.oracle);
+	const paths = forgePaths(ctx.forgeDir);
 	const feature = await readFeature(ctx.forgeDir);
-	requireApprovedFeature(feature, forgePaths(ctx.forgeDir).feature);
+	requireApprovedFeature(feature, paths.feature);
+	// The scenario is only written when it is absent, so from the second
+	// import onwards `--oracle` had no effect and said nothing -- while the
+	// cases already reviewed against the oracle on disk would have been
+	// invalidated had it taken effect. Refused by name, before anything is
+	// written; repeating the oracle the scenario already has is accepted,
+	// since it asks for nothing.
+	const scenarios = await readScenarios(ctx.forgeDir);
+	const existingScenario = scenarios.find((s) => s.id === IMPORTED_SCENARIO_ID);
+	if (
+		existingScenario !== undefined &&
+		oracle !== undefined &&
+		oracle !== existingScenario.oracle
+	)
+		throw new ForgeError(
+			`scenario "${IMPORTED_SCENARIO_ID}" already exists with oracle ${existingScenario.oracle}; --oracle cannot change it — edit .forge/scenarios.yaml`,
+			{ file: paths.scenarios, id: IMPORTED_SCENARIO_ID },
+		);
 	const jsonl = await readFile(file, "utf8").catch(() => {
 		throw new ForgeError("file not found", { file });
 	});
@@ -51,8 +69,7 @@ export async function importCommand(
 		oracle,
 	});
 	await writeCases(ctx.forgeDir, IMPORTED_SCENARIO_ID, result.cases);
-	const scenarios = await readScenarios(ctx.forgeDir);
-	if (!scenarios.some((s) => s.id === IMPORTED_SCENARIO_ID))
+	if (existingScenario === undefined)
 		await writeScenarios(ctx.forgeDir, [...scenarios, result.scenario]);
 	for (const s of result.skipped)
 		ctx.stdout(`import: skipped line ${s.line}: ${s.reason}`);

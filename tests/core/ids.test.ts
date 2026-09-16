@@ -5,8 +5,15 @@ import type { Case } from "../../src/core/schemas";
 describe("slugify", () => {
 	test("kebab-cases and trims", () => {
 		expect(slugify("Ack with Optional Quiz!")).toBe("ack-with-optional-quiz");
-		expect(slugify("  --Já--  ")).toBe("j");
 		expect(slugify("a".repeat(60))).toHaveLength(40);
+	});
+
+	test("folds accents to their plain letter instead of dropping them", () => {
+		expect(slugify("Retorno do processo seletivo — confirmação")).toBe(
+			"retorno-do-processo-seletivo-confirmacao",
+		);
+		expect(slugify("ação")).toBe("acao");
+		expect(slugify("  --Já--  ")).toBe("ja");
 	});
 });
 
