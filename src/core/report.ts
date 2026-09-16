@@ -51,7 +51,8 @@ export const ModelCostSchema = z.object({
 	role: z.enum(["target", "judge"]),
 	inputTokens: z.number(),
 	outputTokens: z.number(),
-	realDollars: z.number(),
+	/** Null when the target never reported usage: no figure exists, and 0 would read as free. */
+	realDollars: z.number().nullable(),
 	estimatedDollars: z.number().nullable(),
 	errorPercent: z.number().nullable(),
 	approximatePrice: z.boolean(),
@@ -74,10 +75,12 @@ export const ReportSchema = z.object({
 	rows: z.number(),
 	matched: z.number(),
 	unmatched: z.array(z.string()),
-	/** Passed rows over matched rows, 0..1. */
+	/** Passed rows over the rows that reached a verdict (matched minus errored), 0..1. */
 	passRate: z.number(),
 	/** One per (model, case): model name order, then the order of the cases files. */
 	cases: z.array(CaseRunSchema),
+	/** `"case @ model"` for every CaseRun that never passed: stability `failing` or `errored`. */
+	failing: z.array(z.string()),
 	/** `"case @ model"` for every CaseRun whose stability is `flaky`. */
 	flaky: z.array(z.string()),
 	scenarios: z.array(ScenarioStatSchema),
@@ -186,12 +189,21 @@ function pairKey(model: string, caseId: string): string {
 	return JSON.stringify([model, caseId]);
 }
 
+/**
+ * Rows are matched against the selection the estimate priced, not against
+ * every case on disk: a rejected or pending case that still has a row in
+ * `results.json` (an older run, a hand-edited config) would otherwise be
+ * counted into a pass rate the person never asked for. Such a row is named
+ * as what it is, so it reads as a stale row rather than as a typo.
+ */
 function matchRows(
 	results: PromptfooResults,
 	cases: Case[],
+	knownCases: Case[],
 	resultsPath: string,
 ): { matched: MatchedRow[]; unmatched: string[] } {
 	const caseById = new Map(cases.map((c) => [c.id, c]));
+	const known = new Set(knownCases.map((c) => c.id));
 	const matched: MatchedRow[] = [];
 	const unmatched: string[] = [];
 	for (const row of results.results.results) {
@@ -201,7 +213,9 @@ function matchRows(
 			matched.push({ row, kase, model: modelOf(row), ...outcomeOf(row) });
 			continue;
 		}
-		const named = typeof id === "string" ? id : "no metadata.case";
+		let named: string;
+		if (typeof id !== "string") named = "no metadata.case";
+		else named = known.has(id) ? `${id} (not in the current selection)` : id;
 		unmatched.push(`row ${row.testIdx}: ${modelOf(row)}: ${named}`);
 	}
 	if (matched.length === 0)
@@ -290,7 +304,7 @@ function costLine(args: {
 	role: "target" | "judge";
 	inputTokens: number;
 	outputTokens: number;
-	realDollars: number;
+	realDollars: number | null;
 	approximatePrice: boolean;
 	estimate: Estimate | null;
 }): ModelCost {
@@ -303,10 +317,10 @@ function costLine(args: {
 		role,
 		inputTokens: args.inputTokens,
 		outputTokens: args.outputTokens,
-		realDollars: round(realDollars, 6),
+		realDollars: realDollars === null ? null : round(realDollars, 6),
 		estimatedDollars: line ? round(line.dollars, 6) : null,
 		errorPercent:
-			line && line.dollars > 0
+			realDollars !== null && line && line.dollars > 0
 				? round(((realDollars - line.dollars) / line.dollars) * 100, 1)
 				: null,
 		approximatePrice: args.approximatePrice,
@@ -326,8 +340,9 @@ function costsOf(args: {
 	matched: MatchedRow[];
 	prices: Prices;
 	estimate: Estimate | null;
+	targetUsageReported: boolean;
 }): ModelCost[] {
-	const { matched, prices, estimate } = args;
+	const { matched, prices, estimate, targetUsageReported } = args;
 	const costs: ModelCost[] = [];
 	for (const model of [...new Set(matched.map((m) => m.model))].sort()) {
 		const mine = matched.filter((m) => m.model === model);
@@ -341,9 +356,14 @@ function costsOf(args: {
 				role: "target",
 				inputTokens,
 				outputTokens,
-				realDollars: reported
-					? sum(mine, (m) => m.row.cost ?? 0)
-					: (inputTokens * price.input + outputTokens * price.output) / 1e6,
+				// A shim that reported nothing has no cost, not a cost of
+				// zero: pricing its silence would print a saving it did not
+				// make, and an error percent of -100% against the estimate.
+				realDollars: !targetUsageReported
+					? null
+					: reported
+						? sum(mine, (m) => m.row.cost ?? 0)
+						: (inputTokens * price.input + outputTokens * price.output) / 1e6,
 				// `~` says "this dollar figure came from the closest listed
 				// model". When promptfoo reported the cost itself no table
 				// lookup happened, so marking it would be a lie.
@@ -415,19 +435,36 @@ export function buildReport(args: {
 	results: PromptfooResults;
 	resultsPath: string;
 	scenarios: Scenario[];
+	/** The cases the suite selected: the only ones a result row may match. */
 	cases: Case[];
+	/** Every case on disk, so a row naming an unselected one says so. */
+	knownCases: Case[];
 	estimate: Estimate | null;
 	prices: Prices;
 	baseline: Report | null;
 	now: Date;
 }): Report {
 	const { results, resultsPath, scenarios, cases, estimate, prices } = args;
-	const { matched, unmatched } = matchRows(results, cases, resultsPath);
+	const { matched, unmatched } = matchRows(
+		results,
+		cases,
+		args.knownCases,
+		resultsPath,
+	);
 	const caseRuns = caseRunsOf(matched, cases);
 	const approved = scenarios.filter((s) => reviewed(s.status));
 	const scenarioStats = scenarioStatsOf(matched, scenarios);
 	const withCase = new Set(
 		cases.filter((c) => reviewed(c.status)).map((c) => c.scenario),
+	);
+	// An errored row never reached a verdict, so it is neither a pass nor a
+	// failure: counting it as a non-pass reports a model outage as a
+	// behaviour change.
+	const passed = matched.filter((m) => m.outcome === "passed").length;
+	const erroredRows = matched.filter((m) => m.outcome === "errored").length;
+	const judged = matched.length - erroredRows;
+	const targetUsageReported = matched.some(
+		(m) => (m.row.cost ?? 0) > 0 || (m.row.tokenUsage?.total ?? 0) > 0,
 	);
 	return {
 		generatedAt: args.now.toISOString(),
@@ -435,11 +472,11 @@ export function buildReport(args: {
 		rows: results.results.results.length,
 		matched: matched.length,
 		unmatched,
-		passRate: round(
-			matched.filter((m) => m.outcome === "passed").length / matched.length,
-			4,
-		),
+		passRate: judged === 0 ? 0 : round(passed / judged, 4),
 		cases: caseRuns,
+		failing: caseRuns
+			.filter((c) => c.stability === "failing" || c.stability === "errored")
+			.map((c) => `${c.case} @ ${c.model}`),
 		flaky: caseRuns
 			.filter((c) => c.stability === "flaky")
 			.map((c) => `${c.case} @ ${c.model}`),
@@ -450,10 +487,8 @@ export function buildReport(args: {
 			withoutCase: approved.filter((s) => !withCase.has(s.id)).map((s) => s.id),
 		},
 		disagreements: disagreementsOf(matched),
-		costs: costsOf({ matched, prices, estimate }),
-		targetUsageReported: matched.some(
-			(m) => (m.row.cost ?? 0) > 0 || (m.row.tokenUsage?.total ?? 0) > 0,
-		),
+		costs: costsOf({ matched, prices, estimate, targetUsageReported }),
+		targetUsageReported,
 		baseline: baselineDiffOf(caseRuns, args.baseline),
 	};
 }

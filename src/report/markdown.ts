@@ -1,9 +1,18 @@
-import type { Report } from "../core/report";
+import type { CaseRun, Report } from "../core/report";
 
 /** What a null reads as in a table cell. */
 const NONE = "—";
 
-const row = (cells: string[]): string => `| ${cells.join(" | ")} |`;
+/**
+ * A judge writes prose, and prose contains `|` and newlines: either one
+ * ends the cell early and shifts every column after it, which turns one
+ * verbose reason into a table nobody can read. Applied to every cell rather
+ * than to the fields known to be prose today.
+ */
+const cell = (text: string): string =>
+	text.replace(/\r?\n/g, "<br>").replace(/\|/g, "\\|");
+
+const row = (cells: string[]): string => `| ${cells.map(cell).join(" | ")} |`;
 const rule = (width: number): string =>
 	row(Array.from({ length: width }, () => "---"));
 const percent = (fraction: number): string => `${(fraction * 100).toFixed(1)}%`;
@@ -17,8 +26,10 @@ function table(header: string[], rows: string[][]): string[] {
 function headline(r: Report): string {
 	const runs = r.cases.reduce((n, c) => n + c.runs, 0);
 	const passed = r.cases.reduce((n, c) => n + c.passed, 0);
+	const errored = r.cases.reduce((n, c) => n + c.errored, 0);
 	const parts = [
-		`**Pass rate:** ${percent(r.passRate)} (${passed} of ${runs} runs)`,
+		`**Pass rate:** ${percent(r.passRate)} (${passed} of ${runs} runs, ${errored} errored)`,
+		`**failing:** ${r.failing.length}`,
 		`**flaky:** ${r.flaky.length}`,
 		`**judge disagreements:** ${r.disagreements.length}`,
 	];
@@ -45,25 +56,39 @@ function regressions(r: Report): string[] {
 	return out;
 }
 
-function flaky(r: Report): string[] {
-	const out = ["## Flaky cases", ""];
-	const runs = r.cases.filter((c) =>
-		r.flaky.includes(`${c.case} @ ${c.model}`),
+const caseRow = (c: CaseRun): string[] => [
+	c.case,
+	c.model,
+	String(c.runs),
+	String(c.passed),
+	String(c.failed),
+	String(c.errored),
+	c.reasons.join("; "),
+];
+
+/**
+ * Failing and flaky read the same way, so they are the same table twice: a
+ * case that never passed is the first thing to look at, and a report that
+ * only listed the flaky ones left it to be found by reading a per-scenario
+ * count.
+ */
+function caseSection(args: {
+	title: string;
+	empty: string;
+	keys: string[];
+	report: Report;
+}): string[] {
+	const { title, empty, keys, report } = args;
+	const out = [`## ${title}`, ""];
+	const runs = report.cases.filter((c) =>
+		keys.includes(`${c.case} @ ${c.model}`),
 	);
-	if (runs.length === 0) out.push("No flaky case.");
+	if (runs.length === 0) out.push(empty);
 	else
 		out.push(
 			...table(
 				["case", "model", "runs", "passed", "failed", "errored", "reasons"],
-				runs.map((c) => [
-					c.case,
-					c.model,
-					String(c.runs),
-					String(c.passed),
-					String(c.failed),
-					String(c.errored),
-					c.reasons.join("; "),
-				]),
+				runs.map(caseRow),
 			),
 		);
 	out.push("");
@@ -158,7 +183,7 @@ function cost(r: Report): string[] {
 				c.role,
 				String(c.inputTokens),
 				String(c.outputTokens),
-				money(c.realDollars),
+				c.realDollars === null ? NONE : money(c.realDollars),
 				c.estimatedDollars === null ? NONE : money(c.estimatedDollars),
 				c.errorPercent === null ? NONE : signed(c.errorPercent),
 			]),
@@ -173,7 +198,7 @@ function cost(r: Report): string[] {
 	out.push(
 		r.targetUsageReported
 			? "Target usage: reported by the shim."
-			: "Target usage: not reported by the shim: target rows show 0 tokens; return tokenUsage from forge_target.py to fill this table",
+			: "Target usage: not reported by the shim — target rows show 0 tokens; return tokenUsage from forge_target.py to fill this table",
 		"",
 	);
 	return out;
@@ -181,7 +206,12 @@ function cost(r: Report): string[] {
 
 function unmatched(r: Report): string[] {
 	if (r.unmatched.length === 0) return [];
-	return ["## Unmatched rows", "", ...r.unmatched.map((u) => `- ${u}`), ""];
+	return [
+		"## Unmatched rows",
+		"",
+		...r.unmatched.map((u) => `- ${cell(u)}`),
+		"",
+	];
 }
 
 /**
@@ -196,7 +226,18 @@ export function renderReportMarkdown(r: Report): string {
 		headline(r),
 		"",
 		...regressions(r),
-		...flaky(r),
+		...caseSection({
+			title: "Failing cases",
+			empty: "No failing case.",
+			keys: r.failing,
+			report: r,
+		}),
+		...caseSection({
+			title: "Flaky cases",
+			empty: "No flaky case.",
+			keys: r.flaky,
+			report: r,
+		}),
 		...disagreement(r),
 		...perScenario(r),
 		...perModel(r),

@@ -70,6 +70,7 @@ const build = (
 		resultsPath: "r.json",
 		scenarios: [sc("a", "label"), sc("r", "rubric")],
 		cases: [cs("a-01", "a"), cs("a-02", "a"), cs("r-01", "r")],
+		knownCases: [cs("a-01", "a"), cs("a-02", "a"), cs("r-01", "r")],
 		estimate: null,
 		prices,
 		baseline: null,
@@ -100,6 +101,10 @@ describe("buildReport", () => {
 				sc("out-of-scope-newsletter", "rubric"),
 			],
 			cases: [
+				cs("ack-optional-quiz-01", "ack-optional-quiz"),
+				cs("out-of-scope-newsletter-02", "out-of-scope-newsletter"),
+			],
+			knownCases: [
 				cs("ack-optional-quiz-01", "ack-optional-quiz"),
 				cs("out-of-scope-newsletter-02", "out-of-scope-newsletter"),
 			],
@@ -168,7 +173,9 @@ describe("buildReport", () => {
 				role: "target",
 				inputTokens: 0,
 				outputTokens: 0,
-				realDollars: 0,
+				// The shim reported no usage at all, so there is no real cost
+				// to print: zero would read as a free run.
+				realDollars: null,
 				estimatedDollars: null,
 				errorPercent: null,
 				approximatePrice: true,
@@ -195,6 +202,7 @@ describe("buildReport", () => {
 			resultsPath: "results.json",
 			scenarios: await readScenarios(exampleForge),
 			cases: [...(await readAllCases(exampleForge)).values()].flat(),
+			knownCases: [...(await readAllCases(exampleForge)).values()].flat(),
 			estimate: null,
 			prices,
 			baseline: null,
@@ -210,6 +218,122 @@ describe("buildReport", () => {
 		expect(report.flaky).toEqual([
 			"empty-subject-and-minimal-body-02 @ anthropic/claude-haiku-4-5",
 		]);
+		expect(report.failing).toEqual([
+			"empty-subject-and-minimal-body-03 @ anthropic/claude-haiku-4-5",
+		]);
+	});
+
+	test("a case that never passes is named under failing, and a flaky one is not", () => {
+		const report = build([
+			row({ case: "a-01", model: "m", success: false }),
+			row({ case: "a-01", model: "m", success: false }),
+			row({ case: "a-02", model: "m", success: false }),
+			row({ case: "a-02", model: "m" }),
+			row({ case: "r-01", model: "m" }),
+		]);
+		expect(report.failing).toEqual(["a-01 @ m"]);
+		expect(report.flaky).toEqual(["a-02 @ m"]);
+	});
+
+	test("a case whose every run errored is named under failing too", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "boom",
+				failureReason: 2,
+				response: { error: "boom" },
+				gradingResult: {},
+			}),
+		]);
+		expect(report.cases[0]?.stability).toBe("errored");
+		expect(report.failing).toEqual(["a-01 @ m"]);
+	});
+
+	test("an errored run is left out of the pass rate rather than counted against it", () => {
+		const report = build([
+			row({ case: "a-01", model: "m" }),
+			row({
+				case: "a-02",
+				model: "m",
+				success: false,
+				error: "overloaded",
+				failureReason: 2,
+				response: { error: "overloaded" },
+				gradingResult: {},
+			}),
+		]);
+		expect(report.matched).toBe(2);
+		expect(report.passRate).toBe(1);
+	});
+
+	test("a run in which every row errored has a pass rate of zero, not a division by zero", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "overloaded",
+				failureReason: 2,
+				response: { error: "overloaded" },
+				gradingResult: {},
+			}),
+		]);
+		expect(report.passRate).toBe(0);
+	});
+
+	test("a failed assert with no component reason falls back to promptfoo's error text", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				failureReason: 1,
+				error: "Assertion failed",
+				gradingResult: { pass: false },
+			}),
+		]);
+		expect(report.cases[0]?.stability).toBe("failing");
+		expect(report.cases[0]?.reasons).toEqual(["Assertion failed"]);
+	});
+
+	test("a row whose failureReason is null is judged by response.error, which only a provider failure sets", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				failureReason: null,
+				error: "connection reset",
+				response: { error: "connection reset" },
+				gradingResult: {},
+			}),
+		]);
+		expect(report.cases[0]?.stability).toBe("errored");
+		expect(report.cases[0]?.errored).toBe(1);
+	});
+
+	test("a row naming a case that exists but is not selected says so", () => {
+		const report = build([row({ case: "a-01", model: "m" })], {
+			cases: [cs("a-01", "a")],
+			knownCases: [cs("a-01", "a"), cs("a-02", "a", "rejected")],
+			results: results([
+				row({ case: "a-01", model: "m" }),
+				row({ case: "a-02", model: "m" }),
+			]),
+		});
+		expect(report.unmatched).toEqual([
+			"row 1: m: a-02 (not in the current selection)",
+		]);
+	});
+
+	test("a row naming no case the files know keeps the bare wording", () => {
+		const report = build([
+			row({ case: "a-01", model: "m" }),
+			row({ case: "ghost-01", model: "m" }),
+		]);
+		expect(report.unmatched).toEqual(["row 1: m: ghost-01"]);
 	});
 
 	test("a case that passes once and fails twice is flaky, and the repeated reason is kept once", () => {

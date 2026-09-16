@@ -65,7 +65,14 @@ export async function reportCommand(
 	const scenarios = await readScenarios(ctx.forgeDir);
 	const casesByScenario = await readAllCases(ctx.forgeDir);
 	const prices = await loadPrices();
-	const selection = selectCases({ suite, scenarios, casesByScenario, paths });
+	const allCases = [...casesByScenario.values()].flat();
+	const selection = selectCases({
+		suite,
+		scenarios,
+		casesByScenario,
+		paths,
+		feature,
+	});
 	// The same selection `emit` used, so the estimate compared against is
 	// the one the person saw before paying for the run.
 	const estimate = estimateSuite({
@@ -84,7 +91,8 @@ export async function reportCommand(
 		results,
 		resultsPath,
 		scenarios,
-		cases: [...casesByScenario.values()].flat(),
+		cases: selection.cases,
+		knownCases: allCases,
 		estimate,
 		prices,
 		baseline,
@@ -97,7 +105,7 @@ export async function reportCommand(
 		"utf8",
 	);
 	ctx.stdout(
-		`report: ${report.matched} of ${report.rows} rows matched; pass rate ${(report.passRate * 100).toFixed(1)}%; ${report.flaky.length} flaky; ${report.disagreements.length} judge disagreement${report.disagreements.length === 1 ? "" : "s"}`,
+		`report: ${report.matched} of ${report.rows} rows matched; pass rate ${(report.passRate * 100).toFixed(1)}%; ${report.failing.length} failing; ${report.flaky.length} flaky; ${report.disagreements.length} judge disagreement${report.disagreements.length === 1 ? "" : "s"}`,
 	);
 	if (report.baseline)
 		ctx.stdout(
