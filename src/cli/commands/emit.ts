@@ -10,6 +10,7 @@ import {
 	readSuite,
 } from "../../core/files";
 import { selectCases } from "../../core/select";
+import { plural } from "../../core/text";
 import { renderCasesJsonl } from "../../emit/jsonl";
 import {
 	buildPromptfooConfig,
@@ -17,7 +18,6 @@ import {
 } from "../../emit/promptfoo";
 import { shimSource } from "../../emit/shim";
 import type { CliContext } from "../context";
-import { plural } from "../flags";
 import { requireApprovedFeature } from "../gates";
 
 const FORMATS = ["promptfoo", "jsonl"] as const;

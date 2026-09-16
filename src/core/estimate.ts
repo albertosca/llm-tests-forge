@@ -1,6 +1,7 @@
 import { priceFor } from "../llm/prices";
 import type { Feature, Prices, Suite } from "./schemas";
 import type { Selection } from "./select";
+import { plural } from "./text";
 
 /** Tokens promptfoo's grading prompt adds around the output and the rubric (measured ~200 on 2026-09-15). */
 export const JUDGE_PROMPT_OVERHEAD = 200;
@@ -153,9 +154,7 @@ export function estimateSuite(args: {
 
 export function renderEstimate(e: Estimate): string {
 	const out = [
-		// core has no dependency on the cli layer's plural(), so this stays a
-		// local ternary rather than importing it.
-		`estimate: ${e.cases} case${e.cases === 1 ? "" : "s"}, ${e.rubricCases} with a rubric; prices dated ${e.pricesUpdated}`,
+		`estimate: ${plural(e.cases, "case")}, ${e.rubricCases} with a rubric; prices dated ${e.pricesUpdated}`,
 	];
 	const rows = e.lines.map((l) => {
 		const marked = l.priced && l.approximate;

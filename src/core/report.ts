@@ -359,19 +359,26 @@ function costsOf(args: {
 				// A shim that reported nothing has no cost, not a cost of
 				// zero: pricing its silence would print a saving it did not
 				// make, and an error percent of -100% against the estimate.
-				// A provider with no row in prices.yaml is the same story:
-				// there is no rate to price it at, so it reports no cost
-				// rather than a real dollar figure computed from a 0 rate.
-				realDollars:
-					!price.priced || !targetUsageReported
-						? null
-						: reported
-							? sum(mine, (m) => m.row.cost ?? 0)
-							: (inputTokens * price.input + outputTokens * price.output) / 1e6,
+				// A reported cost needs no rate at all — it is believed as
+				// it stands, unpriced provider or not. Only the fallback to
+				// a computed figure needs a table row: a provider with no
+				// row has no basis for that computation, so it reports no
+				// cost rather than a real dollar figure computed from a 0
+				// rate.
+				realDollars: !targetUsageReported
+					? null
+					: reported
+						? sum(mine, (m) => m.row.cost ?? 0)
+						: price.priced
+							? (inputTokens * price.input + outputTokens * price.output) / 1e6
+							: null,
 				// `~` says "this dollar figure came from the closest listed
 				// model". When promptfoo reported the cost itself no table
-				// lookup happened, so marking it would be a lie.
-				approximatePrice: reported ? false : price.approximate,
+				// lookup happened, so marking it would be a lie; and a
+				// model with no row at all was never priced as anything,
+				// so `price.approximate` alone (true for both cases) would
+				// lie too.
+				approximatePrice: reported ? false : price.priced && price.approximate,
 				estimate,
 			}),
 		);
@@ -405,7 +412,7 @@ function costsOf(args: {
 				realDollars: price.priced
 					? (totals.input * price.input + totals.output * price.output) / 1e6
 					: null,
-				approximatePrice: price.approximate,
+				approximatePrice: price.priced && price.approximate,
 				estimate,
 			}),
 		);

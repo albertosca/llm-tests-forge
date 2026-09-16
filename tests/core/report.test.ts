@@ -174,11 +174,13 @@ describe("buildReport", () => {
 				inputTokens: 0,
 				outputTokens: 0,
 				// The shim reported no usage at all, so there is no real cost
-				// to print: zero would read as a free run.
+				// to print: zero would read as a free run. "target-haiku-4-5"
+				// also has no provider prefix in prices.yaml, so it was never
+				// priced as anything -- not even approximately.
 				realDollars: null,
 				estimatedDollars: null,
 				errorPercent: null,
-				approximatePrice: true,
+				approximatePrice: false,
 			},
 			{
 				model: "google/gemini-3.5-flash",
@@ -693,6 +695,33 @@ describe("buildReport", () => {
 		const judge = report.costs.find((c) => c.role === "judge");
 		expect(judge?.model).toBe("ollama/llama3");
 		expect(judge?.realDollars).toBeNull();
+		expect(judge?.approximatePrice).toBe(false);
+	});
+
+	test("an unpriced target that reports its own cost is believed, needing no rate", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "ollama/llama3",
+				cost: 0.0055,
+				tokenUsage: { prompt: 400, completion: 80, total: 480 },
+			}),
+		]);
+		expect(report.costs[0]?.realDollars).toBe(0.0055);
+		expect(report.costs[0]?.approximatePrice).toBe(false);
+	});
+
+	test("an unpriced target with tokens but no cost has no real dollar figure to compute", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "ollama/llama3",
+				cost: 0,
+				tokenUsage: { prompt: 400, completion: 80, total: 480 },
+			}),
+		]);
+		expect(report.costs[0]?.realDollars).toBeNull();
+		expect(report.costs[0]?.approximatePrice).toBe(false);
 	});
 
 	test("a target that reports cost uses it; tokens are summed either way", () => {
