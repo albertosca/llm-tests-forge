@@ -207,40 +207,6 @@ describe("generateCases", () => {
 		expect((err as ForgeError).details.rawPath).toBeDefined();
 	});
 
-	test("drops a case whose input keys don't match the feature's inputs, keeps the rest, when a provider ignores the schema it was given", async () => {
-		// A real provider can no longer reach `cases.ts`'s own "input keys
-		// must match" drop rule -- `generateObject`'s schema validation
-		// rejects a mismatched key before the candidate array is ever built
-		// (see the test above). The rule is still real code, kept as a
-		// second line of defence, so it is exercised here through a
-		// hand-written `Llm` double that returns an already-parsed object
-		// directly, bypassing `generateObject`/zod entirely -- the one way
-		// left to reach it.
-		const spy: Llm = {
-			async generate<T>() {
-				return {
-					object: {
-						cases: [
-							{ input: { mail: "x" }, expected: { label: "rejection" } },
-							{ input: { email: "y" }, expected: { label: "rejection" } },
-						],
-					} as T,
-					usage: { inputTokens: 0, outputTokens: 0 },
-				};
-			},
-		};
-		const out = await generateCases({
-			feature: await feature(),
-			scenario,
-			existing: [],
-			n: 2,
-			model: "anthropic/x",
-			llm: spy,
-		});
-		expect(out).toHaveLength(1);
-		expect(out[0]?.input).toEqual({ email: "y" });
-	});
-
 	test("throws when every generated case is invalid", async () => {
 		const { llm, model } = await llmFor("all-bad");
 		const err = await generateCases({

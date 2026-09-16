@@ -31,9 +31,11 @@ function expectedSchemaFor(oracle: Oracle) {
  * rubric" `.refine()` -- a rule zod never turns into JSON Schema, so a
  * real model either omitted `expected` or filled all three branches.
  * `expectedMatchesOracle` still does the oracle check on the accepted
- * shape (e.g. a label outside `feature.output.labels`), and the input-keys
- * check below stays as a second line of defence for a provider that
- * ignores the schema it was given.
+ * shape (e.g. a label outside `feature.output.labels`). The input keys
+ * are not re-checked below: this schema's `z.object` already requires
+ * exactly the feature's own input names, so `generateObject`'s own zod
+ * validation rejects a mismatched or missing key before `generateCases`
+ * ever sees a candidate -- a second check here could never fire.
  */
 export function casesOutputSchema(feature: Feature, scenario: Scenario) {
 	const input = z.object(
@@ -121,16 +123,6 @@ export async function generateCases(args: GenerateCasesArgs): Promise<Case[]> {
 	const accepted: Case[] = [...args.existing];
 	const reasons: string[] = [];
 	for (const candidate of object.cases) {
-		const keys = Object.keys(candidate.input).sort();
-		if (
-			keys.length !== inputNames.length ||
-			!keys.every((k) => inputNames.includes(k))
-		) {
-			reasons.push(
-				`input keys [${keys.join(", ")}] do not match feature inputs [${inputNames.join(", ")}]`,
-			);
-			continue;
-		}
 		const problem = expectedMatchesOracle(
 			candidate.expected,
 			args.scenario.oracle,
