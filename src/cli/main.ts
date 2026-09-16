@@ -17,7 +17,7 @@ export const USAGE = `usage: forge <verb> [options]
   cases [--n 5] [--scenario id] [--model m]           approved scenarios -> .forge/cases/<id>.yaml
   dedupe [--scenario id] [--model m]                  mark likely duplicates (duplicate_of)
   import <file.jsonl> [--oracle label|fields|rubric]  real inputs -> .forge/cases/imported.yaml
-  review [--scenario id] [--only feature|scenarios|cases] [--all]
+  review [--scenario id] [--only feature|scenarios|cases] | review --scenario id --all
   estimate                                            suite + approved cases -> tokens and dollars per model (no call)
   emit [--format promptfoo|jsonl]                    approved cases -> .forge/promptfooconfig.yaml + forge_target.py, or cases.jsonl
   report <results.json> [--baseline report.json]      promptfoo output -> .forge/report.md + report.json

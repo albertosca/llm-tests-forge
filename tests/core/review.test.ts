@@ -210,6 +210,37 @@ describe("applyDecision", () => {
 		expect((err as ForgeError).message).toContain("kind");
 	});
 
+	test("edit refuses to change a scenario's id, which is the name of its cases file", () => {
+		let err: unknown;
+		try {
+			applyDecision(scn("s", "pending"), "edit", {
+				...scn("s", "pending"),
+				id: "renamed",
+			});
+		} catch (e) {
+			err = e;
+		}
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toBe(
+			`a scenario's id cannot be changed in review (from "s" to "renamed"): it names .forge/cases/<id>.yaml — rename the file and each case's scenario field by hand (id: s)`,
+		);
+
+		// The rule is about the id alone: every other field of a scenario is
+		// still editable, and a case may still be renamed.
+		expect(
+			applyDecision(scn("s", "pending"), "edit", {
+				...scn("s", "pending"),
+				description: "changed",
+			}).id,
+		).toBe("s");
+		expect(
+			applyDecision(cs("c", "s", "pending"), "edit", {
+				...cs("c", "s", "pending"),
+				id: "renamed",
+			}).id,
+		).toBe("renamed");
+	});
+
 	test("edit also validates an edited feature via the feature schema", () => {
 		const out = applyDecision(feature, "edit", {
 			...feature,
