@@ -121,18 +121,41 @@ function modelOf(row: PromptfooRow): string {
 	return row.provider.label ?? row.provider.id;
 }
 
+/** promptfoo 0.123.0's `failureReason` for "the provider itself errored". */
+const PROVIDER_ERROR = 2;
+
+/**
+ * `error` cannot tell an error from a failure: promptfoo writes the failing
+ * assert's reason there too, so reading it alone reports every ordinary
+ * failure as an error (measured on the committed example run: 3 failed
+ * assertions came back as 3 errors). `failureReason` is the field that
+ * separates them; a file old enough not to have it is judged by
+ * `response.error`, which only a provider failure sets.
+ */
+function providerErrored(row: PromptfooRow): boolean {
+	const failureReason = row.failureReason ?? undefined;
+	if (failureReason !== undefined) return failureReason === PROVIDER_ERROR;
+	return (row.response?.error ?? null) !== null;
+}
+
 /**
  * An error is not a failure: a row that never reached the judge says
- * nothing about the case, so its `error` is the only reason worth
- * reporting and the two are counted apart everywhere below.
+ * nothing about the case, so it is counted apart everywhere below and its
+ * `error` is the only reason worth reporting. A failure reports why the
+ * asserts said no, falling back to `error` when no component named a
+ * reason.
  */
 function outcomeOf(row: PromptfooRow): { outcome: Outcome; reasons: string[] } {
-	if (row.error) return { outcome: "errored", reasons: [row.error] };
 	if (row.success) return { outcome: "passed", reasons: [] };
+	const fallback = row.error ? [row.error] : [];
+	if (providerErrored(row)) return { outcome: "errored", reasons: fallback };
 	const reasons: string[] = [];
 	for (const c of row.gradingResult?.componentResults ?? [])
 		if (!c.pass && c.reason !== undefined) reasons.push(c.reason);
-	return { outcome: "failed", reasons };
+	return {
+		outcome: "failed",
+		reasons: reasons.length > 0 ? reasons : fallback,
+	};
 }
 
 function stabilityOf(runs: number, passed: number, errored: number): Stability {

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 import { ForgeError } from "../../src/core/errors";
 import type { Estimate } from "../../src/core/estimate";
+import { readAllCases, readScenarios } from "../../src/core/files";
 import { buildReport } from "../../src/core/report";
 import type { Case, Prices, Scenario } from "../../src/core/schemas";
 import { type PromptfooResults, readResults } from "../../src/report/results";
@@ -185,6 +186,32 @@ describe("buildReport", () => {
 		]);
 	});
 
+	test("the committed example run: 45 of 48 rows pass, three asserts fail, nothing errored", async () => {
+		const exampleForge = resolve("examples/moonlighter-classify-email/.forge");
+		const report = buildReport({
+			results: await readResults(
+				resolve("examples/moonlighter-classify-email/results.json"),
+			),
+			resultsPath: "results.json",
+			scenarios: await readScenarios(exampleForge),
+			cases: [...(await readAllCases(exampleForge)).values()].flat(),
+			estimate: null,
+			prices,
+			baseline: null,
+			now: NOW,
+		});
+		expect(report.rows).toBe(48);
+		expect(report.matched).toBe(48);
+		expect(report.passRate).toBe(0.9375);
+		const failed = report.scenarios.reduce((n, s) => n + s.failed, 0);
+		const errored = report.scenarios.reduce((n, s) => n + s.errored, 0);
+		// promptfoo itself reports 3 failed and 0 errors for this file
+		expect([failed, errored]).toEqual([3, 0]);
+		expect(report.flaky).toEqual([
+			"empty-subject-and-minimal-body-02 @ anthropic/claude-haiku-4-5",
+		]);
+	});
+
 	test("a case that passes once and fails twice is flaky, and the repeated reason is kept once", () => {
 		const failing = () =>
 			row({
@@ -226,9 +253,21 @@ describe("buildReport", () => {
 	});
 
 	test("every run erroring is errored; every run failing is failing", () => {
+		// The measured provider-error shape: promptfoo sets failureReason 2
+		// and repeats the message under `response.error`.
+		const providerError = () =>
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "boom",
+				failureReason: 2,
+				response: { error: "boom" },
+				gradingResult: {},
+			});
 		const report = build([
-			row({ case: "a-01", model: "m", success: false, error: "boom" }),
-			row({ case: "a-01", model: "m", success: false, error: "boom" }),
+			providerError(),
+			providerError(),
 			row({ case: "a-02", model: "m", success: false }),
 			row({ case: "a-02", model: "m", success: false }),
 		]);
@@ -239,6 +278,81 @@ describe("buildReport", () => {
 		expect(report.cases[0]?.errored).toBe(2);
 		expect(report.passRate).toBe(0);
 		expect(report.flaky).toEqual([]);
+	});
+
+	test("a failed assert is a failure, not an error, even though promptfoo puts its reason in error", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				failureReason: 1,
+				error: "the rubric requires both fields to be null",
+				gradingResult: {
+					pass: false,
+					componentResults: [
+						{
+							pass: false,
+							reason: "the rubric requires both fields to be null",
+							assertion: { type: "llm-rubric" },
+						},
+					],
+				},
+			}),
+		]);
+		expect(report.cases[0]?.failed).toBe(1);
+		expect(report.cases[0]?.errored).toBe(0);
+		expect(report.cases[0]?.stability).toBe("failing");
+		expect(report.cases[0]?.reasons).toEqual([
+			"the rubric requires both fields to be null",
+		]);
+	});
+
+	test("a provider that errored is an error, and its message is the reason", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				failureReason: 2,
+				error: "boom",
+				response: { error: "boom" },
+				gradingResult: {},
+			}),
+		]);
+		expect(report.cases[0]?.errored).toBe(1);
+		expect(report.cases[0]?.failed).toBe(0);
+		expect(report.cases[0]?.stability).toBe("errored");
+		expect(report.cases[0]?.reasons).toEqual(["boom"]);
+	});
+
+	test("a file with no failureReason falls back to response.error to tell the two apart", () => {
+		const errored = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "Error: No candidates returned",
+				response: { error: "Error: No candidates returned" },
+				gradingResult: {},
+			}),
+		]);
+		expect(errored.cases[0]?.stability).toBe("errored");
+		expect(errored.cases[0]?.errored).toBe(1);
+
+		const failed = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "output did not match",
+				gradingResult: { pass: false, componentResults: [] },
+			}),
+		]);
+		expect(failed.cases[0]?.stability).toBe("failing");
+		expect(failed.cases[0]?.failed).toBe(1);
+		// no component named a reason, so the row's own error stands in
+		expect(failed.cases[0]?.reasons).toEqual(["output did not match"]);
 	});
 
 	test("a provider with no label is named by its id", () => {

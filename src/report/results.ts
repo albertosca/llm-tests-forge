@@ -29,6 +29,19 @@ export const PromptfooResultsSchema = z.object({
 					})
 					.partial()
 					.nullish(),
+				/**
+				 * promptfoo 0.123.0's reason code: 0 passed, 1 an assert
+				 * failed, 2 the provider itself errored. It is the only
+				 * field that tells the two apart, because `error` carries
+				 * the failing assert's reason in case 1 and the provider's
+				 * message in case 2.
+				 */
+				failureReason: z.number().nullish(),
+				/** Set only when the provider itself failed; `unknown` because promptfoo puts strings and objects here. */
+				response: z
+					.object({ error: z.unknown().nullish() })
+					.partial()
+					.nullish(),
 				provider: z.object({ id: z.string(), label: z.string().nullish() }),
 				metadata: z.record(z.string(), z.unknown()).nullish(),
 				gradingResult: z
