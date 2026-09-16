@@ -5,21 +5,46 @@ import { loadTemplate, render } from "../llm/templates";
 import { ForgeError } from "./errors";
 import { nextCaseId } from "./ids";
 import { expectedMatchesOracle } from "./oracle";
-import {
-	type Case,
-	ExpectedSchema,
-	type Feature,
-	type Scenario,
-} from "./schemas";
+import type { Case, Feature, Oracle, Scenario } from "./schemas";
 
-export const CasesOutputSchema = z.object({
-	cases: z.array(
-		z.object({
-			input: z.record(z.string(), z.string()),
-			expected: ExpectedSchema,
-		}),
-	),
-});
+function expectedSchemaFor(oracle: Oracle) {
+	switch (oracle) {
+		case "label":
+			return z.object({ label: z.string() });
+		case "fields":
+			return z.object({ fields: z.record(z.string(), z.unknown()) });
+		case "rubric":
+			return z.object({ rubric: z.string() });
+	}
+}
+
+/**
+ * The schema `generate` validates the model's `cases` response against,
+ * built per call from the feature and the scenario it is for -- rather
+ * than a single module-level schema, the way `ExpectedSchema` shape and
+ * `feature.inputs` both vary per call. `input` requires exactly the
+ * feature's own input names as a real JSON Schema object with
+ * `properties`/`required`; a bare `z.record` reaches a real model as an
+ * object with no properties to fill, and every provider answered `{}`.
+ * `expected` is the one shape the scenario's oracle demands, not the
+ * human-facing `ExpectedSchema` with its "exactly one of label/fields/
+ * rubric" `.refine()` -- a rule zod never turns into JSON Schema, so a
+ * real model either omitted `expected` or filled all three branches.
+ * `expectedMatchesOracle` still does the oracle check on the accepted
+ * shape (e.g. a label outside `feature.output.labels`), and the input-keys
+ * check below stays as a second line of defence for a provider that
+ * ignores the schema it was given.
+ */
+export function casesOutputSchema(feature: Feature, scenario: Scenario) {
+	const input = z.object(
+		Object.fromEntries(feature.inputs.map((i) => [i.name, z.string()])),
+	);
+	return z.object({
+		cases: z.array(
+			z.object({ input, expected: expectedSchemaFor(scenario.oracle) }),
+		),
+	});
+}
 
 export interface GenerateCasesArgs {
 	feature: Feature;
@@ -87,7 +112,7 @@ export async function generateCases(args: GenerateCasesArgs): Promise<Case[]> {
 				: "(none)",
 	});
 	const { object } = await args.llm.generate({
-		schema: CasesOutputSchema,
+		schema: casesOutputSchema(args.feature, args.scenario),
 		prompt,
 		model: args.model,
 		verb: "cases",

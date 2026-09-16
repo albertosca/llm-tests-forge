@@ -24,7 +24,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createContext } from "../../src/cli/context";
 import { run } from "../../src/cli/main";
-import { readFeature, readScenarios, writeFeature } from "../../src/core/files";
+import {
+	readCases,
+	readFeature,
+	readScenarios,
+	writeFeature,
+	writeScenarios,
+} from "../../src/core/files";
+import { expectedMatchesOracle } from "../../src/core/oracle";
 import { DEFAULT_RETRY_CONFIG, retryTransient } from "./retry";
 
 const live = process.env.FORGE_LIVE === "1";
@@ -81,7 +88,47 @@ describe.skipIf(!live)(
 			);
 			const scenarios = await readScenarios(join(cwd, ".forge"));
 			expect(new Set(scenarios.map((s) => s.kind)).size).toBe(6);
+
+			const target = scenarios[0];
+			if (!target)
+				throw new Error("expected `forge scenarios` to write at least one");
+			await writeScenarios(join(cwd, ".forge"), [
+				{ ...target, status: "approved" },
+				...scenarios.slice(1),
+			]);
+
+			await retryTransient(
+				"`forge cases`",
+				async () => ({
+					code: await run(["cases", "--scenario", target.id, "--n", "2"], ctx),
+					message: out.at(-1) ?? "(no output)",
+				}),
+				DEFAULT_RETRY_CONFIG,
+			);
+			const cases = await readCases(join(cwd, ".forge"), target.id);
+			if (cases.length === 0)
+				throw new Error("expected `forge cases` to write at least one case");
+			for (const c of cases) {
+				for (const inputDef of feature.inputs) {
+					const value = c.input[inputDef.name];
+					if (typeof value !== "string" || value.length === 0)
+						throw new Error(
+							`case ${c.id} input.${inputDef.name} must be a non-empty string, got ${JSON.stringify(value)}`,
+						);
+				}
+				if (!c.expected) throw new Error(`case ${c.id} has no expected value`);
+				const problem = expectedMatchesOracle(
+					c.expected,
+					target.oracle,
+					feature,
+				);
+				if (problem) throw new Error(`case ${c.id}: ${problem}`);
+			}
+
 			console.log(out.join("\n"));
+			console.log(
+				`cases: generated ${cases.length} case(s) for scenario "${target.id}": ${cases.map((c) => c.id).join(", ")}`,
+			);
 		}, 300_000);
 	},
 );
