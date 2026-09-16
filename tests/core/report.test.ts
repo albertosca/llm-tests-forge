@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { ForgeError } from "../../src/core/errors";
 import type { Estimate } from "../../src/core/estimate";
 import { readAllCases, readScenarios } from "../../src/core/files";
-import { buildReport } from "../../src/core/report";
+import { buildReport, ReportSchema } from "../../src/core/report";
 import type { Case, Prices, Scenario } from "../../src/core/schemas";
 import { type PromptfooResults, readResults } from "../../src/report/results";
 
@@ -163,7 +163,7 @@ describe("buildReport", () => {
 			},
 		]);
 		expect(report.coverage).toEqual({
-			approvedScenarios: 2,
+			reviewedScenarios: 2,
 			withRuns: 2,
 			withoutCase: [],
 		});
@@ -326,7 +326,7 @@ describe("buildReport", () => {
 			]),
 		});
 		expect(report.unmatched).toEqual([
-			"row 1: m: a-02 (not in the current selection)",
+			"row 1 (testIdx 1): m: a-02 (not in the current selection)",
 		]);
 	});
 
@@ -335,7 +335,7 @@ describe("buildReport", () => {
 			row({ case: "a-01", model: "m" }),
 			row({ case: "ghost-01", model: "m" }),
 		]);
-		expect(report.unmatched).toEqual(["row 1: m: ghost-01"]);
+		expect(report.unmatched).toEqual(["row 1 (testIdx 1): m: ghost-01"]);
 	});
 
 	test("a case that passes once and fails twice is flaky, and the repeated reason is kept once", () => {
@@ -481,6 +481,18 @@ describe("buildReport", () => {
 		expect(failed.cases[0]?.reasons).toEqual(["output did not match"]);
 	});
 
+	test("an unlabelled provider this forge wrote is named the forge's way", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "unused",
+				provider: { id: "anthropic:messages:claude-haiku-4-5" },
+			}),
+		]);
+		expect(report.cases[0]?.model).toBe("anthropic/claude-haiku-4-5");
+		expect(report.costs[0]?.model).toBe("anthropic/claude-haiku-4-5");
+	});
+
 	test("a provider with no label is named by its id", () => {
 		const report = build([
 			row({
@@ -519,8 +531,8 @@ describe("buildReport", () => {
 			row({ case: "ignored", model: "m", metadata: undefined }),
 		]);
 		expect(report.unmatched).toEqual([
-			"row 1: m: ghost-01",
-			"row 2: m: no metadata.case",
+			"row 1 (testIdx 1): m: ghost-01",
+			"row 2 (testIdx 2): m: no metadata.case",
 		]);
 		expect(report.rows).toBe(3);
 		expect(report.matched).toBe(1);
@@ -567,7 +579,7 @@ describe("buildReport", () => {
 			},
 		]);
 		expect(report.coverage).toEqual({
-			approvedScenarios: 2,
+			reviewedScenarios: 2,
 			withRuns: 1,
 			withoutCase: ["r"],
 		});
@@ -600,7 +612,7 @@ describe("buildReport", () => {
 			},
 		]);
 		expect(report.coverage).toEqual({
-			approvedScenarios: 2,
+			reviewedScenarios: 2,
 			withRuns: 2,
 			withoutCase: [],
 		});
@@ -645,6 +657,7 @@ describe("buildReport", () => {
 			{
 				case: "r-01",
 				model: "m",
+				occurrences: 1,
 				judges: [
 					{ judge: "google/gemini-3.5-flash", pass: true, reason: "ok" },
 					{ judge: "anthropic/claude-sonnet-5", pass: false, reason: "no" },
@@ -672,6 +685,7 @@ describe("buildReport", () => {
 			{
 				case: "r-01",
 				model: "m",
+				occurrences: 1,
 				judges: [
 					{ judge: "bedrock:anthropic.claude", pass: true, reason: "" },
 					{ judge: "unknown judge", pass: false, reason: "no" },
@@ -907,5 +921,146 @@ describe("buildReport", () => {
 			},
 		});
 		expect(empty.promptfooVersion).toBeNull();
+	});
+	test("a baseline written before `failing` existed parses with an empty list", () => {
+		const { failing, ...withoutFailing } = build([
+			row({ case: "a-01", model: "m", success: false }),
+		]);
+		expect(failing).toEqual(["a-01 @ m"]);
+		expect(ReportSchema.parse(withoutFailing).failing).toEqual([]);
+	});
+	test("two unmatched rows carrying the same testIdx are told apart by position", () => {
+		// promptfoo repeats testIdx across repeats, so the index alone names
+		// two different rows the same way.
+		const report = build([], {
+			results: {
+				results: {
+					results: [
+						{ ...row({ case: "a-01", model: "m" }), testIdx: 7 },
+						{ ...row({ case: "ghost-01", model: "m" }), testIdx: 7 },
+						{ ...row({ case: "ghost-01", model: "m" }), testIdx: 7 },
+					],
+				},
+				metadata: { promptfooVersion: "0.123.0" },
+			},
+		});
+		expect(report.unmatched).toEqual([
+			"row 1 (testIdx 7): m: ghost-01",
+			"row 2 (testIdx 7): m: ghost-01",
+		]);
+	});
+	test("zero matched rows names the first metadata.case the file did carry", () => {
+		let caught: unknown;
+		try {
+			build([
+				row({ case: "ghost-01", model: "m" }),
+				row({ case: "ghost-02", model: "m" }),
+			]);
+		} catch (e) {
+			caught = e;
+		}
+		expect((caught as ForgeError).message).toBe(
+			'no result matches a case in .forge/cases (first metadata.case seen: "ghost-01", 2 rows); was this results.json produced from a config forge emitted? (file: r.json)',
+		);
+	});
+
+	test("zero matched rows with no metadata.case anywhere says none rather than quoting an id", () => {
+		let caught: unknown;
+		try {
+			build([
+				row({ case: "x", model: "m", metadata: undefined }),
+				row({ case: "y", model: "m", metadata: {} }),
+			]);
+		} catch (e) {
+			caught = e;
+		}
+		expect((caught as ForgeError).message).toBe(
+			"no result matches a case in .forge/cases (first metadata.case seen: none, 2 rows); was this results.json produced from a config forge emitted? (file: r.json)",
+		);
+	});
+	test("a case that passes one run and errors another is partly-errored, not flaky", () => {
+		const report = build([
+			row({ case: "a-01", model: "m" }),
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "overloaded",
+				failureReason: 2,
+				response: { error: "overloaded" },
+				gradingResult: {},
+			}),
+		]);
+		expect(report.cases[0]?.stability).toBe("partly-errored");
+		expect(report.failing).toEqual(["a-01 @ m"]);
+		expect(report.flaky).toEqual([]);
+	});
+
+	test("a case that also failed an assert stays flaky even with an error among its runs", () => {
+		const report = build([
+			row({ case: "a-01", model: "m" }),
+			row({ case: "a-01", model: "m", success: false }),
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "overloaded",
+				failureReason: 2,
+				response: { error: "overloaded" },
+				gradingResult: {},
+			}),
+		]);
+		expect(report.cases[0]?.stability).toBe("flaky");
+		expect(report.flaky).toEqual(["a-01 @ m"]);
+		expect(report.failing).toEqual([]);
+	});
+
+	test("a case that only fails and errors, never passing, is failing", () => {
+		const report = build([
+			row({ case: "a-01", model: "m", success: false }),
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "overloaded",
+				failureReason: 2,
+				response: { error: "overloaded" },
+				gradingResult: {},
+			}),
+		]);
+		expect(report.cases[0]?.stability).toBe("failing");
+		expect(report.failing).toEqual(["a-01 @ m"]);
+	});
+	test("a case that disagrees on every repeat is one entry counting the repeats", () => {
+		const disagreeing = (first: string, second: string) =>
+			row({
+				case: "r-01",
+				model: "m",
+				success: false,
+				gradingResult: {
+					pass: false,
+					componentResults: [
+						rubric(true, first, "google:gemini-3.5-flash"),
+						rubric(false, second, "anthropic:messages:claude-sonnet-5"),
+					],
+				},
+			});
+		const report = build([
+			disagreeing("ok", "no"),
+			disagreeing("still ok", "still no"),
+		]);
+		// The verdicts kept are the first disagreeing run's; the second run's
+		// wording is counted, not stored.
+		expect(report.disagreements).toEqual([
+			{
+				case: "r-01",
+				model: "m",
+				occurrences: 2,
+				judges: [
+					{ judge: "google/gemini-3.5-flash", pass: true, reason: "ok" },
+					{ judge: "anthropic/claude-sonnet-5", pass: false, reason: "no" },
+				],
+			},
+		]);
 	});
 });

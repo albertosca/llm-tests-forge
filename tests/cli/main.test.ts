@@ -1961,9 +1961,9 @@ describe("report", () => {
 		expect(json.promptfooVersion).toBe("0.123.0");
 		const md = await readFile(join(forgeDir, "report.md"), "utf8");
 		expect(md).toContain("**Pass rate:** 100.0% (4 of 4 runs, 0 errored)");
-		expect(md).toContain("No failing case.");
+		expect(md).toContain("No failing or errored case.");
 		expect(out).toContain(
-			"report: 4 of 4 rows matched; pass rate 100.0%; 0 failing; 0 flaky; 0 judge disagreements",
+			"report: 4 of 4 rows matched; pass rate 100.0%; 0 failing or errored; 0 flaky; 0 judge disagreements",
 		);
 		expect(out).toContain(
 			`report: wrote ${join(forgeDir, "report.md")} and ${join(forgeDir, "report.json")}`,
@@ -2038,14 +2038,14 @@ describe("report", () => {
 		);
 		expect(json.matched).toBe(2);
 		expect(json.unmatched).toEqual([
-			"row 2: target-haiku-4-5: out-of-scope-newsletter-02 (not in the current selection)",
-			"row 3: target-haiku-4-5: out-of-scope-newsletter-02 (not in the current selection)",
+			"row 2 (testIdx 2): target-haiku-4-5: out-of-scope-newsletter-02 (not in the current selection)",
+			"row 3 (testIdx 3): target-haiku-4-5: out-of-scope-newsletter-02 (not in the current selection)",
 		]);
 		expect(json.cases.map((c: { case: string }) => c.case)).toEqual([
 			"ack-optional-quiz-01",
 		]);
 		expect(out).toContain(
-			"report: 2 of 4 rows matched; pass rate 100.0%; 0 failing; 0 flaky; 0 judge disagreements",
+			"report: 2 of 4 rows matched; pass rate 100.0%; 0 failing or errored; 0 flaky; 0 judge disagreements",
 		);
 	});
 
@@ -2076,6 +2076,9 @@ describe("report", () => {
 		expect(await run(["report", RESULTS], ctx)).toBe(1);
 		expect(out.at(-1)).toContain(RESULTS);
 		expect(out.at(-1)).toContain("forge emitted");
+		expect(out.at(-1)).toContain(
+			'first metadata.case seen: "ack-optional-quiz-01", 4 rows',
+		);
 		await expect(stat(join(forgeDir, "report.md"))).rejects.toThrow();
 	});
 
@@ -2134,6 +2137,26 @@ describe("report", () => {
 		const { ctx, out } = await ctxIn(cwd);
 		expect(await run(["report", RESULTS], ctx)).toBe(1);
 		expect(out.at(-1)).toContain("pending");
+	});
+
+	test("a baseline written before `failing` existed is still accepted", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeMatchingFixture(cwd);
+		const first = await ctxIn(cwd);
+		expect(await run(["report", RESULTS], first.ctx)).toBe(0);
+		const previous = join(cwd, "previous.json");
+		const baseline = JSON.parse(
+			await readFile(join(forgeDir, "report.json"), "utf8"),
+		);
+		delete baseline.failing;
+		await writeFile(previous, JSON.stringify(baseline));
+		const second = await ctxIn(cwd);
+		expect(
+			await run(["report", RESULTS, "--baseline", previous], second.ctx),
+		).toBe(0);
+		expect(second.out).toContain(
+			"report: since baseline: 0 regressions, 0 fixed",
+		);
 	});
 
 	test("report.json is readable back as its own baseline", async () => {

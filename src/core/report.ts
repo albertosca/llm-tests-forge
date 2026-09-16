@@ -6,11 +6,19 @@ import { ForgeError } from "./errors";
 import type { Estimate } from "./estimate";
 import type { Case, Prices, Scenario } from "./schemas";
 
+/**
+ * `partly-errored` is a run that passed whenever it reached a verdict and
+ * errored the rest of the time: nothing about the case was unstable, the
+ * provider was, so calling it `flaky` reports an outage as a behaviour
+ * change. A run that also failed an assert is `flaky`, because there the
+ * verdicts themselves disagreed.
+ */
 export const StabilitySchema = z.enum([
 	"stable",
 	"flaky",
 	"failing",
 	"errored",
+	"partly-errored",
 ]);
 
 export const CaseRunSchema = z.object({
@@ -34,6 +42,9 @@ export const JudgeVerdictSchema = z.object({
 export const DisagreementSchema = z.object({
 	case: z.string(),
 	model: z.string(),
+	/** How many runs of this (model, case) pair the judges split on. */
+	occurrences: z.number(),
+	/** The verdicts of the first disagreeing run; later runs are counted, not kept. */
 	judges: z.array(JudgeVerdictSchema),
 });
 
@@ -79,13 +90,19 @@ export const ReportSchema = z.object({
 	passRate: z.number(),
 	/** One per (model, case): model name order, then the order of the cases files. */
 	cases: z.array(CaseRunSchema),
-	/** `"case @ model"` for every CaseRun that never passed: stability `failing` or `errored`. */
-	failing: z.array(z.string()),
+	/**
+	 * `"case @ model"` for every CaseRun that never passed cleanly: stability
+	 * `failing`, `errored` or `partly-errored`. Defaulted so a `report.json`
+	 * written before this field existed is still readable as a `--baseline`;
+	 * the diff reads `cases`, never this list.
+	 */
+	failing: z.array(z.string()).default([]),
 	/** `"case @ model"` for every CaseRun whose stability is `flaky`. */
 	flaky: z.array(z.string()),
 	scenarios: z.array(ScenarioStatSchema),
 	coverage: z.object({
-		approvedScenarios: z.number(),
+		/** Scenarios a person passed on: `approved` and `edited` alike. */
+		reviewedScenarios: z.number(),
 		withRuns: z.number(),
 		withoutCase: z.array(z.string()),
 	}),
@@ -120,8 +137,20 @@ interface MatchedRow {
 const round = (n: number, places: number): number =>
 	Math.round(n * 10 ** places) / 10 ** places;
 
+/**
+ * The name the forge would have written, whenever it can be recovered: a
+ * provider promptfoo recorded without a label (a hand-written config, an
+ * older emit) otherwise comes back as a raw promptfoo id, which no other
+ * table in the report — the estimate, `prices.yaml` — is keyed by. An id
+ * this forge did not write keeps its raw spelling, because inventing a
+ * name for it would be worse than showing what the file says.
+ */
 function modelOf(row: PromptfooRow): string {
-	return row.provider.label ?? row.provider.id;
+	return (
+		row.provider.label ??
+		fromPromptfooProvider(row.provider.id) ??
+		row.provider.id
+	);
 }
 
 /** promptfoo 0.123.0's `failureReason` for "the provider itself errored". */
@@ -161,8 +190,15 @@ function outcomeOf(row: PromptfooRow): { outcome: Outcome; reasons: string[] } {
 	};
 }
 
-function stabilityOf(runs: number, passed: number, errored: number): Stability {
+function stabilityOf(args: {
+	runs: number;
+	passed: number;
+	failed: number;
+	errored: number;
+}): Stability {
+	const { runs, passed, failed, errored } = args;
 	if (errored === runs) return "errored";
+	if (errored > 0 && failed === 0 && passed > 0) return "partly-errored";
 	if (passed === runs) return "stable";
 	if (passed > 0) return "flaky";
 	return "failing";
@@ -206,7 +242,7 @@ function matchRows(
 	const known = new Set(knownCases.map((c) => c.id));
 	const matched: MatchedRow[] = [];
 	const unmatched: string[] = [];
-	for (const row of results.results.results) {
+	for (const [position, row] of results.results.results.entries()) {
 		const id = row.metadata?.case;
 		const kase = typeof id === "string" ? caseById.get(id) : undefined;
 		if (kase) {
@@ -216,13 +252,26 @@ function matchRows(
 		let named: string;
 		if (typeof id !== "string") named = "no metadata.case";
 		else named = known.has(id) ? `${id} (not in the current selection)` : id;
-		unmatched.push(`row ${row.testIdx}: ${modelOf(row)}: ${named}`);
+		// Position in the array, not `testIdx`: promptfoo gives every repeat
+		// of a test the same `testIdx`, so with `repeat > 1` the index names
+		// two rows identically and neither can be found in the file.
+		unmatched.push(
+			`row ${position} (testIdx ${row.testIdx}): ${modelOf(row)}: ${named}`,
+		);
 	}
-	if (matched.length === 0)
+	if (matched.length === 0) {
+		// The first id the file actually carries tells a config emitted by
+		// something else (ids from another tool, or none at all) from a typo
+		// in one case id, which read identically before.
+		const seen = results.results.results
+			.map((r) => r.metadata?.case)
+			.find((id) => typeof id === "string");
+		const observed = seen === undefined ? "none" : `"${seen}"`;
 		throw new ForgeError(
-			"no result matches a case in .forge/cases; was this results.json produced from a config forge emitted?",
+			`no result matches a case in .forge/cases (first metadata.case seen: ${observed}, ${results.results.results.length} rows); was this results.json produced from a config forge emitted?`,
 			{ file: resultsPath },
 		);
+	}
 	return { matched, unmatched };
 }
 
@@ -256,7 +305,12 @@ function caseRunsOf(matched: MatchedRow[], cases: Case[]): CaseRun[] {
 				passed,
 				failed,
 				errored,
-				stability: stabilityOf(entries.length, passed, errored),
+				stability: stabilityOf({
+					runs: entries.length,
+					passed,
+					failed,
+					errored,
+				}),
 				reasons: [...new Set(entries.flatMap((e) => e.reasons))],
 			});
 		}
@@ -283,8 +337,16 @@ function scenarioStatsOf(
 		});
 }
 
-/** One entry per matched row whose rubric judges did not all agree. */
+/**
+ * One entry per (model, case) pair whose rubric judges did not all agree,
+ * not one per row: with `repeat: 2` a case the judges always split on was
+ * counted twice in the headline, which reads as two separate disagreements
+ * to look into. The verdicts shown are the first disagreeing run's, and
+ * `occurrences` says how often the split happened; the later runs' reasons
+ * are prose saying the same thing, so they are counted rather than kept.
+ */
 function disagreementsOf(matched: MatchedRow[]): Disagreement[] {
+	const byPair = new Map<string, Disagreement>();
 	const out: Disagreement[] = [];
 	for (const m of matched) {
 		const judges = rubricComponents(m.row).map((c) => ({
@@ -294,7 +356,20 @@ function disagreementsOf(matched: MatchedRow[]): Disagreement[] {
 		}));
 		if (judges.length < 2) continue;
 		if (new Set(judges.map((j) => j.pass)).size < 2) continue;
-		out.push({ case: m.kase.id, model: m.model, judges });
+		const key = pairKey(m.model, m.kase.id);
+		const seen = byPair.get(key);
+		if (seen) {
+			seen.occurrences += 1;
+			continue;
+		}
+		const entry: Disagreement = {
+			case: m.kase.id,
+			model: m.model,
+			occurrences: 1,
+			judges,
+		};
+		byPair.set(key, entry);
+		out.push(entry);
 	}
 	return out;
 }
@@ -420,6 +495,15 @@ function costsOf(args: {
 	return costs;
 }
 
+/**
+ * A case worth looking at first: it never passed, or it only passed when
+ * the provider let it. Exported so the Markdown table and this JSON list
+ * cannot come to disagree about what "failing or errored" means.
+ */
+export function notPassingCleanly(c: CaseRun): boolean {
+	return c.stability !== "stable" && c.stability !== "flaky";
+}
+
 function baselineDiffOf(
 	caseRuns: CaseRun[],
 	baseline: Report | null,
@@ -467,7 +551,7 @@ export function buildReport(args: {
 		resultsPath,
 	);
 	const caseRuns = caseRunsOf(matched, cases);
-	const approved = scenarios.filter((s) => reviewed(s.status));
+	const reviewedScenarios = scenarios.filter((s) => reviewed(s.status));
 	const scenarioStats = scenarioStatsOf(matched, scenarios);
 	const withCase = new Set(
 		cases.filter((c) => reviewed(c.status)).map((c) => c.scenario),
@@ -490,16 +574,18 @@ export function buildReport(args: {
 		passRate: judged === 0 ? 0 : round(passed / judged, 4),
 		cases: caseRuns,
 		failing: caseRuns
-			.filter((c) => c.stability === "failing" || c.stability === "errored")
+			.filter(notPassingCleanly)
 			.map((c) => `${c.case} @ ${c.model}`),
 		flaky: caseRuns
 			.filter((c) => c.stability === "flaky")
 			.map((c) => `${c.case} @ ${c.model}`),
 		scenarios: scenarioStats,
 		coverage: {
-			approvedScenarios: approved.length,
+			reviewedScenarios: reviewedScenarios.length,
 			withRuns: scenarioStats.filter((s) => s.run > 0).length,
-			withoutCase: approved.filter((s) => !withCase.has(s.id)).map((s) => s.id),
+			withoutCase: reviewedScenarios
+				.filter((s) => !withCase.has(s.id))
+				.map((s) => s.id),
 		},
 		disagreements: disagreementsOf(matched),
 		costs: costsOf({ matched, prices, estimate, targetUsageReported }),

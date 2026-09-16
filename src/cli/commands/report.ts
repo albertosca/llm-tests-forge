@@ -105,7 +105,7 @@ export async function reportCommand(
 		"utf8",
 	);
 	ctx.stdout(
-		`report: ${report.matched} of ${report.rows} rows matched; pass rate ${(report.passRate * 100).toFixed(1)}%; ${report.failing.length} failing; ${report.flaky.length} flaky; ${report.disagreements.length} judge disagreement${report.disagreements.length === 1 ? "" : "s"}`,
+		`report: ${report.matched} of ${report.rows} rows matched; pass rate ${(report.passRate * 100).toFixed(1)}%; ${report.failing.length} failing or errored; ${report.flaky.length} flaky; ${report.disagreements.length} judge disagreement${report.disagreements.length === 1 ? "" : "s"}`,
 	);
 	if (report.baseline)
 		ctx.stdout(

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-16T01:48:20.374Z",
+  "generatedAt": "2026-09-16T12:45:50.182Z",
   "promptfooVersion": "0.123.0",
   "rows": 48,
   "matched": 48,
@@ -349,7 +349,7 @@
     }
   ],
   "coverage": {
-    "approvedScenarios": 8,
+    "reviewedScenarios": 8,
     "withRuns": 8,
     "withoutCase": []
   },
@@ -371,8 +371,8 @@
       "inputTokens": 2295,
       "outputTokens": 1042,
       "realDollars": 0.01501,
-      "estimatedDollars": 0.009168,
-      "errorPercent": 63.7,
+      "estimatedDollars": 0.014808,
+      "errorPercent": 1.4,
       "approximatePrice": false
     }
   ],

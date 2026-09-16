@@ -2,7 +2,7 @@
 
 The target is [moonlighter](https://github.com/albertosca/moonlighter), a job-application tracker. Its `classify_response` (`packages/email/moonlighter/tracking/classification.py`) takes one email a candidate received and returns a JSON object with `type`, `stage`, `new_stage`, `company`, `job_title` and `summary`, where `type` is one of seven labels. The rule this suite exists to protect is the one that is easiest to get wrong: an automated "we have received your application" is `acknowledgement`, never `screening` and never `interview` — the process has not started. `prompt.txt` in this directory is that function's prompt, copied verbatim, with the untrusted-email block and the stage list replaced by placeholders.
 
-Everything under `.forge/` here was produced by `forge` and reviewed by hand, then run against the real application. `results.json` is promptfoo's own unedited record of that run and is never regenerated; `.forge/report.*` are `forge report` read back from it, so their `generatedAt` (`2026-09-16T01:48:20.374Z`, promptfoo 0.123.0) is the clock of the last re-render, not of the run. `.forge/usage.jsonl` is deliberately **not** committed — it is gitignored repository-wide, because it logs every model call the forge itself made on one person's machine.
+Everything under `.forge/` here was produced by `forge` and reviewed by hand, then run against the real application. `results.json` is promptfoo's own unedited record of that run and is never regenerated; `.forge/report.*` are `forge report` read back from it, so their `generatedAt` (`2026-09-16T12:45:50.182Z`, promptfoo 0.123.0) is the clock of the last re-render, not of the run. `.forge/usage.jsonl` is deliberately **not** committed — it is gitignored repository-wide, because it logs every model call the forge itself made on one person's machine.
 
 ## Models used, and why Google is absent
 
@@ -76,13 +76,13 @@ The one expected value worth arguing about is `empty-subject-and-minimal-body-03
     ✓ 45 passed (93.75%)  ·  ✗ 3 failed (6.25%)  ·  0 errors (0%)  ·  Duration: 40s (concurrency: 2)
 
     $ bun ../../src/cli/bin.ts report results.json
-    report: 48 of 48 rows matched; pass rate 93.8%; 1 failing; 1 flaky; 0 judge disagreements
+    report: 48 of 48 rows matched; pass rate 93.8%; 1 failing or errored; 1 flaky; 0 judge disagreements
 
 which renders as:
 
-    **Pass rate:** 93.8% (45 of 48 runs, 0 errored) · **failing:** 1 · **flaky:** 1 · **judge disagreements:** 0
+    **Pass rate:** 93.8% (45 of 48 runs, 0 errored) · **failing or errored:** 1 · **flaky:** 1 · **judge disagreements:** 0
 
-Every scenario ran 6 times (3 cases × `repeat: 2`). Seven of the eight passed 6 times; `empty-subject-and-minimal-body` comes out 3 passed, 3 failed, 0 errored, and those three failures are described below. `report.md` names both halves of that: `empty-subject-and-minimal-body-03`, which never passed, under **Failing cases**, and `-02`, which passed one repeat of two, under **Flaky cases**. The judge cost came in at $0.015010 against an estimate of $0.009168 — 63.7% high, because a rejecting `llm-rubric` writes a long explanation and the estimate assumes a short one. The target line has no dollar figure at all: the shim reports zero tokens (see below), so both the real and the error cells read `—` rather than the $0.000000 and -100.0% that pricing silence would produce.
+Every scenario ran 6 times (3 cases × `repeat: 2`). Seven of the eight passed 6 times; `empty-subject-and-minimal-body` comes out 3 passed, 3 failed, 0 errored, and those three failures are described below. `report.md` names both halves of that: `empty-subject-and-minimal-body-03`, which never passed, under **Failing or errored cases**, and `-02`, which passed one repeat of two, under **Flaky cases**. The judge cost came in at $0.015010 against an estimate of $0.009168 — 63.7% high, because a rejecting `llm-rubric` writes a long explanation and the estimate assumes a short one. The target line has no dollar figure at all: the shim reports zero tokens (see below), so both the real and the error cells read `—` rather than the $0.000000 and -100.0% that pricing silence would produce.
 
 Two kinds of noise on stderr are expected and are not failures: promptfoo 0.123.0 prints `ExperimentalWarning: DecompressInterceptor`, and the Python worker prints an `asyncio` traceback ending in `RuntimeError: Event loop is closed` when it tears down moonlighter's HTTP client after the loop has closed. All 48 rows still carry a result.
 
