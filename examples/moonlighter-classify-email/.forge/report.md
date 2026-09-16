@@ -1,6 +1,12 @@
-# forge report — 2026-09-16T01:19:39.298Z
+# forge report — 2026-09-16T01:48:20.374Z
 
-**Pass rate:** 93.8% (45 of 48 runs) · **flaky:** 1 · **judge disagreements:** 0
+**Pass rate:** 93.8% (45 of 48 runs, 0 errored) · **failing:** 1 · **flaky:** 1 · **judge disagreements:** 0
+
+## Failing cases
+
+| case | model | runs | passed | failed | errored | reasons |
+| --- | --- | --- | --- | --- | --- | --- |
+| empty-subject-and-minimal-body-03 | anthropic/claude-haiku-4-5 | 2 | 0 | 2 | 0 | The rubric requires both job_title and company to be null/empty when no identifying details are present. While job_title is null, company is set to 'Harbor Oak Recruiting' rather than null or empty, so the output does not fully satisfy the rubric.; The rubric requires both job_title and company to be null/empty when the email provides no identifying details. While job_title is null, company is set to 'Harbor Oak Recruiting', which is not null or empty. This violates the rubric's requirement. |
 
 ## Flaky cases
 
@@ -31,7 +37,7 @@ Coverage: 8 of 8 approved scenarios ran.
 
 | model | role | input | output | real | estimated | error |
 | --- | --- | --- | --- | --- | --- | --- |
-| anthropic/claude-haiku-4-5 | target | 0 | 0 | $0.000000 | $0.051836 | -100.0% |
+| anthropic/claude-haiku-4-5 | target | 0 | 0 | — | $0.051836 | — |
 | anthropic/claude-sonnet-5 | judge | 2295 | 1042 | $0.015010 | $0.009168 | +63.7% |
 
-Target usage: not reported by the shim: target rows show 0 tokens; return tokenUsage from forge_target.py to fill this table
+Target usage: not reported by the shim — target rows show 0 tokens; return tokenUsage from forge_target.py to fill this table

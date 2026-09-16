@@ -2,7 +2,7 @@
 
 The target is [moonlighter](https://github.com/albertosca/moonlighter), a job-application tracker. Its `classify_response` (`packages/email/moonlighter/tracking/classification.py`) takes one email a candidate received and returns a JSON object with `type`, `stage`, `new_stage`, `company`, `job_title` and `summary`, where `type` is one of seven labels. The rule this suite exists to protect is the one that is easiest to get wrong: an automated "we have received your application" is `acknowledgement`, never `screening` and never `interview` — the process has not started. `prompt.txt` in this directory is that function's prompt, copied verbatim, with the untrusted-email block and the stage list replaced by placeholders.
 
-Everything under `.forge/` here was produced by `forge` and reviewed by hand, then run against the real application. `results.json` and `.forge/report.*` are the output of that run, dated in `report.json` (`generatedAt: 2026-09-16T01:19:39.298Z`, promptfoo 0.123.0) — they are a record of one run on one day, not something regenerated on every commit.
+Everything under `.forge/` here was produced by `forge` and reviewed by hand, then run against the real application. `results.json` is promptfoo's own unedited record of that run and is never regenerated; `.forge/report.*` are `forge report` read back from it, so their `generatedAt` (`2026-09-16T01:48:20.374Z`, promptfoo 0.123.0) is the clock of the last re-render, not of the run. `.forge/usage.jsonl` is deliberately **not** committed — it is gitignored repository-wide, because it logs every model call the forge itself made on one person's machine.
 
 ## Models used, and why Google is absent
 
@@ -55,7 +55,7 @@ Five were rejected:
 
 One was **edited**: `formal-job-offer-letter` came back with `oracle: fields`. Rejecting it would have dropped the `offer` label from the suite entirely, so it was edited to `oracle: label` through `forge review`'s `edit` path instead — which is why its status on disk is `edited`, not `approved`.
 
-**The cases.** 3 per scenario, 24 in all, every one read before it was approved. **None was rejected and none was edited**: the expected label was right in all 24, including the three the scenario set out to make hard — the receipt that also asks for a 15-minute skills assessment (`screening`, because a human is asking the candidate to do something), and the two prompt-injection cases whose bodies order the classifier to answer `offer` and `interview` (`acknowledgement` and `rejection`, ignoring the injected instruction).
+**The cases.** 3 per scenario, 24 in all, every one read before it was approved. **None was rejected and none was edited**: the expected label was right in all 24, including the three the scenario set out to make hard — the receipt that also asks for a 15-minute skills assessment (`screening`, because a human is asking the candidate to do something), and the three prompt-injection cases whose bodies order the classifier to answer `offer`, `interview` and `unrelated` (the right answers are `acknowledgement`, `rejection` and `screening`, each ignoring the injected instruction).
 
 `forge dedupe` flagged 12 of the 24 with `duplicate_of`. All 12 were **kept**. Three cases drawn from one scenario are near-duplicates by construction — that is what a scenario is — and `dedupe` flags without removing, on purpose. The flagged inputs differ in company, role, channel and wording, so each is still a distinct test; the flag is a prompt to look, and looking is what happened.
 
@@ -76,9 +76,13 @@ The one expected value worth arguing about is `empty-subject-and-minimal-body-03
     ✓ 45 passed (93.75%)  ·  ✗ 3 failed (6.25%)  ·  0 errors (0%)  ·  Duration: 40s (concurrency: 2)
 
     $ bun ../../src/cli/bin.ts report results.json
-    report: 48 of 48 rows matched; pass rate 93.8%; 1 flaky; 0 judge disagreements
+    report: 48 of 48 rows matched; pass rate 93.8%; 1 failing; 1 flaky; 0 judge disagreements
 
-Every scenario ran 6 times (3 cases × `repeat: 2`). Seven of the eight passed 6 times; `empty-subject-and-minimal-body` comes out 3 passed, 3 failed, 0 errored, and those three failures are described below. The judge cost came in at $0.015010 against an estimate of $0.009168 — 64% high, because a failing `llm-rubric` writes a long explanation and the estimate assumes a short one. The target line reads $0.000000 against $0.051836, which is not a saving: the shim reports zero tokens (see below), so `report.md` says so in as many words rather than printing a number it does not have.
+which renders as:
+
+    **Pass rate:** 93.8% (45 of 48 runs, 0 errored) · **failing:** 1 · **flaky:** 1 · **judge disagreements:** 0
+
+Every scenario ran 6 times (3 cases × `repeat: 2`). Seven of the eight passed 6 times; `empty-subject-and-minimal-body` comes out 3 passed, 3 failed, 0 errored, and those three failures are described below. `report.md` names both halves of that: `empty-subject-and-minimal-body-03`, which never passed, under **Failing cases**, and `-02`, which passed one repeat of two, under **Flaky cases**. The judge cost came in at $0.015010 against an estimate of $0.009168 — 63.7% high, because a rejecting `llm-rubric` writes a long explanation and the estimate assumes a short one. The target line has no dollar figure at all: the shim reports zero tokens (see below), so both the real and the error cells read `—` rather than the $0.000000 and -100.0% that pricing silence would produce.
 
 Two kinds of noise on stderr are expected and are not failures: promptfoo 0.123.0 prints `ExperimentalWarning: DecompressInterceptor`, and the Python worker prints an `asyncio` traceback ending in `RuntimeError: Event loop is closed` when it tears down moonlighter's HTTP client after the loop has closed. All 48 rows still carry a result.
 

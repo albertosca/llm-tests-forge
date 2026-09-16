@@ -6,8 +6,9 @@ promptfoo calls `call_api` once per test case and per target model. `context["va
 holds the case's inputs; `options["config"]["model"]` is the model this provider
 entry was emitted for. Return {"output": <string>} — the asserts in
 promptfooconfig.yaml parse it — or {"error": <string>} when the application
-failed. If you can, also return "tokenUsage" and "cost" (see below): promptfoo
-keeps them on each result, and `forge report` compares them with the estimate.
+failed. If you can, also return "tokenUsage": promptfoo keeps it on each result,
+and `forge report` prices those tokens from prices.yaml and compares the bill
+with the estimate.
 
 Fill in `run_application`. Everything else can stay as it is. This file is
 written once and never overwritten by `forge emit`.
