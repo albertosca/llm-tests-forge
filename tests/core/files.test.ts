@@ -231,6 +231,32 @@ describe("readYamlFile: array schema errors name the element, not just the path"
 		);
 		expect((err as Error).message).toContain(forgePaths(dir).scenarios);
 	});
+	test("an issue on an array item with no string id keeps the plain index.field form", async () => {
+		const dir = await tmpForge();
+		await mkdir(dir, { recursive: true });
+		await writeFile(
+			forgePaths(dir).scenarios,
+			`- id: first-id
+  kind: happy
+  oracle: label
+  description: a
+  status: pending
+- id: second-id
+  kind: happy
+  oracle: label
+  description: b
+  status: pending
+- kind: happy
+  oracle: bogus
+  description: c
+  status: pending
+`,
+		);
+		const err = await readScenarios(dir).catch((e: Error) => e);
+		expect((err as Error).message).toContain("2.oracle: Invalid option");
+		expect((err as Error).message).not.toContain('item "');
+		expect((err as Error).message).toContain(forgePaths(dir).scenarios);
+	});
 	test("a schema error on a non-array file keeps the plain 'field: message' form", async () => {
 		const dir = await tmpForge();
 		await writeFeature(dir, {
