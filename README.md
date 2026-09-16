@@ -84,7 +84,7 @@ Promptfoo runs the suite; the forge does not run it for you and does not need pr
 
     forge report results.json [--baseline .forge/report.json]
 
-Reads promptfoo's output into `.forge/report.md` and `.forge/report.json`: pass rate, a per-scenario table, which approved scenarios never ran, cases that passed on one repeat and failed on another, judges that disagreed (with both reasons), and real cost against the estimate. With `--baseline`, an earlier `report.json` is compared and regressions are listed first.
+Reads promptfoo's output into `.forge/report.md` and `.forge/report.json`: pass rate, a per-scenario table, which reviewed scenarios never ran, cases that passed on one repeat and failed on another, judges that disagreed (with both reasons), and real cost against the estimate. With `--baseline`, an earlier `report.json` is compared and regressions are listed first.
 
 ### What to commit under `.forge/`
 

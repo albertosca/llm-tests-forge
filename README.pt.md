@@ -84,7 +84,7 @@ O promptfoo roda a suíte; a forja não roda por você e não precisa do promptf
 
     forge report results.json [--baseline .forge/report.json]
 
-Lê a saída do promptfoo para `.forge/report.md` e `.forge/report.json`: taxa de acerto, tabela por cenário, quais cenários aprovados não chegaram a rodar, casos que passaram em uma repetição e falharam em outra, juízes que discordaram (com as duas justificativas) e custo real contra o estimado. Com `--baseline`, um `report.json` anterior é comparado e as regressões vêm primeiro.
+Lê a saída do promptfoo para `.forge/report.md` e `.forge/report.json`: taxa de acerto, tabela por cenário, quais cenários revisados não chegaram a rodar, casos que passaram em uma repetição e falharam em outra, juízes que discordaram (com as duas justificativas) e custo real contra o estimado. Com `--baseline`, um `report.json` anterior é comparado e as regressões vêm primeiro.
 
 ### O que commitar dentro de `.forge/`
 
