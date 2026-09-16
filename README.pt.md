@@ -6,7 +6,9 @@
 
 Forja suítes de regressão revisadas para as funcionalidades de LLM da sua aplicação.
 
-Você descreve o que a funcionalidade faz, e a forja enumera cenários de seis tipos (happy, edge, ambiguous, out-of-scope, adversarial, language), gera casos por cenário já com uma saída esperada, e deixa você revisar cada um deles em arquivos simples, um por um. Rodar a suíte, estimar custo e gerar uma config para um executor como o [promptfoo](https://promptfoo.dev) ainda não fazem parte desta ferramenta — veja "O que isso ainda não faz" logo abaixo.
+Você descreve o que a funcionalidade faz, e a forja enumera cenários de seis tipos (happy, edge, ambiguous, out-of-scope, adversarial, language), gera casos por cenário já com uma saída esperada, e deixa você revisar cada um deles em arquivos simples, um por um. Depois ela calcula o preço da rodada antes de você gastar, gera uma config para o [promptfoo](https://promptfoo.dev) executar, e transforma a saída do promptfoo de volta em um relatório com tabela por cenário, casos instáveis e custo real contra o estimado.
+
+Uma suíte pronta, gerada e revisada contra uma aplicação real: [`examples/moonlighter-classify-email/`](examples/moonlighter-classify-email/).
 
 ## Instalação
 
@@ -56,9 +58,37 @@ Revisa tudo que ainda está pendente: casos (confirmando ou corrigindo a saída 
 
 No final, `.forge/` guarda `feature.yaml`, `scenarios.yaml` e `cases/<scenario>.yaml` — YAML simples, feito para ser commitado e comparado em diff como qualquer outra fixture de teste.
 
+Os três verbos restantes transformam essa suíte em uma rodada. Eles leem o `.forge/suite.yaml`, que você escreve à mão: contra o que a suíte roda, quais modelos julgam um caso `rubric`, e quantas vezes cada caso se repete.
+
+    # .forge/suite.yaml
+    target:
+      kind: promptfoo-python
+      entry: forge_target.py
+      python: .venv/bin/python        # um interpretador que consiga importar a sua aplicação
+      models: [anthropic/claude-haiku-4-5]
+    judges: [anthropic/claude-sonnet-5]
+    repeat: 2
+    include: []                       # vazio = todos os cenários revisados
+
+    forge estimate
+
+Calcula o preço da rodada antes de você gastar: casos × modelos alvo × `repeat`, mais uma chamada de juiz por caso `rubric` por juiz, modelo alvo e `repeat`, contra o `prices.yaml` (que é seu para editar — a saída imprime a data que ele carrega e marca com `~` qualquer modelo que teve de ser precificado pelo irmão mais próximo da lista). Os tokens são contados como caracteres ÷ 4, então leia o número como ordem de grandeza. Não faz nenhuma chamada de API.
+
+    forge emit
+
+Escreve o `.forge/promptfooconfig.yaml` a partir dos casos aprovados: um teste por caso com as entradas como `vars`, um assert `javascript` para o oráculo `label` ou `fields`, e um `llm-rubric` por juiz no caso de `rubric`. Recusa-se a gerar enquanto houver qualquer coisa pendente, e diz o quê. Na primeira vez também escreve o `.forge/forge_target.py` e nunca mais o sobrescreve — **edite o `run_application` dele para chamar a sua aplicação**, que é o que faz a suíte testar o seu código em vez de uma cópia do seu prompt. Com `--format jsonl`, escreve a mesma seleção em `.forge/cases.jsonl`, para um executor seu.
+
+    bunx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml -o results.json
+
+O promptfoo roda a suíte; a forja não roda por você e não precisa do promptfoo instalado.
+
+    forge report results.json [--baseline .forge/report.json]
+
+Lê a saída do promptfoo para `.forge/report.md` e `.forge/report.json`: taxa de acerto, tabela por cenário, quais cenários aprovados não chegaram a rodar, casos que passaram em uma repetição e falharam em outra, juízes que discordaram (com as duas justificativas) e custo real contra o estimado. Com `--baseline`, um `report.json` anterior é comparado e as regressões vêm primeiro.
+
 ### O que commitar dentro de `.forge/`
 
-Commite `feature.yaml`, `scenarios.yaml` e `cases/<scenario>.yaml`: eles são a suíte revisada, e o diff deles é justamente o ponto. Coloque no gitignore o `usage.jsonl` e o `failures/`, que guardam contagem de tokens e a saída crua do modelo nas suas rodadas, e decida deliberadamente sobre o `cases/imported.yaml` — o `import` o preenche com entradas reais de produção, que podem ser dados que você não pode colocar num repositório.
+Commite `feature.yaml`, `scenarios.yaml`, `cases/<scenario>.yaml`, `suite.yaml`, `promptfooconfig.yaml`, `forge_target.py` e `report.md`/`report.json`: eles são a suíte revisada, a rodada que ela descreve e o resultado, e o diff deles é justamente o ponto. Coloque no gitignore o `usage.jsonl` e o `failures/`, que guardam contagem de tokens e a saída crua do modelo nas suas rodadas, e decida deliberadamente sobre o `cases/imported.yaml` — o `import` o preenche com entradas reais de produção, que podem ser dados que você não pode colocar num repositório.
 
 ### Códigos de saída
 
@@ -70,11 +100,12 @@ Commite `feature.yaml`, `scenarios.yaml` e `cases/<scenario>.yaml`: eles são a 
 
 ## O que isso ainda não faz
 
-- Não roda a suíte contra um modelo nem compara as saídas.
-- Não estima o custo em tokens de uma rodada antes de você gastar.
-- Não gera uma config para o promptfoo nem para qualquer outro executor de testes.
+- Não chama o promptfoo por você: o `forge emit` escreve a config e você roda a avaliação.
+- Não existe servidor MCP, então o loop de revisão não roda dentro de uma conversa.
+- Testa um turno por vez. Casos multi-turno, em que a própria resposta da aplicação molda o turno seguinte, precisam de um usuário simulado, que isto não é.
+- Não guarda histórico: o `--baseline` compara duas rodadas, e nada as acumula ao longo do tempo.
 
-Isso é um trabalho separado e posterior; veja `docs/superpowers/specs/2026-09-14-llm-test-forge-design.md` para o design completo e onde esta ferramenta para hoje.
+Veja `docs/superpowers/specs/2026-09-14-llm-test-forge-design.md` para o design completo e `docs/superpowers/BACKLOG.md` para o que foi adiado e por quê.
 
 ## Provedores
 
@@ -95,8 +126,9 @@ Defina `FORGE_MODEL` ou passe `--model` como `provider/model`:
     bun run typecheck  # tsc --noEmit
     bun run check      # lint, depois typecheck, depois test
     bun run test:live  # duas chamadas reais contra google/gemini-3.5-flash por padrão (FORGE_LIVE=1); sobrescreva com FORGE_MODEL
+    bun run validate:example  # valida o promptfooconfig.yaml do exemplo commitado com o promptfoo de verdade; sem API key
 
-O gate de cobertura é o do próprio bun: um piso de 0,95 sobre **linhas e funções**, com `src/cli/bin.ts` excluído. O bun não mede cobertura de branch nenhuma, então um arquivo em 100% ainda pode ter braços de guarda sem teste — leia o gate como um piso, não como prova de que a suíte está completa.
+O gate de cobertura é o do próprio bun: um piso de 1,0 sobre **linhas e funções**, com `src/cli/bin.ts` excluído. O bun não mede cobertura de branch nenhuma, então um arquivo em 100% ainda pode ter braços de guarda sem teste — leia o gate como um piso, não como prova de que a suíte está completa.
 
 O `test:live` precisa de `GOOGLE_API_KEY` e falha de forma explícita (não em silêncio) se ela estiver ausente. O free tier do Google é intermitente, não simplesmente indisponível, então o teste tenta de novo uma resposta 503/"high demand" até 3 vezes com uma pausa curta entre as tentativas; qualquer outra falha (cota, autenticação, um model id desconhecido, um schema que não bate) falha já na primeira ocorrência em vez de tentar de novo.
 

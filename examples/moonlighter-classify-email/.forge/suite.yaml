@@ -1,0 +1,8 @@
+target:
+  kind: promptfoo-python
+  entry: forge_target.py
+  python: .venv/bin/python     # any interpreter that can `import moonlighter`; see README
+  models: [anthropic/claude-haiku-4-5]
+judges: [anthropic/claude-sonnet-5]
+repeat: 2
+include: []

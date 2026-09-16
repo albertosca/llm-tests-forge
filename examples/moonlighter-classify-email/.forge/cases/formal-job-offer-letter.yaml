@@ -1,0 +1,92 @@
+- id: formal-job-offer-letter-01
+  scenario: formal-job-offer-letter
+  input:
+    email: |-
+      From: Jennifer Alvarez <jennifer.alvarez@brightpath-tech.com>
+      Subject: Offer of Employment - Senior Data Analyst Position
+      Body: Dear Marcus,
+
+      On behalf of BrightPath Technologies, I am delighted to formally offer you the position of Senior Data Analyst, reporting to our Director of Analytics, David Chen.
+
+      Details of the offer are as follows:
+      - Base Salary: $118,000 per year, paid bi-weekly
+      - Signing Bonus: $5,000, payable within your first pay cycle
+      - Annual Performance Bonus Target: 10% of base salary
+      - Benefits: Medical, dental, and vision coverage effective on your first day; 401(k) with 4% company match after 90 days
+      - Paid Time Off: 20 days annually, plus 10 company holidays
+      - Proposed Start Date: Monday, March 17, 2025
+
+      This offer is contingent upon successful completion of a background check and reference verification. Please review the attached offer letter and formal employment agreement. We would appreciate your response by end of day Friday, February 28, 2025.
+
+      We are all very excited about the possibility of you joining the BrightPath team and believe your experience will be a fantastic addition to our analytics group.
+
+      Warm regards,
+      Jennifer Alvarez
+      HR Business Partner
+      BrightPath Technologies
+  expected:
+    label: offer
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: formal-job-offer-letter-02
+  scenario: formal-job-offer-letter
+  input:
+    email: |-
+      From: Robert Kim <rkim@nortonfinancial.com>
+      Subject: Your Offer Letter - Financial Analyst, Norton Financial Group
+      Body: Hi Priya,
+
+      Congratulations! It is my pleasure to extend an official offer for you to join Norton Financial Group as a Financial Analyst within our Corporate Strategy division.
+
+      Key terms of your offer:
+      - Annual Base Salary: $95,000
+      - Relocation Assistance: Up to $8,000 for approved expenses
+      - Equity Grant: 500 RSUs vesting over four years
+      - Health Benefits: Full medical/dental/vision starting the first of the month following your hire date
+      - Start Date: April 7, 2025
+      - Reporting Manager: Sandra Ortiz, VP of Corporate Strategy
+
+      Attached you will find the full offer letter outlining additional terms, including our standard employment-at-will policy and confidentiality agreement. Kindly sign and return the enclosed documents no later than March 10, 2025 to confirm your acceptance.
+
+      We are thrilled at the prospect of welcoming you to the Norton Financial family and are confident you will thrive in this role.
+
+      Best,
+      Robert Kim
+      Senior HR Manager
+      Norton Financial Group
+  expected:
+    label: offer
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: formal-job-offer-letter-01
+- id: formal-job-offer-letter-03
+  scenario: formal-job-offer-letter
+  input:
+    email: |-
+      From: Angela Torres <atorres@meridianhealthcare.org>
+      Subject: Formal Offer - Registered Nurse, Meridian Healthcare
+      Body: Dear Samuel,
+
+      It is with great pleasure that I extend to you this formal offer of employment for the position of Registered Nurse in our Cardiac Care Unit at Meridian Healthcare.
+
+      Compensation and Benefits Summary:
+      - Hourly Rate: $42.50, with shift differentials for nights and weekends
+      - Sign-On Bonus: $3,000, paid after 6 months of employment
+      - Benefits eligibility begins on day one, including health insurance, dental, vision, and a 403(b) retirement plan with employer matching
+      - Paid Time Off: Accrual begins immediately at a rate of 15 days per year
+      - Anticipated Start Date: Monday, May 5, 2025
+      - Orientation Schedule: You will receive a separate email with orientation details closer to your start date
+
+      This offer is contingent upon a satisfactory background check, drug screening, and verification of nursing licensure. Please review the attached offer packet carefully, sign where indicated, and return it to our HR department by April 18, 2025.
+
+      We are excited about the skills and compassion you will bring to our nursing team and look forward to your acceptance.
+
+      Sincerely,
+      Angela Torres
+      Director of Human Resources
+      Meridian Healthcare
+  expected:
+    label: offer
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: formal-job-offer-letter-01

@@ -28,4 +28,10 @@ describe("loadTemplate", () => {
 		expect(err).toBeInstanceOf(ForgeError);
 		expect((err as ForgeError).message).toContain("nope.md");
 	});
+	test("loadTemplate takes an extension, defaulting to md", async () => {
+		const py = await loadTemplate("forge_target", "py");
+		expect(py).toContain("def call_api");
+		const md = await loadTemplate("describe");
+		expect(md.length).toBeGreaterThan(0);
+	});
 });

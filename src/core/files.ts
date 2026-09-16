@@ -11,6 +11,8 @@ import {
 	FeatureSchema,
 	type Scenario,
 	ScenarioSchema,
+	type Suite,
+	SuiteSchema,
 } from "./schemas";
 
 export interface ForgePaths {
@@ -21,6 +23,10 @@ export interface ForgePaths {
 	suite: string;
 	usage: string;
 	failuresDir: string;
+	promptfooConfig: string;
+	casesJsonl: string;
+	reportMd: string;
+	reportJson: string;
 }
 
 export function forgePaths(forgeDir: string): ForgePaths {
@@ -32,6 +38,10 @@ export function forgePaths(forgeDir: string): ForgePaths {
 		suite: join(forgeDir, "suite.yaml"),
 		usage: join(forgeDir, "usage.jsonl"),
 		failuresDir: join(forgeDir, "failures"),
+		promptfooConfig: join(forgeDir, "promptfooconfig.yaml"),
+		casesJsonl: join(forgeDir, "cases.jsonl"),
+		reportMd: join(forgeDir, "report.md"),
+		reportJson: join(forgeDir, "report.json"),
 	};
 }
 
@@ -42,12 +52,32 @@ async function exists(path: string): Promise<boolean> {
 	);
 }
 
+/**
+ * The OS tells us why a read failed; passing that on is the difference
+ * between "the file is not there" and "you pointed at a directory" or
+ * "you cannot read it" — three different fixes for the person.
+ */
+function readFailure(e: unknown): string {
+	const code = (e as { code?: string }).code;
+	switch (code) {
+		case "ENOENT":
+			return "file not found";
+		case "EISDIR":
+			return "is a directory, expected a file";
+		case "EACCES":
+		case "EPERM":
+			return "permission denied";
+		default:
+			return `cannot read: ${(e as Error).message}`;
+	}
+}
+
 export async function readYamlFile<T>(
 	path: string,
 	schema: ZodType<T>,
 ): Promise<T> {
-	const text = await readFile(path, "utf8").catch(() => {
-		throw new ForgeError("file not found", { file: path });
+	const text = await readFile(path, "utf8").catch((e: unknown) => {
+		throw new ForgeError(readFailure(e), { file: path });
 	});
 	let data: unknown;
 	try {
@@ -142,4 +172,41 @@ export async function listCaseScenarios(forgeDir: string): Promise<string[]> {
 		.filter((n) => n.endsWith(".yaml"))
 		.map((n) => basename(n, ".yaml"))
 		.sort();
+}
+
+export const SUITE_EXAMPLE = `target:
+  kind: promptfoo-python
+  entry: forge_target.py          # the shim emit writes next to this file
+  python: .venv/bin/python        # optional: interpreter that can import your application
+  models: [anthropic/claude-haiku-4-5]
+judges: [google/gemini-3.5-flash]
+repeat: 2
+include: []                        # scenario ids; empty means every approved scenario`;
+
+export async function readSuite(forgeDir: string): Promise<Suite> {
+	const path = forgePaths(forgeDir).suite;
+	if (!(await exists(path)))
+		throw new ForgeError(
+			`suite.yaml not found; write one like:\n${SUITE_EXAMPLE}`,
+			{
+				file: path,
+			},
+		);
+	return readYamlFile(path, SuiteSchema);
+}
+
+export async function writeSuite(
+	forgeDir: string,
+	suite: Suite,
+): Promise<void> {
+	await writeYamlFile(forgePaths(forgeDir).suite, suite);
+}
+
+export async function readAllCases(
+	forgeDir: string,
+): Promise<Map<string, Case[]>> {
+	const out = new Map<string, Case[]>();
+	for (const id of await listCaseScenarios(forgeDir))
+		out.set(id, await readCases(forgeDir, id));
+	return out;
 }

@@ -1,0 +1,34 @@
+- id: empty-subject-and-minimal-body-01
+  scenario: empty-subject-and-minimal-body
+  input:
+    email: |-
+      From: Priya Nandakumar <priya.nandakumar@brightsteel.com>
+      Subject: 
+      Body: update
+  expected:
+    rubric: Does the output classify type as 'unrelated' or 'acknowledgement' rather than 'interview' or 'screening', given the body contains no actionable request or hiring stage information?
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: empty-subject-and-minimal-body-02
+  scenario: empty-subject-and-minimal-body
+  input:
+    email: |-
+      From: careers@vantagepoint-tech.io
+      Subject: 
+      Body: following up
+  expected:
+    rubric: Does the output avoid classifying this as 'offer', 'interview', or 'screening', and instead select a label like 'unrelated' or 'acknowledgement' since no concrete hiring action or stage is mentioned?
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: empty-subject-and-minimal-body-01
+- id: empty-subject-and-minimal-body-03
+  scenario: empty-subject-and-minimal-body
+  input:
+    email: |-
+      From: Marcus Delgado <m.delgado@harboroak-recruiting.com>
+      Subject: 
+      Body: thanks
+  expected:
+    rubric: Does the output set job_title and company to null or empty given the email body offers no identifying details about the position or organization?
+  status: approved
+  generated_by: anthropic/claude-sonnet-5

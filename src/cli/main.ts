@@ -2,7 +2,10 @@ import { ForgeError, UsageError } from "../core/errors";
 import { casesCommand } from "./commands/cases";
 import { dedupeCommand } from "./commands/dedupe";
 import { describeCommand } from "./commands/describe";
+import { emitCommand } from "./commands/emit";
+import { estimateCommand } from "./commands/estimate";
 import { importCommand } from "./commands/import";
+import { reportCommand } from "./commands/report";
 import { reviewCommand } from "./commands/review";
 import { scenariosCommand } from "./commands/scenarios";
 import type { CliContext } from "./context";
@@ -15,6 +18,9 @@ export const USAGE = `usage: forge <verb> [options]
   dedupe [--scenario id] [--model m]                  mark likely duplicates (duplicate_of)
   import <file.jsonl> [--oracle label|fields|rubric]  real inputs -> .forge/cases/imported.yaml
   review [--scenario id] [--only feature|scenarios|cases] [--all]
+  estimate                                            suite + approved cases -> tokens and dollars per model (no call)
+  emit [--format promptfoo|jsonl]                    approved cases -> .forge/promptfooconfig.yaml + forge_target.py, or cases.jsonl
+  report <results.json> [--baseline report.json]      promptfoo output -> .forge/report.md + report.json
 model: --model provider/model or FORGE_MODEL; providers: anthropic, google, openai, ollama, fake/<file>`;
 
 const COMMANDS: Record<
@@ -27,6 +33,9 @@ const COMMANDS: Record<
 	dedupe: dedupeCommand,
 	import: importCommand,
 	review: reviewCommand,
+	estimate: estimateCommand,
+	emit: emitCommand,
+	report: reportCommand,
 };
 
 /**

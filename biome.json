@@ -7,7 +7,7 @@
 	},
 	"files": {
 		"ignoreUnknown": false,
-		"includes": ["**", "!**/.forge", "!**/coverage"]
+		"includes": ["**", "!**/.forge", "!**/coverage", "!examples/*/results.json"]
 	},
 	"formatter": {
 		"enabled": true,

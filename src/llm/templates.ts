@@ -6,8 +6,8 @@ const TEMPLATES_DIR = fileURLToPath(
 	new URL("../../templates/", import.meta.url),
 );
 
-export async function loadTemplate(name: string): Promise<string> {
-	const path = `${TEMPLATES_DIR}${name}.md`;
+export async function loadTemplate(name: string, ext = "md"): Promise<string> {
+	const path = `${TEMPLATES_DIR}${name}.${ext}`;
 	return readFile(path, "utf8").catch(() => {
 		throw new ForgeError("template not found", { file: path });
 	});

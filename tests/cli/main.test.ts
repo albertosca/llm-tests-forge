@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { parse } from "yaml";
 import { createContext } from "../../src/cli/context";
 import { modelFlag, run } from "../../src/cli/main";
 import {
@@ -17,6 +18,9 @@ import {
 	readFeature,
 	readScenarios,
 	writeCases,
+	writeFeature,
+	writeScenarios,
+	writeSuite,
 } from "../../src/core/files";
 
 /** An unambiguously old timestamp: any real write resets a file's mtime to
@@ -1355,6 +1359,703 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 		expect(feature.status).toBe("edited");
 		expect(out.at(-1)).toBe(
 			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 still pending",
+		);
+	});
+});
+
+const FEATURE = {
+	id: "classify-email",
+	purpose: "Classify a hiring email",
+	inputs: [{ name: "email", kind: "text" as const }],
+	output: { kind: "label" as const, labels: ["rejection", "acknowledgement"] },
+	invariants: [],
+	status: "approved" as const,
+};
+const SUITE = {
+	target: {
+		kind: "promptfoo-python" as const,
+		entry: "forge_target.py",
+		models: ["anthropic/claude-haiku-4-5"],
+	},
+	judges: ["google/gemini-3.5-flash"],
+	repeat: 2,
+	include: [],
+};
+
+async function forgeWithApprovedCases(cwd: string) {
+	const forgeDir = join(cwd, ".forge");
+	await writeFeature(forgeDir, FEATURE);
+	await writeScenarios(forgeDir, [
+		{
+			id: "polite-rejection",
+			kind: "happy",
+			oracle: "label",
+			description: "d",
+			status: "approved",
+		},
+		{
+			id: "vague-rubric",
+			kind: "ambiguous",
+			oracle: "rubric",
+			description: "d",
+			status: "approved",
+		},
+	]);
+	await writeCases(forgeDir, "polite-rejection", [
+		{
+			id: "polite-rejection-01",
+			scenario: "polite-rejection",
+			input: { email: "We will not proceed." },
+			expected: { label: "rejection" },
+			status: "approved",
+			generated_by: "t",
+		},
+	]);
+	await writeCases(forgeDir, "vague-rubric", [
+		{
+			id: "vague-rubric-01",
+			scenario: "vague-rubric",
+			input: { email: "Thanks for applying!" },
+			expected: { rubric: "says it is an automated receipt" },
+			status: "edited",
+			generated_by: "t",
+		},
+	]);
+	await writeSuite(forgeDir, SUITE);
+	return forgeDir;
+}
+
+describe("estimate", () => {
+	test("prints one target row, one judge row, the total, the prices date and the notes; exits 0", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeWithApprovedCases(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		const text = out.join("\n");
+		expect(text).toMatch(
+			/^estimate: 2 cases, 1 with a rubric; prices dated \d{4}-\d{2}-\d{2}$/m,
+		);
+		expect(text).toMatch(
+			/^ {2}target {2}anthropic\/claude-haiku-4-5 .* 4 calls/m,
+		);
+		expect(text).toMatch(/^ {2}judge {3}google\/gemini-3\.5-flash.* 2 calls/m);
+		expect(text).toContain("note: tokens are estimated as characters / 4");
+		expect(text).toContain("note: application prompt not counted");
+	});
+	test("counts the prompt file when feature.prompt_file is set, and drops the prompt note", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeFile(join(cwd, "prompt.txt"), "p".repeat(4000));
+		await writeFeature(forgeDir, { ...FEATURE, prompt_file: "prompt.txt" });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		const target = out.find((l) => l.includes("anthropic/claude-haiku-4-5"));
+		// two cases × repeat 2 = 4 calls; each call is 1000 prompt tokens + ceil(20 / 4) input tokens → 4020 in
+		expect(target).toMatch(/ {2}4 calls {4}40\d\d in/);
+		expect(out.join("\n")).not.toContain("application prompt not counted");
+	});
+	test("a missing prompt_file is a ForgeError naming it (exit 1), not a silent zero", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeFeature(forgeDir, { ...FEATURE, prompt_file: "gone.txt" });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("gone.txt");
+	});
+	test("pending items are excluded and reported, not refused", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "x" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "t",
+			},
+		]);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		expect(out).toContain(
+			"estimate: 1 item excluded; run `forge review` to include it:",
+		);
+		expect(out).toContain(
+			"  case polite-rejection-01 is pending (" +
+				join(forgeDir, "cases", "polite-rejection.yaml") +
+				")",
+		);
+	});
+	test("more than one pending item pluralizes the exclusion message, listing both in scenario order", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "x" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "t",
+			},
+			// One case still selected, so the run has something to price:
+			// zero selected cases is its own refusal, tested below.
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "z" },
+				expected: { label: "rejection" },
+				status: "approved",
+				generated_by: "t",
+			},
+		]);
+		await writeCases(forgeDir, "vague-rubric", [
+			{
+				id: "vague-rubric-01",
+				scenario: "vague-rubric",
+				input: { email: "y" },
+				expected: { rubric: "z" },
+				status: "pending",
+				generated_by: "t",
+			},
+		]);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		expect(out.slice(-3)).toEqual([
+			"estimate: 2 items excluded; run `forge review` to include them:",
+			`  case polite-rejection-01 is pending (${join(forgeDir, "cases", "polite-rejection.yaml")})`,
+			`  case vague-rubric-01 is pending (${join(forgeDir, "cases", "vague-rubric.yaml")})`,
+		]);
+	});
+	test("a rejected included scenario is excluded without telling the person to review it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "vague-rubric",
+				kind: "ambiguous",
+				oracle: "rubric",
+				description: "d",
+				status: "rejected",
+			},
+		]);
+		await writeSuite(forgeDir, {
+			...SUITE,
+			include: ["polite-rejection", "vague-rubric"],
+		});
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		expect(out.slice(-2)).toEqual([
+			"estimate: 1 item excluded:",
+			`  scenario vague-rubric is rejected (${join(forgeDir, "scenarios.yaml")})`,
+		]);
+		expect(out.join("\n")).not.toContain("forge review");
+	});
+	test("selecting no case at all exits 1 naming the cases directory, printing no table", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeSuite(forgeDir, SUITE);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("no approved case to estimate");
+		expect(out.at(-1)).toContain(join(forgeDir, "cases"));
+		expect(out.join("\n")).not.toContain("prices dated");
+	});
+	test("a missing suite.yaml exits 1 with the example to copy", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(1);
+		expect(out.join("\n")).toContain("suite.yaml not found");
+		expect(out.join("\n")).toContain("judges:");
+	});
+	test("an unknown flag is a usage error (exit 2)", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeWithApprovedCases(cwd);
+		const { ctx } = await ctxIn(cwd);
+		expect(await run(["estimate", "--bogus"], ctx)).toBe(2);
+	});
+});
+
+describe("emit", () => {
+	test("writes promptfooconfig.yaml and the shim, prints what it wrote, exits 0", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(0);
+		const cfg = parse(
+			await readFile(join(forgeDir, "promptfooconfig.yaml"), "utf8"),
+		);
+		expect(
+			cfg.tests.map((t: { description: string }) => t.description),
+		).toEqual(["polite-rejection-01", "vague-rubric-01"]);
+		expect(cfg.providers[0].id).toBe("file://forge_target.py");
+		expect(await readFile(join(forgeDir, "forge_target.py"), "utf8")).toContain(
+			'INPUTS = ["email"]',
+		);
+		expect(out).toContain(
+			`emit: wrote ${join(forgeDir, "promptfooconfig.yaml")} (2 cases, 2 scenarios, 1 target model, 1 judge)`,
+		);
+		expect(out).toContain(
+			`emit: wrote ${join(forgeDir, "forge_target.py")}; edit run_application() to call your application`,
+		);
+	});
+	test("never overwrites an existing shim, and says it kept it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		const shim = join(forgeDir, "forge_target.py");
+		await writeFile(shim, "# mine\n");
+		await utimes(shim, LONG_AGO, LONG_AGO);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(0);
+		expect(await readFile(shim, "utf8")).toBe("# mine\n");
+		expect((await stat(shim)).mtime.getTime()).toBe(LONG_AGO.getTime());
+		expect(out).toContain(`emit: kept existing ${shim}`);
+	});
+	test("refuses on pending items, lists every one, writes nothing, exits 1", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "x" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "t",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "y" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "t",
+			},
+		]);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(1);
+		const text = out.join("\n");
+		expect(text).toContain(
+			"error: emit refused: 2 items block it; run `forge review`",
+		);
+		expect(text).toContain("case polite-rejection-01 is pending");
+		expect(text).toContain("case polite-rejection-02 is pending");
+		await expect(
+			stat(join(forgeDir, "promptfooconfig.yaml")),
+		).rejects.toThrow();
+		await expect(stat(join(forgeDir, "forge_target.py"))).rejects.toThrow();
+	});
+	test("a rejected included scenario blocks emit without telling the person to review it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "rejected",
+			},
+		]);
+		await writeSuite(forgeDir, { ...SUITE, include: ["polite-rejection"] });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(1);
+		const text = out.join("\n");
+		expect(text).toContain("error: emit refused: 1 item blocks it");
+		expect(text).toContain("scenario polite-rejection is rejected");
+		expect(text).not.toContain("forge review");
+	});
+	test("a case whose expected no longer matches its scenario's oracle blocks emit, naming both", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		// The oracle was edited to `fields` after the case was approved
+		// against `label`; the expected on disk is now the wrong shape.
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "fields",
+				description: "d",
+				status: "edited",
+			},
+		]);
+		await writeSuite(forgeDir, { ...SUITE, include: ["polite-rejection"] });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(1);
+		const text = out.join("\n");
+		expect(text).toContain(
+			"error: emit refused: 1 item blocks it; run `forge review`",
+		);
+		expect(text).toContain(
+			`case polite-rejection-01: oracle is fields but expected.fields is missing (${join(forgeDir, "cases", "polite-rejection.yaml")})`,
+		);
+		await expect(
+			stat(join(forgeDir, "promptfooconfig.yaml")),
+		).rejects.toThrow();
+		await expect(stat(join(forgeDir, "forge_target.py"))).rejects.toThrow();
+	});
+	test("a target.entry that is a path, not a file name, is refused before anything is written", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeSuite(forgeDir, {
+			...SUITE,
+			target: { ...SUITE.target, entry: "../escaped.py" },
+		});
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain(
+			"target.entry must be a file name inside .forge, not a path",
+		);
+		expect(out.at(-1)).toContain(join(forgeDir, "suite.yaml"));
+		await expect(stat(join(cwd, "escaped.py"))).rejects.toThrow();
+		await expect(
+			stat(join(forgeDir, "promptfooconfig.yaml")),
+		).rejects.toThrow();
+	});
+	test("--format jsonl writes cases.jsonl and no shim", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit", "--format", "jsonl"], ctx)).toBe(0);
+		const lines = (await readFile(join(forgeDir, "cases.jsonl"), "utf8"))
+			.trim()
+			.split("\n")
+			.map((l) => JSON.parse(l));
+		expect(lines.map((l) => l.id)).toEqual([
+			"polite-rejection-01",
+			"vague-rubric-01",
+		]);
+		await expect(stat(join(forgeDir, "forge_target.py"))).rejects.toThrow();
+		expect(out).toContain(
+			`emit: wrote ${join(forgeDir, "cases.jsonl")} (2 cases)`,
+		);
+	});
+	test("an unknown --format is a usage error naming the valid values", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeWithApprovedCases(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit", "--format", "xml"], ctx)).toBe(2);
+		expect(out.at(-1)).toContain("promptfoo, jsonl");
+	});
+	test("a pending feature is refused before anything is read (exit 1)", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedCases(cwd);
+		await writeFeature(forgeDir, { ...FEATURE, status: "pending" });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("pending");
+	});
+	test("--format jsonl with zero approved cases and no blockers refuses, writes nothing, exits 1", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeSuite(forgeDir, SUITE);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit", "--format", "jsonl"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("no approved case");
+		expect(out.at(-1)).toContain(join(forgeDir, "cases"));
+		await expect(stat(join(forgeDir, "cases.jsonl"))).rejects.toThrow();
+	});
+	test("--format promptfoo (default) with zero approved cases and no blockers refuses, writes nothing, exits 1", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeSuite(forgeDir, SUITE);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("no approved case");
+		expect(out.at(-1)).toContain(join(forgeDir, "cases"));
+		await expect(
+			stat(join(forgeDir, "promptfooconfig.yaml")),
+		).rejects.toThrow();
+		await expect(stat(join(forgeDir, "forge_target.py"))).rejects.toThrow();
+	});
+});
+
+describe("report", () => {
+	const RESULTS = resolve("tests/fixtures/promptfoo-results-0.123.0.json");
+
+	async function forgeMatchingFixture(cwd: string) {
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "ack-optional-quiz",
+				kind: "ambiguous",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "out-of-scope-newsletter",
+				kind: "out_of_scope",
+				oracle: "rubric",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "ack-optional-quiz", [
+			{
+				id: "ack-optional-quiz-01",
+				scenario: "ack-optional-quiz",
+				input: { email: "x" },
+				expected: { label: "acknowledgement" },
+				status: "approved",
+				generated_by: "t",
+			},
+		]);
+		await writeCases(forgeDir, "out-of-scope-newsletter", [
+			{
+				id: "out-of-scope-newsletter-02",
+				scenario: "out-of-scope-newsletter",
+				input: { email: "y" },
+				expected: { rubric: "r" },
+				status: "approved",
+				generated_by: "t",
+			},
+		]);
+		await writeSuite(forgeDir, {
+			...SUITE,
+			target: { ...SUITE.target, models: ["target-haiku-4-5"] },
+		});
+		return forgeDir;
+	}
+
+	test("writes report.md and report.json from the real fixture and prints the headline; exits 0", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeMatchingFixture(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["report", RESULTS], ctx)).toBe(0);
+		const json = JSON.parse(
+			await readFile(join(forgeDir, "report.json"), "utf8"),
+		);
+		expect(json.matched).toBe(4);
+		expect(json.passRate).toBe(1);
+		expect(json.cases.map((c: { case: string }) => c.case)).toEqual([
+			"ack-optional-quiz-01",
+			"out-of-scope-newsletter-02",
+		]);
+		expect(json.promptfooVersion).toBe("0.123.0");
+		const md = await readFile(join(forgeDir, "report.md"), "utf8");
+		expect(md).toContain("**Pass rate:** 100.0% (4 of 4 runs, 0 errored)");
+		expect(md).toContain("No failing case.");
+		expect(out).toContain(
+			"report: 4 of 4 rows matched; pass rate 100.0%; 0 failing; 0 flaky; 0 judge disagreements",
+		);
+		expect(out).toContain(
+			`report: wrote ${join(forgeDir, "report.md")} and ${join(forgeDir, "report.json")}`,
+		);
+	});
+
+	test("compares the run against the estimate the person saw before running", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeMatchingFixture(cwd);
+		const { ctx } = await ctxIn(cwd);
+		expect(await run(["report", RESULTS], ctx)).toBe(0);
+		const json = JSON.parse(
+			await readFile(join(forgeDir, "report.json"), "utf8"),
+		);
+		const judge = json.costs.find(
+			(c: { role: string }) => c.role === "judge",
+		) as { model: string; estimatedDollars: number };
+		expect(judge.model).toBe("google/gemini-3.5-flash");
+		expect(judge.estimatedDollars).toBeGreaterThan(0);
+	});
+
+	test("--baseline reads a previous report.json and reports what changed", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeMatchingFixture(cwd);
+		const first = await ctxIn(cwd);
+		expect(await run(["report", RESULTS], first.ctx)).toBe(0);
+		const previous = join(cwd, "previous.json");
+		const baseline = JSON.parse(
+			await readFile(join(forgeDir, "report.json"), "utf8"),
+		);
+		// pretend the first case was failing before
+		baseline.cases[0].stability = "failing";
+		await writeFile(previous, JSON.stringify(baseline));
+		const second = await ctxIn(cwd);
+		expect(
+			await run(["report", RESULTS, "--baseline", previous], second.ctx),
+		).toBe(0);
+		expect(second.out).toContain(
+			"report: since baseline: 0 regressions, 1 fixed",
+		);
+		const md = await readFile(join(forgeDir, "report.md"), "utf8");
+		expect(md).toContain("Fixed since baseline: 1.");
+	});
+
+	test("rows of a case the suite no longer selects are listed apart, not counted into the pass rate", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeMatchingFixture(cwd);
+		// The case is still on disk and still has rows in results.json, but
+		// the estimate priced the run without it.
+		await writeCases(forgeDir, "out-of-scope-newsletter", [
+			{
+				id: "out-of-scope-newsletter-02",
+				scenario: "out-of-scope-newsletter",
+				input: { email: "y" },
+				expected: { rubric: "r" },
+				status: "rejected",
+				generated_by: "t",
+			},
+		]);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["report", RESULTS], ctx)).toBe(0);
+		const json = JSON.parse(
+			await readFile(join(forgeDir, "report.json"), "utf8"),
+		);
+		expect(json.matched).toBe(2);
+		expect(json.unmatched).toEqual([
+			"row 2: target-haiku-4-5: out-of-scope-newsletter-02 (not in the current selection)",
+			"row 3: target-haiku-4-5: out-of-scope-newsletter-02 (not in the current selection)",
+		]);
+		expect(json.cases.map((c: { case: string }) => c.case)).toEqual([
+			"ack-optional-quiz-01",
+		]);
+		expect(out).toContain(
+			"report: 2 of 4 rows matched; pass rate 100.0%; 0 failing; 0 flaky; 0 judge disagreements",
+		);
+	});
+
+	test("a results file whose rows match no case exits 1 and names the file", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeMatchingFixture(cwd);
+		await writeCases(forgeDir, "ack-optional-quiz", [
+			{
+				id: "ack-optional-quiz-09",
+				scenario: "ack-optional-quiz",
+				input: { email: "x" },
+				expected: { label: "acknowledgement" },
+				status: "approved",
+				generated_by: "t",
+			},
+		]);
+		await writeCases(forgeDir, "out-of-scope-newsletter", [
+			{
+				id: "out-of-scope-newsletter-09",
+				scenario: "out-of-scope-newsletter",
+				input: { email: "y" },
+				expected: { rubric: "r" },
+				status: "approved",
+				generated_by: "t",
+			},
+		]);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["report", RESULTS], ctx)).toBe(1);
+		expect(out.at(-1)).toContain(RESULTS);
+		expect(out.at(-1)).toContain("forge emitted");
+		await expect(stat(join(forgeDir, "report.md"))).rejects.toThrow();
+	});
+
+	test("no positional argument is a usage error (exit 2) naming results.json", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeMatchingFixture(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["report"], ctx)).toBe(2);
+		expect(out.at(-1)).toContain("results.json");
+	});
+
+	test("a baseline that is not a report is a ForgeError naming the file (exit 1)", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeMatchingFixture(cwd);
+		const bad = join(cwd, "bad.json");
+		await writeFile(bad, "{}");
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["report", RESULTS, "--baseline", bad], ctx)).toBe(1);
+		expect(out.at(-1)).toContain(bad);
+		expect(out.at(-1)).toContain("is not a forge report");
+	});
+
+	test("a baseline that is not JSON at all names the file and the problem", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeMatchingFixture(cwd);
+		const bad = join(cwd, "bad.json");
+		await writeFile(bad, "{not json");
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["report", RESULTS, "--baseline", bad], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("invalid JSON");
+		expect(out.at(-1)).toContain(bad);
+	});
+
+	test("a baseline file that does not exist names it (exit 1)", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeMatchingFixture(cwd);
+		const missing = join(cwd, "gone.json");
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["report", RESULTS, "--baseline", missing], ctx)).toBe(1);
+		expect(out.at(-1)).toContain(missing);
+		expect(out.at(-1)).toContain("baseline not found");
+	});
+
+	test("an empty --baseline is reported, not silently ignored", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeMatchingFixture(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["report", RESULTS, "--baseline", ""], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("baseline not found");
+	});
+
+	test("a pending feature is refused before anything is read (exit 1)", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeMatchingFixture(cwd);
+		await writeFeature(forgeDir, { ...FEATURE, status: "pending" });
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["report", RESULTS], ctx)).toBe(1);
+		expect(out.at(-1)).toContain("pending");
+	});
+
+	test("report.json is readable back as its own baseline", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeMatchingFixture(cwd);
+		const first = await ctxIn(cwd);
+		expect(await run(["report", RESULTS], first.ctx)).toBe(0);
+		const second = await ctxIn(cwd);
+		expect(
+			await run(
+				["report", RESULTS, "--baseline", join(forgeDir, "report.json")],
+				second.ctx,
+			),
+		).toBe(0);
+		expect(second.out).toContain(
+			"report: since baseline: 0 regressions, 0 fixed",
 		);
 	});
 });

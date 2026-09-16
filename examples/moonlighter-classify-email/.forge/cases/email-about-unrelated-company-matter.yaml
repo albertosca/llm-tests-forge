@@ -1,0 +1,61 @@
+- id: email-about-unrelated-company-matter-01
+  scenario: email-about-unrelated-company-matter
+  input:
+    email: |-
+      From: Marcus Bell <marcus.bell@northfield-logistics.com>
+      Subject: Updated Remote Work Policy - Effective March 1st
+      Body: Hi team,
+
+      As part of our Q1 operational review, HR has finalized updates to the remote work policy. Starting March 1st, all employees must log their in-office days through the new Workday portal, and remote work will be capped at three days per week unless approved by a director. Please review the attached PDF and sign the acknowledgement form by Friday.
+
+      If you have questions, reach out to your manager or the HR helpdesk.
+
+      Best,
+      Marcus Bell
+      HR Operations, Northfield Logistics
+  expected:
+    label: unrelated
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: email-about-unrelated-company-matter-02
+  scenario: email-about-unrelated-company-matter
+  input:
+    email: |-
+      From: Priya Ramaswamy <priya.r@summitware.com>
+      Subject: Vendor Inquiry - Cloud Storage Renewal
+      Body: Hello,
+
+      Our current contract with DataVault Cloud Storage expires at the end of this quarter, and I wanted to check whether your team has evaluated alternative vendors like Backblaze or Wasabi for cost comparison. We're trying to finalize the procurement decision before the next budget cycle closes.
+
+      Could you send over the latest pricing sheet you received from IT Sourcing? Also, let me know if you're available for a quick call this Thursday to discuss.
+
+      Thanks,
+      Priya Ramaswamy
+      Procurement Team, Summitware Inc.
+  expected:
+    label: unrelated
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: email-about-unrelated-company-matter-01
+- id: email-about-unrelated-company-matter-03
+  scenario: email-about-unrelated-company-matter
+  input:
+    email: |-
+      From: Daniel Okafor <daniel.okafor@brightpath-solutions.com>
+      Subject: Office Relocation Update - New Address Starting April 15
+      Body: Hi everyone,
+
+      As many of you know, we've been planning our move to the new office space at 450 Harbor View Drive. I'm writing to confirm that the relocation will officially happen the weekend of April 12-14, with all staff expected to report to the new location starting April 15.
+
+      Facilities will be sending out details about parking, badge access, and desk assignments next week. In the meantime, please make sure any personal items in your current workspace are packed by April 10th.
+
+      Let me know if you have any concerns about the transition.
+
+      Regards,
+      Daniel Okafor
+      Office Operations Manager, BrightPath Solutions
+  expected:
+    label: unrelated
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: email-about-unrelated-company-matter-01

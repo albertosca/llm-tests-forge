@@ -1,0 +1,69 @@
+- id: rejection-after-interview-01
+  scenario: rejection-after-interview
+  input:
+    email: |-
+      From: Priya Nair <priya.nair@brightwave-tech.com>
+      Subject: Update on your application for Senior Backend Engineer
+
+      Hi Marcus,
+
+      Thank you for taking the time to speak with our engineering team last week and for completing the system design interview. We really enjoyed learning about your experience with distributed systems.
+
+      After careful consideration, we have decided to move forward with other candidates whose backgrounds more closely align with our current needs for this role. This was a difficult decision given the strong field of applicants.
+
+      We'll keep your resume on file and encourage you to apply for future openings at Brightwave that match your skill set.
+
+      We wish you all the best in your job search.
+
+      Warm regards,
+      Priya Nair
+      Talent Acquisition, Brightwave Technologies
+  expected:
+    label: rejection
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: rejection-after-interview-02
+  scenario: rejection-after-interview
+  input:
+    email: |-
+      From: careers@harborstonelegal.com
+      Subject: Your Interview Feedback - Paralegal Position
+
+      Dear Angela Ferris,
+
+      Thank you for meeting with our hiring panel on June 3rd to discuss the Paralegal position at Harborstone Legal Group. Your professionalism and legal research skills came through clearly during the conversation.
+
+      Unfortunately, after reviewing all candidates who reached the interview stage, we have chosen to proceed with a candidate whose experience more directly matches the immediate needs of our litigation team.
+
+      We truly appreciate the time and effort you put into the interview process and hope you'll consider Harborstone again in the future should a suitable opening arise.
+
+      Sincerely,
+      The Harborstone Legal Recruiting Team
+  expected:
+    label: rejection
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: rejection-after-interview-01
+- id: rejection-after-interview-03
+  scenario: rejection-after-interview
+  input:
+    email: |-
+      From: David Kim <d.kim@meridianfinancialgroup.com>
+      Subject: Following up after your second-round interview
+
+      Hello Sarah,
+
+      I wanted to personally follow up after your conversation with our VP of Operations last Thursday regarding the Financial Analyst role at Meridian Financial Group.
+
+      The team was impressed with your technical knowledge, but after comparing notes across all interview rounds, we've decided to move forward with another candidate whose experience in commercial lending is a closer match to what we need right now.
+
+      I know this isn't the news you were hoping for, and I want to thank you sincerely for the time and energy you invested throughout the process. We'll hold onto your resume and reach out if a fitting role opens up down the line.
+
+      Best of luck in your search,
+      David Kim
+      HR Business Partner, Meridian Financial Group
+  expected:
+    label: rejection
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: rejection-after-interview-01

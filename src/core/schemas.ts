@@ -80,10 +80,31 @@ export const SuiteSchema = z.object({
 		kind: z.literal("promptfoo-python"),
 		entry: z.string().min(1),
 		models: z.array(z.string()).min(1),
+		/** Interpreter for the shim; promptfoo's `pythonExecutable`. Absent → promptfoo's default (`python3`). */
+		python: z.string().min(1).optional(),
 	}),
 	judges: z.array(z.string()).min(1),
 	repeat: z.number().int().min(1).default(1),
 	include: z.array(z.string()).default([]),
+});
+
+export const PricesSchema = z.object({
+	updated: z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}$/, "updated must be YYYY-MM-DD"),
+	unit: z.literal("usd_per_million_tokens"),
+	sources: z.array(z.string()).default([]),
+	models: z
+		.record(
+			z.string(),
+			z.object({
+				input: z.number().nonnegative(),
+				output: z.number().nonnegative(),
+			}),
+		)
+		.refine((m) => Object.keys(m).length > 0, {
+			message: "models must list at least one model",
+		}),
 });
 
 export type Kind = z.infer<typeof Kind>;
@@ -94,3 +115,4 @@ export type Scenario = z.infer<typeof ScenarioSchema>;
 export type Expected = z.infer<typeof ExpectedSchema>;
 export type Case = z.infer<typeof CaseSchema>;
 export type Suite = z.infer<typeof SuiteSchema>;
+export type Prices = z.infer<typeof PricesSchema>;

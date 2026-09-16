@@ -3,7 +3,8 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { generateCases } from "../../src/core/cases";
+import { toJSONSchema } from "zod";
+import { casesOutputSchema, generateCases } from "../../src/core/cases";
 import { ForgeError } from "../../src/core/errors";
 import type { Case, Feature, Scenario } from "../../src/core/schemas";
 import { createLlm, type GenerateArgs, type Llm } from "../../src/llm/generate";
@@ -31,6 +32,97 @@ async function feature(): Promise<Feature> {
 		await readFile(join(import.meta.dir, "../fixtures/feature.yaml"), "utf8"),
 	);
 }
+
+describe("casesOutputSchema", () => {
+	test("label oracle: accepts an input keyed by every feature input, refuses a missing one", async () => {
+		const twoInputFeature: Feature = {
+			...(await feature()),
+			inputs: [
+				{ name: "email", kind: "text" },
+				{ name: "stage", kind: "text" },
+			],
+		};
+		const schema = casesOutputSchema(twoInputFeature, scenario);
+		expect(
+			schema.safeParse({
+				cases: [
+					{
+						input: { email: "x", stage: "y" },
+						expected: { label: "rejection" },
+					},
+				],
+			}).success,
+		).toBe(true);
+		const missingInput = schema.safeParse({
+			cases: [{ input: {}, expected: { label: "x" } }],
+		});
+		expect(missingInput.success).toBe(false);
+		expect(
+			!missingInput.success &&
+				missingInput.error.issues.some((issue) => issue.path.includes("email")),
+		).toBe(true);
+	});
+
+	test("rubric oracle: refuses a label, accepts a rubric", async () => {
+		const schema = casesOutputSchema(await feature(), {
+			...scenario,
+			oracle: "rubric",
+		});
+		expect(
+			schema.safeParse({
+				cases: [{ input: { email: "x" }, expected: { label: "x" } }],
+			}).success,
+		).toBe(false);
+		expect(
+			schema.safeParse({
+				cases: [{ input: { email: "x" }, expected: { rubric: "s" } }],
+			}).success,
+		).toBe(true);
+	});
+
+	test("fields oracle: accepts a fields object, refuses an empty expected", async () => {
+		const schema = casesOutputSchema(await feature(), {
+			...scenario,
+			oracle: "fields",
+		});
+		expect(
+			schema.safeParse({
+				cases: [
+					{
+						input: { email: "x" },
+						expected: { fields: { company: "Acme" } },
+					},
+				],
+			}).success,
+		).toBe(true);
+		expect(
+			schema.safeParse({ cases: [{ input: { email: "x" }, expected: {} }] })
+				.success,
+		).toBe(false);
+	});
+
+	test("the JSON Schema the model sees requires each feature input by name -- the property z.record left out", async () => {
+		const schema = casesOutputSchema(await feature(), scenario);
+		const jsonSchema = toJSONSchema(schema);
+		const casesProp = jsonSchema.properties?.cases;
+		if (!casesProp || typeof casesProp === "boolean")
+			throw new Error("expected cases to be an object schema");
+		const itemsProp = casesProp.items;
+		if (
+			!itemsProp ||
+			typeof itemsProp === "boolean" ||
+			Array.isArray(itemsProp)
+		)
+			throw new Error("expected cases.items to be an object schema");
+		const inputProp = itemsProp.properties?.input;
+		if (!inputProp || typeof inputProp === "boolean")
+			throw new Error(
+				"expected cases.items.properties.input to be an object schema",
+			);
+		expect(inputProp.properties?.email).toBeDefined();
+		expect(inputProp.required).toContain("email");
+	});
+});
 
 describe("generateCases", () => {
 	test("appends pending cases with sequential ids and generated_by", async () => {
@@ -91,18 +183,28 @@ describe("generateCases", () => {
 		expect(out[0]?.expected).toEqual({ label: "rejection" });
 	});
 
-	test("drops a case whose input keys don't match the feature's inputs, keeps the rest", async () => {
+	test("a response with a key that doesn't match the feature's inputs fails the whole batch at the schema, naming the raw output", async () => {
+		// With the strict per-call schema, `input` requires exactly the
+		// feature's own input names -- a model returning `mail` instead of
+		// `email` fails `generateObject`'s own validation before `cases.ts`
+		// ever sees a candidate, so the whole batch fails with the raw output
+		// saved under `.forge/failures/`, the same as any other schema-invalid
+		// response. This replaces the old expectation that such a case was
+		// merely dropped and its sibling kept.
 		const { llm, model } = await llmFor("bad-keys");
-		const out = await generateCases({
+		const err = await generateCases({
 			feature: await feature(),
 			scenario,
 			existing: [],
 			n: 2,
 			model,
 			llm,
-		});
-		expect(out).toHaveLength(1);
-		expect(out[0]?.input).toEqual({ email: "y" });
+		}).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ForgeError);
+		expect((err as ForgeError).message).toContain(
+			"model output did not match the bad-keys schema",
+		);
+		expect((err as ForgeError).details.rawPath).toBeDefined();
 	});
 
 	test("throws when every generated case is invalid", async () => {
