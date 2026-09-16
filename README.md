@@ -72,7 +72,7 @@ The remaining three verbs turn that suite into a run. They read `.forge/suite.ya
 
     forge estimate
 
-Prices the run before you spend it: cases × target models × `repeat`, plus one judge call per `rubric` case, against `prices.yaml` (which is yours to edit — the output prints the date it carries, and marks with `~` any model it had to price as its closest listed sibling). Tokens are counted as characters ÷ 4, so read it as an order of magnitude. It makes no API call.
+Prices the run before you spend it: cases × target models × `repeat`, plus one judge call per `rubric` case per judge, target model and `repeat`, against `prices.yaml` (which is yours to edit — the output prints the date it carries, and marks with `~` any model it had to price as its closest listed sibling). Tokens are counted as characters ÷ 4, so read it as an order of magnitude. It makes no API call.
 
     forge emit
 

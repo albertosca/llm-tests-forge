@@ -72,7 +72,7 @@ Os três verbos restantes transformam essa suíte em uma rodada. Eles leem o `.f
 
     forge estimate
 
-Calcula o preço da rodada antes de você gastar: casos × modelos alvo × `repeat`, mais uma chamada de juiz por caso `rubric`, contra o `prices.yaml` (que é seu para editar — a saída imprime a data que ele carrega e marca com `~` qualquer modelo que teve de ser precificado pelo irmão mais próximo da lista). Os tokens são contados como caracteres ÷ 4, então leia o número como ordem de grandeza. Não faz nenhuma chamada de API.
+Calcula o preço da rodada antes de você gastar: casos × modelos alvo × `repeat`, mais uma chamada de juiz por caso `rubric` por juiz, modelo alvo e `repeat`, contra o `prices.yaml` (que é seu para editar — a saída imprime a data que ele carrega e marca com `~` qualquer modelo que teve de ser precificado pelo irmão mais próximo da lista). Os tokens são contados como caracteres ÷ 4, então leia o número como ordem de grandeza. Não faz nenhuma chamada de API.
 
     forge emit
 
