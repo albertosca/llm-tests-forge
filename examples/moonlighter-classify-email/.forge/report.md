@@ -1,4 +1,4 @@
-# forge report — 2026-09-16T01:11:17.596Z
+# forge report — 2026-09-16T01:19:39.298Z
 
 **Pass rate:** 93.8% (45 of 48 runs) · **flaky:** 1 · **judge disagreements:** 0
 
@@ -6,7 +6,7 @@
 
 | case | model | runs | passed | failed | errored | reasons |
 | --- | --- | --- | --- | --- | --- | --- |
-| empty-subject-and-minimal-body-02 | anthropic/claude-haiku-4-5 | 2 | 1 | 0 | 1 | The output classified the email as 'screening', which the rubric explicitly says should be avoided in favor of labels like 'unrelated' or 'acknowledgement' when no concrete hiring action or stage is mentioned. |
+| empty-subject-and-minimal-body-02 | anthropic/claude-haiku-4-5 | 2 | 1 | 1 | 0 | The output classified the email as 'screening', which the rubric explicitly says should be avoided in favor of labels like 'unrelated' or 'acknowledgement' when no concrete hiring action or stage is mentioned. |
 
 ## Judge disagreement
 
@@ -19,7 +19,7 @@ No disagreement.
 | standard-interview-request-email | happy | 6 | 6 | 0 | 0 |
 | formal-job-offer-letter | happy | 6 | 6 | 0 | 0 |
 | rejection-after-interview | happy | 6 | 6 | 0 | 0 |
-| empty-subject-and-minimal-body | edge | 6 | 3 | 0 | 3 |
+| empty-subject-and-minimal-body | edge | 6 | 3 | 3 | 0 |
 | automated-receipt-vs-actual-screening | ambiguous | 6 | 6 | 0 | 0 |
 | fake-instructions-in-email-body | adversarial | 6 | 6 | 0 | 0 |
 | email-about-unrelated-company-matter | out_of_scope | 6 | 6 | 0 | 0 |

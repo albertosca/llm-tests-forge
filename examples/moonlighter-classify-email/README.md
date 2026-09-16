@@ -2,7 +2,7 @@
 
 The target is [moonlighter](https://github.com/albertosca/moonlighter), a job-application tracker. Its `classify_response` (`packages/email/moonlighter/tracking/classification.py`) takes one email a candidate received and returns a JSON object with `type`, `stage`, `new_stage`, `company`, `job_title` and `summary`, where `type` is one of seven labels. The rule this suite exists to protect is the one that is easiest to get wrong: an automated "we have received your application" is `acknowledgement`, never `screening` and never `interview` — the process has not started. `prompt.txt` in this directory is that function's prompt, copied verbatim, with the untrusted-email block and the stage list replaced by placeholders.
 
-Everything under `.forge/` here was produced by `forge` and reviewed by hand, then run against the real application. `results.json` and `.forge/report.*` are the output of that run, dated in `report.json` (`generatedAt: 2026-09-16T01:11:17.596Z`, promptfoo 0.123.0) — they are a record of one run on one day, not something regenerated on every commit.
+Everything under `.forge/` here was produced by `forge` and reviewed by hand, then run against the real application. `results.json` and `.forge/report.*` are the output of that run, dated in `report.json` (`generatedAt: 2026-09-16T01:19:39.298Z`, promptfoo 0.123.0) — they are a record of one run on one day, not something regenerated on every commit.
 
 ## Models used, and why Google is absent
 
@@ -78,7 +78,7 @@ The one expected value worth arguing about is `empty-subject-and-minimal-body-03
     $ bun ../../src/cli/bin.ts report results.json
     report: 48 of 48 rows matched; pass rate 93.8%; 1 flaky; 0 judge disagreements
 
-Every scenario ran 6 times (3 cases × `repeat: 2`). Seven of the eight passed 6 times; `empty-subject-and-minimal-body` passed 3 of 6, and those three failures are described below. The judge cost came in at $0.015010 against an estimate of $0.009168 — 64% high, because a failing `llm-rubric` writes a long explanation and the estimate assumes a short one. The target line reads $0.000000 against $0.051836, which is not a saving: the shim reports zero tokens (see below), so `report.md` says so in as many words rather than printing a number it does not have.
+Every scenario ran 6 times (3 cases × `repeat: 2`). Seven of the eight passed 6 times; `empty-subject-and-minimal-body` comes out 3 passed, 3 failed, 0 errored, and those three failures are described below. The judge cost came in at $0.015010 against an estimate of $0.009168 — 64% high, because a failing `llm-rubric` writes a long explanation and the estimate assumes a short one. The target line reads $0.000000 against $0.051836, which is not a saving: the shim reports zero tokens (see below), so `report.md` says so in as many words rather than printing a number it does not have.
 
 Two kinds of noise on stderr are expected and are not failures: promptfoo 0.123.0 prints `ExperimentalWarning: DecompressInterceptor`, and the Python worker prints an `asyncio` traceback ending in `RuntimeError: Event loop is closed` when it tears down moonlighter's HTTP client after the loop has closed. All 48 rows still carry a result.
 
@@ -93,9 +93,7 @@ The shim now parses the header lines one at a time (see `parse_email`), and the 
 They are worth reading, because they are what the suite is for:
 
 - **`empty-subject-and-minimal-body-03`, both runs.** The rubric asks for `company` to be null on a one-word email with no identifying details; moonlighter answered `company: "Harbor Oak Recruiting"`, inferred from the sender's domain. The judge scored it 0 and 0.3 with that reason both times. This is the case flagged during review as the one worth arguing about — whether inferring a company from a recruiting domain is correct behaviour is a real question about moonlighter, not a defect in the case, so it stays as generated.
-- **`empty-subject-and-minimal-body-02`, one run of two.** On the body "following up", moonlighter answered `unrelated` once and `screening` once. `forge report` lists it under **flaky** for exactly that reason: same input, two repeats, two answers. A one-word email is genuinely ambiguous, and the rubric's demand that it not be called `screening` is the stricter reading.
-
-One caveat about how `report.md` presents them: its per-scenario table counts these three as **errored** rather than **failed**, although promptfoo counted them as `3 failed, 0 errors`. That is a defect in `forge report`, not a description of the run — promptfoo puts a failing assert's reason in each row's `error` field, and the report reads any non-empty `error` as an execution failure.
+- **`empty-subject-and-minimal-body-02`, one run of two.** On the body "following up", moonlighter answered `unrelated` once and `screening` once. `forge report` lists it under **flaky** for exactly that reason — same input, two repeats, two answers — with `passed: 1, failed: 1, errored: 0`. A one-word email is genuinely ambiguous, and the rubric's demand that it not be called `screening` is the stricter reading.
 
 ## Two honest limitations of the shim
 
