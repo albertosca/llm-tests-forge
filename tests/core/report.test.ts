@@ -195,7 +195,7 @@ describe("buildReport", () => {
 		]);
 	});
 
-	test("the committed example run: 45 of 48 rows pass, three asserts fail, nothing errored", async () => {
+	test("the committed example run: 46 of 48 rows pass, two asserts fail, nothing errored", async () => {
 		const exampleForge = resolve("examples/moonlighter-classify-email/.forge");
 		const report = buildReport({
 			results: await readResults(
@@ -212,14 +212,12 @@ describe("buildReport", () => {
 		});
 		expect(report.rows).toBe(48);
 		expect(report.matched).toBe(48);
-		expect(report.passRate).toBe(0.9375);
+		expect(report.passRate).toBe(0.9583);
 		const failed = report.scenarios.reduce((n, s) => n + s.failed, 0);
 		const errored = report.scenarios.reduce((n, s) => n + s.errored, 0);
-		// promptfoo itself reports 3 failed and 0 errors for this file
-		expect([failed, errored]).toEqual([3, 0]);
-		expect(report.flaky).toEqual([
-			"empty-subject-and-minimal-body-02 @ anthropic/claude-haiku-4-5",
-		]);
+		// promptfoo itself reports 2 failed and 0 errors for this file
+		expect([failed, errored]).toEqual([2, 0]);
+		expect(report.flaky).toEqual([]);
 		expect(report.failing).toEqual([
 			"empty-subject-and-minimal-body-03 @ anthropic/claude-haiku-4-5",
 		]);
