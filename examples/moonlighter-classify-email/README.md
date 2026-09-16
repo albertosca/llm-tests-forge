@@ -99,6 +99,6 @@ Two kinds of noise on stderr are expected and are not failures: promptfoo 0.123.
     $ bunx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml -o results.json --no-cache --no-progress-bar -j 2
     $ bun ../../src/cli/bin.ts report results.json --baseline .forge/report.json
 
-`suite.yaml` is committed with `python: .venv/bin/python`, which is a placeholder, not a path that exists here: the run used an absolute path to moonlighter's own virtualenv on the machine it ran on, and it was put back before committing so the file does not carry one person's home directory. `forge emit` copies whatever it finds there into `promptfooconfig.yaml` as `pythonExecutable`, so change `suite.yaml` and re-emit rather than editing the emitted config.
+`suite.yaml` is committed with `python: .venv/bin/python`, which is a placeholder, not a path that exists here: the run used an absolute path to moonlighter's own virtualenv on the machine it ran on, and it was put back before committing so the file does not carry one person's home directory. `results.json` still names that absolute path, because it is promptfoo's own unedited record of the run and editing it would make it a worse record. `forge emit` copies whatever it finds there into `promptfooconfig.yaml` as `pythonExecutable`, so change `suite.yaml` and re-emit rather than editing the emitted config.
 
 `bun run validate:example`, from the repository root, checks this config with the real promptfoo and needs no key; CI runs the same command on every push.
