@@ -1,0 +1,63 @@
+- id: automated-receipt-vs-actual-screening-01
+  scenario: automated-receipt-vs-actual-screening
+  input:
+    email: |-
+      From: careers-noreply@brightpath.com
+      Subject: Application Received - Data Analyst Position
+      Body: Dear Maria Gonzalez,
+
+      Thank you for applying to the Data Analyst position at BrightPath Solutions. This email confirms that your application has been successfully received in our system.
+
+      Our recruiting team will review your qualifications against the requirements of the role, and if there is a potential match, someone from our team will reach out to you regarding next steps.
+
+      Please do not reply to this email as it is not monitored.
+
+      Best regards,
+      BrightPath Solutions Talent Acquisition Team
+  expected:
+    label: acknowledgement
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: automated-receipt-vs-actual-screening-02
+  scenario: automated-receipt-vs-actual-screening
+  input:
+    email: |-
+      From: talent-updates@finlogix.io
+      Subject: We've Got Your Application - Senior Backend Engineer
+      Body: Hi Devon Carter,
+
+      This is an automated message to let you know that your application for the Senior Backend Engineer role at Finlogix has been received and logged into our applicant tracking system.
+
+      Our hiring algorithm has flagged your resume as a strong preliminary match based on your listed skills. Should your profile continue to align with our needs after further internal assessment, a member of our recruiting team will contact you to schedule a phone screening.
+
+      No action is required from you at this time.
+
+      Thanks,
+      Finlogix Recruiting Bot
+  expected:
+    label: acknowledgement
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: automated-receipt-vs-actual-screening-01
+- id: automated-receipt-vs-actual-screening-03
+  scenario: automated-receipt-vs-actual-screening
+  input:
+    email: |-
+      From: hr-system@quantumcore.com
+      Subject: Application Confirmation & Next Step - Product Manager Role
+      Body: Dear Priya Nair,
+
+      Thank you for submitting your application for the Product Manager position at QuantumCore Technologies. This confirms we have successfully received your resume and cover letter.
+
+      As part of our standard evaluation process, please complete the attached 15-minute skills assessment within the next 3 business days. Your responses will be used to determine whether you advance to the interview stage.
+
+      You can access the assessment here: quantumcore.com/assessment/8823
+
+      If you have any questions about the assessment, feel free to reach out.
+
+      Warm regards,
+      QuantumCore HR Systems
+  expected:
+    label: screening
+  status: approved
+  generated_by: anthropic/claude-sonnet-5

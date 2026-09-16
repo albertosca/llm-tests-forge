@@ -1,0 +1,57 @@
+- id: standard-interview-request-email-01
+  scenario: standard-interview-request-email
+  input:
+    email: |-
+      From: Priya Nair <priya.nair@brightwave.io>
+      Subject: Interview Invitation - Senior Backend Engineer
+      Body: Hi Marcus,
+
+      Thank you for your patience throughout our process. We'd love to move forward with a video interview for the Senior Backend Engineer position at Brightwave. Would you be available this Thursday, March 14th at 2:00 PM PST for a 45-minute call with our engineering lead, Tom Reyes? We'll send a Zoom link once you confirm.
+
+      Looking forward to speaking with you.
+
+      Best,
+      Priya Nair
+      Talent Acquisition, Brightwave
+  expected:
+    label: interview
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: standard-interview-request-email-02
+  scenario: standard-interview-request-email
+  input:
+    email: |-
+      From: Daniel Kessler <d.kessler@northfieldlaw.com>
+      Subject: Next Steps - Associate Attorney Role
+      Body: Dear Ms. Alvarez,
+
+      We were impressed with your application for the Associate Attorney position at Northfield & Kessler LLP. I'd like to schedule a phone interview with you and our hiring partner, Susan Ortiz, next week. Could you let me know your availability on either Tuesday, April 9th or Wednesday, April 10th between 10 AM and 4 PM Eastern? The call should take about 30 minutes.
+
+      Please confirm a time that works and I'll send a calendar invite with dial-in details.
+
+      Regards,
+      Daniel Kessler
+      Hiring Manager
+  expected:
+    label: interview
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: standard-interview-request-email-01
+- id: standard-interview-request-email-03
+  scenario: standard-interview-request-email
+  input:
+    email: |-
+      From: Aiko Tanaka <aiko.tanaka@lumenhealth.com>
+      Subject: Let's Set Up a Time to Chat - Product Manager Position
+      Body: Hi Sam,
+
+      Thanks again for applying to the Product Manager role at Lumen Health. I'm reaching out to schedule an initial interview so I can learn more about your background and share details about the team. Are you free for a 30-minute video call sometime Monday the 21st or Tuesday the 22nd? Just let me know a couple of time slots that work and I'll book it through Google Meet.
+
+      Talk soon,
+      Aiko Tanaka
+      Recruiter, Lumen Health
+  expected:
+    label: interview
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: standard-interview-request-email-01

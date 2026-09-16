@@ -13,6 +13,7 @@
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit",
 		"check": "bun run lint && bun run typecheck && bun test",
+		"validate:example": "bunx promptfoo@0.123.0 validate -c examples/moonlighter-classify-email/.forge/promptfooconfig.yaml",
 		"test:live": "FORGE_LIVE=1 bun test tests/live --config=bunfig.live.toml"
 	},
 	"dependencies": {

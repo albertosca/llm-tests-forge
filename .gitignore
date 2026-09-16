@@ -2,5 +2,6 @@
 .superpowers/
 node_modules/
 coverage/
-.forge/failures/
-.forge/usage.jsonl
+**/.forge/failures/
+**/.forge/usage.jsonl
+__pycache__/

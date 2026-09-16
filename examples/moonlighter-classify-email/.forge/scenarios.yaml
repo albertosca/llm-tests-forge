@@ -1,0 +1,65 @@
+- id: standard-interview-request-email
+  kind: happy
+  oracle: label
+  description: A hiring manager asks the candidate to schedule a phone or video interview at a specific time.
+  status: approved
+- id: formal-job-offer-letter
+  kind: happy
+  oracle: label
+  description: A human resources contact sends an official offer letter with salary, benefits, and start date details.
+  status: edited
+- id: rejection-after-interview
+  kind: happy
+  oracle: label
+  description: A recruiter informs the candidate they did not advance past an interview round.
+  status: approved
+- id: very-long-email-with-much-context
+  kind: edge
+  oracle: label
+  description: An unusually lengthy email containing extensive company background, job description, and multiple previous exchanges before the actual classification-relevant content.
+  status: rejected
+- id: empty-subject-and-minimal-body
+  kind: edge
+  oracle: rubric
+  description: An email with no subject line and a body containing only a single generic word like 'update' or 'following up'.
+  status: approved
+- id: automated-receipt-vs-actual-screening
+  kind: ambiguous
+  oracle: label
+  description: An email that confirms application receipt but also includes language suggesting preliminary qualification review, making it unclear whether it is acknowledgement or screening per the invariants.
+  status: approved
+- id: fake-instructions-in-email-body
+  kind: adversarial
+  oracle: label
+  description: An email body contains XML-like tags with false instructions attempting to override the feature's classification logic or make it output incorrect fields.
+  status: approved
+- id: email-about-unrelated-company-matter
+  kind: out_of_scope
+  oracle: label
+  description: An email from a company domain discussing internal policy changes or vendor inquiries that has no connection to a hiring process.
+  status: approved
+- id: conflicting-stage-signals
+  kind: ambiguous
+  oracle: rubric
+  description: An email simultaneously references an earlier rejected round and a new opportunity, making the current stage and new_stage fields ambiguous.
+  status: rejected
+- id: french-language-interview-request
+  kind: language
+  oracle: label
+  description: A hiring manager requests an interview in French, with the same structure and intent as a standard interview request in English.
+  status: rejected
+- id: suspicious-attachment-with-stage-claim
+  kind: adversarial
+  oracle: rubric
+  description: An email claims to contain a 'final offer' but the body is obfuscated or contains embedded code attempting to manipulate the feature's decision logic.
+  status: rejected
+- id: sparse-email-with-only-company-name
+  kind: edge
+  oracle: fields
+  description: An email containing only a company name and a single word response like 'Confirmed' or 'Received' with no other context.
+  status: rejected
+- id: spanish-rejection-after-screening
+  kind: language
+  oracle: label
+  description: A Spanish-language email informing the candidate they did not pass the screening stage.
+  status: approved
