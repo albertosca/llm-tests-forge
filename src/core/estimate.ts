@@ -4,8 +4,20 @@ import type { Selection } from "./select";
 
 /** Tokens promptfoo's grading prompt adds around the output and the rubric (measured ~200 on 2026-09-15). */
 export const JUDGE_PROMPT_OVERHEAD = 200;
-/** Judge answer size including the reasoning some providers bill as output (measured 55–73 completion + reasoning). */
-export const JUDGE_OUTPUT_TOKENS = 80;
+/**
+ * Judge answer size including the reasoning some providers bill as output.
+ * Measured as `completion + completionDetails.reasoning` over every
+ * `llm-rubric` component: mean 174 across the 6 components of
+ * `examples/moonlighter-classify-email/results.json` (2026-09-16), and mean
+ * 321 across the 2 of `tests/fixtures/promptfoo-results-0.123.0.json` — set
+ * from the larger, more representative example run. A judge that rejects
+ * writes far more than one that passes: the 3 passing components above
+ * measured 68–85 tokens with no reasoning at all, while the 3 rejecting
+ * ones ranged 92–359, two of them paying for hidden reasoning tokens to
+ * explain the rejection. A real tokenizer would replace this constant; the
+ * estimate is a guess either way, calibrated rather than exact.
+ */
+export const JUDGE_OUTPUT_TOKENS = 174;
 
 export interface EstimateLine {
 	model: string;
@@ -16,6 +28,8 @@ export interface EstimateLine {
 	dollars: number;
 	pricedAs: string;
 	approximate: boolean;
+	/** False when the model's provider has no row at all in prices.yaml. */
+	priced: boolean;
 }
 
 export interface Estimate {
@@ -83,6 +97,7 @@ export function estimateSuite(args: {
 			dollars: dollars(inputTokens, outputTokens, price),
 			pricedAs: price.pricedAs,
 			approximate: price.approximate,
+			priced: price.priced,
 		});
 	}
 	for (const judge of rubricCases.length > 0 ? suite.judges : []) {
@@ -108,6 +123,7 @@ export function estimateSuite(args: {
 			dollars: dollars(inputTokens, outputTokens, price),
 			pricedAs: price.pricedAs,
 			approximate: price.approximate,
+			priced: price.priced,
 		});
 	}
 	const notes = [
@@ -117,13 +133,19 @@ export function estimateSuite(args: {
 		notes.push(
 			"application prompt not counted: set feature.prompt_file to include it",
 		);
-	if (lines.some((l) => l.approximate))
+	if (lines.some((l) => l.priced && l.approximate))
 		notes.push("~ marks a model priced as the closest listed model");
+	for (const model of new Set(
+		lines.filter((l) => !l.priced).map((l) => l.model),
+	))
+		notes.push(`not priced: ${model} has no row in prices.yaml`);
 	return {
 		lines,
 		cases: selection.cases.length,
 		rubricCases: rubricCases.length,
-		totalDollars: lines.reduce((s, l) => s + l.dollars, 0),
+		totalDollars: lines
+			.filter((l) => l.priced)
+			.reduce((s, l) => s + l.dollars, 0),
 		pricesUpdated: prices.updated,
 		notes,
 	};
@@ -131,15 +153,25 @@ export function estimateSuite(args: {
 
 export function renderEstimate(e: Estimate): string {
 	const out = [
-		`estimate: ${e.cases} cases, ${e.rubricCases} with a rubric; prices dated ${e.pricesUpdated}`,
+		// core has no dependency on the cli layer's plural(), so this stays a
+		// local ternary rather than importing it.
+		`estimate: ${e.cases} case${e.cases === 1 ? "" : "s"}, ${e.rubricCases} with a rubric; prices dated ${e.pricesUpdated}`,
 	];
-	for (const l of e.lines) {
-		const name = `${l.model}${l.approximate ? " ~" : ""}`.padEnd(34);
-		const row = `  ${l.role.padEnd(7)} ${name} ${String(l.calls).padStart(4)} calls ${String(l.inputTokens).padStart(7)} in ${String(l.outputTokens).padStart(7)} out  $${l.dollars.toFixed(6)}`;
-		out.push(l.approximate ? `${row}  (priced as ${l.pricedAs})` : row);
-	}
-	// The dollar column starts at index 80 in every data row; "  total" is 7 characters.
-	out.push(`  total${" ".repeat(73)}$${e.totalDollars.toFixed(6)}`);
+	const rows = e.lines.map((l) => {
+		const marked = l.priced && l.approximate;
+		const name = `${l.model}${marked ? " ~" : ""}`.padEnd(34);
+		const dollarText = l.priced ? `$${l.dollars.toFixed(6)}` : "not priced";
+		const row = `  ${l.role.padEnd(7)} ${name} ${String(l.calls).padStart(4)} calls ${String(l.inputTokens).padStart(7)} in ${String(l.outputTokens).padStart(7)} out  ${dollarText}`;
+		return marked ? `${row}  (priced as ${l.pricedAs})` : row;
+	});
+	out.push(...rows);
+	// The dollar column sits wherever the widest data row put its "$";
+	// "  total" is 7 characters, so that many fewer spaces are needed.
+	const dollarCol = Math.max(...rows.map((r) => r.indexOf("$")));
+	const label = "  total";
+	out.push(
+		`${label}${" ".repeat(Math.max(0, dollarCol - label.length))}$${e.totalDollars.toFixed(6)}`,
+	);
 	for (const n of e.notes) out.push(`note: ${n}`);
 	return out.join("\n");
 }

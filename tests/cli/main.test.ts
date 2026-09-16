@@ -1443,6 +1443,36 @@ describe("estimate", () => {
 		expect(text).toContain("note: tokens are estimated as characters / 4");
 		expect(text).toContain("note: application prompt not counted");
 	});
+	test("a single selected case with no rubric pluralizes to singular", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "solo",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "solo", [
+			{
+				id: "solo-01",
+				scenario: "solo",
+				input: { email: "x" },
+				expected: { label: "rejection" },
+				status: "approved",
+				generated_by: "t",
+			},
+		]);
+		await writeSuite(forgeDir, SUITE);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], ctx)).toBe(0);
+		expect(out[0]).toMatch(
+			/^estimate: 1 case, 0 with a rubric; prices dated \d{4}-\d{2}-\d{2}$/m,
+		);
+	});
 	test("counts the prompt file when feature.prompt_file is set, and drops the prompt note", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDir = await forgeWithApprovedCases(cwd);
@@ -1642,6 +1672,36 @@ describe("emit", () => {
 		);
 		expect(out).toContain(
 			`emit: wrote ${join(forgeDir, "forge_target.py")}; edit run_application() to call your application`,
+		);
+	});
+	test("a single case, scenario, target model and judge pluralizes to singular", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "solo",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "solo", [
+			{
+				id: "solo-01",
+				scenario: "solo",
+				input: { email: "x" },
+				expected: { label: "rejection" },
+				status: "approved",
+				generated_by: "t",
+			},
+		]);
+		await writeSuite(forgeDir, SUITE);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["emit"], ctx)).toBe(0);
+		expect(out).toContain(
+			`emit: wrote ${join(forgeDir, "promptfooconfig.yaml")} (1 case, 1 scenario, 1 target model, 1 judge)`,
 		);
 	});
 	test("never overwrites an existing shim, and says it kept it", async () => {
@@ -1922,7 +1982,15 @@ describe("report", () => {
 			(c: { role: string }) => c.role === "judge",
 		) as { model: string; estimatedDollars: number };
 		expect(judge.model).toBe("google/gemini-3.5-flash");
-		expect(judge.estimatedDollars).toBeGreaterThan(0);
+		// Computed from the real prices.yaml row for google/gemini-3.5-flash
+		// (input 1.5, output 9 per million tokens) and the one rubric case
+		// forgeMatchingFixture selects (out-of-scope-newsletter-02, whose
+		// rubric text is the single character "r", 1 token): perJudgeCalls
+		// is 1 target model * repeat 2 = 2; input tokens per call are the
+		// label output guess (8) + the rubric (1) + JUDGE_PROMPT_OVERHEAD
+		// (200) = 209, so 418 total; output tokens are 2 calls *
+		// JUDGE_OUTPUT_TOKENS (174) = 348.
+		expect(judge.estimatedDollars).toBe((418 * 1.5 + 348 * 9) / 1_000_000);
 	});
 
 	test("--baseline reads a previous report.json and reports what changed", async () => {

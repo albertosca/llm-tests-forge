@@ -51,6 +51,7 @@ describe("priceFor", () => {
 			output: 2.5,
 			pricedAs: "google/gemini-3.5-flash",
 			approximate: false,
+			priced: true,
 		});
 	});
 	test("an unknown model of a known provider is priced as the same-provider model with the longest common prefix", () => {
@@ -59,14 +60,16 @@ describe("priceFor", () => {
 			output: 5,
 			pricedAs: "anthropic/claude-haiku-4-5",
 			approximate: true,
+			priced: true,
 		});
 	});
-	test("an unknown provider is priced as the first model in the table, marked approximate", () => {
+	test("an unknown provider is not priced", () => {
 		expect(priceFor("ollama/llama3", table)).toEqual({
-			input: 1,
-			output: 5,
-			pricedAs: "anthropic/claude-haiku-4-5",
+			input: 0,
+			output: 0,
+			pricedAs: "ollama/llama3",
 			approximate: true,
+			priced: false,
 		});
 	});
 	test("prefix ties resolve to the first listed candidate (file order), so the result is deterministic", () => {

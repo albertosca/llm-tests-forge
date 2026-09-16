@@ -678,6 +678,23 @@ describe("buildReport", () => {
 		]);
 	});
 
+	test("a judge whose provider has no row in prices.yaml gets no real dollar figure", () => {
+		const report = build([
+			row({
+				case: "r-01",
+				model: "m",
+				success: false,
+				gradingResult: {
+					pass: false,
+					componentResults: [rubric(false, "no", "ollama/llama3")],
+				},
+			}),
+		]);
+		const judge = report.costs.find((c) => c.role === "judge");
+		expect(judge?.model).toBe("ollama/llama3");
+		expect(judge?.realDollars).toBeNull();
+	});
+
 	test("a target that reports cost uses it; tokens are summed either way", () => {
 		const report = build([
 			row({
@@ -743,6 +760,7 @@ describe("buildReport", () => {
 					dollars: 0.0005,
 					pricedAs: "anthropic/claude-haiku-4-5",
 					approximate: false,
+					priced: true,
 				},
 			],
 			cases: 1,
@@ -784,6 +802,7 @@ describe("buildReport", () => {
 					dollars: 0,
 					pricedAs: "m",
 					approximate: true,
+					priced: true,
 				},
 			],
 			cases: 0,

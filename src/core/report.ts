@@ -359,11 +359,15 @@ function costsOf(args: {
 				// A shim that reported nothing has no cost, not a cost of
 				// zero: pricing its silence would print a saving it did not
 				// make, and an error percent of -100% against the estimate.
-				realDollars: !targetUsageReported
-					? null
-					: reported
-						? sum(mine, (m) => m.row.cost ?? 0)
-						: (inputTokens * price.input + outputTokens * price.output) / 1e6,
+				// A provider with no row in prices.yaml is the same story:
+				// there is no rate to price it at, so it reports no cost
+				// rather than a real dollar figure computed from a 0 rate.
+				realDollars:
+					!price.priced || !targetUsageReported
+						? null
+						: reported
+							? sum(mine, (m) => m.row.cost ?? 0)
+							: (inputTokens * price.input + outputTokens * price.output) / 1e6,
 				// `~` says "this dollar figure came from the closest listed
 				// model". When promptfoo reported the cost itself no table
 				// lookup happened, so marking it would be a lie.
@@ -395,8 +399,12 @@ function costsOf(args: {
 				role: "judge",
 				inputTokens: totals.input,
 				outputTokens: totals.output,
-				realDollars:
-					(totals.input * price.input + totals.output * price.output) / 1e6,
+				// A judge is always priced from the table (promptfoo never
+				// reports its cost), so an unpriced provider has no basis
+				// for a dollar figure at all.
+				realDollars: price.priced
+					? (totals.input * price.input + totals.output * price.output) / 1e6
+					: null,
 				approximatePrice: price.approximate,
 				estimate,
 			}),
