@@ -226,6 +226,7 @@ describe("runReviewLoop", () => {
 
 	test("drives a feature item through a failed reject (which re-asks) then an approve", async () => {
 		const printed: string[] = [];
+		const seen: PendingItem[] = [];
 		const r = await runReviewLoop({
 			items: [{ kind: "feature", item: feature }],
 			ask: scripted(["reject", "approve"]),
@@ -234,8 +235,13 @@ describe("runReviewLoop", () => {
 			checkExpected: () => null,
 			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
+			onDecided: (decided) => seen.push(decided),
 			print: (l) => printed.push(l),
 		});
+		// The third kind the callback can be handed, paired the same way.
+		expect(seen).toEqual([
+			{ kind: "feature", item: { ...feature, status: "approved" } },
+		]);
 		expect(r.summary).toEqual({
 			approved: 1,
 			rejected: 0,
@@ -336,7 +342,7 @@ describe("runReviewLoop", () => {
 	});
 
 	test("reports every decision to onDecided as it is taken, under the id the item had on entry, and reports nothing for a skip", async () => {
-		const seen: [string, string, string][] = [];
+		const seen: [PendingItem, string][] = [];
 		await runReviewLoop({
 			items: [
 				{ kind: "case", item: withExp },
@@ -349,16 +355,28 @@ describe("runReviewLoop", () => {
 			checkExpected: () => null,
 			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
-			onDecided: (kind, item, originalId) =>
-				seen.push([kind, item.id, originalId]),
+			onDecided: (decided, originalId) => seen.push([decided, originalId]),
 			print: () => {},
 		});
 		// The renamed case is reported under "s-01", the id the caller can
 		// still find in the file it read; the skipped case is not reported.
-		expect(seen).toEqual([
+		expect(
+			seen.map(([d, originalId]) => [d.kind, d.item.id, originalId]),
+		).toEqual([
 			["case", "s-42", withExp.id],
 			["scenario", scn.id, scn.id],
 		]);
+		// The argument is the kind and the item already paired: a caller
+		// narrowing on `decided.kind` gets the item's type from the same
+		// check, rather than casting a bare item back into shape.
+		expect(seen[1]?.[0]).toEqual({
+			kind: "scenario",
+			item: { ...scn, status: "approved" },
+		});
+		expect(seen[0]?.[0]).toEqual({
+			kind: "case",
+			item: { ...withExp, id: "s-42", status: "edited" },
+		});
 	});
 
 	test("skip leaves no decision", async () => {

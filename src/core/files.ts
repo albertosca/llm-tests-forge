@@ -65,8 +65,10 @@ function hasCode(e: unknown): e is { code: string } {
  * The OS tells us why a read failed; passing that on is the difference
  * between "the file is not there" and "you pointed at a directory" or
  * "you cannot read it" — three different fixes for the person. Exported for
- * `estimate.ts`'s `promptTokensFor`, which reads a second file outside
- * `readYamlFile` and needs the same causes.
+ * the two readers outside `readYamlFile` that need the same causes:
+ * `estimate.ts`'s `promptTokensFor`, which reads the feature's prompt file,
+ * and `src/report/results.ts`'s `readResults`, which reads promptfoo's JSON
+ * output — neither is YAML, so neither goes through `readYamlFile`.
  */
 export function readFailure(e: unknown): string {
 	const code = hasCode(e) ? e.code : undefined;

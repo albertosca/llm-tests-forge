@@ -13,7 +13,7 @@ import {
 } from "../../core/files";
 import { expectedMatchesOracle } from "../../core/oracle";
 import { applyDecision, pendingItems } from "../../core/review";
-import type { Case, Feature, Oracle, Scenario } from "../../core/schemas";
+import type { Case, Oracle } from "../../core/schemas";
 import type { CliContext } from "../context";
 import { askChoice, askExpectedFor, openInEditor } from "../prompts";
 import { runReviewLoop } from "../review-loop";
@@ -101,8 +101,21 @@ export async function reviewCommand(
 
 	if (named !== undefined && values.all) {
 		const id = named.id;
-		const feature = await readFeature(ctx.forgeDir);
 		const cases = casesById.get(id) ?? [];
+		// The file is named for the scenario its cases belong to, and that
+		// is the scenario whose oracle `--all` approves them against. A
+		// hand-edited file holding a case that names another scenario was
+		// bulk-approved here against an oracle that is not its own. Checked
+		// before anything is written, so a bad file comes back exactly as
+		// it went in rather than half-approved.
+		const file = join(paths.casesDir, `${id}.yaml`);
+		for (const c of cases)
+			if (c.scenario !== id)
+				throw new ForgeError(
+					`case ${c.id} names scenario "${c.scenario}" but lives in ${file}; run \`forge move --case ${c.id} --to ${c.scenario}\` or fix the file`,
+					{ file, id: c.id },
+				);
+		const feature = await readFeature(ctx.forgeDir);
 		let approved = 0;
 		let noExpected = 0;
 		let offOracle = 0;
@@ -223,13 +236,13 @@ export async function reviewCommand(
 				? null
 				: expectedMatchesOracle(c.expected, oracle, feature),
 		oracleOf,
-		onDecided: (kind, item, originalId) => {
-			if (kind === "feature") {
-				feature = item as Feature;
+		onDecided: (item, originalId) => {
+			if (item.kind === "feature") {
+				feature = item.item;
 				return;
 			}
-			if (kind !== "scenario") return;
-			const decided = item as Scenario;
+			if (item.kind !== "scenario") return;
+			const decided = item.item;
 			// Read before the replacement below overwrites it: the old
 			// oracle is what says which of its cases this decision
 			// invalidates, and it exists nowhere else once the pass moves on.
@@ -267,13 +280,12 @@ export async function reviewCommand(
 	};
 
 	const decidedFeature = result.decisions.find((d) => d.kind === "feature");
-	if (decidedFeature)
-		await writeFeature(ctx.forgeDir, decidedFeature.item as Feature);
+	if (decidedFeature) await writeFeature(ctx.forgeDir, decidedFeature.item);
 
 	const decidedScenarios = new Map(
 		result.decisions
 			.filter((d) => d.kind === "scenario")
-			.map((d) => [d.originalId, d.item as Scenario] as const),
+			.map((d) => [d.originalId, d.item] as const),
 	);
 	if (decidedScenarios.size > 0)
 		await writeScenarios(
@@ -284,7 +296,7 @@ export async function reviewCommand(
 	const decidedCases = new Map(
 		result.decisions
 			.filter((d) => d.kind === "case")
-			.map((d) => [d.originalId, d.item as Case] as const),
+			.map((d) => [d.originalId, d.item] as const),
 	);
 	// A scenario's oracle is the contract its cases' `expected` was written
 	// against, so changing it in review invalidates them wholesale. Nothing
@@ -300,23 +312,39 @@ export async function reviewCommand(
 	// `dedupe`'s own answer reads as being about a case that is not there.
 	// Rewritten in the same write as the rename, so the file is never
 	// briefly inconsistent on disk.
-	const renamedCases = new Map(
-		result.decisions
-			.filter((d) => d.kind === "case" && d.originalId !== d.id)
-			.map((d) => [d.originalId, d.id] as const),
-	);
-	const followRename = (c: Case): Case => {
-		const renamed =
-			c.duplicate_of === undefined
-				? undefined
-				: renamedCases.get(c.duplicate_of);
-		return renamed === undefined ? c : { ...c, duplicate_of: renamed };
-	};
+	//
+	// Built from one file's own decisions and applied to that file only:
+	// `duplicate_of` names a case in the same file, and case ids are
+	// scenario-prefixed by convention rather than by rule, so one global
+	// map let a rename here rewrite a pointer over there that merely spelled
+	// the same string.
+	const renamesIn = (list: Case[]): Map<string, string> =>
+		new Map(
+			result.decisions
+				.filter(
+					(d) =>
+						d.kind === "case" &&
+						d.originalId !== d.id &&
+						list.some((c) => c.id === d.originalId),
+				)
+				.map((d) => [d.originalId, d.id] as const),
+		);
 	let totalReopened = 0;
 	for (const [id, list] of casesById) {
 		const oracleChange = oracleChanges.get(id);
 		const decided = list.some((c) => decidedCases.has(c.id));
 		if (!decided && oracleChange === undefined) continue;
+		// An oracle change against a file holding nothing re-opens nothing
+		// and writes nothing; the pass below reports it, together with the
+		// scenarios that have no file at all, so one change is announced
+		// once rather than as both a count of zero and a "no cases yet".
+		if (list.length === 0) continue;
+		const renamed = renamesIn(list);
+		const followRename = (c: Case): Case => {
+			const to =
+				c.duplicate_of === undefined ? undefined : renamed.get(c.duplicate_of);
+			return to === undefined ? c : { ...c, duplicate_of: to };
+		};
 		let next = list.map((c) => followRename(take(decidedCases, c.id) ?? c));
 		let reopened = 0;
 		if (oracleChange !== undefined) {
@@ -334,14 +362,27 @@ export async function reviewCommand(
 				// What to do next, not just what happened: a re-opened case keeps
 				// the expected it was approved with, which the new oracle no
 				// longer accepts, so approving it again is refused until it is
-				// edited. Nothing said so, and the next pass looked broken.
-				`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to}; ${reopened} case(s) re-opened — edit each to give it an expected the new oracle accepts`,
+				// edited. Nothing said so, and the next pass looked broken. At
+				// zero there is nothing to edit, so the instruction is left off
+				// rather than sending someone to look for cases that do not exist.
+				`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to}; ${reopened} case(s) re-opened${reopened > 0 ? " — edit each to give it an expected the new oracle accepts" : ""}`,
 			);
 			totalReopened += reopened;
 		}
 		// An oracle change whose cases all still fit leaves the file exactly
 		// as it was read, and a file no decision touched is not rewritten.
 		if (decided || reopened > 0) await writeCases(ctx.forgeDir, id, next);
+	}
+	// The pass above walks the cases files, so a scenario whose oracle this
+	// pass changed before `cases` ever ran for it said nothing at all — and
+	// the change is exactly the one that decides what every case generated
+	// afterwards has to look like. There is no count to report and nothing
+	// to re-open; the line exists so the change is on the record.
+	for (const [id, change] of oracleChanges) {
+		if ((casesById.get(id) ?? []).length > 0) continue;
+		ctx.stdout(
+			`review: scenario ${change.id} changed oracle ${change.from} → ${change.to}; no cases yet`,
+		);
 	}
 	const s = result.summary;
 	// `skipped` counts the items a person answered "skip" to; it is not the
