@@ -1,6 +1,13 @@
-import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import {
+	access,
+	mkdir,
+	readdir,
+	readFile,
+	unlink,
+	writeFile,
+} from "node:fs/promises";
 import { basename, join } from "node:path";
-import { parse, stringify } from "yaml";
+import { isScalar, isSeq, parse, parseDocument, stringify } from "yaml";
 import type { core, ZodType } from "zod";
 import { z } from "zod";
 import { ForgeError } from "./errors";
@@ -65,8 +72,10 @@ function hasCode(e: unknown): e is { code: string } {
  * The OS tells us why a read failed; passing that on is the difference
  * between "the file is not there" and "you pointed at a directory" or
  * "you cannot read it" — three different fixes for the person. Exported for
- * `estimate.ts`'s `promptTokensFor`, which reads a second file outside
- * `readYamlFile` and needs the same causes.
+ * the two readers outside `readYamlFile` that need the same causes:
+ * `estimate.ts`'s `promptTokensFor`, which reads the feature's prompt file,
+ * and `src/report/results.ts`'s `readResults`, which reads promptfoo's JSON
+ * output — neither is YAML, so neither goes through `readYamlFile`.
  */
 export function readFailure(e: unknown): string {
 	const code = hasCode(e) ? e.code : undefined;
@@ -107,13 +116,55 @@ function describeIssue(issue: core.$ZodIssue, data: unknown): string {
 	return `${issue.path.join(".")}: ${issue.message}`;
 }
 
+/** A read whose failure names the file and the OS's reason, as every forge read does. */
+export async function readText(path: string): Promise<string> {
+	return readFile(path, "utf8").catch((e: unknown) => {
+		throw new ForgeError(readFailure(e), { file: path });
+	});
+}
+
+/**
+ * A write whose failure names the file: a name the filesystem refuses, a
+ * directory that cannot be written into, a parent that is a file. The raw
+ * `ENAMETOOLONG: name too long, open '...'` used to surface with no verb
+ * owning it.
+ */
+export async function writeText(path: string, text: string): Promise<void> {
+	await mkdir(join(path, ".."), { recursive: true })
+		.then(() => writeFile(path, text, "utf8"))
+		.catch((e: unknown) => {
+			throw new ForgeError(`cannot write: ${(e as Error).message}`, {
+				file: path,
+			});
+		});
+}
+
+/**
+ * The last step of a move: the source is removed only after the
+ * destination is written, so a failure here leaves a duplicate, and the
+ * message has to say so — `afterwards` is the sentence naming what is
+ * already on disk and what to delete by hand.
+ */
+export async function removeFile(
+	path: string,
+	afterwards: string,
+): Promise<void> {
+	await unlink(path).catch((e: unknown) => {
+		throw new ForgeError(
+			`cannot remove: ${(e as Error).message}; ${afterwards}`,
+			{ file: path },
+		);
+	});
+}
+
 export async function readYamlFile<T>(
 	path: string,
 	schema: ZodType<T>,
 ): Promise<T> {
-	const text = await readFile(path, "utf8").catch((e: unknown) => {
-		throw new ForgeError(readFailure(e), { file: path });
-	});
+	return parseYamlText(path, await readText(path), schema);
+}
+
+function parseYamlText<T>(path: string, text: string, schema: ZodType<T>): T {
 	let data: unknown;
 	try {
 		data = parse(text);
@@ -136,8 +187,7 @@ export async function writeYamlFile(
 	path: string,
 	data: unknown,
 ): Promise<void> {
-	await mkdir(join(path, ".."), { recursive: true });
-	await writeFile(path, stringify(data, { lineWidth: 0 }), "utf8");
+	await writeText(path, stringify(data, { lineWidth: 0 }));
 }
 
 export async function readFeature(forgeDir: string): Promise<Feature> {
@@ -228,6 +278,65 @@ export async function readSuite(forgeDir: string): Promise<Suite> {
 			},
 		);
 	return readYamlFile(path, SuiteSchema);
+}
+
+/**
+ * The same read as `readSuite`, but `null` when no suite.yaml has been
+ * written yet — for `move`, which rewrites `suite.include` when the suite
+ * names the scenario being renamed and must not invent a suite when there
+ * is none. The text comes back beside the parsed suite because the
+ * rewrite works on the document, not on the object (see
+ * `rewriteSuiteInclude`). A file that exists but is unreadable or invalid
+ * still throws.
+ */
+export async function readSuiteIfPresent(
+	forgeDir: string,
+): Promise<{ suite: Suite; text: string } | null> {
+	const path = forgePaths(forgeDir).suite;
+	if (!(await exists(path))) return null;
+	const text = await readText(path);
+	return { suite: parseYamlText(path, text, SuiteSchema), text };
+}
+
+/**
+ * The text of suite.yaml with every `include` entry equal to `from`
+ * rewritten as `to`, through the document rather than through
+ * `writeSuite`: suite.yaml is the one forge file the person writes by
+ * hand, and re-serialising the parsed object would drop every comment and
+ * turn every flow list into a block. Only the scalars are touched;
+ * comments, key order and flow style survive. Spacing is the printer's,
+ * not the person's (`[a,b]`, a comment's indent and a 4-space block indent
+ * come back normalised), which is the trade the `yaml` Document API makes.
+ *
+ * `occurrences` is how many entries the parsed suite holds for `from`. An
+ * entry reached through an alias (`include: *shared`, or `[*old, keep]`)
+ * is not a scalar of the sequence, so it is not rewritten — and the
+ * parsed suite, which resolves aliases, would still say the rename
+ * happened. Refused by name rather than reported as done. Pure, so the
+ * caller can compute it before its first write.
+ */
+export function rewriteSuiteInclude(args: {
+	path: string;
+	text: string;
+	from: string;
+	to: string;
+	occurrences: number;
+}): string {
+	const { path, text, from, to, occurrences } = args;
+	const doc = parseDocument(text);
+	const include = doc.get("include", true);
+	let rewritten = 0;
+	for (const item of isSeq(include) ? include.items : [])
+		if (isScalar(item) && item.value === from) {
+			item.value = to;
+			rewritten += 1;
+		}
+	if (rewritten !== occurrences)
+		throw new ForgeError(
+			`suite.include names "${from}" ${occurrences} time(s) but only ${rewritten} can be rewritten in place: the rest come through a YAML alias; edit suite.yaml by hand`,
+			{ file: path, id: from },
+		);
+	return doc.toString({ flowCollectionPadding: false, lineWidth: 0 });
 }
 
 export async function writeSuite(

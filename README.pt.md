@@ -54,7 +54,12 @@ Lê um objeto JSON `{"input-name": "value"}` por linha a partir de logs reais de
 
     forge review
 
-Revisa tudo que ainda está pendente: casos (confirmando ou corrigindo a saída esperada) e qualquer caso importado (definindo sua saída esperada pela primeira vez). Duas coisas a revisão não muda para você: o `id` de um cenário e o campo `scenario` de um caso, porque os dois nomeiam o arquivo onde os casos moram (`.forge/cases/<scenario>.yaml`) — renomeie o arquivo e os ids à mão. E editar o `oracle` de um cenário reabre os casos aprovados daquele cenário cujo esperado o novo oráculo não aceita mais: cada um precisa então de `edit` para ganhar um esperado no novo formato, não de `approve`.
+Revisa tudo que ainda está pendente: casos (confirmando ou corrigindo a saída esperada) e qualquer caso importado (definindo sua saída esperada pela primeira vez). Duas coisas a revisão não muda para você: o `id` de um cenário e o campo `scenario` de um caso, porque os dois nomeiam o arquivo onde os casos moram (`.forge/cases/<scenario>.yaml`) — a recusa diz qual chamada de `forge move` faz isso. E editar o `oracle` de um cenário reabre os casos aprovados daquele cenário cujo esperado o novo oráculo não aceita mais: cada um precisa então de `edit` para ganhar um esperado no novo formato, não de `approve`.
+
+    forge move --scenario <antigo> <novo>
+    forge move --case <id> --to <cenário>
+
+Renomeia um cenário ou move um caso para outro cenário, reescrevendo o que os ids nomeiam: o arquivo de casos do cenário, cada id de caso numerado a partir dele, os ponteiros `duplicate_of` e o `suite.include`. Um caso movido é numerado depois do último caso do destino; quando o oráculo do destino não aceita o esperado dele, o caso volta a pendente e a linha diz por quê. O destino é escrito antes de a origem ser tocada, então uma falha no meio deixa uma duplicata para limpar, nunca um caso sumido.
 
 No final, `.forge/` guarda `feature.yaml`, `scenarios.yaml` e `cases/<scenario>.yaml` — YAML simples, feito para ser commitado e comparado em diff como qualquer outra fixture de teste.
 

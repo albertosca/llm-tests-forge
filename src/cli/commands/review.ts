@@ -12,11 +12,13 @@ import {
 	writeScenarios,
 } from "../../core/files";
 import { expectedMatchesOracle } from "../../core/oracle";
-import { applyDecision, pendingItems } from "../../core/review";
-import type { Case, Feature, Oracle, Scenario } from "../../core/schemas";
+import { pendingItems } from "../../core/review";
+import type { Case, Oracle } from "../../core/schemas";
 import type { CliContext } from "../context";
 import { askChoice, askExpectedFor, openInEditor } from "../prompts";
 import { runReviewLoop } from "../review-loop";
+import { applyReviewDecisions, takeOnce } from "../review-writeback";
+import { reviewAllCommand } from "./review-all";
 
 const ONLY_VALUES = ["feature", "scenarios", "cases"];
 
@@ -100,42 +102,12 @@ export async function reviewCommand(
 	}
 
 	if (named !== undefined && values.all) {
-		const id = named.id;
-		const feature = await readFeature(ctx.forgeDir);
-		const cases = casesById.get(id) ?? [];
-		let approved = 0;
-		let noExpected = 0;
-		let offOracle = 0;
-		const updated = cases.map((c) => {
-			if (c.status !== "pending") return c;
-			if (c.expected === undefined) {
-				noExpected += 1;
-				return c;
-			}
-			// Bulk approval is for someone who already read the file, not a
-			// way around the oracle contract every other path enforces.
-			const problem = expectedMatchesOracle(c.expected, named.oracle, feature);
-			if (problem !== null) {
-				offOracle += 1;
-				ctx.stdout(`review: ${c.id}: ${problem}`);
-				return c;
-			}
-			approved += 1;
-			return applyDecision(c, "approve");
+		await reviewAllCommand({
+			scenario: named,
+			feature: await readFeature(ctx.forgeDir),
+			forgeDir: ctx.forgeDir,
+			stdout: ctx.stdout,
 		});
-		if (approved > 0) await writeCases(ctx.forgeDir, id, updated);
-		const notes: string[] = [];
-		if (noExpected > 0)
-			notes.push(
-				`${noExpected} left pending (no expected set — run \`forge review --scenario ${id}\` to fill them in)`,
-			);
-		if (offOracle > 0)
-			notes.push(
-				`${offOracle} left pending (expected does not match the ${named.oracle} oracle — see above)`,
-			);
-		ctx.stdout(
-			`review: approved ${approved} pending case(s) of ${id}${notes.length > 0 ? `; ${notes.join("; ")}` : ""}`,
-		);
 		return;
 	}
 
@@ -223,13 +195,13 @@ export async function reviewCommand(
 				? null
 				: expectedMatchesOracle(c.expected, oracle, feature),
 		oracleOf,
-		onDecided: (kind, item, originalId) => {
-			if (kind === "feature") {
-				feature = item as Feature;
+		onDecided: (item, originalId) => {
+			if (item.kind === "feature") {
+				feature = item.item;
 				return;
 			}
-			if (kind !== "scenario") return;
-			const decided = item as Scenario;
+			if (item.kind !== "scenario") return;
+			const decided = item.item;
 			// Read before the replacement below overwrites it: the old
 			// oracle is what says which of its cases this decision
 			// invalidates, and it exists nowhere else once the pass moves on.
@@ -245,103 +217,82 @@ export async function reviewCommand(
 		print: ctx.stdout,
 	});
 
-	// Every decision is matched back to the file by the id the item had
-	// when this pass started (`originalId`), never by the id it carries
-	// now: an edit is allowed to change the id, and matching on the new one
-	// found nothing, wrote nothing, and still reported the edit as applied.
-	// Each list is rebuilt from what was read off disk, so a decision that
-	// matched nothing cannot invent a file to land in either.
-	// One decision belongs to one item. `Map.get` alone applied it to every
-	// entry sharing that id AND handed each the same object reference, so a
-	// file with two entries under one id came back with the second replaced
-	// by a YAML alias of the first -- its input, its expected and its own
-	// review gone, reported as "1 approved". Taking the entry out of the map
-	// on first hit makes "at most one" structural: the second entry finds
-	// nothing and keeps itself. (Carrying an array index instead would mean
-	// threading the file position through PendingItem and the loop, which
-	// reorders cases; this keeps the guarantee where the write happens.)
-	const take = <T>(decided: Map<string, T>, id: string): T | undefined => {
-		const hit = decided.get(id);
-		if (hit !== undefined) decided.delete(id);
-		return hit;
-	};
-
 	const decidedFeature = result.decisions.find((d) => d.kind === "feature");
-	if (decidedFeature)
-		await writeFeature(ctx.forgeDir, decidedFeature.item as Feature);
+	if (decidedFeature) await writeFeature(ctx.forgeDir, decidedFeature.item);
 
 	const decidedScenarios = new Map(
 		result.decisions
 			.filter((d) => d.kind === "scenario")
-			.map((d) => [d.originalId, d.item as Scenario] as const),
+			.map((d) => [d.originalId, d.item] as const),
 	);
 	if (decidedScenarios.size > 0)
 		await writeScenarios(
 			ctx.forgeDir,
-			scenariosAsRead.map((s) => take(decidedScenarios, s.id) ?? s),
+			scenariosAsRead.map((s) => takeOnce(decidedScenarios, s.id) ?? s),
 		);
 
 	const decidedCases = new Map(
 		result.decisions
 			.filter((d) => d.kind === "case")
-			.map((d) => [d.originalId, d.item as Case] as const),
+			.map((d) => [d.originalId, d.item] as const),
 	);
-	// A scenario's oracle is the contract its cases' `expected` was written
-	// against, so changing it in review invalidates them wholesale. Nothing
-	// used to notice until each case came up again — and `selectCases`
-	// refuses the pair, so `estimate`, `emit` and `report` all stopped on a
-	// scenario nobody had touched. The cases go back to `pending` with
-	// their `expected` kept: it is the reviewer's own answer, and only they
-	// can say what it becomes under the new oracle.
-	const reopen = (c: Case): Case => ({ ...c, status: "pending" });
-	// An edit may rename a case, and `duplicate_of` is the only field that
-	// names another case by id. Left behind, the pointer dangles: no data
-	// is lost, but `pendingItems` stops placing the pair together and
-	// `dedupe`'s own answer reads as being about a case that is not there.
-	// Rewritten in the same write as the rename, so the file is never
-	// briefly inconsistent on disk.
-	const renamedCases = new Map(
-		result.decisions
-			.filter((d) => d.kind === "case" && d.originalId !== d.id)
-			.map((d) => [d.originalId, d.id] as const),
-	);
-	const followRename = (c: Case): Case => {
-		const renamed =
-			c.duplicate_of === undefined
-				? undefined
-				: renamedCases.get(c.duplicate_of);
-		return renamed === undefined ? c : { ...c, duplicate_of: renamed };
-	};
+	/**
+	 * The renames this pass made among the entries of one file, old id to
+	 * new id. Built from that file's own decisions and applied to it only:
+	 * see `applyReviewDecisions`, which rewrites `duplicate_of` through it.
+	 */
+	const renamesIn = (list: Case[]): Map<string, string> =>
+		new Map(
+			result.decisions
+				.filter(
+					(d) =>
+						d.kind === "case" &&
+						d.originalId !== d.id &&
+						list.some((c) => c.id === d.originalId),
+				)
+				.map((d) => [d.originalId, d.id] as const),
+		);
 	let totalReopened = 0;
 	for (const [id, list] of casesById) {
 		const oracleChange = oracleChanges.get(id);
-		const decided = list.some((c) => decidedCases.has(c.id));
-		if (!decided && oracleChange === undefined) continue;
-		let next = list.map((c) => followRename(take(decidedCases, c.id) ?? c));
-		let reopened = 0;
+		if (!list.some((c) => decidedCases.has(c.id)) && oracleChange === undefined)
+			continue;
+		// An oracle change against a file holding nothing re-opens nothing
+		// and writes nothing; the pass below reports it, together with the
+		// scenarios that have no file at all, so one change is announced
+		// once rather than as both a count of zero and a "no cases yet".
+		if (list.length === 0) continue;
+		const { next, reopened, touched } = applyReviewDecisions({
+			list,
+			decidedCases,
+			renamed: renamesIn(list),
+			oracleChange,
+			feature,
+		});
 		if (oracleChange !== undefined) {
-			next = next.map((c) => {
-				if (c.status !== "approved" && c.status !== "edited") return c;
-				if (
-					c.expected !== undefined &&
-					expectedMatchesOracle(c.expected, oracleChange.to, feature) === null
-				)
-					return c;
-				reopened += 1;
-				return reopen(c);
-			});
 			ctx.stdout(
 				// What to do next, not just what happened: a re-opened case keeps
 				// the expected it was approved with, which the new oracle no
 				// longer accepts, so approving it again is refused until it is
-				// edited. Nothing said so, and the next pass looked broken.
-				`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to}; ${reopened} case(s) re-opened — edit each to give it an expected the new oracle accepts`,
+				// edited. Nothing said so, and the next pass looked broken. At
+				// zero there is nothing to edit, so the instruction is left off
+				// rather than sending someone to look for cases that do not exist.
+				`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to}; ${reopened} case(s) re-opened${reopened > 0 ? " — edit each to give it an expected the new oracle accepts" : ""}`,
 			);
 			totalReopened += reopened;
 		}
-		// An oracle change whose cases all still fit leaves the file exactly
-		// as it was read, and a file no decision touched is not rewritten.
-		if (decided || reopened > 0) await writeCases(ctx.forgeDir, id, next);
+		if (touched) await writeCases(ctx.forgeDir, id, next);
+	}
+	// The pass above walks the cases files, so a scenario whose oracle this
+	// pass changed before `cases` ever ran for it said nothing at all — and
+	// the change is exactly the one that decides what every case generated
+	// afterwards has to look like. There is no count to report and nothing
+	// to re-open; the line exists so the change is on the record.
+	for (const [id, change] of oracleChanges) {
+		if ((casesById.get(id) ?? []).length > 0) continue;
+		ctx.stdout(
+			`review: scenario ${change.id} changed oracle ${change.from} → ${change.to}; no cases yet`,
+		);
 	}
 	const s = result.summary;
 	// `skipped` counts the items a person answered "skip" to; it is not the

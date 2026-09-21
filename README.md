@@ -54,7 +54,12 @@ Reads one `{"input-name": "value"}` JSON object per line from real production lo
 
     forge review
 
-Reviews everything still pending: cases (confirming or fixing the expected output), and any imported case (setting its expected output for the first time). Two things review will not change for you: a scenario's `id` and a case's `scenario`, because both name the file the cases live in (`.forge/cases/<scenario>.yaml`) — rename the file and the ids by hand instead. And editing a scenario's `oracle` re-opens the approved cases of that scenario whose expected the new oracle no longer accepts: each one then needs `edit` to be given an expected in the new shape, not `approve`.
+Reviews everything still pending: cases (confirming or fixing the expected output), and any imported case (setting its expected output for the first time). Two things review will not change for you: a scenario's `id` and a case's `scenario`, because both name the file the cases live in (`.forge/cases/<scenario>.yaml`) — the refusal names the `forge move` call that does it. And editing a scenario's `oracle` re-opens the approved cases of that scenario whose expected the new oracle no longer accepts: each one then needs `edit` to be given an expected in the new shape, not `approve`.
+
+    forge move --scenario <old> <new>
+    forge move --case <id> --to <scenario>
+
+Renames a scenario or moves a case into another scenario, rewriting what the ids name: the scenario's cases file, every case id numbered from it, `duplicate_of` pointers, and `suite.include`. A moved case is numbered after the destination's last case; when the destination's oracle does not accept its expected, it goes back to pending and the line says why. The destination is written before the source is touched, so a failure part-way leaves a duplicate to clean up, never a missing case.
 
 At the end, `.forge/` holds `feature.yaml`, `scenarios.yaml`, and `cases/<scenario>.yaml` — plain YAML, meant to be committed and diffed like any other test fixture.
 

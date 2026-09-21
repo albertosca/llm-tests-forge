@@ -4,6 +4,7 @@ import {
 	applyDecision,
 	type Decision,
 	type PendingItem,
+	pendingItemFor,
 	withExpected,
 } from "../core/review";
 import type {
@@ -47,30 +48,37 @@ export interface ReviewLoopArgs {
 	 * when a case using it came up two items later, and approving it was
 	 * refused. `originalId` is passed because an edit may rename the item,
 	 * and matching the new id against the pre-pass list finds nothing.
+	 *
+	 * `decided` is the kind and the item already paired, so narrowing on
+	 * `decided.kind` types `decided.item` too: the kind and a bare item as
+	 * two arguments left every caller casting them back together.
 	 */
-	onDecided?: (
-		kind: PendingItem["kind"],
-		item: Feature | Scenario | Case,
-		originalId: string,
-	) => void;
+	onDecided?: (decided: PendingItem, originalId: string) => void;
 	print: (line: string) => void;
 }
 
+/** The two ids every recorded decision carries, whatever kind it is. */
+interface DecisionIds {
+	/**
+	 * The id the item had on disk when this pass started, before any
+	 * edit. Ids are model-generated slugs a person reads in `$EDITOR`,
+	 * so fixing one is a likely edit — and the caller writes a decision
+	 * back by matching it against the file, which only works with the
+	 * pre-edit id. Matching on the post-edit `id` silently matched
+	 * nothing and reported the edit as written.
+	 */
+	originalId: string;
+	id: string;
+}
+
 export interface ReviewLoopResult {
-	decisions: {
-		kind: PendingItem["kind"];
-		/**
-		 * The id the item had on disk when this pass started, before any
-		 * edit. Ids are model-generated slugs a person reads in `$EDITOR`,
-		 * so fixing one is a likely edit — and the caller writes a decision
-		 * back by matching it against the file, which only works with the
-		 * pre-edit id. Matching on the post-edit `id` silently matched
-		 * nothing and reported the edit as written.
-		 */
-		originalId: string;
-		id: string;
-		item: Feature | Scenario | Case;
-	}[];
+	/**
+	 * The kind and the item paired the way `PendingItem` pairs them, plus
+	 * the two ids. A `kind` beside a bare `Feature | Scenario | Case` made
+	 * the caller that writes each kind back to its own file cast the two
+	 * together again; narrowing on `kind` now types `item` as well.
+	 */
+	decisions: (PendingItem & DecisionIds)[];
 	summary: {
 		approved: number;
 		rejected: number;
@@ -110,14 +118,16 @@ export async function runReviewLoop(
 	const summary = { approved: 0, rejected: 0, edited: 0, skipped: 0 };
 
 	/** The one place a decision is recorded, so `onDecided` cannot be
-	 * wired to some of the branches and not the others. */
+	 * wired to some of the branches and not the others. The kind is read
+	 * off the decided item once, here, and both the recorded decision and
+	 * the callback are given that one answer. */
 	const record = (
-		kind: PendingItem["kind"],
 		originalId: string,
 		item: Feature | Scenario | Case,
 	): void => {
-		decisions.push({ kind, originalId, id: item.id, item });
-		args.onDecided?.(kind, item, originalId);
+		const decided = pendingItemFor(item);
+		decisions.push({ ...decided, originalId, id: item.id });
+		args.onDecided?.(decided, originalId);
 	};
 
 	/**
@@ -183,7 +193,7 @@ export async function runReviewLoop(
 					refuseExpectedOutsideOracle(pending.kind, edited);
 					current = edited;
 					summary.edited += 1;
-					record(pending.kind, pending.item.id, current);
+					record(pending.item.id, current);
 					break;
 				}
 
@@ -197,7 +207,7 @@ export async function runReviewLoop(
 					refuseExpectedOutsideOracle(pending.kind, decided);
 				current = decided;
 				summary[answer === "approve" ? "approved" : "rejected"] += 1;
-				record(pending.kind, pending.item.id, current);
+				record(pending.item.id, current);
 				break;
 			} catch (e) {
 				if (e instanceof ForgeError) {

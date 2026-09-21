@@ -965,6 +965,29 @@ describe("buildReport", () => {
 		expect(failing).toEqual(["a-01 @ m"]);
 		expect(ReportSchema.parse(withoutFailing).failing).toEqual([]);
 	});
+	test("a baseline written before `failingPairs` existed parses with an empty list", () => {
+		const { failingPairs, ...withoutPairs } = build([
+			row({ case: "a-01", model: "m", success: false }),
+		]);
+		expect(failingPairs).toEqual([{ case: "a-01", model: "m" }]);
+		expect(ReportSchema.parse(withoutPairs).failingPairs).toEqual([]);
+	});
+	test("failingPairs tells apart two pairs whose `failing` strings collide on a case id containing ` @ `", () => {
+		const cases = [cs("x @ m", "a"), cs("x", "a")];
+		const report = build(
+			[
+				row({ case: "x @ m", model: "n", success: false }),
+				row({ case: "x", model: "m @ n", success: false }),
+			],
+			{ cases, knownCases: cases },
+		);
+		// The display strings are the same entry twice; the pairs are not.
+		expect(report.failing).toEqual(["x @ m @ n", "x @ m @ n"]);
+		expect(report.failingPairs).toEqual([
+			{ case: "x", model: "m @ n" },
+			{ case: "x @ m", model: "n" },
+		]);
+	});
 	test("a baseline whose coverage still says `approvedScenarios` reads back as `reviewedScenarios`", () => {
 		// The key was renamed during the backlog sweep; every report.json
 		// written before it carries the old spelling, and rejecting those

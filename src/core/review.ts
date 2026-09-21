@@ -73,6 +73,24 @@ export function pendingItems(
 	return out;
 }
 
+/**
+ * The pair a decided item makes with its own kind, so a caller narrowing on
+ * `kind` gets the item's type out of the same check. The review loop used
+ * to hand its `onDecided` a kind and a bare `Feature | Scenario | Case`,
+ * which left every caller casting the two back together with `as`.
+ *
+ * Discriminated by the same shape checks `applyDecision` already picks a
+ * schema with — `purpose`, `kind` and `scenario` are required fields of
+ * exactly one of the three, and every item in memory came through a zod
+ * parse, which strips whatever else the file held. A decision never changes
+ * which of the three an item is: each one is `{ ...item, status }`.
+ */
+export function pendingItemFor(item: Feature | Scenario | Case): PendingItem {
+	if (isFeature(item)) return { kind: "feature", item };
+	if (isScenario(item)) return { kind: "scenario", item };
+	return { kind: "case", item };
+}
+
 function isFeature(item: Feature | Scenario | Case): item is Feature {
 	return "purpose" in item;
 }
@@ -149,7 +167,7 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// than half applied across files the reviewer never opened.
 			if (isScenario(item) && isScenario(next) && next.id !== item.id)
 				throw new ForgeError(
-					`a scenario's id cannot be changed in review (from "${item.id}" to "${next.id}"): it names .forge/cases/<id>.yaml — rename the file and each case's scenario field by hand`,
+					`a scenario's id cannot be changed in review (from "${item.id}" to "${next.id}"): it names .forge/cases/<id>.yaml; run \`forge move --scenario ${item.id} ${next.id}\``,
 					{ id: item.id },
 				);
 			// Two entries of the same file sharing an id are
@@ -172,7 +190,7 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// reviewer never opened.
 			if (isCase(item) && isCase(next) && next.scenario !== item.scenario)
 				throw new ForgeError(
-					`a case's scenario cannot be changed in review (from "${item.scenario}" to "${next.scenario}"); move the case between .forge/cases/<scenario>.yaml files instead`,
+					`a case's scenario cannot be changed in review (from "${item.scenario}" to "${next.scenario}"); run \`forge move --case ${item.id} --to ${next.scenario}\``,
 					{ id: item.id },
 				);
 			return { ...next, status: "edited" };
