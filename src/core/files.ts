@@ -232,6 +232,20 @@ export async function readSuite(forgeDir: string): Promise<Suite> {
 	return readYamlFile(path, SuiteSchema);
 }
 
+/**
+ * The same read as `readSuite`, but `null` when no suite.yaml has been
+ * written yet — for `move`, which rewrites `suite.include` when the suite
+ * names the scenario being renamed and must not invent a suite when there
+ * is none. A file that exists but is unreadable or invalid still throws.
+ */
+export async function readSuiteIfPresent(
+	forgeDir: string,
+): Promise<Suite | null> {
+	const path = forgePaths(forgeDir).suite;
+	if (!(await exists(path))) return null;
+	return readYamlFile(path, SuiteSchema);
+}
+
 export async function writeSuite(
 	forgeDir: string,
 	suite: Suite,

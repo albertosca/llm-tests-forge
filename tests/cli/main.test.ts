@@ -19,6 +19,7 @@ import {
 	readCases,
 	readFeature,
 	readScenarios,
+	readSuite,
 	writeCases,
 	writeFeature,
 	writeScenarios,
@@ -913,7 +914,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 		});
 
 		expect(out).toContain(
-			`cannot apply: a scenario's id cannot be changed in review (from "polite-rejection" to "polite-rejection-fixed"): it names .forge/cases/<id>.yaml — rename the file and each case's scenario field by hand (id: polite-rejection)`,
+			`cannot apply: a scenario's id cannot be changed in review (from "polite-rejection" to "polite-rejection-fixed"): it names .forge/cases/<id>.yaml; run \`forge move --scenario polite-rejection polite-rejection-fixed\` (id: polite-rejection)`,
 		);
 		const scenarios = await readScenarios(forgeDir);
 		expect(scenarios.map((s) => [s.id, s.status])).toEqual([
@@ -995,7 +996,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 			out.some(
 				(l) =>
 					l ===
-					`cannot apply: a case's scenario cannot be changed in review (from "polite-rejection" to "huge-signature"); move the case between .forge/cases/<scenario>.yaml files instead (id: polite-rejection-01)`,
+					`cannot apply: a case's scenario cannot be changed in review (from "polite-rejection" to "huge-signature"); run \`forge move --case polite-rejection-01 --to huge-signature\` (id: polite-rejection-01)`,
 			),
 		).toBe(true);
 		const cases = await readCases(forgeDir, "polite-rejection");
@@ -1363,7 +1364,7 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 		// nothing else uses" was advice no free id could satisfy: the
 		// refusal a person can act on is the one that names the file move.
 		expect(out).toContain(
-			'cannot apply: a scenario\'s id cannot be changed in review (from "polite-rejection" to "huge-signature"): it names .forge/cases/<id>.yaml — rename the file and each case\'s scenario field by hand (id: polite-rejection)',
+			'cannot apply: a scenario\'s id cannot be changed in review (from "polite-rejection" to "huge-signature"): it names .forge/cases/<id>.yaml; run `forge move --scenario polite-rejection huge-signature` (id: polite-rejection)',
 		);
 		expect(out.join("\n")).not.toContain("pick an id nothing else uses");
 		const scenarios = await readScenarios(join(cwd, ".forge"));
@@ -3014,6 +3015,411 @@ describe("report", () => {
 		).toBe(0);
 		expect(second.out).toContain(
 			"report: since baseline: 0 regressions, 0 fixed",
+		);
+	});
+});
+
+/** `null` when the path is not there; a real `stat` otherwise. */
+const statOrNull = (path: string) => stat(path).catch(() => null);
+
+const CASE = (
+	id: string,
+	scenario: string,
+	extra: Partial<Parameters<typeof writeCases>[2][number]> = {},
+) => ({
+	id,
+	scenario,
+	input: { email: id },
+	expected: { label: "rejection" },
+	status: "approved" as const,
+	generated_by: "hand",
+	...extra,
+});
+
+describe("forge move --scenario <old> <new>", () => {
+	test("renames the scenario, renumbers its cases into the new file, deletes the old file, and follows suite.include", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+			CASE("polite-rejection-02", "polite-rejection", {
+				duplicate_of: "polite-rejection-01",
+				status: "pending",
+			}),
+		]);
+		await writeSuite(forgeDir, { ...SUITE, include: ["polite-rejection"] });
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["move", "--scenario", "polite-rejection", "soft-no"], ctx),
+		).toBe(0);
+		expect(out).toEqual([
+			"move: scenario polite-rejection → soft-no; 2 case(s) renumbered",
+			"move: suite.include updated",
+		]);
+
+		expect(
+			(await readScenarios(forgeDir)).map((s) => [s.id, s.status]),
+		).toEqual([["soft-no", "approved"]]);
+		const moved = await readCases(forgeDir, "soft-no");
+		expect(
+			moved.map((c) => [c.id, c.scenario, c.status, c.duplicate_of]),
+		).toEqual([
+			["soft-no-01", "soft-no", "approved", undefined],
+			["soft-no-02", "soft-no", "pending", "soft-no-01"],
+		]);
+		expect(
+			await statOrNull(join(forgeDir, "cases", "polite-rejection.yaml")),
+		).toBeNull();
+		expect((await readSuite(forgeDir)).include).toEqual(["soft-no"]);
+	});
+
+	test("a suite that does not name the scenario is not rewritten, and a scenario with no cases file gets none", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeSuite(forgeDir, SUITE);
+		const suiteFile = join(forgeDir, "suite.yaml");
+		await utimes(suiteFile, LONG_AGO, LONG_AGO);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["move", "--scenario", "polite-rejection", "soft-no"], ctx),
+		).toBe(0);
+		expect(out).toEqual([
+			"move: scenario polite-rejection → soft-no; 0 case(s) renumbered",
+		]);
+		expect((await stat(suiteFile)).mtime.getTime()).toBe(LONG_AGO.getTime());
+		// No cases file existed, so none is invented: an empty
+		// `cases/soft-no.yaml` would read to every later verb as a scenario
+		// that already has cases.
+		expect(
+			await statOrNull(join(forgeDir, "cases", "soft-no.yaml")),
+		).toBeNull();
+		expect((await readScenarios(forgeDir))[0]?.id).toBe("soft-no");
+	});
+
+	test("without a suite.yaml nothing is invented", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		const { ctx } = await ctxIn(cwd);
+		expect(
+			await run(["move", "--scenario", "polite-rejection", "soft-no"], ctx),
+		).toBe(0);
+		expect(await statOrNull(join(forgeDir, "suite.yaml"))).toBeNull();
+	});
+
+	test("an unknown old id and a taken new id are refused by name, and nothing is written", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		const scenariosFile = join(forgeDir, "scenarios.yaml");
+		await utimes(scenariosFile, LONG_AGO, LONG_AGO);
+
+		let { ctx, out } = await ctxIn(cwd);
+		expect(await run(["move", "--scenario", "ghost", "soft-no"], ctx)).toBe(1);
+		expect(out.at(-1)).toBe(
+			'error: scenario "ghost" is not in scenarios.yaml (id: ghost)',
+		);
+
+		({ ctx, out } = await ctxIn(cwd));
+		expect(
+			await run(
+				["move", "--scenario", "polite-rejection", "polite-rejection"],
+				ctx,
+			),
+		).toBe(1);
+		expect(out.at(-1)).toBe(
+			'error: scenario "polite-rejection" already exists in scenarios.yaml; pick an id nothing else uses (id: polite-rejection)',
+		);
+		expect((await stat(scenariosFile)).mtime.getTime()).toBe(
+			LONG_AGO.getTime(),
+		);
+	});
+
+	test("a new id that is not a bare file name is a usage error", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeWithApprovedScenario(cwd);
+		for (const bad of ["../soft-no", "soft/no", "soft-no.yaml", ".soft"]) {
+			const { ctx, out } = await ctxIn(cwd);
+			expect(
+				await run(["move", "--scenario", "polite-rejection", bad], ctx),
+			).toBe(2);
+			expect(out.at(-1)).toBe(
+				`error: "${bad}" cannot name a scenario: it becomes .forge/cases/<id>.yaml, so it takes letters, digits, "-", "_" and "." only, starts with a letter or digit, and does not end in ".yaml"`,
+			);
+		}
+	});
+
+	test("the new cases file is written before the old one is removed: a write that fails leaves everything as it was", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+		]);
+		const oldFile = join(forgeDir, "cases", "polite-rejection.yaml");
+		const scenariosFile = join(forgeDir, "scenarios.yaml");
+		await utimes(oldFile, LONG_AGO, LONG_AGO);
+		await utimes(scenariosFile, LONG_AGO, LONG_AGO);
+		// A bare id the filesystem refuses as a file name: the write of
+		// `cases/<new>.yaml` fails, and nothing after it may have happened.
+		const tooLong = "x".repeat(300);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["move", "--scenario", "polite-rejection", tooLong], ctx),
+		).toBe(1);
+		expect(out.at(-1)).toStartWith("error: ");
+		expect((await stat(oldFile)).mtime.getTime()).toBe(LONG_AGO.getTime());
+		expect((await stat(scenariosFile)).mtime.getTime()).toBe(
+			LONG_AGO.getTime(),
+		);
+	});
+});
+
+describe("forge move --case <id> --to <scenario>", () => {
+	async function twoScenarios(
+		cwd: string,
+		destOracle: "label" | "rubric" = "label",
+	) {
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "huge-signature",
+				kind: "edge",
+				oracle: destOracle,
+				description: "d",
+				status: "approved",
+			},
+		]);
+		return forgeDir;
+	}
+
+	test("moves the case into the destination's numbering, drops the duplicate pointers, and rewrites the destination before the source", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await twoScenarios(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+			CASE("polite-rejection-02", "polite-rejection", {
+				duplicate_of: "polite-rejection-01",
+			}),
+			CASE("polite-rejection-03", "polite-rejection", {
+				duplicate_of: "polite-rejection-02",
+			}),
+		]);
+		await writeCases(forgeDir, "huge-signature", [
+			CASE("huge-signature-01", "huge-signature"),
+			CASE("huge-signature-02", "huge-signature"),
+		]);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(
+				["move", "--case", "polite-rejection-02", "--to", "huge-signature"],
+				ctx,
+			),
+		).toBe(0);
+		expect(out).toEqual([
+			"move: polite-rejection-02 → huge-signature-03 (scenario huge-signature)",
+		]);
+		const dest = await readCases(forgeDir, "huge-signature");
+		expect(dest.map((c) => [c.id, c.scenario, c.status])).toEqual([
+			["huge-signature-01", "huge-signature", "approved"],
+			["huge-signature-02", "huge-signature", "approved"],
+			["huge-signature-03", "huge-signature", "approved"],
+		]);
+		expect(dest[2]).not.toHaveProperty("duplicate_of");
+		expect(dest[2]?.input).toEqual({ email: "polite-rejection-02" });
+		const source = await readCases(forgeDir, "polite-rejection");
+		expect(source.map((c) => c.id)).toEqual([
+			"polite-rejection-01",
+			"polite-rejection-03",
+		]);
+		expect(source[1]).not.toHaveProperty("duplicate_of");
+	});
+
+	test("a case whose expected the destination's oracle does not accept is re-opened, and the line says why", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await twoScenarios(cwd, "rubric");
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+		]);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(
+				["move", "--case", "polite-rejection-01", "--to", "huge-signature"],
+				ctx,
+			),
+		).toBe(0);
+		expect(out).toEqual([
+			"move: polite-rejection-01 → huge-signature-01 (scenario huge-signature)",
+			"move: huge-signature-01 re-opened: oracle is rubric but expected.rubric is missing — edit it in `forge review` to give it an expected the rubric oracle accepts",
+		]);
+		const dest = await readCases(forgeDir, "huge-signature");
+		expect(dest.map((c) => [c.id, c.status])).toEqual([
+			["huge-signature-01", "pending"],
+		]);
+		expect(dest[0]?.expected).toEqual({ label: "rejection" });
+		expect(await readCases(forgeDir, "polite-rejection")).toEqual([]);
+	});
+
+	test("the case is found by scanning every cases file, so a hand-edited file holding it is the source", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await twoScenarios(cwd);
+		// The situation `review --all` refuses: a case in polite-rejection's
+		// file whose `scenario` already says huge-signature.
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+			CASE("polite-rejection-02", "huge-signature"),
+		]);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(
+				["move", "--case", "polite-rejection-02", "--to", "huge-signature"],
+				ctx,
+			),
+		).toBe(0);
+		expect(out).toEqual([
+			"move: polite-rejection-02 → huge-signature-01 (scenario huge-signature)",
+		]);
+		expect(
+			(await readCases(forgeDir, "polite-rejection")).map((c) => c.id),
+		).toEqual(["polite-rejection-01"]);
+		expect(
+			(await readCases(forgeDir, "huge-signature")).map((c) => c.id),
+		).toEqual(["huge-signature-01"]);
+	});
+
+	test("refuses an unknown case, a case held by two files, an unknown scenario, the scenario it is already in, and a pending feature", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await twoScenarios(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+		]);
+		const casesDir = join(forgeDir, "cases");
+
+		let { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["move", "--case", "ghost-01", "--to", "huge-signature"], ctx),
+		).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: case "ghost-01" is not in any cases file (file: ${casesDir}, id: ghost-01)`,
+		);
+
+		({ ctx, out } = await ctxIn(cwd));
+		expect(
+			await run(
+				["move", "--case", "polite-rejection-01", "--to", "ghost"],
+				ctx,
+			),
+		).toBe(1);
+		expect(out.at(-1)).toBe('error: scenario "ghost" not found (id: ghost)');
+
+		({ ctx, out } = await ctxIn(cwd));
+		expect(
+			await run(
+				["move", "--case", "polite-rejection-01", "--to", "polite-rejection"],
+				ctx,
+			),
+		).toBe(1);
+		expect(out.at(-1)).toBe(
+			'error: case "polite-rejection-01" is already in scenario "polite-rejection" (id: polite-rejection-01)',
+		);
+
+		await writeCases(forgeDir, "huge-signature", [
+			CASE("polite-rejection-01", "huge-signature"),
+		]);
+		({ ctx, out } = await ctxIn(cwd));
+		expect(
+			await run(
+				["move", "--case", "polite-rejection-01", "--to", "huge-signature"],
+				ctx,
+			),
+		).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: case "polite-rejection-01" is in 2 cases files (huge-signature, polite-rejection); fix the files so it is in one (file: ${casesDir}, id: polite-rejection-01)`,
+		);
+
+		await writeFeature(forgeDir, { ...FEATURE, status: "pending" });
+		({ ctx, out } = await ctxIn(cwd));
+		expect(
+			await run(
+				["move", "--case", "polite-rejection-01", "--to", "huge-signature"],
+				ctx,
+			),
+		).toBe(1);
+		expect(out.at(-1)).toContain("feature is pending");
+	});
+
+	test("the destination is written before the source: a write that fails leaves the source as it was", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		const tooLong = "x".repeat(300);
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: tooLong,
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+		]);
+		const sourceFile = join(forgeDir, "cases", "polite-rejection.yaml");
+		await utimes(sourceFile, LONG_AGO, LONG_AGO);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(
+				["move", "--case", "polite-rejection-01", "--to", tooLong],
+				ctx,
+			),
+		).toBe(1);
+		expect(out.at(-1)).toStartWith("error: ");
+		expect((await stat(sourceFile)).mtime.getTime()).toBe(LONG_AGO.getTime());
+	});
+});
+
+describe("forge move usage", () => {
+	test("neither form, both forms, a half form and stray arguments are usage errors", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeWithApprovedScenario(cwd);
+		const lines = [
+			["move"],
+			["move", "--scenario", "a", "b", "--case", "x", "--to", "b"],
+			["move", "--case", "x"],
+			["move", "--to", "b"],
+			["move", "--scenario", "a"],
+			["move", "--scenario", "a", "b", "c"],
+			["move", "--case", "x", "--to", "b", "c"],
+		];
+		for (const argv of lines) {
+			const { ctx, out } = await ctxIn(cwd);
+			expect(await run(argv, ctx)).toBe(2);
+			expect(out.at(-1)).toStartWith("error: ");
+		}
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["move"], ctx)).toBe(2);
+		expect(out.at(-1)).toBe(
+			"error: move takes either --scenario <old> <new> or --case <id> --to <scenario>",
 		);
 	});
 });

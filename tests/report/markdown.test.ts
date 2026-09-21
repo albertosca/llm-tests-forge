@@ -50,6 +50,7 @@ const REPORT: Report = {
 		},
 	],
 	failing: ["a-03 @ m"],
+	failingPairs: [],
 	flaky: ["a-01 @ m"],
 	scenarios: [
 		{ scenario: "a", kind: "happy", run: 6, passed: 3, failed: 3, errored: 0 },
@@ -210,6 +211,7 @@ describe("renderReportMarkdown", () => {
 			...REPORT,
 			cases: REPORT.cases.filter((c) => c.case !== "a-03"),
 			failing: [],
+			failingPairs: [],
 		});
 		expect(md).toContain("No failing or errored case.");
 		expect(md).not.toContain(
@@ -246,6 +248,7 @@ describe("renderReportMarkdown", () => {
 				},
 			],
 			failing: [],
+			failingPairs: [],
 			flaky: [],
 			baseline: null,
 		});
@@ -271,6 +274,7 @@ describe("renderReportMarkdown", () => {
 				},
 			],
 			failing: [],
+			failingPairs: [],
 		});
 		expect(md).toContain(
 			"| a-01 | m | 2 | 1 | 1 | 0 | a \\| b<br>second line |",
@@ -438,6 +442,7 @@ describe("renderReportMarkdown", () => {
 				},
 			],
 			failing: [],
+			failingPairs: [],
 			flaky: ["a @ m @ m2"],
 		});
 		expect(md.filter((l) => l.startsWith("| a @ m | m2 |"))).toEqual([
@@ -462,6 +467,7 @@ describe("renderReportMarkdown", () => {
 				},
 			],
 			failing: ["a-04 @ m"],
+			failingPairs: [],
 			flaky: [],
 		});
 		const listed = "| a-04 | m | 2 | 1 | 0 | 1 | overloaded |";

@@ -1,0 +1,141 @@
+import { ForgeError } from "./errors";
+import { nextCaseId } from "./ids";
+import { expectedMatchesOracle } from "./oracle";
+import type { Case, Feature, Scenario, Suite } from "./schemas";
+
+/**
+ * The two moves `forge review` refuses to make as decisions, because each
+ * one rewrites files the reviewer never opened: a scenario's id names
+ * `.forge/cases/<id>.yaml` and is the prefix every one of its cases is
+ * numbered from, and a case's `scenario` is which of those files it lives
+ * in. Both are pure over the in-memory lists; the command around them does
+ * the reads, writes the destination before it touches the source, and
+ * deletes last.
+ */
+
+export interface RenameScenarioArgs {
+	from: string;
+	to: string;
+	scenarios: Scenario[];
+	/** The cases file of `from`, as read. */
+	cases: Case[];
+	/** `null` when there is no suite.yaml yet. */
+	suite: Suite | null;
+}
+
+export interface RenameScenarioResult {
+	scenarios: Scenario[];
+	cases: Case[];
+	suite: Suite | null;
+	/** Old case id to new, for every case that was renumbered. */
+	renamedIds: Map<string, string>;
+}
+
+/**
+ * The scenario keeps everything but its id — a rename is not a review
+ * decision about it, so its status stands. A case of `from` whose id
+ * carries the `<from>-` prefix is renumbered to `<to>-` with the same
+ * number, and its `duplicate_of` follows the same map; a hand-written id
+ * without the prefix moves as it is. A case in the file that names another
+ * scenario is a hand edit this verb does not judge: it is left exactly as
+ * it was, so the only record of where it was meant to go survives.
+ */
+export function renameScenario(args: RenameScenarioArgs): RenameScenarioResult {
+	const { from, to, suite } = args;
+	if (!args.scenarios.some((s) => s.id === from))
+		throw new ForgeError(`scenario "${from}" is not in scenarios.yaml`, {
+			id: from,
+		});
+	if (args.scenarios.some((s) => s.id === to))
+		throw new ForgeError(
+			`scenario "${to}" already exists in scenarios.yaml; pick an id nothing else uses`,
+			{ id: to },
+		);
+	const scenarios = args.scenarios.map((s) =>
+		s.id === from ? { ...s, id: to } : s,
+	);
+	const prefix = `${from}-`;
+	const renamedIds = new Map<string, string>();
+	for (const c of args.cases)
+		if (c.scenario === from && c.id.startsWith(prefix))
+			renamedIds.set(c.id, `${to}-${c.id.slice(prefix.length)}`);
+	const cases = args.cases.map((c) => {
+		if (c.scenario !== from) return c;
+		const next = { ...c, scenario: to, id: renamedIds.get(c.id) ?? c.id };
+		const pointer =
+			c.duplicate_of === undefined ? undefined : renamedIds.get(c.duplicate_of);
+		return pointer === undefined ? next : { ...next, duplicate_of: pointer };
+	});
+	const nextSuite =
+		suite === null
+			? null
+			: {
+					...suite,
+					include: suite.include.map((id) => (id === from ? to : id)),
+				};
+	return { scenarios, cases, suite: nextSuite, renamedIds };
+}
+
+export interface MoveCaseArgs {
+	caseId: string;
+	/** The scenario whose file holds the case; only its id is needed. */
+	from: Pick<Scenario, "id">;
+	to: Scenario;
+	fromCases: Case[];
+	toCases: Case[];
+	feature: Feature;
+}
+
+export interface MoveCaseResult {
+	fromCases: Case[];
+	toCases: Case[];
+	moved: Case;
+	/**
+	 * The sentence from `expectedMatchesOracle` when the destination's
+	 * oracle does not accept the case's expected — the case is then
+	 * `pending` again, with the expected kept for the reviewer to rewrite.
+	 * `null` when the review it had stands.
+	 */
+	reopened: string | null;
+}
+
+function withoutDuplicateOf(c: Case): Case {
+	const { duplicate_of: _dropped, ...rest } = c;
+	return rest;
+}
+
+/**
+ * The moved case is numbered after the destination's last case and takes
+ * the destination's id as its `scenario`. `duplicate_of` names a case in
+ * the same file, so the moved case drops its own and every sibling pointing
+ * at it loses the pointer: neither end of the pair shares a file with the
+ * other any more.
+ */
+export function moveCase(args: MoveCaseArgs): MoveCaseResult {
+	const { caseId, from, to, feature } = args;
+	const found = args.fromCases.find((c) => c.id === caseId);
+	if (found === undefined)
+		throw new ForgeError(`case "${caseId}" is not in scenario "${from.id}"`, {
+			id: caseId,
+		});
+	// The source and the destination would be the same file: writing it and
+	// then removing the case from it would undo the write.
+	if (from.id === to.id)
+		throw new ForgeError(`case "${caseId}" is already in scenario "${to.id}"`, {
+			id: caseId,
+		});
+	const reopened =
+		found.expected === undefined
+			? null
+			: expectedMatchesOracle(found.expected, to.oracle, feature);
+	const moved: Case = {
+		...withoutDuplicateOf(found),
+		id: nextCaseId(to.id, args.toCases),
+		scenario: to.id,
+		status: reopened === null ? found.status : "pending",
+	};
+	const fromCases = args.fromCases
+		.filter((c) => c.id !== caseId)
+		.map((c) => (c.duplicate_of === caseId ? withoutDuplicateOf(c) : c));
+	return { fromCases, toCases: [...args.toCases, moved], moved, reopened };
+}

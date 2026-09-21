@@ -167,7 +167,7 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// than half applied across files the reviewer never opened.
 			if (isScenario(item) && isScenario(next) && next.id !== item.id)
 				throw new ForgeError(
-					`a scenario's id cannot be changed in review (from "${item.id}" to "${next.id}"): it names .forge/cases/<id>.yaml — rename the file and each case's scenario field by hand`,
+					`a scenario's id cannot be changed in review (from "${item.id}" to "${next.id}"): it names .forge/cases/<id>.yaml; run \`forge move --scenario ${item.id} ${next.id}\``,
 					{ id: item.id },
 				);
 			// Two entries of the same file sharing an id are
@@ -190,7 +190,7 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// reviewer never opened.
 			if (isCase(item) && isCase(next) && next.scenario !== item.scenario)
 				throw new ForgeError(
-					`a case's scenario cannot be changed in review (from "${item.scenario}" to "${next.scenario}"); move the case between .forge/cases/<scenario>.yaml files instead`,
+					`a case's scenario cannot be changed in review (from "${item.scenario}" to "${next.scenario}"); run \`forge move --case ${item.id} --to ${next.scenario}\``,
 					{ id: item.id },
 				);
 			return { ...next, status: "edited" };

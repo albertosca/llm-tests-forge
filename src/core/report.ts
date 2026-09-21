@@ -125,11 +125,19 @@ export const ReportSchema = z.object({
 	cases: z.array(CaseRunSchema),
 	/**
 	 * `"case @ model"` for every CaseRun that never passed cleanly: stability
-	 * `failing`, `errored` or `partly-errored`. Defaulted so a `report.json`
-	 * written before this field existed is still readable as a `--baseline`;
-	 * the diff reads `cases`, never this list.
+	 * `failing`, `errored` or `partly-errored` — the name says less than the
+	 * list holds, and it stays because every `--baseline` written so far
+	 * spells it this way. The string is a display form: a case id that
+	 * itself contains ` @ ` makes two different pairs spell the same entry,
+	 * so `failingPairs` is the unambiguous form of the same list. Defaulted
+	 * so a `report.json` written before this field existed is still
+	 * readable as a `--baseline`; the diff reads `cases`, never this list.
 	 */
 	failing: z.array(z.string()).default([]),
+	/** The same pairs as `failing`, structured. Defaulted for the same reason. */
+	failingPairs: z
+		.array(z.object({ case: z.string(), model: z.string() }))
+		.default([]),
 	/** `"case @ model"` for every CaseRun whose stability is `flaky`. */
 	flaky: z.array(z.string()),
 	scenarios: z.array(ScenarioStatSchema),
@@ -607,6 +615,9 @@ export function buildReport(args: {
 		failing: caseRuns
 			.filter(notPassingCleanly)
 			.map((c) => `${c.case} @ ${c.model}`),
+		failingPairs: caseRuns
+			.filter(notPassingCleanly)
+			.map((c) => ({ case: c.case, model: c.model })),
 		flaky: caseRuns
 			.filter((c) => c.stability === "flaky")
 			.map((c) => `${c.case} @ ${c.model}`),

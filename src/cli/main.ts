@@ -5,6 +5,7 @@ import { describeCommand } from "./commands/describe";
 import { emitCommand } from "./commands/emit";
 import { estimateCommand } from "./commands/estimate";
 import { importCommand } from "./commands/import";
+import { moveCommand } from "./commands/move";
 import { reportCommand } from "./commands/report";
 import { reviewCommand } from "./commands/review";
 import { scenariosCommand } from "./commands/scenarios";
@@ -18,6 +19,8 @@ export const USAGE = `usage: forge <verb> [options]
   dedupe [--scenario id] [--model m]                  mark likely duplicates (duplicate_of)
   import <file.jsonl> [--oracle label|fields|rubric]  real inputs -> .forge/cases/imported.yaml
   review [--scenario id] [--only feature|scenarios|cases] | review --scenario id --all
+  move --scenario <old> <new> | move --case <id> --to <scenario>
+                                                     rename a scenario or move a case between scenarios, rewriting ids
   estimate                                            suite + approved cases -> tokens and dollars per model (no call)
   emit [--format promptfoo|jsonl]                    approved cases -> .forge/promptfooconfig.yaml + forge_target.py, or cases.jsonl
   report <results.json> [--baseline report.json]      promptfoo output -> .forge/report.md + report.json
@@ -33,6 +36,7 @@ const COMMANDS: Record<
 	dedupe: dedupeCommand,
 	import: importCommand,
 	review: reviewCommand,
+	move: moveCommand,
 	estimate: estimateCommand,
 	emit: emitCommand,
 	report: reportCommand,
