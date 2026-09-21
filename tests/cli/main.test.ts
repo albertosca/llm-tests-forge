@@ -3276,6 +3276,138 @@ include: [keep, polite-rejection, keep]   # only these for now
 	});
 });
 
+describe("forge move --scenario: the source file and the suite", () => {
+	test("a source file spelled with different case than the id is refused, and scenarios.yaml is untouched", async () => {
+		// The read resolves case-insensitively on macOS, so the cases were
+		// read and renamed in memory, the file was neither written nor
+		// removed, and scenarios.yaml was renamed around it: "3 case(s)
+		// renumbered", exit 0, and every later verb dropped the three.
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "Polite-Rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+		]);
+		const file = join(forgeDir, "cases", "Polite-Rejection.yaml");
+		const scenariosFile = join(forgeDir, "scenarios.yaml");
+		await utimes(scenariosFile, LONG_AGO, LONG_AGO);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["move", "--scenario", "polite-rejection", "soft-no"], ctx),
+		).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: scenario "polite-rejection" has a cases file spelled "Polite-Rejection"; rename one so they match (file: ${file}, id: polite-rejection)`,
+		);
+		expect((await stat(scenariosFile)).mtime.getTime()).toBe(
+			LONG_AGO.getTime(),
+		);
+		expect(
+			await statOrNull(join(forgeDir, "cases", "soft-no.yaml")),
+		).toBeNull();
+	});
+
+	test("a file holding no case is not carried forward: it is removed and the line says so", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "polite-rejection", []);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["move", "--scenario", "polite-rejection", "soft-no"], ctx),
+		).toBe(0);
+		expect(out).toEqual([
+			"move: scenario polite-rejection → soft-no; 0 case(s) renumbered",
+			"move: cases/polite-rejection.yaml held no case and was removed",
+		]);
+		expect(
+			await statOrNull(join(forgeDir, "cases", "polite-rejection.yaml")),
+		).toBeNull();
+		expect(
+			await statOrNull(join(forgeDir, "cases", "soft-no.yaml")),
+		).toBeNull();
+	});
+
+	test("renaming the imported scenario says that later imports will not land in it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "imported",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "imported", [CASE("imported-01", "imported")]);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["move", "--scenario", "imported", "real-inputs"], ctx),
+		).toBe(0);
+		expect(out).toEqual([
+			"move: scenario imported → real-inputs; 1 case(s) renumbered",
+			'move: later imports start a new "imported" scenario; real-inputs keeps these cases',
+		]);
+	});
+
+	test("an include entry reached through a YAML alias cannot be rewritten in place: refused before any write", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+		]);
+		const suiteFile = join(forgeDir, "suite.yaml");
+		const scenariosFile = join(forgeDir, "scenarios.yaml");
+		const oldFile = join(forgeDir, "cases", "polite-rejection.yaml");
+		const head = `target:
+  kind: promptfoo-python
+  entry: forge_target.py
+  models: [anthropic/claude-haiku-4-5]
+judges: [google/gemini-3.5-flash]
+`;
+		// Two shapes: the whole list through an alias, and one item.
+		for (const tail of [
+			"shared: &inc [polite-rejection]\ninclude: *inc\n",
+			"first: &one polite-rejection\ninclude: [*one, keep]\n",
+		]) {
+			await writeFile(suiteFile, head + tail);
+			for (const f of [suiteFile, scenariosFile, oldFile])
+				await utimes(f, LONG_AGO, LONG_AGO);
+			const { ctx, out } = await ctxIn(cwd);
+			expect(
+				await run(["move", "--scenario", "polite-rejection", "soft-no"], ctx),
+			).toBe(1);
+			expect(out.at(-1)).toBe(
+				`error: suite.include names "polite-rejection" 1 time(s) but only 0 can be rewritten in place: the rest come through a YAML alias; edit suite.yaml by hand (file: ${suiteFile}, id: polite-rejection)`,
+			);
+			for (const f of [suiteFile, scenariosFile, oldFile])
+				expect((await stat(f)).mtime.getTime()).toBe(LONG_AGO.getTime());
+		}
+	});
+
+	test("a flow list longer than the printer's default width stays on one line", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		const suiteFile = join(forgeDir, "suite.yaml");
+		const models =
+			"[anthropic/claude-haiku-4-5, anthropic/claude-sonnet-5, google/gemini-3.5-flash, openai/gpt-5-mini, ollama/llama4]";
+		await writeFile(
+			suiteFile,
+			`target:\n  kind: promptfoo-python\n  entry: forge_target.py\n  models: ${models}\njudges: [google/gemini-3.5-flash]\ninclude: [polite-rejection]\n`,
+		);
+
+		const { ctx } = await ctxIn(cwd);
+		expect(
+			await run(["move", "--scenario", "polite-rejection", "soft-no"], ctx),
+		).toBe(0);
+		expect(await readFile(suiteFile, "utf8")).toContain(
+			`  models: ${models}\n`,
+		);
+	});
+});
+
 describe("forge move --case <id> --to <scenario>", () => {
 	async function twoScenarios(
 		cwd: string,
@@ -3603,6 +3735,74 @@ describe("forge move --case: the destination's file and status", () => {
 		expect(
 			(await readCases(forgeDir, "huge-signature")).map((c) => c.status),
 		).toEqual(["approved"]);
+	});
+});
+
+describe("forge move --case: when the source cannot be removed", () => {
+	test("the failure names the file and what is already written, and a retry is refused rather than writing a second copy", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "huge-signature",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+		]);
+		await writeCases(forgeDir, "huge-signature", [
+			CASE("huge-signature-01", "huge-signature"),
+		]);
+		// The destination file exists, so rewriting it needs no directory
+		// write; removing the source does, and the directory refuses it.
+		const casesDir = join(forgeDir, "cases");
+		const sourceFile = join(casesDir, "polite-rejection.yaml");
+		await chmod(casesDir, 0o555);
+		try {
+			let { ctx, out } = await ctxIn(cwd);
+			expect(
+				await run(
+					["move", "--case", "polite-rejection-01", "--to", "huge-signature"],
+					ctx,
+				),
+			).toBe(1);
+			expect(out.at(-1)).toBe(
+				`error: cannot remove: EACCES: permission denied, unlink '${sourceFile}'; huge-signature-02 is already written into cases/huge-signature.yaml; delete cases/polite-rejection.yaml by hand (file: ${sourceFile})`,
+			);
+			expect(
+				(await readCases(forgeDir, "huge-signature")).map((c) => c.id),
+			).toEqual(["huge-signature-01", "huge-signature-02"]);
+
+			// The same case is now in both files. Running the move again
+			// used to write it a third time, under -03.
+			({ ctx, out } = await ctxIn(cwd));
+			expect(
+				await run(
+					["move", "--case", "polite-rejection-01", "--to", "huge-signature"],
+					ctx,
+				),
+			).toBe(1);
+			expect(out.at(-1)).toBe(
+				'error: case "polite-rejection-01" has the same input as "huge-signature-02", already in scenario "huge-signature"; delete one of them (id: polite-rejection-01)',
+			);
+			expect(
+				(await readCases(forgeDir, "huge-signature")).map((c) => c.id),
+			).toEqual(["huge-signature-01", "huge-signature-02"]);
+		} finally {
+			await chmod(casesDir, 0o755);
+		}
 	});
 });
 

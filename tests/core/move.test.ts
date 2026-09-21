@@ -196,6 +196,26 @@ describe("renameScenario", () => {
 	});
 });
 
+describe("renameScenario refusals the file forces", () => {
+	test("a renumbered id the file already holds is refused before anything is rewritten", () => {
+		// `old-01` becomes `new-01`, and a hand-written `new-01` sits in
+		// the same file: two entries under one id, which review resolves
+		// one over the other.
+		const err = thrown(() =>
+			renameScenario({
+				from: "old",
+				to: "new",
+				scenarios: [scn("old")],
+				cases: [cs("old-01", "old"), cs("new-01", "old")],
+				suite: null,
+			}),
+		);
+		expect(err.message).toBe(
+			"case old-01 would become new-01, an id the file already holds; rename one of them by hand first (id: old-01)",
+		);
+	});
+});
+
 describe("moveCase", () => {
 	const from = scn("old");
 	const to = scn("dest");
@@ -283,6 +303,35 @@ describe("moveCase", () => {
 			["old-03", undefined],
 		]);
 		expect("duplicate_of" in (result.fromCases[1] ?? {})).toBe(false);
+	});
+
+	test("a rejected case is not re-opened by the destination's oracle: the decision stands", () => {
+		const result = moveCase({
+			caseId: "old-01",
+			from,
+			to: scn("dest", "rubric"),
+			fromCases: [cs("old-01", "old", { status: "rejected" })],
+			toCases: [],
+			feature,
+		});
+		expect(result.reopened).toBeNull();
+		expect(result.moved.status).toBe("rejected");
+	});
+
+	test("a destination case with the same input is refused, so a retried move cannot add a second copy", () => {
+		const err = thrown(() =>
+			moveCase({
+				caseId: "old-01",
+				from,
+				to,
+				fromCases: [cs("old-01", "old")],
+				toCases: [cs("dest-01", "dest", { input: { email: "old-01" } })],
+				feature,
+			}),
+		);
+		expect(err.message).toBe(
+			'case "old-01" has the same input as "dest-01", already in scenario "dest"; delete one of them (id: old-01)',
+		);
 	});
 
 	test("a case the source file does not hold is refused by name", () => {

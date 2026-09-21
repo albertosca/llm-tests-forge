@@ -59,6 +59,19 @@ export function renameScenario(args: RenameScenarioArgs): RenameScenarioResult {
 	for (const c of args.cases)
 		if (c.scenario === from && c.id.startsWith(prefix))
 			renamedIds.set(c.id, `${to}-${c.id.slice(prefix.length)}`);
+	// A hand-written `new-01` sitting next to `old-01` would come out of the
+	// rename as two entries under one id, which the review pass resolves
+	// one over the other. Refused before anything is rewritten.
+	for (const [oldId, newId] of renamedIds) {
+		const taken = args.cases.find(
+			(c) => c.id === newId && !renamedIds.has(c.id),
+		);
+		if (taken !== undefined)
+			throw new ForgeError(
+				`case ${oldId} would become ${newId}, an id the file already holds; rename one of them by hand first`,
+				{ id: oldId },
+			);
+	}
 	const cases = args.cases.map((c) => {
 		if (c.scenario !== from) return c;
 		const next = { ...c, scenario: to, id: renamedIds.get(c.id) ?? c.id };
@@ -99,6 +112,13 @@ export interface MoveCaseResult {
 	reopened: string | null;
 }
 
+function sameInput(a: Case["input"], b: Case["input"]): boolean {
+	const keys = Object.keys(a);
+	return (
+		keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k])
+	);
+}
+
 function withoutDuplicateOf(c: Case): Case {
 	const { duplicate_of: _dropped, ...rest } = c;
 	return rest;
@@ -124,8 +144,22 @@ export function moveCase(args: MoveCaseArgs): MoveCaseResult {
 		throw new ForgeError(`case "${caseId}" is already in scenario "${to.id}"`, {
 			id: caseId,
 		});
+	// A move that wrote the destination and then failed to remove the
+	// source leaves the same case under two ids; re-running it would add a
+	// third. The input is what makes a case the same case, so a
+	// destination case with this input refuses the move by name.
+	const twin = args.toCases.find((c) => sameInput(c.input, found.input));
+	if (twin !== undefined)
+		throw new ForgeError(
+			`case "${caseId}" has the same input as "${twin.id}", already in scenario "${to.id}"; delete one of them`,
+			{ id: caseId },
+		);
+	// Only a review already given is worth re-opening: a rejected case
+	// stays rejected under any oracle, as it does when its own scenario's
+	// oracle changes in review.
+	const reviewed = found.status === "approved" || found.status === "edited";
 	const reopened =
-		found.expected === undefined
+		found.expected === undefined || !reviewed
 			? null
 			: expectedMatchesOracle(found.expected, to.oracle, feature);
 	const moved: Case = {

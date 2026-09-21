@@ -1,4 +1,3 @@
-import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { ForgeError, UsageError } from "../../core/errors";
@@ -10,10 +9,13 @@ import {
 	readFeature,
 	readScenarios,
 	readSuiteIfPresent,
-	renameSuiteInclude,
+	removeFile,
+	rewriteSuiteInclude,
 	writeCases,
 	writeScenarios,
+	writeText,
 } from "../../core/files";
+import { IMPORTED_SCENARIO_ID } from "../../core/import";
 import { moveCase, renameScenario } from "../../core/move";
 import type { CliContext } from "../context";
 import { requireApprovedFeature } from "../gates";
@@ -25,6 +27,17 @@ import { requireApprovedFeature } from "../gates";
  * extension the forge appends.
  */
 const BARE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/**
+ * The cases file that would answer to `id`, by the names on disk. Compared
+ * without case on purpose: on the default macOS filesystem `Old.yaml` and
+ * `old.yaml` are the same file, while `readdir` reports one spelling and a
+ * lookup by the other misses it. Every place `move` decides whether a file
+ * exists asks this, so the verb behaves the same on every filesystem.
+ */
+function casesFileFor(files: string[], id: string): string | undefined {
+	return files.find((f) => f.toLowerCase() === id.toLowerCase());
+}
 
 function requireBareId(id: string): void {
 	if (!BARE_ID.test(id) || id.endsWith(".yaml"))
@@ -89,33 +102,71 @@ async function moveScenario(
 	// invent an empty `cases/<new>.yaml`, which every later verb would read
 	// as a scenario that already has cases.
 	const files = await listCaseScenarios(ctx.forgeDir);
-	const hasFile = files.includes(from);
-	const cases = await readCases(ctx.forgeDir, from);
-	const suite = await readSuiteIfPresent(ctx.forgeDir);
+	// The source file is found by the same rule as everything else on
+	// disk. A file whose name differs from the id only by case was read
+	// (the read resolves case-insensitively on macOS) and then left where
+	// it was, with scenarios.yaml renamed around it: the verb reported the
+	// count and every later verb dropped those cases in silence.
+	const sourceFile = casesFileFor(files, from);
+	if (sourceFile !== undefined && sourceFile !== from)
+		throw new ForgeError(
+			`scenario "${from}" has a cases file spelled "${sourceFile}"; rename one so they match`,
+			{ file: join(paths.casesDir, `${sourceFile}.yaml`), id: from },
+		);
+	const hasFile = sourceFile !== undefined;
+	const cases = hasFile ? await readCases(ctx.forgeDir, from) : [];
+	const read = await readSuiteIfPresent(ctx.forgeDir);
+	const suite = read === null ? null : read.suite;
 	const result = renameScenario({ from, to, scenarios, cases, suite });
 	// scenarios.yaml is not the only place a name can be taken: a stray
 	// `cases/<new>.yaml` with no scenario entry would be overwritten by the
-	// write below and its cases lost. Compared without case on purpose —
-	// on the default macOS filesystem `Old.yaml` and `old.yaml` are the
-	// same file, so a rename that only changes case wrote the new file
-	// onto the old one and then deleted it. Refused the same way on every
-	// filesystem, so the behaviour does not depend on where the repo is
-	// checked out.
-	const clash = files.find((f) => f.toLowerCase() === to.toLowerCase());
+	// write below and its cases lost — and a rename that only changes case
+	// wrote the new file onto the old one and then deleted it.
+	const clash = casesFileFor(files, to);
 	if (clash !== undefined)
 		throw new ForgeError(
 			`cases/${clash}.yaml already exists; pick another id or move that file away first`,
 			{ file: join(paths.casesDir, `${clash}.yaml`), id: to },
 		);
-	if (hasFile) await writeCases(ctx.forgeDir, to, result.cases);
+	// Prepared before the first write, so a suite that cannot be rewritten
+	// in place refuses the whole move rather than leaving scenarios.yaml
+	// renamed and suite.include stale.
+	const occurrences =
+		suite === null ? 0 : suite.include.filter((id) => id === from).length;
+	const rewrittenSuite =
+		read !== null && occurrences > 0
+			? rewriteSuiteInclude({
+					path: paths.suite,
+					text: read.text,
+					from,
+					to,
+					occurrences,
+				})
+			: null;
+	// A file holding `[]` is carried no further: it is the phantom every
+	// later verb reads as a scenario that already has cases.
+	const keepFile = cases.length > 0;
+	if (keepFile) await writeCases(ctx.forgeDir, to, result.cases);
 	await writeScenarios(ctx.forgeDir, result.scenarios);
-	const suiteChanged = suite?.include.includes(from) === true;
-	if (suiteChanged) await renameSuiteInclude(ctx.forgeDir, from, to);
-	if (hasFile) await unlink(join(paths.casesDir, `${from}.yaml`));
+	if (rewrittenSuite !== null) await writeText(paths.suite, rewrittenSuite);
+	if (hasFile)
+		await removeFile(
+			join(paths.casesDir, `${from}.yaml`),
+			keepFile
+				? `cases/${to}.yaml and scenarios.yaml are already written; delete cases/${from}.yaml by hand`
+				: `scenarios.yaml is already written; delete the empty cases/${from}.yaml by hand`,
+		);
 	ctx.stdout(
 		`move: scenario ${from} → ${to}; ${result.renamedIds.size} case(s) renumbered`,
 	);
-	if (suiteChanged) ctx.stdout("move: suite.include updated");
+	if (hasFile && !keepFile)
+		ctx.stdout(`move: cases/${from}.yaml held no case and was removed`);
+	if (rewrittenSuite !== null) ctx.stdout("move: suite.include updated");
+	// `import` appends to the scenario by this id and to no other.
+	if (from === IMPORTED_SCENARIO_ID)
+		ctx.stdout(
+			`move: later imports start a new "${IMPORTED_SCENARIO_ID}" scenario; ${to} keeps these cases`,
+		);
 }
 
 async function moveOneCase(
@@ -138,10 +189,8 @@ async function moveOneCase(
 	// name differs from that id only by case is a different key here and
 	// the same file on the default macOS filesystem: the lookup would miss,
 	// and the write below would replace the file with the one moved case.
-	const spelled = [...all.keys()].find(
-		(id) => id !== toId && id.toLowerCase() === toId.toLowerCase(),
-	);
-	if (spelled !== undefined)
+	const spelled = casesFileFor([...all.keys()], toId);
+	if (spelled !== undefined && spelled !== toId)
 		throw new ForgeError(
 			`scenario "${toId}" has a cases file spelled "${spelled}"; rename one so they match`,
 			{ file: join(paths.casesDir, `${spelled}.yaml`), id: toId },
@@ -175,7 +224,11 @@ async function moveOneCase(
 	// A scenario with no file is the ordinary state before `cases` runs.
 	if (result.fromCases.length > 0)
 		await writeCases(ctx.forgeDir, fromId, result.fromCases);
-	else await unlink(join(paths.casesDir, `${fromId}.yaml`));
+	else
+		await removeFile(
+			join(paths.casesDir, `${fromId}.yaml`),
+			`${result.moved.id} is already written into cases/${toId}.yaml; delete cases/${fromId}.yaml by hand`,
+		);
 	ctx.stdout(`move: ${caseId} → ${result.moved.id} (scenario ${toId})`);
 	if (result.reopened !== null)
 		ctx.stdout(
