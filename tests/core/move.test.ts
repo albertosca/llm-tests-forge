@@ -110,6 +110,21 @@ describe("renameScenario", () => {
 		);
 	});
 
+	test("a `from` that scenarios.yaml holds twice is refused, so the twin is fixed rather than renamed along", () => {
+		const err = thrown(() =>
+			renameScenario({
+				from: "old",
+				to: "new",
+				scenarios: [scn("old"), scn("keep"), scn("old")],
+				cases: [],
+				suite: null,
+			}),
+		);
+		expect(err.message).toBe(
+			'scenarios.yaml holds 2 entries under id "old"; fix the file first (id: old)',
+		);
+	});
+
 	test("a `to` another scenario already holds is refused by name", () => {
 		const err = thrown(() =>
 			renameScenario({
@@ -331,6 +346,28 @@ describe("moveCase", () => {
 		);
 		expect(err.message).toBe(
 			'case "old-01" has the same input as "dest-01", already in scenario "dest"; delete one of them (id: old-01)',
+		);
+	});
+
+	test("a case id the source file holds twice is refused, so neither entry is dropped", () => {
+		// Moving "the" case took the first entry and removed every entry
+		// under the id from the source: one moved, one gone in silence.
+		const err = thrown(() =>
+			moveCase({
+				caseId: "old-01",
+				from,
+				to,
+				fromCases: [
+					cs("old-01", "old", { input: { email: "FIRST" } }),
+					cs("old-01", "old", { input: { email: "SECOND" } }),
+					cs("old-02", "old"),
+				],
+				toCases: [],
+				feature,
+			}),
+		);
+		expect(err.message).toBe(
+			'cases file of scenario "old" holds 2 entries under id "old-01"; fix the file first (id: old-01)',
 		);
 	});
 

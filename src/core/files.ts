@@ -305,8 +305,8 @@ export async function readSuiteIfPresent(
  * hand, and re-serialising the parsed object would drop every comment and
  * turn every flow list into a block. Only the scalars are touched;
  * comments, key order and flow style survive. Spacing is the printer's,
- * not the person's (`[a,b]` and a comment's indent come back normalised),
- * which is the trade the `yaml` Document API makes.
+ * not the person's (`[a,b]`, a comment's indent and a 4-space block indent
+ * come back normalised), which is the trade the `yaml` Document API makes.
  *
  * `occurrences` is how many entries the parsed suite holds for `from`. An
  * entry reached through an alias (`include: *shared`, or `[*old, keep]`)

@@ -3296,7 +3296,7 @@ describe("forge move --scenario: the source file and the suite", () => {
 			await run(["move", "--scenario", "polite-rejection", "soft-no"], ctx),
 		).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: scenario "polite-rejection" has a cases file spelled "Polite-Rejection"; rename one so they match (file: ${file}, id: polite-rejection)`,
+			`error: scenario "polite-rejection" has a cases file spelled "Polite-Rejection" (letter case or Unicode normalisation differs); rename one so they match (file: ${file}, id: polite-rejection)`,
 		);
 		expect((await stat(scenariosFile)).mtime.getTime()).toBe(
 			LONG_AGO.getTime(),
@@ -3688,7 +3688,7 @@ describe("forge move --case: the destination's file and status", () => {
 			),
 		).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: scenario "Huge-Signature" has a cases file spelled "huge-signature"; rename one so they match (file: ${file}, id: Huge-Signature)`,
+			`error: scenario "Huge-Signature" has a cases file spelled "huge-signature" (letter case or Unicode normalisation differs); rename one so they match (file: ${file}, id: Huge-Signature)`,
 		);
 		expect((await stat(file)).mtime.getTime()).toBe(LONG_AGO.getTime());
 		expect(
@@ -3735,6 +3735,163 @@ describe("forge move --case: the destination's file and status", () => {
 		expect(
 			(await readCases(forgeDir, "huge-signature")).map((c) => c.status),
 		).toEqual(["approved"]);
+	});
+});
+
+describe("forge move --case: a twin id in the source", () => {
+	test("exits 1 naming the file, moves nothing, and drops nothing", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "huge-signature",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection", {
+				input: { email: "FIRST" },
+			}),
+			CASE("polite-rejection-01", "polite-rejection", {
+				input: { email: "SECOND" },
+			}),
+			CASE("polite-rejection-02", "polite-rejection"),
+		]);
+		const sourceFile = join(forgeDir, "cases", "polite-rejection.yaml");
+		await utimes(sourceFile, LONG_AGO, LONG_AGO);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(
+				["move", "--case", "polite-rejection-01", "--to", "huge-signature"],
+				ctx,
+			),
+		).toBe(1);
+		expect(out.at(-1)).toBe(
+			'error: cases file of scenario "polite-rejection" holds 2 entries under id "polite-rejection-01"; fix the file first (id: polite-rejection-01)',
+		);
+		expect((await stat(sourceFile)).mtime.getTime()).toBe(LONG_AGO.getTime());
+		expect(
+			await statOrNull(join(forgeDir, "cases", "huge-signature.yaml")),
+		).toBeNull();
+		expect(await readFile(sourceFile, "utf8")).toContain("SECOND");
+	});
+});
+
+describe("forge move: a file name that differs from the id only in Unicode normalisation", () => {
+	// `café` written to disk as NFC, named in scenarios.yaml as NFD: APFS
+	// opens the file by either spelling, JavaScript compares them unequal,
+	// and the case-only guard let both forms through.
+	const nfc = "caf\u00e9";
+	const nfd = "cafe\u0301";
+
+	test("--scenario refuses the source, and scenarios.yaml is untouched", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: nfd,
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, nfc, [CASE(`${nfd}-01`, nfd)]);
+		const scenariosFile = join(forgeDir, "scenarios.yaml");
+		await utimes(scenariosFile, LONG_AGO, LONG_AGO);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["move", "--scenario", nfd, "soft-no"], ctx)).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: scenario "${nfd}" has a cases file spelled "${nfc}" (letter case or Unicode normalisation differs); rename one so they match (file: ${join(forgeDir, "cases", `${nfc}.yaml`)}, id: ${nfd})`,
+		);
+		expect((await stat(scenariosFile)).mtime.getTime()).toBe(
+			LONG_AGO.getTime(),
+		);
+	});
+
+	test("--case refuses the destination, and its file is untouched", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: nfd,
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+		]);
+		await writeCases(forgeDir, nfc, [
+			CASE(`${nfd}-01`, nfd, { input: { email: "PRECIOUS" } }),
+		]);
+		const file = join(forgeDir, "cases", `${nfc}.yaml`);
+		await utimes(file, LONG_AGO, LONG_AGO);
+
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(["move", "--case", "polite-rejection-01", "--to", nfd], ctx),
+		).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: scenario "${nfd}" has a cases file spelled "${nfc}" (letter case or Unicode normalisation differs); rename one so they match (file: ${file}, id: ${nfd})`,
+		);
+		expect((await stat(file)).mtime.getTime()).toBe(LONG_AGO.getTime());
+	});
+});
+
+describe("forge move --scenario: a write that fails after the first one", () => {
+	test("names what is already on disk and what to do by hand", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+		]);
+		const scenariosFile = join(forgeDir, "scenarios.yaml");
+		await chmod(scenariosFile, 0o444);
+		try {
+			const { ctx, out } = await ctxIn(cwd);
+			expect(
+				await run(["move", "--scenario", "polite-rejection", "soft-no"], ctx),
+			).toBe(1);
+			expect(out.at(-1)).toBe(
+				`error: cannot write: EACCES: permission denied, open '${scenariosFile}' (file: ${scenariosFile}); cases/soft-no.yaml is already written; delete it by hand and run the move again`,
+			);
+			// Nothing is lost: the source and the scenario are as they were,
+			// and the destination is the duplicate the message names.
+			expect(
+				(await readCases(forgeDir, "polite-rejection")).map((c) => c.id),
+			).toEqual(["polite-rejection-01"]);
+			expect((await readCases(forgeDir, "soft-no")).map((c) => c.id)).toEqual([
+				"soft-no-01",
+			]);
+			expect((await readScenarios(forgeDir))[0]?.id).toBe("polite-rejection");
+		} finally {
+			await chmod(scenariosFile, 0o644);
+		}
 	});
 });
 

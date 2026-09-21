@@ -1,3 +1,4 @@
+import { sameInput } from "./compare";
 import { ForgeError } from "./errors";
 import { nextCaseId } from "./ids";
 import { expectedMatchesOracle } from "./oracle";
@@ -42,10 +43,19 @@ export interface RenameScenarioResult {
  */
 export function renameScenario(args: RenameScenarioArgs): RenameScenarioResult {
 	const { from, to, suite } = args;
-	if (!args.scenarios.some((s) => s.id === from))
+	const entries = args.scenarios.filter((s) => s.id === from).length;
+	if (entries === 0)
 		throw new ForgeError(`scenario "${from}" is not in scenarios.yaml`, {
 			id: from,
 		});
+	// Two entries under one id would both be renamed, and the file would
+	// hold the twin under the new name as well; refused, as a twin case id
+	// is below, so the file is fixed rather than rewritten around.
+	if (entries > 1)
+		throw new ForgeError(
+			`scenarios.yaml holds ${entries} entries under id "${from}"; fix the file first`,
+			{ id: from },
+		);
 	if (args.scenarios.some((s) => s.id === to))
 		throw new ForgeError(
 			`scenario "${to}" already exists in scenarios.yaml; pick an id nothing else uses`,
@@ -112,13 +122,6 @@ export interface MoveCaseResult {
 	reopened: string | null;
 }
 
-function sameInput(a: Case["input"], b: Case["input"]): boolean {
-	const keys = Object.keys(a);
-	return (
-		keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k])
-	);
-}
-
 function withoutDuplicateOf(c: Case): Case {
 	const { duplicate_of: _dropped, ...rest } = c;
 	return rest;
@@ -133,11 +136,21 @@ function withoutDuplicateOf(c: Case): Case {
  */
 export function moveCase(args: MoveCaseArgs): MoveCaseResult {
 	const { caseId, from, to, feature } = args;
-	const found = args.fromCases.find((c) => c.id === caseId);
+	const entries = args.fromCases.filter((c) => c.id === caseId);
+	const found = entries[0];
 	if (found === undefined)
 		throw new ForgeError(`case "${caseId}" is not in scenario "${from.id}"`, {
 			id: caseId,
 		});
+	// A file holding two entries under one id is a state review warns
+	// about and sends people here for. Moving "the" case would take the
+	// first and drop every entry under the id from the source: one case
+	// moved, one lost in silence.
+	if (entries.length > 1)
+		throw new ForgeError(
+			`cases file of scenario "${from.id}" holds ${entries.length} entries under id "${caseId}"; fix the file first`,
+			{ id: caseId },
+		);
 	// The source and the destination would be the same file: writing it and
 	// then removing the case from it would undo the write.
 	if (from.id === to.id)

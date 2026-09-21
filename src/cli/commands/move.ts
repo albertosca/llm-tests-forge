@@ -36,7 +36,32 @@ const BARE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
  * exists asks this, so the verb behaves the same on every filesystem.
  */
 function casesFileFor(files: string[], id: string): string | undefined {
-	return files.find((f) => f.toLowerCase() === id.toLowerCase());
+	const wanted = fold(id);
+	return files.find((f) => fold(f) === wanted);
+}
+
+/**
+ * Letter case and Unicode normalisation both fold: APFS opens `café.yaml`
+ * stored as NFC by its NFD spelling too, and the two strings compare
+ * unequal in JavaScript. A hand-written id with a diacritic and a file
+ * name that drifted (git stores NFD paths as NFC on macOS by default) is
+ * how the two meet.
+ */
+function fold(name: string): string {
+	return name.normalize("NFC").toLowerCase();
+}
+
+/**
+ * A write after the first one: when it fails, the message has to say what
+ * is already on disk and what to do by hand, because the retry the plain
+ * error suggests is refused by the guards above (the destination now
+ * exists) or impossible (the old id is gone from scenarios.yaml).
+ */
+async function attempt(work: Promise<void>, afterwards: string): Promise<void> {
+	await work.catch((e: unknown) => {
+		const message = e instanceof Error ? e.message : String(e);
+		throw new ForgeError(`${message}; ${afterwards}`);
+	});
 }
 
 function requireBareId(id: string): void {
@@ -110,7 +135,7 @@ async function moveScenario(
 	const sourceFile = casesFileFor(files, from);
 	if (sourceFile !== undefined && sourceFile !== from)
 		throw new ForgeError(
-			`scenario "${from}" has a cases file spelled "${sourceFile}"; rename one so they match`,
+			`scenario "${from}" has a cases file spelled "${sourceFile}" (letter case or Unicode normalisation differs); rename one so they match`,
 			{ file: join(paths.casesDir, `${sourceFile}.yaml`), id: from },
 		);
 	const hasFile = sourceFile !== undefined;
@@ -146,15 +171,29 @@ async function moveScenario(
 	// A file holding `[]` is carried no further: it is the phantom every
 	// later verb reads as a scenario that already has cases.
 	const keepFile = cases.length > 0;
-	if (keepFile) await writeCases(ctx.forgeDir, to, result.cases);
-	await writeScenarios(ctx.forgeDir, result.scenarios);
-	if (rewrittenSuite !== null) await writeText(paths.suite, rewrittenSuite);
+	const written: string[] = [];
+	if (keepFile) {
+		await writeCases(ctx.forgeDir, to, result.cases);
+		written.push(`cases/${to}.yaml`);
+	}
+	await attempt(
+		writeScenarios(ctx.forgeDir, result.scenarios),
+		keepFile
+			? `cases/${to}.yaml is already written; delete it by hand and run the move again`
+			: "nothing else is written; run the move again",
+	);
+	written.push("scenarios.yaml");
+	if (rewrittenSuite !== null) {
+		await attempt(
+			writeText(paths.suite, rewrittenSuite),
+			`already written: ${written.join(", ")}; change ${from} to ${to} in suite.include by hand${hasFile ? `, then delete cases/${from}.yaml` : ""}`,
+		);
+		written.push("suite.yaml");
+	}
 	if (hasFile)
 		await removeFile(
 			join(paths.casesDir, `${from}.yaml`),
-			keepFile
-				? `cases/${to}.yaml and scenarios.yaml are already written; delete cases/${from}.yaml by hand`
-				: `scenarios.yaml is already written; delete the empty cases/${from}.yaml by hand`,
+			`already written: ${written.join(", ")}; delete cases/${from}.yaml by hand`,
 		);
 	ctx.stdout(
 		`move: scenario ${from} → ${to}; ${result.renamedIds.size} case(s) renumbered`,
@@ -192,7 +231,7 @@ async function moveOneCase(
 	const spelled = casesFileFor([...all.keys()], toId);
 	if (spelled !== undefined && spelled !== toId)
 		throw new ForgeError(
-			`scenario "${toId}" has a cases file spelled "${spelled}"; rename one so they match`,
+			`scenario "${toId}" has a cases file spelled "${spelled}" (letter case or Unicode normalisation differs); rename one so they match`,
 			{ file: join(paths.casesDir, `${spelled}.yaml`), id: toId },
 		);
 	const holders = [...all.keys()].filter((id) =>
