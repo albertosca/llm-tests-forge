@@ -2227,11 +2227,12 @@ describe("review: a twin id across two files", () => {
 				status: "approved",
 			},
 		]);
-		// Both files hold an entry `aa-01` — the twin review warns about —
-		// and both hold a pointer at it. `aa.yaml` is walked first, so its
-		// entry is the one offered and the one the rename lands in. `bb`
-		// has a decision of its own, so it is written this pass too: that
-		// is what let a map built from the pass's decisions reach across.
+		// Both files hold an entry `aa-01` — a twin across files, which the
+		// pass names — and both hold a pointer at it. `aa`'s entry is the
+		// pending one, so it is the one offered and the one the rename
+		// lands in. `bb` has a decision of its own, so it is written this
+		// pass too: that is what let a map built from the pass's decisions
+		// reach across.
 		await writeCases(forgeDir, "aa", [
 			CASE("aa-01", "aa", { status: "pending" }),
 			CASE("aa-02", "aa", { duplicate_of: "aa-01" }),
@@ -2245,13 +2246,16 @@ describe("review: a twin id across two files", () => {
 		process.env.EDITOR = editor;
 		// Offered in this order: aa-01 (pending, in aa), then bb-01, which
 		// points at it and is placed right after it.
-		const { ctx } = await ctxIn(cwd, ["edit", "approve"]);
+		const { ctx, out } = await ctxIn(cwd, ["edit", "approve"]);
 		try {
 			expect(await run(["review", "--only", "cases"], ctx)).toBe(0);
 		} finally {
 			if (original === undefined) delete process.env.EDITOR;
 			else process.env.EDITOR = original;
 		}
+		expect(out[0]).toBe(
+			`review: id "aa-01" is in ${join(forgeDir, "cases", "aa.yaml")} and ${join(forgeDir, "cases", "bb.yaml")}; each pass offers the first pending one — give them distinct ids`,
+		);
 		expect(
 			(await readCases(forgeDir, "aa")).map((c) => [c.id, c.duplicate_of]),
 		).toEqual([
@@ -2267,6 +2271,157 @@ describe("review: a twin id across two files", () => {
 		).toEqual([
 			["aa-01", undefined, "approved"],
 			["bb-01", "aa-01", "approved"],
+		]);
+	});
+});
+
+describe("review: a twin id across two files, the other way round", () => {
+	test("the reverse order: the pending twin is in the later file, and the decision lands there, not over the earlier file's approved case", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "aa",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "bb",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		// `aa`'s entry is approved; `bb`'s is the pending one offered. A
+		// decision matched by id alone landed in `aa.yaml`, the first file
+		// walked: bb's case, edited, was written over aa's approved case,
+		// bb kept its pending copy, and the summary said 0 still pending.
+		await writeCases(forgeDir, "aa", [
+			CASE("aa-01", "aa", { input: { email: "aa-01 in aa" } }),
+			CASE("aa-02", "aa", { duplicate_of: "aa-01" }),
+		]);
+		await writeCases(forgeDir, "bb", [
+			CASE("aa-01", "bb", {
+				input: { email: "aa-01 in bb" },
+				status: "pending",
+			}),
+			CASE("bb-01", "bb", { duplicate_of: "aa-01" }),
+		]);
+		const aaFile = join(forgeDir, "cases", "aa.yaml");
+		await utimes(aaFile, LONG_AGO, LONG_AGO);
+		const editor = await editorReplacing(cwd, "id: aa-01", "id: aa-01-fixed");
+		const original = process.env.EDITOR;
+		process.env.EDITOR = editor;
+		const { ctx, out } = await ctxIn(cwd, ["edit"]);
+		try {
+			expect(await run(["review", "--only", "cases"], ctx)).toBe(0);
+		} finally {
+			if (original === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = original;
+		}
+		expect((await stat(aaFile)).mtime.getTime()).toBe(LONG_AGO.getTime());
+		expect(
+			(await readCases(forgeDir, "bb")).map((c) => [
+				c.id,
+				c.scenario,
+				c.status,
+				c.duplicate_of,
+			]),
+		).toEqual([
+			["aa-01-fixed", "bb", "edited", undefined],
+			["bb-01", "bb", "approved", "aa-01-fixed"],
+		]);
+		expect(out.at(-1)).toBe(
+			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 0 still pending",
+		);
+	});
+});
+
+describe("review refuses a case that names another existing scenario before the first prompt", () => {
+	test("exit 1 with the move that fixes it, and nothing written", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "aa",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "bb",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		// A decision on this case would belong to `bb.yaml`, which does
+		// not hold it: taken, it would land nowhere.
+		await writeCases(forgeDir, "aa", [
+			CASE("aa-01", "aa", { status: "pending" }),
+			CASE("aa-02", "bb", { status: "pending" }),
+		]);
+		const aaFile = join(forgeDir, "cases", "aa.yaml");
+		await utimes(aaFile, LONG_AGO, LONG_AGO);
+		const { ctx, out } = await ctxIn(cwd, ["approve", "approve"]);
+		expect(await run(["review", "--only", "cases"], ctx)).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: case aa-02 names scenario "bb" but lives in ${aaFile}; run \`forge move --case aa-02 --to bb\` or fix the file (file: ${aaFile}, id: aa-02)`,
+		);
+		expect(out.some((l) => l.startsWith("--- case"))).toBe(false);
+		expect((await stat(aaFile)).mtime.getTime()).toBe(LONG_AGO.getTime());
+	});
+});
+
+describe("review refuses a second rename onto an id this pass already gave a sibling", () => {
+	test("the first rename lands, the second is re-asked, and the pointer follows the one that landed", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection", { status: "pending" }),
+			CASE("polite-rejection-02", "polite-rejection", { status: "pending" }),
+			CASE("polite-rejection-03", "polite-rejection", {
+				duplicate_of: "polite-rejection-02",
+			}),
+		]);
+		// The same editor renames whichever of the two it is handed to `bb-x`.
+		const editor = join(cwd, "fake-editor-both.sh");
+		await writeFile(
+			editor,
+			`#!/bin/sh\nsed 's|^id: polite-rejection-0[12]$|id: polite-rejection-x|' "$1" > "$1.tmp" && mv "$1.tmp" "$1"\n`,
+		);
+		await chmod(editor, 0o755);
+		const original = process.env.EDITOR;
+		process.env.EDITOR = editor;
+		// -01: edit → renamed to -x. -02: edit → refused (the id is taken
+		// by the sibling this pass renamed), re-asked → skip.
+		const { ctx, out } = await ctxIn(cwd, ["edit", "edit", "skip"]);
+		try {
+			expect(await run(["review", "--only", "cases"], ctx)).toBe(0);
+		} finally {
+			if (original === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = original;
+		}
+		expect(out).toContain(
+			'cannot apply: id "polite-rejection-x" is already used by another item in the same file; pick an id nothing else uses (id: polite-rejection-02)',
+		);
+		expect(
+			(await readCases(forgeDir, "polite-rejection")).map((c) => [
+				c.id,
+				c.status,
+				c.duplicate_of,
+			]),
+		).toEqual([
+			["polite-rejection-x", "edited", undefined],
+			["polite-rejection-02", "pending", undefined],
+			["polite-rejection-03", "approved", "polite-rejection-02"],
 		]);
 	});
 });
@@ -3104,7 +3259,7 @@ describe("report", () => {
 		expect(json.coverage.withoutRun).toEqual(["ack-quiz"]);
 		const md = await readFile(join(forgeDir, "report.md"), "utf8");
 		expect(md).toContain(
-			"Coverage: 1 of 2 reviewed scenarios ran; no run: ack-quiz",
+			"Coverage: 1 of 2 reviewed scenarios ran; no matched run: ack-quiz",
 		);
 		expect(md).toContain(
 			"Not in this run, so not compared: 1 baseline pair(s) — ack-optional-quiz-01 @ target-haiku-4-5.",

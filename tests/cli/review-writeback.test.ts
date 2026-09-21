@@ -130,7 +130,7 @@ describe("applyReviewDecisions: duplicate_of follows a rename", () => {
 
 	test("a rename applied in one list never rewrites a pointer in another list that spells the same id", () => {
 		// Two files, each holding an entry `s-01` (a twin across files, which
-		// review warns about) and a pointer at it. The decision is taken
+		// the review pass names) and a pointer at it. The decision is taken
 		// once, by whichever list is walked first; the other list keeps
 		// both its entry and its pointer, even when it has a decision of
 		// its own and is written this pass.

@@ -94,10 +94,9 @@ export function applyReviewDecisions(
 	const decided = list.some((c) => decidedCases.has(c.id));
 	const renamed = new Map<string, string>();
 	const applied = list.map((c) => {
-		const decided = takeOnce(decidedCases, c.id);
-		if (decided !== undefined && decided.id !== c.id)
-			renamed.set(c.id, decided.id);
-		return decided ?? c;
+		const hit = takeOnce(decidedCases, c.id);
+		if (hit !== undefined && hit.id !== c.id) renamed.set(c.id, hit.id);
+		return hit ?? c;
 	});
 	// An edit may rename a case, and `duplicate_of` is the only field that
 	// names another case by id. Left behind, the pointer dangles: no data

@@ -110,9 +110,10 @@ const CoverageSchema = z.preprocess(
 		withoutCase: z.array(z.string()),
 		/**
 		 * Reviewed scenarios with at least one reviewed case and no matched
-		 * row: after a rename, or a run that never reached them. The
-		 * zero row in the table said so; the sentence did not. Defaulted
-		 * for older baselines.
+		 * row: after a rename (the rows are there, under the old ids), or a
+		 * run that never reached them. The zero row in the table said so;
+		 * the sentence did not — and it must not say "never ran", which is
+		 * false in the rename case. Defaulted for older baselines.
 		 */
 		withoutRun: z.array(z.string()).default([]),
 	}),

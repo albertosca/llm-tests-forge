@@ -182,7 +182,7 @@ describe("renderReportMarkdown", () => {
 			},
 		});
 		expect(md).toContain(
-			"Coverage: 1 of 3 reviewed scenarios ran; no case yet: r; no run: s",
+			"Coverage: 1 of 3 reviewed scenarios ran; no case yet: r; no matched run: s",
 		);
 	});
 

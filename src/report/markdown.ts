@@ -171,7 +171,7 @@ function coverageSentence(r: Report, coverage: string): string {
 			: `no case yet: ${r.coverage.withoutCase.join(", ")}`,
 		r.coverage.withoutRun.length === 0
 			? null
-			: `no run: ${r.coverage.withoutRun.join(", ")}`,
+			: `no matched run: ${r.coverage.withoutRun.join(", ")}`,
 	].filter((c) => c !== null);
 	return clauses.length === 0
 		? `${coverage}.`
