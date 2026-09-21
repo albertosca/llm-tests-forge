@@ -1,13 +1,15 @@
 import { join } from "node:path";
 import { ForgeError } from "../../core/errors";
-import { forgePaths, readCases, writeCases } from "../../core/files";
+import { forgePaths, writeCases } from "../../core/files";
 import { expectedMatchesOracle } from "../../core/oracle";
 import { applyDecision } from "../../core/review";
-import type { Feature, Scenario } from "../../core/schemas";
+import type { Case, Feature, Scenario } from "../../core/schemas";
 
 export interface ReviewAllArgs {
 	/** The scenario named by `--scenario`, as read off disk. */
 	scenario: Scenario;
+	/** The scenario's cases file as the caller read it — read once, before the twin-id warning, for both paths. */
+	cases: Case[];
 	feature: Feature;
 	forgeDir: string;
 	stdout: (line: string) => void;
@@ -21,9 +23,8 @@ export interface ReviewAllArgs {
  * pending and named, and so is one with no `expected` at all.
  */
 export async function reviewAllCommand(args: ReviewAllArgs): Promise<void> {
-	const { scenario, feature, forgeDir, stdout } = args;
+	const { scenario, cases, feature, forgeDir, stdout } = args;
 	const id = scenario.id;
-	const cases = await readCases(forgeDir, id);
 	// The file is named for the scenario its cases belong to, and that is
 	// the scenario whose oracle `--all` approves them against. A
 	// hand-edited file holding a case that names another scenario was

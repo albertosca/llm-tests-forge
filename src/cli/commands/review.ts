@@ -104,6 +104,7 @@ export async function reviewCommand(
 	if (named !== undefined && values.all) {
 		await reviewAllCommand({
 			scenario: named,
+			cases: casesById.get(named.id) ?? [],
 			feature: await readFeature(ctx.forgeDir),
 			forgeDir: ctx.forgeDir,
 			stdout: ctx.stdout,
@@ -236,22 +237,6 @@ export async function reviewCommand(
 			.filter((d) => d.kind === "case")
 			.map((d) => [d.originalId, d.item] as const),
 	);
-	/**
-	 * The renames this pass made among the entries of one file, old id to
-	 * new id. Built from that file's own decisions and applied to it only:
-	 * see `applyReviewDecisions`, which rewrites `duplicate_of` through it.
-	 */
-	const renamesIn = (list: Case[]): Map<string, string> =>
-		new Map(
-			result.decisions
-				.filter(
-					(d) =>
-						d.kind === "case" &&
-						d.originalId !== d.id &&
-						list.some((c) => c.id === d.originalId),
-				)
-				.map((d) => [d.originalId, d.id] as const),
-		);
 	let totalReopened = 0;
 	for (const [id, list] of casesById) {
 		const oracleChange = oracleChanges.get(id);
@@ -265,7 +250,6 @@ export async function reviewCommand(
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
 			decidedCases,
-			renamed: renamesIn(list),
 			oracleChange,
 			feature,
 		});

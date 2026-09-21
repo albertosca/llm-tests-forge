@@ -2206,6 +2206,71 @@ describe("review: a rename follows the pointers in its own file and no other", (
 	});
 });
 
+describe("review: a twin id across two files", () => {
+	test("the rename lands in the file that received the decision, and the other file's pointer stays", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "aa",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "bb",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		// Both files hold an entry `aa-01` — the twin review warns about —
+		// and both hold a pointer at it. `aa.yaml` is walked first, so its
+		// entry is the one offered and the one the rename lands in. `bb`
+		// has a decision of its own, so it is written this pass too: that
+		// is what let a map built from the pass's decisions reach across.
+		await writeCases(forgeDir, "aa", [
+			CASE("aa-01", "aa", { status: "pending" }),
+			CASE("aa-02", "aa", { duplicate_of: "aa-01" }),
+		]);
+		await writeCases(forgeDir, "bb", [
+			CASE("aa-01", "bb"),
+			CASE("bb-01", "bb", { duplicate_of: "aa-01", status: "pending" }),
+		]);
+		const editor = await editorReplacing(cwd, "id: aa-01", "id: aa-01-fixed");
+		const original = process.env.EDITOR;
+		process.env.EDITOR = editor;
+		// Offered in this order: aa-01 (pending, in aa), then bb-01, which
+		// points at it and is placed right after it.
+		const { ctx } = await ctxIn(cwd, ["edit", "approve"]);
+		try {
+			expect(await run(["review", "--only", "cases"], ctx)).toBe(0);
+		} finally {
+			if (original === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = original;
+		}
+		expect(
+			(await readCases(forgeDir, "aa")).map((c) => [c.id, c.duplicate_of]),
+		).toEqual([
+			["aa-01-fixed", undefined],
+			["aa-02", "aa-01-fixed"],
+		]);
+		expect(
+			(await readCases(forgeDir, "bb")).map((c) => [
+				c.id,
+				c.duplicate_of,
+				c.status,
+			]),
+		).toEqual([
+			["aa-01", undefined, "approved"],
+			["bb-01", "aa-01", "approved"],
+		]);
+	});
+});
+
 describe("dedupe checks every scenario before it writes the first one", () => {
 	test("an empty cases file later in the list is refused with the earlier file untouched", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
