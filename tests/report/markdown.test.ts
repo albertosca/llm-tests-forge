@@ -50,7 +50,7 @@ const REPORT: Report = {
 		},
 	],
 	failing: ["a-03 @ m"],
-	failingPairs: [],
+	failingPairs: [{ case: "a-03", model: "m" }],
 	flaky: ["a-01 @ m"],
 	scenarios: [
 		{ scenario: "a", kind: "happy", run: 6, passed: 3, failed: 3, errored: 0 },
@@ -467,7 +467,7 @@ describe("renderReportMarkdown", () => {
 				},
 			],
 			failing: ["a-04 @ m"],
-			failingPairs: [],
+			failingPairs: [{ case: "a-04", model: "m" }],
 			flaky: [],
 		});
 		const listed = "| a-04 | m | 2 | 1 | 0 | 1 | overloaded |";

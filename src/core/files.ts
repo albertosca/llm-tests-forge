@@ -1,6 +1,6 @@
 import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { parse, stringify } from "yaml";
+import { isScalar, isSeq, parse, parseDocument, stringify } from "yaml";
 import type { core, ZodType } from "zod";
 import { z } from "zod";
 import { ForgeError } from "./errors";
@@ -139,7 +139,17 @@ export async function writeYamlFile(
 	data: unknown,
 ): Promise<void> {
 	await mkdir(join(path, ".."), { recursive: true });
-	await writeFile(path, stringify(data, { lineWidth: 0 }), "utf8");
+	await writeFile(path, stringify(data, { lineWidth: 0 }), "utf8").catch(
+		(e: unknown) => {
+			// Named like a failed read: a name the filesystem refuses or a
+			// directory that cannot be written into used to surface as the
+			// raw `ENAMETOOLONG: name too long, open '...'` with no verb
+			// owning it.
+			throw new ForgeError(`cannot write: ${(e as Error).message}`, {
+				file: path,
+			});
+		},
+	);
 }
 
 export async function readFeature(forgeDir: string): Promise<Feature> {
@@ -244,6 +254,29 @@ export async function readSuiteIfPresent(
 	const path = forgePaths(forgeDir).suite;
 	if (!(await exists(path))) return null;
 	return readYamlFile(path, SuiteSchema);
+}
+
+/**
+ * Rewrites the entries of `suite.include` equal to `from` as `to`, in
+ * place, through the document rather than through `writeSuite`: suite.yaml
+ * is the one forge file the person writes by hand, and re-serialising the
+ * parsed object would drop every comment and turn every flow list into a
+ * block. Only the scalars are touched; comments, key order and flow style
+ * survive. Spacing is the printer's, not the person's (`[a,b]` and a
+ * comment's indent come back normalised), which is the trade the `yaml`
+ * Document API makes.
+ */
+export async function renameSuiteInclude(
+	forgeDir: string,
+	from: string,
+	to: string,
+): Promise<void> {
+	const path = forgePaths(forgeDir).suite;
+	const doc = parseDocument(await readFile(path, "utf8"));
+	const include = doc.get("include", true);
+	for (const item of isSeq(include) ? include.items : [])
+		if (isScalar(item) && item.value === from) item.value = to;
+	await writeFile(path, doc.toString({ flowCollectionPadding: false }), "utf8");
 }
 
 export async function writeSuite(
