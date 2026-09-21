@@ -558,6 +558,11 @@ describe("buildReport", () => {
 				sc("p", "label", "pending"),
 			],
 			cases: [cs("a-01", "a"), cs("a-02", "a"), cs("r-01", "r", "rejected")],
+			knownCases: [
+				cs("a-01", "a"),
+				cs("a-02", "a"),
+				cs("r-01", "r", "rejected"),
+			],
 		});
 		expect(report.scenarios).toEqual([
 			{
@@ -591,6 +596,7 @@ describe("buildReport", () => {
 			{
 				scenarios: [sc("a", "label"), sc("e", "label", "edited")],
 				cases: [cs("a-01", "a"), cs("e-01", "e", "edited")],
+				knownCases: [cs("a-01", "a"), cs("e-01", "e", "edited")],
 			},
 		);
 		expect(report.scenarios).toEqual([
@@ -974,6 +980,23 @@ describe("buildReport", () => {
 			reviewedScenarios: 3,
 			withRuns: 1,
 			withoutCase: ["n"],
+			withoutRun: ["r"],
+		});
+	});
+
+	test("a scenario the suite left out has cases on disk: it is a scenario with no matched run, not one with no case", () => {
+		// `include: [a]` selected only `a`; `r` has a reviewed case on disk
+		// that this run never priced or ran. "no case yet" sent the person
+		// to `forge cases` for a scenario that had them.
+		const report = build([row({ case: "a-01", model: "m" })], {
+			scenarios: [sc("a", "label"), sc("r", "rubric")],
+			cases: [cs("a-01", "a")],
+			knownCases: [cs("a-01", "a"), cs("r-01", "r")],
+		});
+		expect(report.coverage).toEqual({
+			reviewedScenarios: 2,
+			withRuns: 1,
+			withoutCase: [],
 			withoutRun: ["r"],
 		});
 	});

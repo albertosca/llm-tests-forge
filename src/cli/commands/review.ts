@@ -113,25 +113,6 @@ export async function reviewCommand(
 			ctx.stdout(
 				`review: id "${caseId}" is in ${files.map((f) => join(paths.casesDir, `${f}.yaml`)).join(" and ")}; each pass offers the first pending one — give them distinct ids`,
 			);
-	// A decision is written back to the file its case's `scenario` names,
-	// which is the file it was read from — unless a hand edit put a case
-	// naming another existing scenario in this file. Refused before the
-	// first prompt, as `--all` refuses it, so no decision is taken that no
-	// file would receive. A case naming a scenario that does not exist is
-	// left to the oracle check below, which names that problem.
-	for (const [scenarioId, list] of casesById)
-		for (const c of list)
-			if (
-				c.scenario !== scenarioId &&
-				scenarios.some((s) => s.id === c.scenario)
-			) {
-				const file = join(paths.casesDir, `${scenarioId}.yaml`);
-				throw new ForgeError(
-					`case ${c.id} names scenario "${c.scenario}" but lives in ${file}; run \`forge move --case ${c.id} --to ${c.scenario}\` or fix the file`,
-					{ file, id: c.id },
-				);
-			}
-
 	if (named !== undefined && values.all) {
 		await reviewAllCommand({
 			scenario: named,
@@ -144,6 +125,7 @@ export async function reviewCommand(
 	}
 
 	let feature = await readFeature(ctx.forgeDir);
+	const featureAsRead = feature;
 	// The list as it was read off disk. The write-back below matches every
 	// decision against the file by the id the item had on entry, so it
 	// reads from here rather than from the live `scenarios`, which moves
@@ -152,6 +134,9 @@ export async function reviewCommand(
 	// correct on its own terms instead of on that rule's.
 	const scenariosAsRead = scenarios;
 	const allCases = [...casesById.values()].flat();
+	/** Which file each case was read from; a case's `scenario` should agree. */
+	const fileOf = new Map<Case, string>();
+	for (const [id, list] of casesById) for (const c of list) fileOf.set(c, id);
 
 	const scopedScenarios = values.scenario
 		? scenarios.filter((s) => s.id === values.scenario)
@@ -190,7 +175,24 @@ export async function reviewCommand(
 	// failing in the middle of a pass would throw away every decision
 	// already taken. A broken file is also not a decision to retry — the
 	// loop's own catch would re-ask the same unanswerable item forever.
-	for (const item of items) if (item.kind === "case") oracleOf(item.item);
+	for (const item of items) {
+		if (item.kind !== "case") continue;
+		oracleOf(item.item);
+		// A decision is written back to the file its case's `scenario`
+		// names. A hand edit put a case naming another existing scenario in
+		// this file: a decision on it would land nowhere, so it is refused
+		// before the first prompt, as `--all` refuses it — and only for a
+		// case this pass will offer, so a broken entry nobody is asked
+		// about does not block the feature's or the scenarios' review.
+		const file = fileOf.get(item.item) ?? item.item.scenario;
+		if (item.item.scenario !== file) {
+			const path = join(paths.casesDir, `${file}.yaml`);
+			throw new ForgeError(
+				`case ${item.item.id} names scenario "${item.item.scenario}" but lives in ${path}; run \`forge move --case ${item.item.id} --to ${item.item.scenario}\` or fix the file`,
+				{ file: path, id: item.item.id },
+			);
+		}
+	}
 
 	/**
 	 * Scenarios whose `oracle` this pass changed, keyed by the id their
@@ -339,7 +341,14 @@ export async function reviewCommand(
 	// on entry minus the decisions taken — plus the cases an oracle change
 	// re-opened, which are pending now whether or not they were on entry,
 	// and which the line reports on their own so the total adds up.
-	const stillPending = pending.length - result.decisions.length + totalReopened;
+	// Counted on disk, not from `pendingItems`: that list offers one entry
+	// per id, so a twin id across files was counted once and the second
+	// copy, still pending, read as none.
+	const pendingOnDisk =
+		(featureAsRead.status === "pending" ? 1 : 0) +
+		scopedScenarios.filter((s) => s.status === "pending").length +
+		allCases.filter((c) => c.status === "pending").length;
+	const stillPending = pendingOnDisk - result.decisions.length + totalReopened;
 	ctx.stdout(
 		`review: ${s.approved} approved, ${s.rejected} rejected, ${s.edited} edited, ${s.skipped} skipped, ${totalReopened} re-opened, ${stillPending} still pending`,
 	);

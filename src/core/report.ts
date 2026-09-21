@@ -616,8 +616,12 @@ export function buildReport(args: {
 	const caseRuns = caseRunsOf(matched, cases);
 	const reviewedScenarios = scenarios.filter((s) => reviewed(s.status));
 	const scenarioStats = scenarioStatsOf(matched, scenarios);
+	// Every case on disk, not the suite's selection: a scenario the suite
+	// left out still has its cases, and "no case yet" said otherwise for
+	// every scenario outside a narrowed `include`. Those land under
+	// `withoutRun`, which is true of them.
 	const withCase = new Set(
-		cases.filter((c) => reviewed(c.status)).map((c) => c.scenario),
+		args.knownCases.filter((c) => reviewed(c.status)).map((c) => c.scenario),
 	);
 	// An errored row never reached a verdict, so it is neither a pass nor a
 	// failure: counting it as a non-pass reports a model outage as a

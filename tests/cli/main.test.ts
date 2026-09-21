@@ -1303,8 +1303,9 @@ describe("review: a decision applies to at most one entry (regression)", () => {
 		// Only one item is offered: pendingItems places one entry per id, so
 		// the twin is not reviewed this pass. That is a limitation, not the
 		// defect under test -- the defect is what happens to it on write.
+		// The count is taken on disk, so the twin still shows as pending.
 		expect(out.at(-1)).toBe(
-			"review: 1 approved, 0 rejected, 0 edited, 0 skipped, 0 re-opened, 0 still pending",
+			"review: 1 approved, 0 rejected, 0 edited, 0 skipped, 0 re-opened, 1 still pending",
 		);
 
 		// Length alone would pass against a YAML alias: assert the second
@@ -2337,6 +2338,85 @@ describe("review: a twin id across two files, the other way round", () => {
 		]);
 		expect(out.at(-1)).toBe(
 			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 0 still pending",
+		);
+	});
+});
+
+describe("review: a broken entry nobody is asked about does not block the pass", () => {
+	test("an approved case naming another scenario lets --only feature review the feature, and 'nothing pending' stays exit 0", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, { ...FEATURE, status: "pending" });
+		await writeScenarios(forgeDir, [
+			{
+				id: "aa",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "bb",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		// Approved, so no pass offers it: a refusal here blocked the
+		// feature's review over a case the person was never asked about.
+		await writeCases(forgeDir, "aa", [CASE("aa-01", "bb")]);
+
+		let { ctx, out } = await ctxIn(cwd, ["approve"]);
+		expect(await run(["review", "--only", "feature"], ctx)).toBe(0);
+		expect((await readFeature(forgeDir)).status).toBe("approved");
+		expect(out.at(-1)).toBe(
+			"review: 1 approved, 0 rejected, 0 edited, 0 skipped, 0 re-opened, 0 still pending",
+		);
+
+		({ ctx, out } = await ctxIn(cwd));
+		expect(await run(["review"], ctx)).toBe(0);
+		expect(out.at(-1)).toBe("review: nothing pending");
+	});
+});
+
+describe("review: a twin id across two files, both pending", () => {
+	test("one is offered, and the summary still counts the other as pending", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "aa",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "bb",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "aa", [
+			CASE("aa-01", "aa", { status: "pending" }),
+		]);
+		await writeCases(forgeDir, "bb", [
+			CASE("aa-01", "bb", { status: "pending" }),
+		]);
+		const { ctx, out } = await ctxIn(cwd, ["approve"]);
+		expect(await run(["review", "--only", "cases"], ctx)).toBe(0);
+		expect((await readCases(forgeDir, "aa")).map((c) => c.status)).toEqual([
+			"approved",
+		]);
+		expect((await readCases(forgeDir, "bb")).map((c) => c.status)).toEqual([
+			"pending",
+		]);
+		expect(out.at(-1)).toBe(
+			"review: 1 approved, 0 rejected, 0 edited, 0 skipped, 0 re-opened, 1 still pending",
 		);
 	});
 });
