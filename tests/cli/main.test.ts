@@ -3225,12 +3225,42 @@ describe("forge move --scenario <old> <new>", () => {
 			),
 		).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: cases/polite-rejection.yaml already exists; pick another id or move that file away first (file: ${oldFile}, id: Polite-Rejection)`,
+			`error: "Polite-Rejection" differs from "polite-rejection" only in letter case or Unicode normalisation, which is one file on the default macOS filesystem; rename through a temporary id: forge move --scenario polite-rejection tmp-Polite-Rejection && forge move --scenario tmp-Polite-Rejection Polite-Rejection (file: ${oldFile}, id: Polite-Rejection)`,
 		);
+		// The advice, followed: two renames, three files never in
+		// conflict, and the cases renumbered at the end.
+		for (const [a, b] of [
+			["polite-rejection", "tmp-Polite-Rejection"],
+			["tmp-Polite-Rejection", "Polite-Rejection"],
+		]) {
+			const step = await ctxIn(cwd);
+			expect(
+				await run(["move", "--scenario", a ?? "", b ?? ""], step.ctx),
+			).toBe(0);
+		}
 		expect(
-			(await readCases(forgeDir, "polite-rejection")).map((c) => c.id),
-		).toEqual(["polite-rejection-01"]);
-		expect((await readScenarios(forgeDir))[0]?.id).toBe("polite-rejection");
+			(await readCases(forgeDir, "Polite-Rejection")).map((c) => [
+				c.id,
+				c.scenario,
+			]),
+		).toEqual([["Polite-Rejection-01", "Polite-Rejection"]]);
+		expect((await readScenarios(forgeDir))[0]?.id).toBe("Polite-Rejection");
+	});
+
+	test("a case-only rename of a scenario without a cases file is an ordinary rename", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(
+			await run(
+				["move", "--scenario", "polite-rejection", "Polite-Rejection"],
+				ctx,
+			),
+		).toBe(0);
+		expect(out).toEqual([
+			"move: scenario polite-rejection → Polite-Rejection; 0 case(s) renumbered",
+		]);
+		expect((await readScenarios(forgeDir))[0]?.id).toBe("Polite-Rejection");
 	});
 
 	test("suite.yaml keeps its comments and layout: only the include entry changes", async () => {
@@ -3891,6 +3921,87 @@ describe("forge move --scenario: a write that fails after the first one", () => 
 			expect((await readScenarios(forgeDir))[0]?.id).toBe("polite-rejection");
 		} finally {
 			await chmod(scenariosFile, 0o644);
+		}
+	});
+});
+
+describe("forge move --scenario: when suite.yaml cannot be rewritten", () => {
+	test("the failure lists what is already written and the two hand steps", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+		]);
+		await writeSuite(forgeDir, { ...SUITE, include: ["polite-rejection"] });
+		const suiteFile = join(forgeDir, "suite.yaml");
+		await chmod(suiteFile, 0o444);
+		try {
+			const { ctx, out } = await ctxIn(cwd);
+			expect(
+				await run(["move", "--scenario", "polite-rejection", "soft-no"], ctx),
+			).toBe(1);
+			expect(out.at(-1)).toBe(
+				`error: cannot write: EACCES: permission denied, open '${suiteFile}' (file: ${suiteFile}); already written: cases/soft-no.yaml, scenarios.yaml; change polite-rejection to soft-no in suite.include by hand, then delete cases/polite-rejection.yaml`,
+			);
+			expect((await readScenarios(forgeDir))[0]?.id).toBe("soft-no");
+			expect((await readCases(forgeDir, "soft-no")).map((c) => c.id)).toEqual([
+				"soft-no-01",
+			]);
+			expect(
+				(await readCases(forgeDir, "polite-rejection")).map((c) => c.id),
+			).toEqual(["polite-rejection-01"]);
+		} finally {
+			await chmod(suiteFile, 0o644);
+		}
+	});
+});
+
+describe("forge move --case: when the source cannot be rewritten", () => {
+	test("the failure names the copy already in the destination and what to remove by hand", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "huge-signature",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+			CASE("polite-rejection-02", "polite-rejection"),
+		]);
+		const sourceFile = join(forgeDir, "cases", "polite-rejection.yaml");
+		await chmod(sourceFile, 0o444);
+		try {
+			const { ctx, out } = await ctxIn(cwd);
+			expect(
+				await run(
+					["move", "--case", "polite-rejection-01", "--to", "huge-signature"],
+					ctx,
+				),
+			).toBe(1);
+			expect(out.at(-1)).toBe(
+				`error: cannot write: EACCES: permission denied, open '${sourceFile}' (file: ${sourceFile}); huge-signature-01 is already written into cases/huge-signature.yaml; remove polite-rejection-01 from cases/polite-rejection.yaml by hand`,
+			);
+			expect(
+				(await readCases(forgeDir, "huge-signature")).map((c) => c.id),
+			).toEqual(["huge-signature-01"]);
+			expect(
+				(await readCases(forgeDir, "polite-rejection")).map((c) => c.id),
+			).toEqual(["polite-rejection-01", "polite-rejection-02"]);
+		} finally {
+			await chmod(sourceFile, 0o644);
 		}
 	});
 });

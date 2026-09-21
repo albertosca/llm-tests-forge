@@ -147,6 +147,17 @@ async function moveScenario(
 	// `cases/<new>.yaml` with no scenario entry would be overwritten by the
 	// write below and its cases lost — and a rename that only changes case
 	// wrote the new file onto the old one and then deleted it.
+	// A rename that changes only letter case or normalisation would name
+	// the source file as the clash below and send the person to move it
+	// away — after which the rename "succeeds" with nothing renumbered and
+	// the file put back holds cases naming a scenario that no longer
+	// exists. The way through is two renames via a temporary id, so that
+	// is what the refusal says.
+	if (hasFile && fold(to) === fold(from))
+		throw new ForgeError(
+			`"${to}" differs from "${from}" only in letter case or Unicode normalisation, which is one file on the default macOS filesystem; rename through a temporary id: forge move --scenario ${from} tmp-${to} && forge move --scenario tmp-${to} ${to}`,
+			{ file: join(paths.casesDir, `${from}.yaml`), id: to },
+		);
 	const clash = casesFileFor(files, to);
 	if (clash !== undefined)
 		throw new ForgeError(
@@ -262,7 +273,10 @@ async function moveOneCase(
 	// --all` as one with nothing to approve, and no verb ever removes it.
 	// A scenario with no file is the ordinary state before `cases` runs.
 	if (result.fromCases.length > 0)
-		await writeCases(ctx.forgeDir, fromId, result.fromCases);
+		await attempt(
+			writeCases(ctx.forgeDir, fromId, result.fromCases),
+			`${result.moved.id} is already written into cases/${toId}.yaml; remove ${caseId} from cases/${fromId}.yaml by hand`,
+		);
 	else
 		await removeFile(
 			join(paths.casesDir, `${fromId}.yaml`),
