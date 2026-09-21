@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T13:32:26.360Z",
+  "generatedAt": "2026-09-21T16:56:09.938Z",
   "promptfooVersion": "0.123.0",
   "rows": 48,
   "matched": 48,
@@ -353,7 +353,8 @@
   "coverage": {
     "reviewedScenarios": 8,
     "withRuns": 8,
-    "withoutCase": []
+    "withoutCase": [],
+    "withoutRun": []
   },
   "disagreements": [],
   "costs": [

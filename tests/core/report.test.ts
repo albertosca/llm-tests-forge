@@ -166,6 +166,7 @@ describe("buildReport", () => {
 			reviewedScenarios: 2,
 			withRuns: 2,
 			withoutCase: [],
+			withoutRun: [],
 		});
 		expect(report.costs).toEqual([
 			{
@@ -580,6 +581,7 @@ describe("buildReport", () => {
 			reviewedScenarios: 2,
 			withRuns: 1,
 			withoutCase: ["r"],
+			withoutRun: [],
 		});
 	});
 
@@ -613,6 +615,7 @@ describe("buildReport", () => {
 			reviewedScenarios: 2,
 			withRuns: 2,
 			withoutCase: [],
+			withoutRun: [],
 		});
 		expect(report.cases.map((c) => c.case)).toEqual(["a-01", "e-01"]);
 	});
@@ -919,8 +922,70 @@ describe("buildReport", () => {
 				{ case: "a-01", model: "m", before: "stable", after: "failing" },
 			],
 			fixed: [{ case: "a-02", model: "m", before: "failing", after: "stable" }],
+			onlyInBaseline: [],
 		});
 		expect(before.baseline).toBeNull();
+	});
+
+	test("a baseline pair this run does not have is listed under onlyInBaseline, never as a change", () => {
+		const before = build([
+			row({ case: "a-01", model: "m" }),
+			row({ case: "a-02", model: "m", success: false }),
+		]);
+		// After `forge move --scenario a b` every row of this run carries
+		// the new ids; the baseline's pairs say nothing about them.
+		const report = build([row({ case: "r-01", model: "m" })], {
+			baseline: before,
+		});
+		expect(report.baseline).toEqual({
+			regressions: [],
+			fixed: [],
+			onlyInBaseline: [
+				{ case: "a-01", model: "m" },
+				{ case: "a-02", model: "m" },
+			],
+		});
+	});
+
+	test("a baseline written before onlyInBaseline existed parses with an empty list", () => {
+		const before = build([row({ case: "a-01", model: "m" })]);
+		const report = build([row({ case: "a-01", model: "m" })], {
+			baseline: before,
+		});
+		const { onlyInBaseline, ...withoutList } = report.baseline ?? {
+			onlyInBaseline: [],
+		};
+		expect(onlyInBaseline).toEqual([]);
+		expect(
+			ReportSchema.parse({ ...report, baseline: withoutList }).baseline
+				?.onlyInBaseline,
+		).toEqual([]);
+	});
+
+	test("coverage names the reviewed scenarios that have cases but no run, apart from those with no case", () => {
+		// `a` has a reviewed case and rows; `r` has a reviewed case and no
+		// row (its rows carry an old id after a rename); `n` has no case.
+		const report = build([row({ case: "a-01", model: "m" })], {
+			scenarios: [sc("a", "label"), sc("r", "rubric"), sc("n", "label")],
+			cases: [cs("a-01", "a"), cs("r-01", "r")],
+			knownCases: [cs("a-01", "a"), cs("r-01", "r")],
+		});
+		expect(report.coverage).toEqual({
+			reviewedScenarios: 3,
+			withRuns: 1,
+			withoutCase: ["n"],
+			withoutRun: ["r"],
+		});
+	});
+
+	test("a baseline whose coverage has no withoutRun parses with an empty list", () => {
+		const report = build([row({ case: "a-01", model: "m" })]);
+		// The default fixture has `r` reviewed with a case and no row.
+		const { withoutRun, ...coverage } = report.coverage;
+		expect(withoutRun).toEqual(["r"]);
+		expect(
+			ReportSchema.parse({ ...report, coverage }).coverage.withoutRun,
+		).toEqual([]);
 	});
 
 	test("cases are ordered by model name, then by the order of the cases file", () => {

@@ -76,6 +76,8 @@ const BaselineDiffEntrySchema = z.object({
 	after: StabilitySchema,
 });
 
+const BaselinePairSchema = z.object({ case: z.string(), model: z.string() });
+
 /**
  * `reviewedScenarios` was called `approvedScenarios` until 2026-09-16.
  * `--baseline` takes a `report.json` an earlier run wrote, and the whole
@@ -106,6 +108,13 @@ const CoverageSchema = z.preprocess(
 		reviewedScenarios: z.number(),
 		withRuns: z.number(),
 		withoutCase: z.array(z.string()),
+		/**
+		 * Reviewed scenarios with at least one reviewed case and no matched
+		 * row: after a rename, or a run that never reached them. The
+		 * zero row in the table said so; the sentence did not. Defaulted
+		 * for older baselines.
+		 */
+		withoutRun: z.array(z.string()).default([]),
 	}),
 );
 
@@ -149,6 +158,15 @@ export const ReportSchema = z.object({
 		.object({
 			regressions: z.array(BaselineDiffEntrySchema),
 			fixed: z.array(BaselineDiffEntrySchema),
+			/**
+			 * Pairs the baseline has and this run does not. A pair only one
+			 * side has says nothing about a change, so it is rightly left
+			 * out of the two lists above — but after a `forge move` every
+			 * renamed pair lands here, and without this list the diff read
+			 * as "nothing changed" rather than "nothing could be compared".
+			 * Defaulted for older baselines.
+			 */
+			onlyInBaseline: z.array(BaselinePairSchema).default([]),
 		})
 		.nullable(),
 });
@@ -553,7 +571,9 @@ function baselineDiffOf(
 	);
 	const regressions: z.infer<typeof BaselineDiffEntrySchema>[] = [];
 	const fixed: z.infer<typeof BaselineDiffEntrySchema>[] = [];
+	const seen = new Set<string>();
 	for (const c of caseRuns) {
+		seen.add(pairKey(c.model, c.case));
 		const was = before.get(pairKey(c.model, c.case));
 		// A pair only one run has says nothing about a change.
 		if (was === undefined) continue;
@@ -566,7 +586,10 @@ function baselineDiffOf(
 		if (was === "stable" && c.stability !== "stable") regressions.push(entry);
 		else if (was !== "stable" && c.stability === "stable") fixed.push(entry);
 	}
-	return { regressions, fixed };
+	const onlyInBaseline = baseline.cases
+		.filter((c) => !seen.has(pairKey(c.model, c.case)))
+		.map((c) => ({ case: c.case, model: c.model }));
+	return { regressions, fixed, onlyInBaseline };
 }
 
 export function buildReport(args: {
@@ -627,6 +650,12 @@ export function buildReport(args: {
 			withRuns: scenarioStats.filter((s) => s.run > 0).length,
 			withoutCase: reviewedScenarios
 				.filter((s) => !withCase.has(s.id))
+				.map((s) => s.id),
+			withoutRun: reviewedScenarios
+				.filter((s) => withCase.has(s.id))
+				.filter(
+					(s) => !scenarioStats.some((t) => t.scenario === s.id && t.run > 0),
+				)
 				.map((s) => s.id),
 		},
 		disagreements: disagreementsOf(matched),

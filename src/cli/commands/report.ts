@@ -110,7 +110,7 @@ export async function reportCommand(
 	);
 	if (report.baseline)
 		ctx.stdout(
-			`report: since baseline: ${report.baseline.regressions.length} regressions, ${report.baseline.fixed.length} fixed`,
+			`report: since baseline: ${report.baseline.regressions.length} regressions, ${report.baseline.fixed.length} fixed${report.baseline.onlyInBaseline.length > 0 ? `, ${report.baseline.onlyInBaseline.length} baseline pair(s) not in this run` : ""}`,
 		);
 	ctx.stdout(`report: wrote ${paths.reportMd} and ${paths.reportJson}`);
 }

@@ -3066,6 +3066,51 @@ describe("report", () => {
 		);
 	});
 
+	test("after forge move renames a scenario, the baseline diff names the pairs it could not compare and coverage names the scenario", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = await forgeMatchingFixture(cwd);
+		const first = await ctxIn(cwd);
+		expect(await run(["report", RESULTS], first.ctx)).toBe(0);
+		const previous = join(cwd, "previous.json");
+		await writeFile(
+			previous,
+			await readFile(join(forgeDir, "report.json"), "utf8"),
+		);
+
+		const moved = await ctxIn(cwd);
+		expect(
+			await run(
+				["move", "--scenario", "ack-optional-quiz", "ack-quiz"],
+				moved.ctx,
+			),
+		).toBe(0);
+
+		// The results file still names `ack-optional-quiz-01`: that row is
+		// unmatched, the renamed scenario ran nothing, and the baseline's
+		// pair for it has no counterpart.
+		const second = await ctxIn(cwd);
+		expect(
+			await run(["report", RESULTS, "--baseline", previous], second.ctx),
+		).toBe(0);
+		expect(second.out).toContain(
+			"report: since baseline: 0 regressions, 0 fixed, 1 baseline pair(s) not in this run",
+		);
+		const json = JSON.parse(
+			await readFile(join(forgeDir, "report.json"), "utf8"),
+		);
+		expect(json.baseline.onlyInBaseline).toEqual([
+			{ case: "ack-optional-quiz-01", model: "target-haiku-4-5" },
+		]);
+		expect(json.coverage.withoutRun).toEqual(["ack-quiz"]);
+		const md = await readFile(join(forgeDir, "report.md"), "utf8");
+		expect(md).toContain(
+			"Coverage: 1 of 2 reviewed scenarios ran; no run: ack-quiz",
+		);
+		expect(md).toContain(
+			"Not in this run, so not compared: 1 baseline pair(s) — ack-optional-quiz-01 @ target-haiku-4-5.",
+		);
+	});
+
 	test("report.json is readable back as its own baseline", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDir = await forgeMatchingFixture(cwd);
