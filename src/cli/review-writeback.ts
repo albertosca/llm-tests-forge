@@ -35,14 +35,6 @@ export interface ApplyReviewDecisionsArgs {
 	 */
 	decidedCases: Map<string, Case>;
 	/**
-	 * Old id to new id, for the renames this pass made *in this file*.
-	 * `duplicate_of` names a case in the same file, and case ids are
-	 * scenario-prefixed by convention rather than by rule, so one global
-	 * map let a rename here rewrite a pointer over there that merely
-	 * spelled the same string.
-	 */
-	renamed: Map<string, string>;
-	/**
 	 * The oracle this pass gave the file's scenario, when it changed one.
 	 * `from` is not read here — it belongs to the line the caller prints.
 	 */
@@ -61,6 +53,15 @@ export interface ReviewWriteback {
 	 * decision touched is not rewritten.
 	 */
 	touched: boolean;
+	/**
+	 * Old id to new id, for every entry of this list a decision renamed.
+	 * Built here, where the decision lands, rather than by the caller from
+	 * the pass's decisions: `duplicate_of` names a case in the same file,
+	 * case ids are scenario-prefixed by convention rather than by rule, and
+	 * a map keyed only by id let a rename applied in one file rewrite a
+	 * pointer in another that merely spelled the same string.
+	 */
+	renamed: Map<string, string>;
 }
 
 /**
@@ -86,23 +87,30 @@ export interface ReviewWriteback {
 export function applyReviewDecisions(
 	args: ApplyReviewDecisionsArgs,
 ): ReviewWriteback {
-	const { list, decidedCases, renamed, oracleChange, feature } = args;
+	const { list, decidedCases, oracleChange, feature } = args;
 	// Read before the decisions are drained out of the map below: after
 	// that, "this file had a decision" is no longer a question the map can
 	// answer.
 	const decided = list.some((c) => decidedCases.has(c.id));
+	const renamed = new Map<string, string>();
+	const applied = list.map((c) => {
+		const hit = takeOnce(decidedCases, c.id);
+		if (hit !== undefined && hit.id !== c.id) renamed.set(c.id, hit.id);
+		return hit ?? c;
+	});
 	// An edit may rename a case, and `duplicate_of` is the only field that
 	// names another case by id. Left behind, the pointer dangles: no data
 	// is lost, but `pendingItems` stops placing the pair together and
 	// `dedupe`'s own answer reads as being about a case that is not there.
-	// Rewritten in the same write as the rename, so the file is never
-	// briefly inconsistent on disk.
+	// Rewritten after every decision landed and in the same write as the
+	// rename, so a decided entry's own pointer follows a rename decided
+	// later in the list and the file is never briefly inconsistent on disk.
 	const followRename = (c: Case): Case => {
 		const to =
 			c.duplicate_of === undefined ? undefined : renamed.get(c.duplicate_of);
 		return to === undefined ? c : { ...c, duplicate_of: to };
 	};
-	let next = list.map((c) => followRename(takeOnce(decidedCases, c.id) ?? c));
+	let next = applied.map(followRename);
 
 	let reopened = 0;
 	if (oracleChange !== undefined) {
@@ -117,5 +125,5 @@ export function applyReviewDecisions(
 			return { ...c, status: "pending" };
 		});
 	}
-	return { next, reopened, touched: decided || reopened > 0 };
+	return { next, reopened, touched: decided || reopened > 0, renamed };
 }

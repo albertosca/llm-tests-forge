@@ -32,7 +32,6 @@ describe("applyReviewDecisions: matching decisions to entries", () => {
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
 			decidedCases,
-			renamed: new Map(),
 			feature,
 		});
 		expect(next.map((c) => c.status)).toEqual(["approved", "pending"]);
@@ -58,7 +57,6 @@ describe("applyReviewDecisions: matching decisions to entries", () => {
 		const { next } = applyReviewDecisions({
 			list,
 			decidedCases,
-			renamed: new Map(),
 			feature,
 		});
 		expect(next.map((c) => c.status)).toEqual(["approved", "pending"]);
@@ -79,7 +77,6 @@ describe("applyReviewDecisions: matching decisions to entries", () => {
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
 			decidedCases,
-			renamed: new Map(),
 			feature,
 		});
 		expect(touched).toBe(false);
@@ -90,7 +87,7 @@ describe("applyReviewDecisions: matching decisions to entries", () => {
 });
 
 describe("applyReviewDecisions: duplicate_of follows a rename", () => {
-	test("rewrites a pointer named in renamed and leaves every other alone", () => {
+	test("a decision that renames an entry rewrites the pointers to it, in this list only", () => {
 		const list = [
 			aCase({ id: "s-01" }),
 			aCase({ id: "s-02", duplicate_of: "s-01" }),
@@ -100,10 +97,9 @@ describe("applyReviewDecisions: duplicate_of follows a rename", () => {
 		const decidedCases = new Map([
 			["s-01", aCase({ id: "s-01-fixed", status: "edited" })],
 		]);
-		const { next, touched } = applyReviewDecisions({
+		const { next, touched, renamed } = applyReviewDecisions({
 			list,
 			decidedCases,
-			renamed: new Map([["s-01", "s-01-fixed"]]),
 			feature,
 		});
 		expect(next.map((c) => c.id)).toEqual([
@@ -118,21 +114,50 @@ describe("applyReviewDecisions: duplicate_of follows a rename", () => {
 			"s-99",
 			undefined,
 		]);
+		expect([...renamed]).toEqual([["s-01", "s-01-fixed"]]);
 		expect(touched).toBe(true);
 	});
 
-	test("a decided entry's own duplicate_of is rewritten too", () => {
+	test("a decided entry's own duplicate_of follows a rename decided in the same list", () => {
 		const list = [aCase({ id: "s-01" }), aCase({ id: "s-02" })];
 		const decidedCases = new Map([
+			["s-01", aCase({ id: "s-01-fixed", status: "edited" })],
 			["s-02", aCase({ id: "s-02", status: "approved", duplicate_of: "s-01" })],
 		]);
-		const { next } = applyReviewDecisions({
-			list,
-			decidedCases,
-			renamed: new Map([["s-01", "s-01-fixed"]]),
-			feature,
-		});
+		const { next } = applyReviewDecisions({ list, decidedCases, feature });
 		expect(next[1]?.duplicate_of).toBe("s-01-fixed");
+	});
+
+	test("a rename applied in one list never rewrites a pointer in another list that spells the same id", () => {
+		// Two files, each holding an entry `s-01` (a twin across files, which
+		// the review pass names) and a pointer at it. The decision is taken
+		// once, by whichever list is walked first; the other list keeps
+		// both its entry and its pointer, even when it has a decision of
+		// its own and is written this pass.
+		const listA = [
+			aCase({ id: "s-01" }),
+			aCase({ id: "s-02", duplicate_of: "s-01" }),
+		];
+		const listB = [
+			aCase({ id: "s-01" }),
+			aCase({ id: "t-01", duplicate_of: "s-01", status: "pending" }),
+		];
+		const decidedCases = new Map([
+			["s-01", aCase({ id: "s-01-fixed", status: "edited" })],
+			["t-01", aCase({ id: "t-01", duplicate_of: "s-01", status: "approved" })],
+		]);
+		const a = applyReviewDecisions({ list: listA, decidedCases, feature });
+		const b = applyReviewDecisions({ list: listB, decidedCases, feature });
+		expect(a.next.map((c) => [c.id, c.duplicate_of])).toEqual([
+			["s-01-fixed", undefined],
+			["s-02", "s-01-fixed"],
+		]);
+		expect(b.next.map((c) => [c.id, c.duplicate_of, c.status])).toEqual([
+			["s-01", undefined, "pending"],
+			["t-01", "s-01", "approved"],
+		]);
+		expect(b.touched).toBe(true);
+		expect([...b.renamed]).toEqual([]);
 	});
 });
 
@@ -153,7 +178,6 @@ describe("applyReviewDecisions: an oracle change re-opens what no longer fits", 
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
 			decidedCases: new Map(),
-			renamed: new Map(),
 			oracleChange: { from: "label", to: "rubric" },
 			feature,
 		});
@@ -180,7 +204,6 @@ describe("applyReviewDecisions: an oracle change re-opens what no longer fits", 
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
 			decidedCases: new Map(),
-			renamed: new Map(),
 			oracleChange: { from: "rubric", to: "label" },
 			feature,
 		});
@@ -200,7 +223,6 @@ describe("applyReviewDecisions: an oracle change re-opens what no longer fits", 
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
 			decidedCases,
-			renamed: new Map(),
 			oracleChange: { from: "label", to: "rubric" },
 			feature,
 		});

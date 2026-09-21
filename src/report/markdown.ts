@@ -53,6 +53,13 @@ function regressions(r: Report): string[] {
 			),
 		);
 	out.push("", `Fixed since baseline: ${r.baseline.fixed.length}.`, "");
+	// Why the two lists above may be empty: a renamed pair is compared to
+	// nothing, and "0 regressions" alone read as "nothing changed".
+	if (r.baseline.onlyInBaseline.length > 0)
+		out.push(
+			`Not in this run, so not compared: ${r.baseline.onlyInBaseline.length} baseline pair(s) — ${r.baseline.onlyInBaseline.map((p) => `${p.case} @ ${p.model}`).join(", ")}.`,
+			"",
+		);
 	return out;
 }
 
@@ -147,11 +154,28 @@ function perScenario(r: Report): string[] {
 			]),
 		),
 		"",
-		r.coverage.withoutCase.length === 0
-			? `${coverage}.`
-			: `${coverage}; no case yet: ${r.coverage.withoutCase.join(", ")}`,
+		coverageSentence(r, coverage),
 		"",
 	];
+}
+
+/**
+ * The README promises to say which reviewed scenarios never ran. A
+ * scenario with no case and one with cases but no matched row are two
+ * different things to do next, so they are two clauses.
+ */
+function coverageSentence(r: Report, coverage: string): string {
+	const clauses = [
+		r.coverage.withoutCase.length === 0
+			? null
+			: `no case yet: ${r.coverage.withoutCase.join(", ")}`,
+		r.coverage.withoutRun.length === 0
+			? null
+			: `no matched run: ${r.coverage.withoutRun.join(", ")}`,
+	].filter((c) => c !== null);
+	return clauses.length === 0
+		? `${coverage}.`
+		: `${coverage}; ${clauses.join("; ")}`;
 }
 
 /**

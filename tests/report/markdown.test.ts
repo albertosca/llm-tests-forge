@@ -63,7 +63,12 @@ const REPORT: Report = {
 			errored: 0,
 		},
 	],
-	coverage: { reviewedScenarios: 2, withRuns: 1, withoutCase: ["r"] },
+	coverage: {
+		reviewedScenarios: 2,
+		withRuns: 1,
+		withoutCase: ["r"],
+		withoutRun: [],
+	},
 	disagreements: [
 		{
 			case: "r-01",
@@ -103,6 +108,7 @@ const REPORT: Report = {
 			{ case: "a-01", model: "m", before: "stable", after: "failing" },
 		],
 		fixed: [],
+		onlyInBaseline: [],
 	},
 };
 
@@ -138,6 +144,45 @@ describe("renderReportMarkdown", () => {
 		);
 		expect(md).toContain(
 			"| r-01 | m | 1 | google/gemini-3.5-flash: pass — ok | anthropic/claude-sonnet-5: fail — no |",
+		);
+	});
+
+	test("baseline pairs this run does not have are named after the fixed count", () => {
+		const md = lines({
+			...REPORT,
+			baseline: {
+				regressions: [],
+				fixed: [],
+				onlyInBaseline: [
+					{ case: "old-01", model: "m" },
+					{ case: "old-02", model: "m" },
+				],
+			},
+		});
+		expect(md).toContain("No regression since baseline.");
+		expect(md).toContain("Fixed since baseline: 0.");
+		expect(md).toContain(
+			"Not in this run, so not compared: 2 baseline pair(s) — old-01 @ m, old-02 @ m.",
+		);
+	});
+
+	test("a baseline with every pair present says nothing about pairs not in the run", () => {
+		const md = lines(REPORT);
+		expect(md.some((l) => l.startsWith("Not in this run"))).toBe(false);
+	});
+
+	test("coverage names the scenarios with cases but no run, after the ones with no case", () => {
+		const md = lines({
+			...REPORT,
+			coverage: {
+				reviewedScenarios: 3,
+				withRuns: 1,
+				withoutCase: ["r"],
+				withoutRun: ["s"],
+			},
+		});
+		expect(md).toContain(
+			"Coverage: 1 of 3 reviewed scenarios ran; no case yet: r; no matched run: s",
 		);
 	});
 
@@ -188,6 +233,7 @@ describe("renderReportMarkdown", () => {
 				fixed: [
 					{ case: "a-01", model: "m", before: "failing", after: "stable" },
 				],
+				onlyInBaseline: [],
 			},
 		});
 		expect(md).toContain("No regression since baseline.");
@@ -327,7 +373,12 @@ describe("renderReportMarkdown", () => {
 	test("every approved scenario having a case drops the clause about missing ones", () => {
 		const md = lines({
 			...REPORT,
-			coverage: { reviewedScenarios: 2, withRuns: 2, withoutCase: [] },
+			coverage: {
+				reviewedScenarios: 2,
+				withRuns: 2,
+				withoutCase: [],
+				withoutRun: [],
+			},
 		});
 		expect(md).toContain("Coverage: 2 of 2 reviewed scenarios ran.");
 	});

@@ -100,10 +100,23 @@ export async function reviewCommand(
 					`review: ${join(paths.casesDir, `${scenarioId}.yaml`)} holds ${count} entries under id "${caseId}"; only the first is offered — fix the file`,
 				);
 	}
-
+	// The same id in two files is not a twin the per-file warning sees, and
+	// `pendingItems` offers one entry per id: the second file's case is
+	// reached only on a later pass, after the first is decided. Said out
+	// loud so the "still pending" count reads right.
+	const filesById = new Map<string, string[]>();
+	for (const [scenarioId, list] of casesById)
+		for (const c of new Set(list.map((c) => c.id)))
+			filesById.set(c, [...(filesById.get(c) ?? []), scenarioId]);
+	for (const [caseId, files] of filesById)
+		if (files.length > 1)
+			ctx.stdout(
+				`review: id "${caseId}" is in ${files.map((f) => join(paths.casesDir, `${f}.yaml`)).join(" and ")}; each pass offers the first pending one — give them distinct ids`,
+			);
 	if (named !== undefined && values.all) {
 		await reviewAllCommand({
 			scenario: named,
+			cases: casesById.get(named.id) ?? [],
 			feature: await readFeature(ctx.forgeDir),
 			forgeDir: ctx.forgeDir,
 			stdout: ctx.stdout,
@@ -120,6 +133,9 @@ export async function reviewCommand(
 	// correct on its own terms instead of on that rule's.
 	const scenariosAsRead = scenarios;
 	const allCases = [...casesById.values()].flat();
+	/** Which file each case was read from; a case's `scenario` should agree. */
+	const fileOf = new Map<Case, string>();
+	for (const [id, list] of casesById) for (const c of list) fileOf.set(c, id);
 
 	const scopedScenarios = values.scenario
 		? scenarios.filter((s) => s.id === values.scenario)
@@ -128,13 +144,21 @@ export async function reviewCommand(
 	const items = only
 		? pending.filter((i) => i.kind === only || `${i.kind}s` === only)
 		: pending;
+	// Counted on disk, not from `pendingItems`: that list offers one entry
+	// per id, so a twin id across files was counted once and the second
+	// copy, still pending, read as none — in the summary line and in the
+	// --only line alike.
+	const pendingOnDisk =
+		(feature.status === "pending" ? 1 : 0) +
+		scopedScenarios.filter((s) => s.status === "pending").length +
+		allCases.filter((c) => c.status === "pending").length;
 	if (items.length === 0) {
 		// "nothing pending" has to mean nothing is pending. When --only is
 		// what emptied the list, say so and name how much is still pending
 		// outside the filter, rather than sending someone away.
 		if (only && pending.length > 0)
 			ctx.stdout(
-				`review: nothing pending matching --only ${only}; ${pending.length} item(s) still pending outside that filter`,
+				`review: nothing pending matching --only ${only}; ${pendingOnDisk} item(s) still pending outside that filter`,
 			);
 		else ctx.stdout("review: nothing pending");
 		return;
@@ -158,7 +182,24 @@ export async function reviewCommand(
 	// failing in the middle of a pass would throw away every decision
 	// already taken. A broken file is also not a decision to retry — the
 	// loop's own catch would re-ask the same unanswerable item forever.
-	for (const item of items) if (item.kind === "case") oracleOf(item.item);
+	for (const item of items) {
+		if (item.kind !== "case") continue;
+		oracleOf(item.item);
+		// A decision is written back to the file its case's `scenario`
+		// names. A hand edit put a case naming another existing scenario in
+		// this file: a decision on it would land nowhere, so it is refused
+		// before the first prompt, as `--all` refuses it — and only for a
+		// case this pass will offer, so a broken entry nobody is asked
+		// about does not block the feature's or the scenarios' review.
+		const file = fileOf.get(item.item) ?? item.item.scenario;
+		if (item.item.scenario !== file) {
+			const path = join(paths.casesDir, `${file}.yaml`);
+			throw new ForgeError(
+				`case ${item.item.id} names scenario "${item.item.scenario}" but lives in ${path}; run \`forge move --case ${item.item.id} --to ${item.item.scenario}\` or fix the file`,
+				{ file: path, id: item.item.id },
+			);
+		}
+	}
 
 	/**
 	 * Scenarios whose `oracle` this pass changed, keyed by the id their
@@ -169,6 +210,8 @@ export async function reviewCommand(
 		string,
 		{ id: string; from: Oracle; to: Oracle }
 	>();
+	/** Case ids this pass has decided, per file, for `takenIdsFor`. */
+	const decidedIdsIn = new Map<string, Set<string>>();
 	const io = { stdin: ctx.stdin, stdout: ctx.stdout };
 	const result = await runReviewLoop({
 		items,
@@ -181,13 +224,18 @@ export async function reviewCommand(
 				expectedMatchesOracle(expected, oracle, feature),
 			),
 		// Collisions are per file: scenarios share scenarios.yaml, cases share
-		// their scenario's file, and the feature is alone in its own.
+		// their scenario's file, and the feature is alone in its own. A
+		// case's file is the ids read off disk plus the ids this pass has
+		// already given its cases: two edits renaming onto the same new id
+		// were both accepted, and the file came back with two entries under
+		// it and a `duplicate_of` pointing at an ambiguous target.
 		takenIdsFor: (item) => {
 			if (item.kind === "scenario") return new Set(scenarios.map((s) => s.id));
 			if (item.kind === "case")
-				return new Set(
-					(casesById.get(item.item.scenario) ?? []).map((c) => c.id),
-				);
+				return new Set([
+					...(casesById.get(item.item.scenario) ?? []).map((c) => c.id),
+					...(decidedIdsIn.get(item.item.scenario) ?? []),
+				]);
 			return new Set();
 		},
 		checkExpected: (c, oracle) =>
@@ -200,7 +248,12 @@ export async function reviewCommand(
 				feature = item.item;
 				return;
 			}
-			if (item.kind !== "scenario") return;
+			if (item.kind === "case") {
+				const taken = decidedIdsIn.get(item.item.scenario) ?? new Set();
+				taken.add(item.item.id);
+				decidedIdsIn.set(item.item.scenario, taken);
+				return;
+			}
 			const decided = item.item;
 			// Read before the replacement below overwrites it: the old
 			// oracle is what says which of its cases this decision
@@ -231,32 +284,26 @@ export async function reviewCommand(
 			scenariosAsRead.map((s) => takeOnce(decidedScenarios, s.id) ?? s),
 		);
 
-	const decidedCases = new Map(
-		result.decisions
-			.filter((d) => d.kind === "case")
-			.map((d) => [d.originalId, d.item] as const),
-	);
 	/**
-	 * The renames this pass made among the entries of one file, old id to
-	 * new id. Built from that file's own decisions and applied to it only:
-	 * see `applyReviewDecisions`, which rewrites `duplicate_of` through it.
+	 * The pass's case decisions for one file, keyed by the id each item had
+	 * on entry. A case's `scenario` names its file and cannot change in
+	 * review, so it is the file a decision belongs to. Keyed by id alone,
+	 * across files, a decision landed in the first file walked that held
+	 * the id: with the same id pending in a later file, that file's case
+	 * was written over an approved case in the earlier one.
 	 */
-	const renamesIn = (list: Case[]): Map<string, string> =>
+	const decidedCasesIn = (id: string): Map<string, Case> =>
 		new Map(
 			result.decisions
-				.filter(
-					(d) =>
-						d.kind === "case" &&
-						d.originalId !== d.id &&
-						list.some((c) => c.id === d.originalId),
-				)
-				.map((d) => [d.originalId, d.id] as const),
+				.filter((d) => d.kind === "case")
+				.filter((d) => d.item.scenario === id)
+				.map((d) => [d.originalId, d.item] as const),
 		);
 	let totalReopened = 0;
 	for (const [id, list] of casesById) {
 		const oracleChange = oracleChanges.get(id);
-		if (!list.some((c) => decidedCases.has(c.id)) && oracleChange === undefined)
-			continue;
+		const decidedCases = decidedCasesIn(id);
+		if (decidedCases.size === 0 && oracleChange === undefined) continue;
 		// An oracle change against a file holding nothing re-opens nothing
 		// and writes nothing; the pass below reports it, together with the
 		// scenarios that have no file at all, so one change is announced
@@ -265,7 +312,6 @@ export async function reviewCommand(
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
 			decidedCases,
-			renamed: renamesIn(list),
 			oracleChange,
 			feature,
 		});
@@ -302,7 +348,7 @@ export async function reviewCommand(
 	// on entry minus the decisions taken — plus the cases an oracle change
 	// re-opened, which are pending now whether or not they were on entry,
 	// and which the line reports on their own so the total adds up.
-	const stillPending = pending.length - result.decisions.length + totalReopened;
+	const stillPending = pendingOnDisk - result.decisions.length + totalReopened;
 	ctx.stdout(
 		`review: ${s.approved} approved, ${s.rejected} rejected, ${s.edited} edited, ${s.skipped} skipped, ${totalReopened} re-opened, ${stillPending} still pending`,
 	);

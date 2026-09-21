@@ -137,12 +137,9 @@ export async function runReviewLoop(
 	 * the same value arrives. A rejected case is not checked: rejecting a
 	 * case with a bad expected is how you get rid of it.
 	 */
-	const refuseExpectedOutsideOracle = (
-		kind: PendingItem["kind"],
-		item: Feature | Scenario | Case,
-	): void => {
-		if (kind !== "case") return;
-		const c = item as Case;
+	const refuseExpectedOutsideOracle = (item: PendingItem): void => {
+		if (item.kind !== "case") return;
+		const c = item.item;
 		if (c.expected === undefined) return;
 		const problem = args.checkExpected(c, args.oracleOf(c));
 		if (problem !== null)
@@ -152,48 +149,60 @@ export async function runReviewLoop(
 	};
 
 	for (const pending of args.items) {
-		let current: Feature | Scenario | Case = pending.item;
+		// The kind and the item stay paired all the way through, so
+		// narrowing on `current.kind` types `current.item`; a bare
+		// `Feature | Scenario | Case` beside `pending.kind` had every case
+		// branch casting the two back together.
+		let current: PendingItem = pending;
 		for (;;) {
-			args.print(`--- ${pending.kind} ${current.id} ---`);
-			args.print(stringify(current, { lineWidth: 0 }).trimEnd());
-			const raw = await args.ask(`${pending.kind} ${current.id}:`, CHOICES);
+			args.print(`--- ${pending.kind} ${current.item.id} ---`);
+			args.print(stringify(current.item, { lineWidth: 0 }).trimEnd());
+			const raw = await args.ask(
+				`${pending.kind} ${current.item.id}:`,
+				CHOICES,
+			);
 			if (!isDecision(raw)) {
 				throw new ForgeError(
 					`ask() returned an answer outside its own choices: "${raw}" (expected one of: ${CHOICES.join(", ")})`,
-					{ id: current.id },
+					{ id: current.item.id },
 				);
 			}
 			const answer = raw;
 
 			try {
 				if (
-					pending.kind === "case" &&
+					current.kind === "case" &&
 					(answer === "approve" || answer === "edit") &&
-					(current as Case).expected === undefined
+					current.item.expected === undefined
 				) {
-					const oracle = args.oracleOf(current as Case);
-					const expected = await args.askExpected(current as Case, oracle);
-					current = withExpected(current as Case, expected);
+					const oracle = args.oracleOf(current.item);
+					const expected = await args.askExpected(current.item, oracle);
+					current = {
+						kind: "case",
+						item: withExpected(current.item, expected),
+					};
 				}
 
 				if (answer === "edit") {
 					const editedText = await args.openEditor(
-						stringify(current, { lineWidth: 0 }),
+						stringify(current.item, { lineWidth: 0 }),
 					);
 					// `current` is only replaced once the new value has passed
 					// every check: a refused decision left it holding a status
 					// the file does not have, which the retry then printed and
 					// $EDITOR opened on.
-					const edited = applyDecision(
-						current,
-						"edit",
-						parse(editedText),
-						args.takenIdsFor(pending),
+					const edited = pendingItemFor(
+						applyDecision(
+							current.item,
+							"edit",
+							parse(editedText),
+							args.takenIdsFor(pending),
+						),
 					);
-					refuseExpectedOutsideOracle(pending.kind, edited);
+					refuseExpectedOutsideOracle(edited);
 					current = edited;
 					summary.edited += 1;
-					record(pending.item.id, current);
+					record(pending.item.id, current.item);
 					break;
 				}
 
@@ -202,12 +211,11 @@ export async function runReviewLoop(
 					break;
 				}
 
-				const decided = applyDecision(current, answer);
-				if (answer === "approve")
-					refuseExpectedOutsideOracle(pending.kind, decided);
+				const decided = pendingItemFor(applyDecision(current.item, answer));
+				if (answer === "approve") refuseExpectedOutsideOracle(decided);
 				current = decided;
 				summary[answer === "approve" ? "approved" : "rejected"] += 1;
-				record(pending.item.id, current);
+				record(pending.item.id, current.item);
 				break;
 			} catch (e) {
 				if (e instanceof ForgeError) {
