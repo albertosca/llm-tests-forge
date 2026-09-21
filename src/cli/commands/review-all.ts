@@ -30,10 +30,12 @@ export async function reviewAllCommand(args: ReviewAllArgs): Promise<void> {
 	// hand-edited file holding a case that names another scenario was
 	// bulk-approved here against an oracle that is not its own. Checked
 	// before anything is written, so a bad file comes back exactly as it
-	// went in rather than half-approved.
+	// went in rather than half-approved — and only for the pending cases
+	// this path would approve, as the interactive path refuses only what
+	// it offers: an approved entry nobody touches does not block the pass.
 	const file = join(forgePaths(forgeDir).casesDir, `${id}.yaml`);
 	for (const c of cases)
-		if (c.scenario !== id)
+		if (c.status === "pending" && c.scenario !== id)
 			throw new ForgeError(
 				`case ${c.id} names scenario "${c.scenario}" but lives in ${file}; run \`forge move --case ${c.id} --to ${c.scenario}\` or fix the file`,
 				{ file, id: c.id },

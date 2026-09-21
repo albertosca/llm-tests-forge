@@ -125,7 +125,6 @@ export async function reviewCommand(
 	}
 
 	let feature = await readFeature(ctx.forgeDir);
-	const featureAsRead = feature;
 	// The list as it was read off disk. The write-back below matches every
 	// decision against the file by the id the item had on entry, so it
 	// reads from here rather than from the live `scenarios`, which moves
@@ -145,13 +144,21 @@ export async function reviewCommand(
 	const items = only
 		? pending.filter((i) => i.kind === only || `${i.kind}s` === only)
 		: pending;
+	// Counted on disk, not from `pendingItems`: that list offers one entry
+	// per id, so a twin id across files was counted once and the second
+	// copy, still pending, read as none — in the summary line and in the
+	// --only line alike.
+	const pendingOnDisk =
+		(feature.status === "pending" ? 1 : 0) +
+		scopedScenarios.filter((s) => s.status === "pending").length +
+		allCases.filter((c) => c.status === "pending").length;
 	if (items.length === 0) {
 		// "nothing pending" has to mean nothing is pending. When --only is
 		// what emptied the list, say so and name how much is still pending
 		// outside the filter, rather than sending someone away.
 		if (only && pending.length > 0)
 			ctx.stdout(
-				`review: nothing pending matching --only ${only}; ${pending.length} item(s) still pending outside that filter`,
+				`review: nothing pending matching --only ${only}; ${pendingOnDisk} item(s) still pending outside that filter`,
 			);
 		else ctx.stdout("review: nothing pending");
 		return;
@@ -341,13 +348,6 @@ export async function reviewCommand(
 	// on entry minus the decisions taken — plus the cases an oracle change
 	// re-opened, which are pending now whether or not they were on entry,
 	// and which the line reports on their own so the total adds up.
-	// Counted on disk, not from `pendingItems`: that list offers one entry
-	// per id, so a twin id across files was counted once and the second
-	// copy, still pending, read as none.
-	const pendingOnDisk =
-		(featureAsRead.status === "pending" ? 1 : 0) +
-		scopedScenarios.filter((s) => s.status === "pending").length +
-		allCases.filter((c) => c.status === "pending").length;
 	const stillPending = pendingOnDisk - result.decisions.length + totalReopened;
 	ctx.stdout(
 		`review: ${s.approved} approved, ${s.rejected} rejected, ${s.edited} edited, ${s.skipped} skipped, ${totalReopened} re-opened, ${stillPending} still pending`,

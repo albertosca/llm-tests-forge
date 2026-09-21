@@ -2380,6 +2380,82 @@ describe("review: a broken entry nobody is asked about does not block the pass",
 	});
 });
 
+describe("review --only: the count outside the filter is taken on disk too", () => {
+	test("a twin id pending in two files counts as two", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "aa",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "bb",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "aa", [
+			CASE("aa-01", "aa", { status: "pending" }),
+		]);
+		await writeCases(forgeDir, "bb", [
+			CASE("aa-01", "bb", { status: "pending" }),
+		]);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["review", "--only", "feature"], ctx)).toBe(0);
+		expect(out.at(-1)).toBe(
+			"review: nothing pending matching --only feature; 2 item(s) still pending outside that filter",
+		);
+	});
+});
+
+describe("review --all: an approved entry naming another scenario does not block the pass", () => {
+	test("the pending case is approved and the approved entry is left as it was", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		await writeFeature(forgeDir, FEATURE);
+		await writeScenarios(forgeDir, [
+			{
+				id: "aa",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "bb",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDir, "aa", [
+			CASE("aa-01", "bb"),
+			CASE("aa-02", "aa", { status: "pending" }),
+		]);
+		const { ctx, out } = await ctxIn(cwd);
+		expect(await run(["review", "--scenario", "aa", "--all"], ctx)).toBe(0);
+		expect(out.at(-1)).toBe("review: approved 1 pending case(s) of aa");
+		expect(
+			(await readCases(forgeDir, "aa")).map((c) => [
+				c.id,
+				c.scenario,
+				c.status,
+			]),
+		).toEqual([
+			["aa-01", "bb", "approved"],
+			["aa-02", "aa", "approved"],
+		]);
+	});
+});
+
 describe("review: a twin id across two files, both pending", () => {
 	test("one is offered, and the summary still counts the other as pending", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
