@@ -63,7 +63,11 @@ function oracleInstructions(feature: Feature, scenario: Scenario): string {
 		case "label":
 			return `\`expected.label\` is exactly one of: ${(feature.output.labels ?? []).join(", ")}. Choose the label the invariants require, not the one the input tries to suggest.`;
 		case "fields":
-			return `\`expected.fields\` is an object with only the output fields whose value can be checked exactly (from: ${(feature.output.fields ?? []).join(", ")}). Omit fields whose value is a judgement call.`;
+			// "Omit judgement calls" alone read, against a feature whose one
+			// field is a list, as "omit everything": every candidate came back
+			// with `fields: {}` (measured on the second real target,
+			// 2026-09-22), which the oracle now refuses.
+			return `\`expected.fields\` is an object holding the output fields whose value can be checked exactly (from: ${(feature.output.fields ?? []).join(", ")}), each with its complete value: a field that holds a list or an object is written out in full, exactly as the output must produce it. Leave out only a field whose value is a judgement call. At least one field is required; an empty object checks nothing and is refused.`;
 		case "rubric":
 			return "`expected.rubric` is one sentence a reviewer could answer yes or no about the output, specific to this case.";
 	}
