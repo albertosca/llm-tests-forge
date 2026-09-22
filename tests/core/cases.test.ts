@@ -90,7 +90,7 @@ describe("casesOutputSchema", () => {
 				cases: [
 					{
 						input: { email: "x" },
-						expected: { fields: { company: "Acme" } },
+						expected: { fields: '{"company":"Acme"}' },
 					},
 				],
 			}).success,
@@ -123,10 +123,10 @@ describe("casesOutputSchema", () => {
 		expect(inputProp.required).toContain("email");
 	});
 
-	test("the JSON Schema the model sees names each output field under expected.fields -- a bare z.record came back {} from every model", async () => {
+	test("the JSON Schema the model sees asks for expected.fields as JSON text -- an object schema came back {} or was refused", async () => {
 		const f = {
 			...(await feature()),
-			output: { kind: "json" as const, fields: ["questions", "count"] },
+			output: { kind: "json" as const, fields: ["questions"] },
 		};
 		const schema = casesOutputSchema(f, { ...scenario, oracle: "fields" });
 		const jsonSchema = toJSONSchema(schema);
@@ -147,16 +147,11 @@ describe("casesOutputSchema", () => {
 			);
 		const fieldsProp = expectedProp.properties?.fields;
 		if (!fieldsProp || typeof fieldsProp === "boolean")
-			throw new Error(
-				"expected expected.properties.fields to be an object schema",
-			);
-		expect(Object.keys(fieldsProp.properties ?? {})).toEqual([
-			"questions",
-			"count",
-		]);
-		// Optional on purpose: a judgement-call field is left out, and the
-		// oracle refuses the object only when every field is.
-		expect(fieldsProp.required ?? []).toEqual([]);
+			throw new Error("expected expected.properties.fields to be a schema");
+		expect(fieldsProp.type).toBe("string");
+		expect(fieldsProp.description).toContain(
+			"JSON object serialised as a string",
+		);
 	});
 });
 
@@ -395,6 +390,29 @@ describe("generateCases", () => {
 		expect(err).toBeInstanceOf(ForgeError);
 		expect((err as ForgeError).details.id).toBe("polite-rejection");
 		expect(calls).toBe(0);
+	});
+
+	test("fields text that is not JSON, or JSON that is not an object, or an empty object, is dropped with its reason", async () => {
+		for (const [fixture, reason] of [
+			["fields-not-json", "expected.fields is not JSON: "],
+			["fields-array", "expected.fields is JSON but not an object"],
+			[
+				"fields-empty",
+				"oracle is fields but expected.fields is empty, so nothing would be checked",
+			],
+		] as const) {
+			const { llm, model } = await llmFor(fixture);
+			const err = await generateCases({
+				feature: await feature(),
+				scenario: { ...scenario, oracle: "fields" },
+				existing: [],
+				n: 1,
+				model,
+				llm,
+			}).catch((e: unknown) => e);
+			expect(err).toBeInstanceOf(ForgeError);
+			expect((err as ForgeError).message).toContain(reason);
+		}
 	});
 
 	test("fields oracle requires an expected.fields object", async () => {

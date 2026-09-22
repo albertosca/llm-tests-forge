@@ -6,29 +6,28 @@ import { sameInput } from "./compare";
 import { ForgeError } from "./errors";
 import { nextCaseId } from "./ids";
 import { expectedMatchesOracle } from "./oracle";
-import type { Case, Feature, Oracle, Scenario } from "./schemas";
+import type { Case, Expected, Feature, Oracle, Scenario } from "./schemas";
 
-function expectedSchemaFor(oracle: Oracle, feature: Feature) {
+function expectedSchemaFor(oracle: Oracle) {
 	switch (oracle) {
 		case "label":
 			return z.object({ label: z.string() });
 		case "fields":
-			// Named properties, one per output field, for the same reason
-			// `input` below names its keys: a bare `z.record` reaches a real
-			// model as an object with no properties to fill, and every
-			// candidate came back `fields: {}` however the prompt was worded
-			// (measured on the second real target, 2026-09-22). Each is
-			// optional — a field whose value is a judgement call is left out
-			// — and the oracle refuses the object when all of them are.
+			// A JSON object serialised as a string, not an object schema: a
+			// bare `z.record` reached every model as an object with no
+			// properties to fill and came back `fields: {}`, and a property
+			// per output field typed `unknown` is an empty schema, which
+			// Anthropic's structured output refuses outright ("Empty schema
+			// ({}) that accepts any JSON value is not supported"). A string
+			// is concrete for every provider; `decodeExpected` parses it and
+			// refuses anything that is not a JSON object. Measured on the
+			// second real target, 2026-09-22.
 			return z.object({
-				fields: z.object(
-					Object.fromEntries(
-						(feature.output.fields ?? []).map((f) => [
-							f,
-							z.unknown().optional(),
-						]),
+				fields: z
+					.string()
+					.describe(
+						"A JSON object serialised as a string: keys are output field names, values are written out in full",
 					),
-				),
 			});
 		case "rubric":
 			return z.object({ rubric: z.string() });
@@ -62,10 +61,40 @@ export function casesOutputSchema(feature: Feature, scenario: Scenario) {
 		cases: z.array(
 			z.object({
 				input,
-				expected: expectedSchemaFor(scenario.oracle, feature),
+				expected: expectedSchemaFor(scenario.oracle),
 			}),
 		),
 	});
+}
+
+const FieldsObject = z.record(z.string(), z.unknown());
+
+/**
+ * The model's `expected` as the case will carry it. `label` and `rubric`
+ * come through as they are; `fields` arrives as JSON text (see
+ * `expectedSchemaFor`) and is parsed here, so a candidate whose text is
+ * not a JSON object is dropped with a reason rather than written to disk.
+ */
+function decodeExpected(raw: {
+	label?: string;
+	fields?: string;
+	rubric?: string;
+}): { expected: Expected } | { problem: string } {
+	if (raw.fields === undefined)
+		return {
+			expected:
+				raw.label === undefined ? { rubric: raw.rubric } : { label: raw.label },
+		};
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw.fields);
+	} catch (e) {
+		return { problem: `expected.fields is not JSON: ${(e as Error).message}` };
+	}
+	const object = FieldsObject.safeParse(parsed);
+	if (!object.success)
+		return { problem: "expected.fields is JSON but not an object" };
+	return { expected: { fields: object.data } };
 }
 
 export interface GenerateCasesArgs {
@@ -86,7 +115,7 @@ function oracleInstructions(feature: Feature, scenario: Scenario): string {
 			// field is a list, as "omit everything": every candidate came back
 			// with `fields: {}` (measured on the second real target,
 			// 2026-09-22), which the oracle now refuses.
-			return `\`expected.fields\` is an object holding the output fields whose value can be checked exactly (from: ${(feature.output.fields ?? []).join(", ")}), each with its complete value: a field that holds a list or an object is written out in full, exactly as the output must produce it. Leave out only a field whose value is a judgement call. At least one field is required; an empty object checks nothing and is refused.`;
+			return `\`expected.fields\` is a JSON object written as a string (the object serialised as JSON text), whose keys are the output fields whose value can be checked exactly (from: ${(feature.output.fields ?? []).join(", ")}), each with its complete value: a field that holds a list or an object is written out in full, exactly as the output must produce it. Leave out only a field whose value is a judgement call. At least one field is required; an empty object checks nothing and is refused.`;
 		case "rubric":
 			return "`expected.rubric` is one sentence a reviewer could answer yes or no about the output, specific to this case.";
 	}
@@ -136,8 +165,14 @@ export async function generateCases(args: GenerateCasesArgs): Promise<Case[]> {
 	const accepted: Case[] = [...args.existing];
 	const reasons: string[] = [];
 	for (const candidate of object.cases) {
+		const decoded = decodeExpected(candidate.expected);
+		if ("problem" in decoded) {
+			reasons.push(decoded.problem);
+			continue;
+		}
+		const expected = decoded.expected;
 		const problem = expectedMatchesOracle(
-			candidate.expected,
+			expected,
 			args.scenario.oracle,
 			args.feature,
 		);
@@ -153,7 +188,7 @@ export async function generateCases(args: GenerateCasesArgs): Promise<Case[]> {
 			id: nextCaseId(args.scenario.id, accepted),
 			scenario: args.scenario.id,
 			input: candidate.input,
-			expected: candidate.expected,
+			expected,
 			status: "pending",
 			generated_by: args.model,
 		});
