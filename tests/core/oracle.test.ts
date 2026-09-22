@@ -55,6 +55,14 @@ describe("expectedMatchesOracle", () => {
 		expect(msg).toBe("oracle is fields but expected.fields is missing");
 	});
 
+	test("fields: reports an empty expected.fields, which would check nothing", async () => {
+		expect(
+			expectedMatchesOracle({ fields: {} }, "fields", await feature()),
+		).toBe(
+			"oracle is fields but expected.fields is empty, so nothing would be checked",
+		);
+	});
+
 	test("rubric: null when expected.rubric is present", async () => {
 		expect(
 			expectedMatchesOracle(

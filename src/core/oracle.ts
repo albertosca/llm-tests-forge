@@ -24,9 +24,15 @@ export function expectedMatchesOracle(
 				return `label "${expected.label}" is not one of the feature's labels`;
 			return null;
 		case "fields":
-			return expected.fields === undefined
-				? "oracle is fields but expected.fields is missing"
-				: null;
+			if (expected.fields === undefined)
+				return "oracle is fields but expected.fields is missing";
+			// The assert compares the keys this object names and nothing
+			// else, so an empty object checks nothing and passes against any
+			// output. A model told to omit judgement calls omitted them all
+			// (measured on the second real target, 2026-09-22).
+			if (Object.keys(expected.fields).length === 0)
+				return "oracle is fields but expected.fields is empty, so nothing would be checked";
+			return null;
 		case "rubric":
 			return expected.rubric === undefined
 				? "oracle is rubric but expected.rubric is missing"
