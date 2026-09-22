@@ -122,6 +122,42 @@ describe("casesOutputSchema", () => {
 		expect(inputProp.properties?.email).toBeDefined();
 		expect(inputProp.required).toContain("email");
 	});
+
+	test("the JSON Schema the model sees names each output field under expected.fields -- a bare z.record came back {} from every model", async () => {
+		const f = {
+			...(await feature()),
+			output: { kind: "json" as const, fields: ["questions", "count"] },
+		};
+		const schema = casesOutputSchema(f, { ...scenario, oracle: "fields" });
+		const jsonSchema = toJSONSchema(schema);
+		const casesProp = jsonSchema.properties?.cases;
+		if (!casesProp || typeof casesProp === "boolean")
+			throw new Error("expected cases to be an object schema");
+		const itemsProp = casesProp.items;
+		if (
+			!itemsProp ||
+			typeof itemsProp === "boolean" ||
+			Array.isArray(itemsProp)
+		)
+			throw new Error("expected cases.items to be an object schema");
+		const expectedProp = itemsProp.properties?.expected;
+		if (!expectedProp || typeof expectedProp === "boolean")
+			throw new Error(
+				"expected cases.items.properties.expected to be an object schema",
+			);
+		const fieldsProp = expectedProp.properties?.fields;
+		if (!fieldsProp || typeof fieldsProp === "boolean")
+			throw new Error(
+				"expected expected.properties.fields to be an object schema",
+			);
+		expect(Object.keys(fieldsProp.properties ?? {})).toEqual([
+			"questions",
+			"count",
+		]);
+		// Optional on purpose: a judgement-call field is left out, and the
+		// oracle refuses the object only when every field is.
+		expect(fieldsProp.required ?? []).toEqual([]);
+	});
 });
 
 describe("generateCases", () => {

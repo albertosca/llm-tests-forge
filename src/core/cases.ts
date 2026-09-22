@@ -8,12 +8,28 @@ import { nextCaseId } from "./ids";
 import { expectedMatchesOracle } from "./oracle";
 import type { Case, Feature, Oracle, Scenario } from "./schemas";
 
-function expectedSchemaFor(oracle: Oracle) {
+function expectedSchemaFor(oracle: Oracle, feature: Feature) {
 	switch (oracle) {
 		case "label":
 			return z.object({ label: z.string() });
 		case "fields":
-			return z.object({ fields: z.record(z.string(), z.unknown()) });
+			// Named properties, one per output field, for the same reason
+			// `input` below names its keys: a bare `z.record` reaches a real
+			// model as an object with no properties to fill, and every
+			// candidate came back `fields: {}` however the prompt was worded
+			// (measured on the second real target, 2026-09-22). Each is
+			// optional — a field whose value is a judgement call is left out
+			// — and the oracle refuses the object when all of them are.
+			return z.object({
+				fields: z.object(
+					Object.fromEntries(
+						(feature.output.fields ?? []).map((f) => [
+							f,
+							z.unknown().optional(),
+						]),
+					),
+				),
+			});
 		case "rubric":
 			return z.object({ rubric: z.string() });
 	}
@@ -44,7 +60,10 @@ export function casesOutputSchema(feature: Feature, scenario: Scenario) {
 	);
 	return z.object({
 		cases: z.array(
-			z.object({ input, expected: expectedSchemaFor(scenario.oracle) }),
+			z.object({
+				input,
+				expected: expectedSchemaFor(scenario.oracle, feature),
+			}),
 		),
 	});
 }
