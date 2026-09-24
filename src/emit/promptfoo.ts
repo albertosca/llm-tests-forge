@@ -50,6 +50,19 @@ export const TOLERANT_PARSE = [
 	"let obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }",
 ].join("\n");
 
+/**
+ * Wraps an assert body that answers `true` or a sentence naming what is
+ * wrong into what promptfoo accepts. promptfoo 0.123.0 takes a boolean, a
+ * number or a GradingResult from a javascript assert and throws on a
+ * string — the failure still counted, but its reason reached the report as
+ * "Custom function threw error: ... Got type string", which hid every
+ * difference. Measured on the second real target (2026-09-24): no assert
+ * had failed on the first, so nothing had shown it.
+ */
+export function asGradingResult(body: string): string {
+	return `const verdict = (() => {\n${body}\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };`;
+}
+
 function labelAssert(
 	feature: Feature,
 	label: string,
@@ -59,7 +72,9 @@ function labelAssert(
 	if (feature.output.kind === "label") {
 		return {
 			type: "javascript",
-			value: `const got = String(output).trim();\nreturn got === ${want} ? true : "output was " + JSON.stringify(got) + ", expected " + ${want};`,
+			value: asGradingResult(
+				`const got = String(output).trim();\nreturn got === ${want} ? true : "output was " + JSON.stringify(got) + ", expected " + ${want};`,
+			),
 		};
 	}
 	if (feature.output.kind === "json") {
@@ -72,7 +87,9 @@ function labelAssert(
 		const f = JSON.stringify(field);
 		return {
 			type: "javascript",
-			value: `${TOLERANT_PARSE}\nreturn obj[${f}] === ${want} ? true : ${f} + " was " + JSON.stringify(obj[${f}]) + ", expected " + ${want};`,
+			value: asGradingResult(
+				`${TOLERANT_PARSE}\nreturn obj[${f}] === ${want} ? true : ${f} + " was " + JSON.stringify(obj[${f}]) + ", expected " + ${want};`,
+			),
 		};
 	}
 	throw new ForgeError(
@@ -85,7 +102,9 @@ function fieldsAssert(fields: Record<string, unknown>): PromptfooAssert {
 	const want = JSON.stringify(fields);
 	return {
 		type: "javascript",
-		value: `${TOLERANT_PARSE}\nconst want = ${want};\nconst bad = Object.keys(want).filter((k) => JSON.stringify(obj[k]) !== JSON.stringify(want[k]));\nreturn bad.length === 0 ? true : \`fields differ: \${bad.map((k) => \`\${k}=\${JSON.stringify(obj[k])} (expected \${JSON.stringify(want[k])})\`).join(", ")}\`;`,
+		value: asGradingResult(
+			`${TOLERANT_PARSE}\nconst want = ${want};\nconst bad = Object.keys(want).filter((k) => JSON.stringify(obj[k]) !== JSON.stringify(want[k]));\nreturn bad.length === 0 ? true : \`fields differ: \${bad.map((k) => \`\${k}=\${JSON.stringify(obj[k])} (expected \${JSON.stringify(want[k])})\`).join(", ")}\`;`,
+		),
 	};
 }
 

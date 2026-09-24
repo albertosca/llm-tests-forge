@@ -68,11 +68,27 @@ const selection: Selection = {
 	reviewable: 0,
 };
 
+/** What promptfoo 0.123.0 accepts from a javascript assert that fails. */
+interface Failure {
+	pass: false;
+	score: 0;
+	reason: string;
+}
+
 /** Run an emitted javascript assert the way promptfoo does: as a function body with `output` in scope. */
-function runAssert(body: string, output: string): true | string {
-	return new Function("output", "context", body)(output, { vars: {} }) as
-		| true
-		| string;
+function runAssert(body: string, output: string): true | Failure {
+	return new Function("output", "context", body)(output, { vars: {} });
+}
+
+const failure = (reason: string): Failure => ({
+	pass: false,
+	score: 0,
+	reason,
+});
+
+/** The reason of a failing result; a passing one has none. */
+function reasonOf(result: true | Failure): string {
+	return result === true ? "" : result.reason;
 }
 
 describe("buildPromptfooConfig", () => {
@@ -181,8 +197,8 @@ describe("buildPromptfooConfig", () => {
 		const a = cfg.tests[0]?.assert[0];
 		expect(a?.type).toBe("javascript");
 		expect(runAssert(a?.value ?? "", "rejection\n")).toBe(true);
-		expect(runAssert(a?.value ?? "", "acknowledgement")).toBe(
-			'output was "acknowledgement", expected rejection',
+		expect(runAssert(a?.value ?? "", "acknowledgement")).toEqual(
+			failure('output was "acknowledgement", expected rejection'),
 		);
 	});
 	test("label oracle on a json-kind feature reads label_field through the tolerant parser", () => {
@@ -196,13 +212,15 @@ describe("buildPromptfooConfig", () => {
 		expect(
 			runAssert(body, '```json\n{"type": "rejection", "company": null}\n```'),
 		).toBe(true);
-		expect(runAssert(body, 'Sure! {"type": "offer"}')).toBe(
-			'type was "offer", expected rejection',
+		expect(runAssert(body, 'Sure! {"type": "offer"}')).toEqual(
+			failure('type was "offer", expected rejection'),
 		);
-		expect(runAssert(body, "no json here")).toBe(
-			"no JSON object in output: no json here",
+		expect(runAssert(body, "no json here")).toEqual(
+			failure("no JSON object in output: no json here"),
 		);
-		expect(runAssert(body, "{not json}")).toMatch(/^output is not JSON: /);
+		expect(reasonOf(runAssert(body, "{not json}"))).toMatch(
+			/^output is not JSON: /,
+		);
 	});
 	test("fields oracle does a subset match and names every differing field", () => {
 		const sel: Selection = {
@@ -220,8 +238,8 @@ describe("buildPromptfooConfig", () => {
 		expect(runAssert(body, '{"type":"offer","company":"Acme","extra":1}')).toBe(
 			true,
 		);
-		expect(runAssert(body, '{"type":"rejection","company":"Acme"}')).toBe(
-			'fields differ: type="rejection" (expected "offer")',
+		expect(runAssert(body, '{"type":"rejection","company":"Acme"}')).toEqual(
+			failure('fields differ: type="rejection" (expected "offer")'),
 		);
 	});
 	test("a label containing a quote cannot break the snippet", () => {
@@ -257,7 +275,7 @@ describe("buildPromptfooConfig", () => {
 			buildPromptfooConfig({ feature: f, suite, selection: sel }).tests[0]
 				?.assert[0]?.value ?? "";
 		expect(runAssert(body, label)).toBe(true);
-		expect(runAssert(body, "other")).toContain(label);
+		expect(reasonOf(runAssert(body, "other"))).toContain(label);
 	});
 	test("label oracle on a json feature without label_field is a ForgeError naming output.label_field", () => {
 		const f: Feature = {
