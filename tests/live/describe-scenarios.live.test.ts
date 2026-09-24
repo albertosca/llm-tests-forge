@@ -3,8 +3,9 @@
  * `bun run test:live` (sets FORGE_LIVE=1).
  *
  * Default model: google/gemini-3.5-flash. Override with FORGE_MODEL to
- * point at a different provider/model. GOOGLE_API_KEY must already be set
- * (most dev shells here already export it) -- a missing key fails this
+ * point at a different provider/model. GOOGLE_API_KEY comes from the shell
+ * or, when the shell does not export it, from ~/.config/google/api.env
+ * (loaded by `tests/live/preload.ts`) -- a key in neither place fails this
  * test loudly, naming the variable; it does not silently skip.
  *
  * The Google free tier is intermittent, not simply down: the same model

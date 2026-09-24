@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { defaultConfigDirectory, loadProviderKeys } from "../llm/credentials";
 import { createContext } from "./context";
 import { modelFlag, run } from "./main";
 
@@ -14,6 +15,13 @@ async function readStdinLine(): Promise<string> {
 	for await (const line of console) return line;
 	return "";
 }
+
+// Keys the shell does not export are read from ~/.config/<provider>/api.env;
+// a key already in the environment wins.
+await loadProviderKeys({
+	environment: process.env,
+	configDirectory: defaultConfigDirectory(),
+});
 
 process.exit(
 	await run(

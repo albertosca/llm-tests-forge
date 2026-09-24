@@ -6,3 +6,6 @@
 # (`bun test` / `bun run check`), which this file never touches.
 [test]
 coverage = false
+# Reads provider keys from ~/.config/<provider>/api.env when the shell does
+# not export them; see tests/live/preload.ts.
+preload = ["./tests/live/preload.ts"]
