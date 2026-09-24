@@ -14,6 +14,7 @@ import type {
 	Oracle,
 	Scenario,
 } from "../core/schemas";
+import { palette, renderItem } from "./colors";
 
 export interface ReviewLoopArgs {
 	items: PendingItem[];
@@ -55,6 +56,12 @@ export interface ReviewLoopArgs {
 	 */
 	onDecided?: (decided: PendingItem, originalId: string) => void;
 	print: (line: string) => void;
+	/**
+	 * How an item is shown before its question. Defaults to the plain header
+	 * and YAML; the CLI passes the colored rendering when the output is an
+	 * interactive terminal (see `src/cli/colors.ts`).
+	 */
+	render?: (item: PendingItem) => string;
 }
 
 /** The two ids every recorded decision carries, whatever kind it is. */
@@ -114,6 +121,7 @@ function isDecision(x: string): x is Decision {
 export async function runReviewLoop(
 	args: ReviewLoopArgs,
 ): Promise<ReviewLoopResult> {
+	const render = args.render ?? ((item) => renderItem(item, palette(false)));
 	const decisions: ReviewLoopResult["decisions"] = [];
 	const summary = { approved: 0, rejected: 0, edited: 0, skipped: 0 };
 
@@ -155,8 +163,11 @@ export async function runReviewLoop(
 		// branch casting the two back together.
 		let current: PendingItem = pending;
 		for (;;) {
-			args.print(`--- ${pending.kind} ${current.item.id} ---`);
-			args.print(stringify(current.item, { lineWidth: 0 }).trimEnd());
+			// Header and body are two prints, as they always were: callers
+			// and tests read the header as a line of its own.
+			const [header = "", ...body] = render(current).split("\n");
+			args.print(header);
+			args.print(body.join("\n"));
 			const raw = await args.ask(
 				`${pending.kind} ${current.item.id}:`,
 				CHOICES,

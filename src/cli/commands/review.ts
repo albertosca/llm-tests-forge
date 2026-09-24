@@ -14,6 +14,7 @@ import {
 import { expectedMatchesOracle } from "../../core/oracle";
 import { pendingItems } from "../../core/review";
 import type { Case, Oracle } from "../../core/schemas";
+import { colorEnabled, palette, renderItem } from "../colors";
 import type { CliContext } from "../context";
 import { askChoice, askExpectedFor, openInEditor } from "../prompts";
 import { runReviewLoop } from "../review-loop";
@@ -213,9 +214,12 @@ export async function reviewCommand(
 	/** Case ids this pass has decided, per file, for `takenIdsFor`. */
 	const decidedIdsIn = new Map<string, Set<string>>();
 	const io = { stdin: ctx.stdin, stdout: ctx.stdout };
+	// Color only for a person at a terminal: a redirected or piped run, and
+	// every test, keeps the plain text it always had.
+	const paint = palette(colorEnabled(process.env, process.stdout.isTTY));
 	const result = await runReviewLoop({
 		items,
-		ask: (q, choices) => askChoice(q, choices, io),
+		ask: (q, choices) => askChoice(paint.prompt(q), choices, io),
 		openEditor: openInEditor,
 		// The human's expected value answers to the same oracle contract as
 		// the model's, checked with the same function.
@@ -267,7 +271,9 @@ export async function reviewCommand(
 				});
 			scenarios = scenarios.map((s) => (s.id === originalId ? decided : s));
 		},
-		print: ctx.stdout,
+		print: (line) =>
+			ctx.stdout(line.startsWith("cannot apply:") ? paint.error(line) : line),
+		render: (item) => renderItem(item, paint),
 	});
 
 	const decidedFeature = result.decisions.find((d) => d.kind === "feature");
