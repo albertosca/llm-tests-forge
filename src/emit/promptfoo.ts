@@ -101,43 +101,57 @@ function labelAssert(
 /**
  * Generated JavaScript, inlined into the emitted assert. Builds a list of
  * `differences` by comparing `want` against `obj`: a scalar field that
- * differs is named directly; a list field is handed to `compareItems`,
- * which keys by a label-like field when every item carries one, and falls
- * back to comparing by position (and naming a length mismatch) otherwise.
+ * differs is named directly (one array entry); a list field is handed to
+ * `compareItems`, which keys by a label-like field when every item carries
+ * one and that label is unique on both sides, and falls back to comparing
+ * by position (naming a length mismatch as its own entry) otherwise.
+ *
+ * Each difference is pushed as its own array entry rather than pre-joined
+ * with the "; " that later separates entries in the rendered reason: a
+ * field's first entry carries the `field: ` prefix, later entries from the
+ * same field do not. The five-item cap and the join happen once, on this
+ * array, in `fieldsAssert` below — never by joining then re-splitting a
+ * string, which corrupts any difference whose own value contains "; ".
  */
 const FIELDS_DIFF = [
 	"const differences = [];",
 	"const show = (value) => JSON.stringify(value);",
-	"const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;",
+	"const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';",
+	"const hasDuplicateLabels = (items) => {",
+	"  const seenLabels = new Set();",
+	"  for (const item of items) {",
+	"    if (!hasStringLabel(item)) continue;",
+	"    if (seenLabels.has(item.label)) return true;",
+	"    seenLabels.add(item.label);",
+	"  }",
+	"  return false;",
+	"};",
+	"const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);",
 	"const compareItems = (name, gotItems, wantItems) => {",
-	"  const key = labelKey(wantItems);",
-	"  if (key === null) {",
+	"  let isFirstPart = true;",
 	// biome-ignore lint/suspicious/noTemplateCurlyInString: this is generated JS source, not a template string of our own.
-	"    if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);",
-	"    const positional = [];",
+	"  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };",
+	"  if (!compareByLabel(wantItems, gotItems)) {",
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
+	"    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);",
 	"    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)",
 	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
-	"      if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);",
-	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
-	"    if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }",
+	"      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);",
 	"    return;",
 	"  }",
-	"  const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));",
-	"  const wantLabels = new Set(wantItems.map((item) => item[key]));",
-	"  const parts = [];",
+	"  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));",
+	"  const wantLabels = new Set(wantItems.map((item) => item.label));",
 	"  for (const wantItem of wantItems) {",
-	"    const gotItem = gotByLabel.get(wantItem[key]);",
+	"    const gotItem = gotByLabel.get(wantItem.label);",
 	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
-	"    if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }",
+	"    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }",
 	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
 	"    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);",
 	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
-	"    if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);",
+	"    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);",
 	"  }",
 	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
-	"  for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);",
-	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
-	"  if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);",
+	"  for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);",
 	"};",
 ].join("\n");
 
@@ -146,7 +160,7 @@ function fieldsAssert(fields: Record<string, unknown>): PromptfooAssert {
 	return {
 		type: "javascript",
 		value: asGradingResult(
-			`${TOLERANT_PARSE}\nconst want = ${want};\n${FIELDS_DIFF}\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);\n  else differences.push(\`\${field}=\${show(obj[field])} (expected \${show(want[field])})\`);\n}\nif (differences.length === 0) return true;\nconst listed = differences.join("; ").split("; ");\nreturn "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + \`; and \${listed.length - 5} more\` : listed.join("; "));`,
+			`${TOLERANT_PARSE}\nconst want = ${want};\n${FIELDS_DIFF}\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);\n  else differences.push(\`\${field}=\${show(obj[field])} (expected \${show(want[field])})\`);\n}\nif (differences.length === 0) return true;\nreturn "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + \`; and \${differences.length - 5} more\` : differences.join("; "));`,
 		),
 	};
 }

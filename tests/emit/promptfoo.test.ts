@@ -307,6 +307,125 @@ describe("buildPromptfooConfig", () => {
 		expect(reason).not.toContain('"q5"');
 		expect(reason).toEndWith("; and 3 more");
 	});
+	test("a semicolon-space inside a scalar value cannot be mistaken for the separator between differences", () => {
+		const selection: Selection = {
+			scenarios: [sc("f", "edge", "fields")],
+			cases: [cs("f-01", "f", { fields: { a: "1; 2; 3; 4", b: "y" } })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		expect(
+			runAssert(body, JSON.stringify({ a: "9; 8; 7; 6", b: "z" })),
+		).toEqual(
+			failure(
+				'fields differ: a="9; 8; 7; 6" (expected "1; 2; 3; 4"); b="z" (expected "y")',
+			),
+		);
+	});
+	test("the five-item cap counts real differences, not pieces split out of values that contain the separator", () => {
+		const want = {
+			a: "1; 1",
+			b: "2; 2",
+			c: "3; 3",
+			d: "4; 4",
+			e: "5; 5",
+			f: "6; 6",
+		};
+		const got = {
+			a: "a; a",
+			b: "b; b",
+			c: "c; c",
+			d: "d; d",
+			e: "e; e",
+			f: "f; f",
+		};
+		const selection: Selection = {
+			scenarios: [sc("f", "edge", "fields")],
+			cases: [cs("f-01", "f", { fields: want })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		expect(runAssert(body, JSON.stringify(got))).toEqual(
+			failure(
+				'fields differ: a="a; a" (expected "1; 1"); b="b; b" (expected "2; 2"); c="c; c" (expected "3; 3"); d="d; d" (expected "4; 4"); e="e; e" (expected "5; 5"); and 1 more',
+			),
+		);
+	});
+	test("duplicate labels in the expected list fall back to position, instead of collapsing under one map key", () => {
+		const selection: Selection = {
+			scenarios: [sc("f", "edge", "fields")],
+			cases: [
+				cs("f-01", "f", {
+					fields: {
+						items: [
+							{ label: "Name", kind: "text" },
+							{ label: "Name", kind: "boolean" },
+						],
+					},
+				}),
+			],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		const got = { items: [{ label: "Name", kind: "text" }] };
+		expect(runAssert(body, JSON.stringify(got))).toEqual(
+			failure("fields differ: items: 1 items (expected 2)"),
+		);
+	});
+	test("duplicate labels in the output only also fall back to position", () => {
+		const selection: Selection = {
+			scenarios: [sc("f", "edge", "fields")],
+			cases: [
+				cs("f-01", "f", {
+					fields: {
+						items: [
+							{ label: "Name", kind: "text" },
+							{ label: "Age", kind: "number" },
+						],
+					},
+				}),
+			],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		const got = {
+			items: [
+				{ label: "Name", kind: "text" },
+				{ label: "Name", kind: "text" },
+			],
+		};
+		expect(runAssert(body, JSON.stringify(got))).toEqual(
+			failure(
+				'fields differ: items: [1]={"label":"Name","kind":"text"} (expected {"label":"Age","kind":"number"})',
+			),
+		);
+	});
+	test("an equal-length positional list names only the index that differs", () => {
+		const selection: Selection = {
+			scenarios: [sc("f", "edge", "fields")],
+			cases: [cs("f-01", "f", { fields: { scores: [1, 2, 3] } })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		expect(runAssert(body, JSON.stringify({ scores: [1, 5, 3] }))).toEqual(
+			failure("fields differ: scores: [1]=5 (expected 2)"),
+		);
+	});
 	test("a label containing a quote cannot break the snippet", () => {
 		const sel: Selection = {
 			scenarios: [sc("q", "edge", "label")],

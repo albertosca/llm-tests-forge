@@ -76,28 +76,35 @@ tests:
           const want = {"questions":[{"label":"First Name","kind":"text","required":false,"options":[]},{"label":"Last Name","kind":"text","required":false,"options":[]},{"label":"Email","kind":"text","required":false,"options":[]},{"label":"Phone Number","kind":"text","required":false,"options":[]},{"label":"Are you legally authorized to work in the United States?","kind":"single_select","required":false,"options":["Yes","No"]},{"label":"Will you now or in the future require sponsorship for employment visa status?","kind":"single_select","required":false,"options":["Yes","No"]},{"label":"Resume/CV","kind":"file","required":false,"options":[]},{"label":"How did you hear about this position?","kind":"text","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -105,8 +112,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: standard-multi-field-form-02
@@ -180,28 +186,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Email Address","kind":"text","required":false,"options":[]},{"label":"LinkedIn Profile URL","kind":"text","required":false,"options":[]},{"label":"Which marketing channels have you worked with?","kind":"multi_select","required":false,"options":["Social Media","Email Marketing","Paid Search","SEO","Content Marketing"]},{"label":"Years of Marketing Experience","kind":"single_select","required":false,"options":["Less than 1 year","1-2 years","3-5 years","5+ years"]},{"label":"Cover Letter","kind":"long_text","required":false,"options":[]},{"label":"Resume","kind":"file","required":false,"options":[]},{"label":"I agree to the processing of my personal data in accordance with the Privacy Policy.","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -209,8 +222,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: standard-multi-field-form-03
@@ -280,28 +292,35 @@ tests:
           const want = {"questions":[{"label":"Full Legal Name","kind":"text","required":false,"options":[]},{"label":"Preferred Email","kind":"text","required":false,"options":[]},{"label":"Current Location","kind":"text","required":false,"options":[]},{"label":"Are you authorized to work in the US without sponsorship?","kind":"single_select","required":false,"options":["Yes","No"]},{"label":"Do you have experience with Python?","kind":"single_select","required":false,"options":["Yes","No"]},{"label":"Portfolio or GitHub Link","kind":"text","required":false,"options":[]},{"label":"Resume","kind":"file","required":false,"options":[]},{"label":"Additional Comments","kind":"long_text","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -309,8 +328,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: multi-select-with-options-01
@@ -363,28 +381,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Email Address","kind":"text","required":false,"options":[]},{"label":"Which locations are you open to?","kind":"multi_select","required":false,"options":["San Francisco","New York","Austin","Remote (US only)","Remote (International)"]},{"label":"Resume","kind":"file","required":false,"options":[]},{"label":"How did you hear about this position?","kind":"text","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -392,8 +417,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: multi-select-with-options-02
@@ -443,28 +467,35 @@ tests:
           const want = {"questions":[{"label":"First and Last Name","kind":"text","required":false,"options":[]},{"label":"Which departments are you interested in working in?","kind":"multi_select","required":false,"options":["Pediatrics","Cardiology","Emergency Medicine","Family Practice","Oncology"]},{"label":"Tell us why you want to join our team","kind":"long_text","required":false,"options":[]},{"label":"I agree to receive email communications from Bright Path Health","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -472,8 +503,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: multi-select-with-options-03
@@ -530,28 +560,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Phone Number","kind":"text","required":false,"options":[]},{"label":"Which programming languages are you comfortable with?","kind":"multi_select","required":false,"options":["JavaScript","TypeScript","Python","Go","Rust","Java"]},{"label":"Portfolio Link","kind":"text","required":false,"options":[]},{"label":"Upload your resume","kind":"file","required":false,"options":[]},{"label":"I agree to the processing of my personal data as described in the Privacy Policy","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -559,8 +596,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: no-questions-present-01
@@ -615,28 +651,35 @@ tests:
           const want = {"questions":[]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -644,8 +687,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: no-questions-present-02
@@ -713,28 +755,35 @@ tests:
           const want = {"questions":[]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -742,8 +791,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: no-questions-present-03
@@ -805,28 +853,35 @@ tests:
           const want = {"questions":[]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -834,8 +889,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: extremely-long-label-01
@@ -888,28 +942,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Email Address","kind":"text","required":false,"options":[]},{"label":"Resume","kind":"file","required":false,"options":[]},{"label":"Please describe, in as much detail as possible, a time when you faced a significant technical challenge at work.\n\nExplain the context, the specific obstacles you encountered, the approach you took to resolve them, and the ultimate outcome. Feel free to include metrics or specific technologies used if relevant to illustrate the impact of your solution, and note any lessons learned that you have since applied to later projects.","kind":"long_text","required":false,"options":[]},{"label":"Years of Experience","kind":"text","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -917,8 +978,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: extremely-long-label-02
@@ -982,28 +1042,35 @@ tests:
           const want = {"questions":[{"label":"First and Last Name","kind":"text","required":false,"options":[]},{"label":"Email","kind":"text","required":false,"options":[]},{"label":"Tell us about   a project you led from ideation through launch,    including how you identified the problem,     the stakeholders you worked with along the way,   and   the metrics you used to measure success once the product shipped.  Please also mention any pivots you made mid-project and why they were necessary.","kind":"long_text","required":false,"options":[]},{"label":"Which of the following best describes your current role?","kind":"single_select","required":false,"options":["Individual Contributor","Team Lead","Manager","Director"]},{"label":"Which product management tools have you used professionally?","kind":"multi_select","required":false,"options":["Jira","Asana","Trello","Notion","Linear"]},{"label":"Portfolio Link","kind":"text","required":false,"options":[]},{"label":"How did you hear about this position?","kind":"long_text","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1011,8 +1078,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: extremely-long-label-03
@@ -1073,28 +1139,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Email","kind":"text","required":false,"options":[]},{"label":"We want to understand your design philosophy and how it has evolved over time. Please walk us through\na specific project where you had to balance user needs against business constraints, describing the\nresearch methods you used, the trade-offs you considered, and how you communicated your final\nrecommendation to stakeholders who may not have had a design background.","kind":"long_text","required":false,"options":[]},{"label":"Are you legally authorized to work in the United States?","kind":"boolean","required":false,"options":[]},{"label":"Do you require visa sponsorship now or in the future?","kind":"boolean","required":false,"options":[]},{"label":"Upload your portfolio (PDF or link)","kind":"file","required":false,"options":[]},{"label":"I agree to the processing of my personal data as described in the Privacy Policy.","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1102,8 +1175,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: boolean-yes-no-question-01
@@ -1161,28 +1233,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Email Address","kind":"text","required":false,"options":[]},{"label":"Phone Number","kind":"text","required":false,"options":[]},{"label":"Resume","kind":"file","required":false,"options":[]},{"label":"Are you legally authorized to work in the United States?","kind":"boolean","required":false,"options":[]},{"label":"Cover Letter","kind":"long_text","required":false,"options":[]},{"label":"How did you hear about us?","kind":"long_text","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1190,8 +1269,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: boolean-yes-no-question-02
@@ -1254,28 +1332,35 @@ tests:
           const want = {"questions":[{"label":"First Name","kind":"text","required":false,"options":[]},{"label":"Last Name","kind":"text","required":false,"options":[]},{"label":"Email","kind":"text","required":false,"options":[]},{"label":"Are you at least 18 years of age?","kind":"boolean","required":false,"options":[]},{"label":"Do you have a valid driver's license?","kind":"boolean","required":false,"options":[]},{"label":"Which programming languages are you proficient in?","kind":"multi_select","required":false,"options":["Python","R","SQL","Java"]},{"label":"Tell us about a data project you're proud of","kind":"long_text","required":false,"options":[]},{"label":"Portfolio Link","kind":"text","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1283,8 +1368,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: boolean-yes-no-question-03
@@ -1345,28 +1429,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Email Address","kind":"text","required":false,"options":[]},{"label":"Phone","kind":"text","required":false,"options":[]},{"label":"Are you willing to work weekends and holidays?","kind":"boolean","required":false,"options":[]},{"label":"Preferred Shift","kind":"single_select","required":false,"options":["Morning","Afternoon","Evening","Overnight"]},{"label":"I agree to receive text messages about my application status","kind":"boolean","required":false,"options":[]},{"label":"Why do you want to work at Riverside Hotels?","kind":"long_text","required":false,"options":[]},{"label":"ID or Passport","kind":"file","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1374,8 +1465,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: required-marker-missing-01
@@ -1453,28 +1543,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Email Address","kind":"text","required":false,"options":[]},{"label":"Phone Number","kind":"text","required":false,"options":[]},{"label":"LinkedIn Profile URL","kind":"text","required":false,"options":[]},{"label":"How did you hear about us?","kind":"long_text","required":false,"options":[]},{"label":"Are you legally authorized to work in the United States?","kind":"single_select","required":false,"options":["Yes","No"]},{"label":"Years of Experience","kind":"text","required":false,"options":[]},{"label":"Cover Letter","kind":"long_text","required":false,"options":[]},{"label":"Resume","kind":"file","required":false,"options":[]},{"label":"I agree to the Terms of Service and Privacy Policy","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1482,8 +1579,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: required-marker-missing-02
@@ -1552,28 +1648,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Email","kind":"text","required":false,"options":[]},{"label":"Portfolio Link","kind":"text","required":false,"options":[]},{"label":"Available Start Date","kind":"text","required":false,"options":[]},{"label":"How many years of marketing experience do you have?","kind":"text","required":false,"options":[]},{"label":"Are you willing to relocate?","kind":"single_select","required":false,"options":["Yes","No"]},{"label":"Cover Letter","kind":"long_text","required":false,"options":[]},{"label":"Resume","kind":"file","required":false,"options":[]},{"label":"I have read and agree to the company's data privacy policy","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1581,8 +1684,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: required-marker-missing-03
@@ -1657,28 +1759,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Email","kind":"text","required":false,"options":[]},{"label":"University","kind":"text","required":false,"options":[]},{"label":"Expected Graduation Date","kind":"text","required":false,"options":[]},{"label":"Preferred Internship Location","kind":"long_text","required":false,"options":[]},{"label":"Which programming languages are you proficient in?","kind":"multi_select","required":false,"options":["Python","R","SQL","Java","C++"]},{"label":"Describe a time you used data to solve a problem","kind":"long_text","required":false,"options":[]},{"label":"Upload Transcript","kind":"file","required":false,"options":[]},{"label":"I certify that the information provided is accurate","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1686,8 +1795,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: select-vs-text-freeform-01
@@ -2012,28 +2120,35 @@ tests:
           const want = {"questions":[]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2041,8 +2156,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: job-description-only-page-02
@@ -2093,28 +2207,35 @@ tests:
           const want = {"questions":[]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2122,8 +2243,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: job-description-only-page-03
@@ -2183,28 +2303,35 @@ tests:
           const want = {"questions":[]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2212,8 +2339,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: cookie-consent-and-nav-noise-01
@@ -2284,28 +2410,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Email Address","kind":"text","required":false,"options":[]},{"label":"Phone Number","kind":"text","required":false,"options":[]},{"label":"Resume/CV","kind":"file","required":false,"options":[]},{"label":"LinkedIn Profile URL","kind":"text","required":false,"options":[]},{"label":"How many years of experience do you have with embedded C++?","kind":"text","required":false,"options":[]},{"label":"Are you legally authorized to work in the United States?","kind":"single_select","required":false,"options":["Yes","No"]},{"label":"Will you now or in the future require visa sponsorship?","kind":"single_select","required":false,"options":["Yes","No"]},{"label":"Why do you want to work at Acme Robotics?","kind":"long_text","required":false,"options":[]},{"label":"I agree to the processing of my personal data in accordance with the Privacy Policy","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2313,8 +2446,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: cookie-consent-and-nav-noise-02
@@ -2386,28 +2518,35 @@ tests:
           const want = {"questions":[{"label":"First Name","kind":"text","required":false,"options":[]},{"label":"Last Name","kind":"text","required":false,"options":[]},{"label":"Preferred Store Location","kind":"long_text","required":false,"options":[]},{"label":"Availability","kind":"multi_select","required":false,"options":["Weekday mornings","Weekday evenings","Weekends","Holidays"]},{"label":"Have you previously worked in retail?","kind":"single_select","required":false,"options":["Yes","No"]},{"label":"What days are you available to start?","kind":"text","required":false,"options":[]},{"label":"Do you have reliable transportation to the store?","kind":"single_select","required":false,"options":["Yes","No"]},{"label":"Upload a photo ID (optional, for background check purposes)","kind":"file","required":false,"options":[]},{"label":"Tell us about a time you provided excellent customer service.","kind":"long_text","required":false,"options":[]},{"label":"I agree to receive text messages about scheduling updates","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2415,8 +2554,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: cookie-consent-and-nav-noise-03
@@ -2498,28 +2636,35 @@ tests:
           const want = {"questions":[{"label":"Full Legal Name","kind":"text","required":false,"options":[]},{"label":"Preferred Email","kind":"text","required":false,"options":[]},{"label":"Which programming languages are you proficient in?","kind":"multi_select","required":false,"options":["Go","Python","Rust","Java","C++"]},{"label":"Current Employer","kind":"text","required":false,"options":[]},{"label":"Desired Salary Range","kind":"text","required":false,"options":[]},{"label":"Portfolio or GitHub Link","kind":"text","required":false,"options":[]},{"label":"How did you hear about this position?","kind":"long_text","required":false,"options":[]},{"label":"Describe a challenging distributed systems problem you solved.","kind":"long_text","required":false,"options":[]},{"label":"Are you willing to relocate to San Francisco?","kind":"single_select","required":false,"options":["Yes","No"]},{"label":"Cover Letter","kind":"file","required":false,"options":[]},{"label":"I agree to be contacted about future job openings","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2527,8 +2672,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: embedded-instruction-override-01
@@ -2737,28 +2881,35 @@ tests:
           const want = {"questions":[{"label":"Full Name","kind":"text","required":false,"options":[]},{"label":"Email","kind":"text","required":false,"options":[]},{"label":"LinkedIn URL","kind":"text","required":false,"options":[]},{"label":"Why do you want to work here?","kind":"long_text","required":false,"options":[]},{"label":"Years of experience","kind":"long_text","required":false,"options":[]},{"label":"Resume","kind":"file","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2766,8 +2917,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: fake-json-injection-02
@@ -2831,28 +2981,35 @@ tests:
           const want = {"questions":[{"label":"First Name","kind":"text","required":false,"options":[]},{"label":"Last Name","kind":"text","required":false,"options":[]},{"label":"Phone Number","kind":"text","required":false,"options":[]},{"label":"Available Start Date","kind":"text","required":false,"options":[]},{"label":"Are you authorized to work in the United States?","kind":"boolean","required":false,"options":[]},{"label":"Preferred Shift","kind":"single_select","required":false,"options":["Morning","Afternoon","Night"]},{"label":"Upload Resume","kind":"file","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2860,8 +3017,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: fake-json-injection-03
@@ -2932,28 +3088,35 @@ tests:
           const want = {"questions":[{"label":"Email Address","kind":"text","required":false,"options":[]},{"label":"Cover Letter","kind":"long_text","required":false,"options":[]},{"label":"Portfolio Link","kind":"text","required":false,"options":[]},{"label":"Which tools are you proficient in?","kind":"multi_select","required":false,"options":["Python","SQL","Tableau","R"]},{"label":"I agree to a background check","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2961,8 +3124,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: non-english-application-form-01
@@ -3036,28 +3198,35 @@ tests:
           const want = {"questions":[{"label":"Nom complet","kind":"text","required":false,"options":[]},{"label":"Adresse e-mail","kind":"text","required":false,"options":[]},{"label":"Numéro de téléphone","kind":"text","required":false,"options":[]},{"label":"Pourquoi souhaitez-vous rejoindre TechNova Solutions ?","kind":"long_text","required":false,"options":[]},{"label":"Combien d'années d'expérience avez-vous en développement web ?","kind":"single_select","required":false,"options":["Moins d'un an","1 à 3 ans","3 à 5 ans","Plus de 5 ans"]},{"label":"Quelles technologies maîtrisez-vous ?","kind":"multi_select","required":false,"options":["JavaScript","Python","Java","Go","Ruby"]},{"label":"Êtes-vous disponible immédiatement ?","kind":"boolean","required":false,"options":[]},{"label":"Téléchargez votre CV","kind":"file","required":false,"options":[]},{"label":"J'accepte que mes données soient traitées conformément à la politique de confidentialité","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3065,8 +3234,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: non-english-application-form-02
@@ -3140,28 +3308,35 @@ tests:
           const want = {"questions":[{"label":"Nombre completo","kind":"text","required":false,"options":[]},{"label":"Correo electrónico","kind":"text","required":false,"options":[]},{"label":"Número de teléfono","kind":"text","required":false,"options":[]},{"label":"Cuéntanos por qué te interesa este puesto","kind":"long_text","required":false,"options":[]},{"label":"¿Cuál es tu nivel de experiencia en marketing digital?","kind":"single_select","required":false,"options":["Menos de 1 año","1-3 años","3-5 años","Más de 5 años"]},{"label":"¿Qué herramientas de marketing has utilizado?","kind":"multi_select","required":false,"options":["Google Ads","Facebook Ads","HubSpot","Mailchimp","SEMrush"]},{"label":"¿Tienes disponibilidad para viajar?","kind":"boolean","required":false,"options":[]},{"label":"Sube tu currículum","kind":"file","required":false,"options":[]},{"label":"Acepto la política de privacidad","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3169,8 +3344,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: non-english-application-form-03
@@ -3238,28 +3412,35 @@ tests:
           const want = {"questions":[{"label":"Prénom et nom","kind":"text","required":false,"options":[]},{"label":"Adresse email professionnelle","kind":"text","required":false,"options":[]},{"label":"Où êtes-vous situé(e) ?","kind":"long_text","required":false,"options":[]},{"label":"Décrivez votre expérience en communication digitale","kind":"long_text","required":false,"options":[]},{"label":"Quels réseaux sociaux gérez-vous professionnellement ?","kind":"multi_select","required":false,"options":["Instagram","LinkedIn","TikTok","Twitter/X","Facebook"]},{"label":"Avez-vous déjà travaillé dans le secteur associatif ?","kind":"boolean","required":false,"options":[]},{"label":"Téléversez votre portfolio","kind":"file","required":false,"options":[]},{"label":"J'accepte d'être contacté(e) par téléphone pour un entretien","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3267,8 +3448,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: mixed-language-page-01
@@ -3338,28 +3518,35 @@ tests:
           const want = {"questions":[{"label":"Vollständiger Name","kind":"text","required":false,"options":[]},{"label":"E-Mail-Adresse","kind":"text","required":false,"options":[]},{"label":"Telefonnummer","kind":"text","required":false,"options":[]},{"label":"Wie viele Jahre Berufserfahrung haben Sie?","kind":"text","required":false,"options":[]},{"label":"Welche Programmiersprachen beherrschen Sie?","kind":"multi_select","required":false,"options":["Java","Python","Go","Rust","C++"]},{"label":"Sind Sie bereit, nach Berlin umzuziehen?","kind":"single_select","required":false,"options":["Ja","Nein"]},{"label":"Lebenslauf hochladen","kind":"file","required":false,"options":[]},{"label":"Motivationsschreiben","kind":"long_text","required":false,"options":[]},{"label":"Haben Sie bereits Erfahrung mit Kubernetes?","kind":"boolean","required":false,"options":[]},{"label":"Ich stimme der Verarbeitung meiner Daten gemäß der Datenschutzerklärung zu.","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3367,8 +3554,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: mixed-language-page-02
@@ -3442,28 +3628,35 @@ tests:
           const want = {"questions":[{"label":"Vorname","kind":"text","required":false,"options":[]},{"label":"Nachname","kind":"text","required":false,"options":[]},{"label":"Aktuelle Position","kind":"text","required":false,"options":[]},{"label":"Gewünschtes Eintrittsdatum","kind":"text","required":false,"options":[]},{"label":"Höchster Bildungsabschluss","kind":"single_select","required":false,"options":["Abitur","Bachelor","Master","Promotion","Keine Angabe"]},{"label":"Haben Sie eine gültige Fahrerlaubnis?","kind":"single_select","required":false,"options":["Ja","Nein"]},{"label":"Bevorzugte Arbeitszeiten","kind":"multi_select","required":false,"options":["Vollzeit","Teilzeit","Schichtarbeit"]},{"label":"Zeugnisse hochladen","kind":"file","required":false,"options":[]},{"label":"Warum möchten Sie bei GreenLeaf arbeiten?","kind":"long_text","required":false,"options":[]},{"label":"Sind Sie mit einer Probezeit von sechs Monaten einverstanden?","kind":"boolean","required":false,"options":[]},{"label":"Ich habe die Datenschutzhinweise gelesen und akzeptiere diese.","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3471,8 +3664,7 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
   - description: mixed-language-page-03
@@ -3540,28 +3732,35 @@ tests:
           const want = {"questions":[{"label":"Geburtsdatum","kind":"text","required":false,"options":[]},{"label":"Staatsangehörigkeit","kind":"text","required":false,"options":[]},{"label":"Höchster akademischer Grad","kind":"single_select","required":false,"options":["Bachelor of Engineering","Master of Engineering","Diplom-Ingenieur","Promotion"]},{"label":"Kenntnisse in CAD-Software","kind":"multi_select","required":false,"options":["AutoCAD","SolidWorks","CATIA","Fusion 360"]},{"label":"Sind Sie bereit für gelegentliche Dienstreisen?","kind":"single_select","required":false,"options":["Ja","Nein"]},{"label":"Motivationsschreiben hochladen","kind":"file","required":false,"options":[]},{"label":"Beschreiben Sie ein technisches Projekt, an dem Sie gearbeitet haben.","kind":"long_text","required":false,"options":[]},{"label":"Verfügen Sie über einen Führerschein der Klasse B?","kind":"boolean","required":false,"options":[]},{"label":"Ich bestätige, dass alle Angaben in dieser Bewerbung wahrheitsgemäß sind.","kind":"boolean","required":false,"options":[]}]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
-          const labelKey = (items) => items.length > 0 && items.every((item) => item !== null && typeof item === 'object' && typeof item.label === 'string') ? 'label' : null;
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
           const compareItems = (name, gotItems, wantItems) => {
-            const key = labelKey(wantItems);
-            if (key === null) {
-              if (gotItems.length !== wantItems.length) differences.push(`${name}: ${gotItems.length} items (expected ${wantItems.length})`);
-              const positional = [];
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
               for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
-                if (show(gotItems[index]) !== show(wantItems[index])) positional.push(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
-              if (positional.length > 0) { if (differences.length > 0 && differences[differences.length - 1].startsWith(`${name}:`)) differences[differences.length - 1] += `; ${positional.join('; ')}`; else differences.push(`${name}: ${positional.join('; ')}`); }
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
               return;
             }
-            const gotByLabel = new Map(gotItems.filter((item) => item && typeof item[key] === 'string').map((item) => [item[key], item]));
-            const wantLabels = new Set(wantItems.map((item) => item[key]));
-            const parts = [];
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
             for (const wantItem of wantItems) {
-              const gotItem = gotByLabel.get(wantItem[key]);
-              if (gotItem === undefined) { parts.push(`missing ${show(wantItem[key])}`); continue; }
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
-              if (fieldDifferences.length > 0) parts.push(`${show(wantItem[key])} ${fieldDifferences.join(', ')}`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem[key])) parts.push(`unexpected ${show(gotItem && gotItem[key])}`);
-            if (parts.length > 0) differences.push(`${name}: ${parts.join('; ')}`);
+            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3569,7 +3768,6 @@ tests:
             else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
-          const listed = differences.join("; ").split("; ");
-          return "fields differ: " + (listed.length > 5 ? listed.slice(0, 5).join("; ") + `; and ${listed.length - 5} more` : listed.join("; "));
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
           })();
           return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
