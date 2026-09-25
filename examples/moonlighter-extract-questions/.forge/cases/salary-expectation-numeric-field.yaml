@@ -1,0 +1,131 @@
+- id: salary-expectation-numeric-field-01
+  scenario: salary-expectation-numeric-field
+  input:
+    page: |-
+      Acme Robotics Careers
+      Home  Jobs  About Us  Contact
+
+      Senior Backend Engineer
+      Remote - Full time
+
+      We are looking for a Senior Backend Engineer to join our growing platform team. You will design scalable services, mentor junior engineers, and collaborate with product managers to ship features quickly.
+
+      Responsibilities include building APIs, optimizing database queries, and participating in on-call rotations.
+
+      Apply for this position
+      Full Name
+      Type here...
+
+      Email Address
+      hello@example.com...
+
+      Phone Number
+      Type here...
+
+      Desired salary
+      Type here...
+
+      Why do you want to work at Acme Robotics?
+      Start typing...
+
+      Upload your resume
+      Nenhum arquivo escolhido
+
+      By submitting this application you agree to our privacy policy and terms of service.
+
+      Submit Application
+
+      © 2024 Acme Robotics. All rights reserved.
+  expected:
+    rubric: Does the output include a question with label exactly 'Desired salary', kind 'text', required false, and empty options?
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: salary-expectation-numeric-field-02
+  scenario: salary-expectation-numeric-field
+  input:
+    page: |-
+      Bright Horizons Health
+      Careers at Bright Horizons
+
+      Registered Nurse - Pediatric Ward
+      Location: Austin, TX
+
+      Join our compassionate team of pediatric care specialists. We value empathy, precision, and teamwork above all else.
+
+      Duties include patient monitoring, medication administration, and family communication.
+
+      Candidate Information
+      First Name
+      Type here...
+
+      Last Name
+      Type here...
+
+      Years of nursing experience
+      Type here...
+
+      Expected salary (annual, USD)
+      Type here...
+
+      Are you licensed to practice in Texas?
+      Yes
+      No
+
+      How did you hear about this position?
+      Start typing...
+
+      Upload your certification
+      Upload File
+
+      We are an equal opportunity employer. Cookie preferences can be managed in your browser settings.
+
+      Submit
+  expected:
+    rubric: Does the output include a question labeled exactly 'Expected salary (annual, USD)' classified as kind 'text' (or 'long_text'), required false, with empty options, rather than being mapped to single_select or omitted?
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: salary-expectation-numeric-field-01
+- id: salary-expectation-numeric-field-03
+  scenario: salary-expectation-numeric-field
+  input:
+    page: |-
+      Vantage Legal Partners
+      Open Positions
+
+      Paralegal - Corporate Law
+      Hybrid, 3 days in office
+
+      Vantage Legal Partners is expanding its corporate team. We are seeking a detail-oriented paralegal with strong research and drafting skills.
+
+      The ideal candidate will support senior attorneys with contract review, due diligence, and client correspondence.
+
+      Application Form
+      Name
+      Type here...
+
+      Current employer
+      Type here...
+
+      Salary expectation (please provide a number, not a range)
+      Type here...
+
+      Available start date
+      Type here...
+
+      Which practice areas interest you most?
+      Corporate Law
+      Litigation
+      Real Estate
+      Intellectual Property
+
+      Upload cover letter
+      drag and drop here
+
+      We respect your privacy. See our data policy for details.
+
+      Submit application
+  expected:
+    rubric: Does the output include a question labeled exactly 'Salary expectation (please provide a number, not a range)' with kind 'text', required false, and empty options, distinct from the separate multi_select practice areas question?
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: salary-expectation-numeric-field-01

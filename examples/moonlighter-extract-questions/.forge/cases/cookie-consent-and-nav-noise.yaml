@@ -1,0 +1,329 @@
+- id: cookie-consent-and-nav-noise-01
+  scenario: cookie-consent-and-nav-noise
+  input:
+    page: |-
+      We use cookies to improve your experience. By continuing to browse, you agree to our use of cookies. Manage Preferences | Accept All
+
+      Home | Careers | About Us | Contact | Blog
+
+      Acme Robotics
+      Senior Firmware Engineer
+      Remote (US) · Full-time
+
+      At Acme Robotics we build the next generation of autonomous warehouse robots. Join a team of passionate engineers solving hard problems at scale.
+
+      Apply for this position
+
+      Full Name
+      Type here...
+
+      Email Address
+      hello@example.com...
+
+      Phone Number
+      Type here...
+
+      Resume/CV
+      Upload File
+
+      LinkedIn Profile URL
+      Type here...
+
+      How many years of experience do you have with embedded C++?
+      Type here...
+
+      Are you legally authorized to work in the United States?
+      Yes
+      No
+
+      Will you now or in the future require visa sponsorship?
+      Yes
+      No
+
+      Why do you want to work at Acme Robotics?
+      Start typing...
+
+      I agree to the processing of my personal data in accordance with the Privacy Policy
+
+      Submit Application
+
+      Footer: © 2024 Acme Robotics. All rights reserved. | Privacy Policy | Terms of Service | Sitemap
+      Follow us: Twitter, LinkedIn, Instagram
+
+      This site uses cookies for analytics. See our Cookie Policy for details.
+  expected:
+    fields:
+      questions:
+        - label: Full Name
+          kind: text
+          required: false
+          options: []
+        - label: Email Address
+          kind: text
+          required: false
+          options: []
+        - label: Phone Number
+          kind: text
+          required: false
+          options: []
+        - label: Resume/CV
+          kind: file
+          required: false
+          options: []
+        - label: LinkedIn Profile URL
+          kind: text
+          required: false
+          options: []
+        - label: How many years of experience do you have with embedded C++?
+          kind: text
+          required: false
+          options: []
+        - label: Are you legally authorized to work in the United States?
+          kind: single_select
+          required: false
+          options:
+            - Yes
+            - No
+        - label: Will you now or in the future require visa sponsorship?
+          kind: single_select
+          required: false
+          options:
+            - Yes
+            - No
+        - label: Why do you want to work at Acme Robotics?
+          kind: long_text
+          required: false
+          options: []
+        - label: I agree to the processing of my personal data in accordance with the Privacy Policy
+          kind: boolean
+          required: false
+          options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: cookie-consent-and-nav-noise-02
+  scenario: cookie-consent-and-nav-noise
+  input:
+    page: |-
+      GDPR Notice: This website uses cookies necessary for site functionality and, with your consent, analytics and marketing cookies. Cookie Settings | Accept | Reject Non-Essential
+
+      BrightPath Retail Group
+      Home > Careers > Store Positions > Sales Associate
+
+      Sales Associate - Downtown Location
+      BrightPath is hiring friendly, motivated individuals to join our downtown retail team. Competitive pay, flexible scheduling, employee discounts.
+
+      Candidate Information
+
+      First Name
+      Type here...
+
+      Last Name
+      Type here...
+
+      Preferred Store Location
+      Search locations...
+
+      Availability
+      Weekday mornings
+      Weekday evenings
+      Weekends
+      Holidays
+
+      Have you previously worked in retail?
+      Yes
+      No
+
+      What days are you available to start?
+      Type here...
+
+      Do you have reliable transportation to the store?
+      Yes
+      No
+
+      Upload a photo ID (optional, for background check purposes)
+      Nenhum arquivo escolhido
+
+      Tell us about a time you provided excellent customer service.
+      Start typing...
+
+      I agree to receive text messages about scheduling updates
+
+      Submit
+
+      Quick Links: Store Locator | Return Policy | Gift Cards | Careers Home
+      Follow BrightPath on Facebook, Instagram, TikTok
+
+      © 2024 BrightPath Retail Group. All trademarks reserved. Cookie Policy | Accessibility Statement
+  expected:
+    fields:
+      questions:
+        - label: First Name
+          kind: text
+          required: false
+          options: []
+        - label: Last Name
+          kind: text
+          required: false
+          options: []
+        - label: Preferred Store Location
+          kind: long_text
+          required: false
+          options: []
+        - label: Availability
+          kind: multi_select
+          required: false
+          options:
+            - Weekday mornings
+            - Weekday evenings
+            - Weekends
+            - Holidays
+        - label: Have you previously worked in retail?
+          kind: single_select
+          required: false
+          options:
+            - Yes
+            - No
+        - label: What days are you available to start?
+          kind: text
+          required: false
+          options: []
+        - label: Do you have reliable transportation to the store?
+          kind: single_select
+          required: false
+          options:
+            - Yes
+            - No
+        - label: Upload a photo ID (optional, for background check purposes)
+          kind: file
+          required: false
+          options: []
+        - label: Tell us about a time you provided excellent customer service.
+          kind: long_text
+          required: false
+          options: []
+        - label: I agree to receive text messages about scheduling updates
+          kind: boolean
+          required: false
+          options: []
+  status: edited
+  generated_by: anthropic/claude-sonnet-5
+- id: cookie-consent-and-nav-noise-03
+  scenario: cookie-consent-and-nav-noise
+  input:
+    page: |-
+      🍪 We value your privacy
+      This site and our partners use cookies to store and/or access information on your device. Manage Options | Accept All | Deny All
+
+      Nimbus Data Systems
+
+      nav: Products | Solutions | Pricing | Careers | Contact | Login
+
+      Backend Software Engineer II
+      Nimbus Data Systems · San Francisco, CA · Hybrid
+
+      We're building the future of distributed data infrastructure. Our engineers ship code that powers thousands of companies worldwide. Read more about our culture on our engineering blog.
+
+      Start your application
+
+      Full Legal Name
+      Type here...
+
+      Preferred Email
+      hello@example.com...
+
+      Which programming languages are you proficient in?
+      Go
+      Python
+      Rust
+      Java
+      C++
+
+      Current Employer
+      Type here...
+
+      Desired Salary Range
+      Type here...
+
+      Portfolio or GitHub Link
+      Type here...
+
+      How did you hear about this position?
+      Search source...
+
+      Describe a challenging distributed systems problem you solved.
+      Start typing...
+
+      Are you willing to relocate to San Francisco?
+      Yes
+      No
+
+      Cover Letter
+      drag and drop here
+
+      I agree to be contacted about future job openings
+
+      Submit Application
+
+      Sign up for our newsletter to get product updates and company news!
+      Email
+      Subscribe
+
+      Footer Navigation: Careers | Engineering Blog | Investors | Security | Status Page
+      © Nimbus Data Systems, Inc. All rights reserved.
+      Cookie Policy | Do Not Sell My Personal Information
+  expected:
+    fields:
+      questions:
+        - label: Full Legal Name
+          kind: text
+          required: false
+          options: []
+        - label: Preferred Email
+          kind: text
+          required: false
+          options: []
+        - label: Which programming languages are you proficient in?
+          kind: multi_select
+          required: false
+          options:
+            - Go
+            - Python
+            - Rust
+            - Java
+            - C++
+        - label: Current Employer
+          kind: text
+          required: false
+          options: []
+        - label: Desired Salary Range
+          kind: text
+          required: false
+          options: []
+        - label: Portfolio or GitHub Link
+          kind: text
+          required: false
+          options: []
+        - label: How did you hear about this position?
+          kind: long_text
+          required: false
+          options: []
+        - label: Describe a challenging distributed systems problem you solved.
+          kind: long_text
+          required: false
+          options: []
+        - label: Are you willing to relocate to San Francisco?
+          kind: single_select
+          required: false
+          options:
+            - Yes
+            - No
+        - label: Cover Letter
+          kind: file
+          required: false
+          options: []
+        - label: I agree to be contacted about future job openings
+          kind: boolean
+          required: false
+          options: []
+  status: edited
+  generated_by: anthropic/claude-sonnet-5

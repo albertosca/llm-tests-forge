@@ -1,0 +1,320 @@
+- id: mixed-language-page-01
+  scenario: mixed-language-page
+  input:
+    page: |-
+      TechNova Solutions
+      Home | Careers | About Us | Contact
+
+      Join Our Team - Senior Backend Developer
+
+      We are looking for a passionate developer to join our growing engineering team in Berlin. TechNova Solutions has been at the forefront of cloud innovation since 2015, and we pride ourselves on our collaborative culture and cutting-edge technology stack.
+
+      Why work with us?
+      Competitive salary, flexible working hours, remote-friendly policy, and 30 days of paid vacation.
+
+      By submitting this application, you agree to our Privacy Policy and Terms of Service. We use cookies to improve your experience on this site.
+
+      Application Form
+
+      Vollständiger Name
+      Type here...
+
+      E-Mail-Adresse
+      hello@example.com...
+
+      Telefonnummer
+      Type here...
+
+      Wie viele Jahre Berufserfahrung haben Sie?
+      Start typing...
+
+      Welche Programmiersprachen beherrschen Sie?
+      Java
+      Python
+      Go
+      Rust
+      C++
+
+      Sind Sie bereit, nach Berlin umzuziehen?
+      Ja
+      Nein
+
+      Lebenslauf hochladen
+      Upload File
+
+      Motivationsschreiben
+      Start typing...
+
+      Haben Sie bereits Erfahrung mit Kubernetes?
+
+      Ich stimme der Verarbeitung meiner Daten gemäß der Datenschutzerklärung zu.
+
+      Back to job listings | © 2024 TechNova Solutions. All rights reserved.
+  expected:
+    fields:
+      questions:
+        - label: Vollständiger Name
+          kind: text
+          required: false
+          options: []
+        - label: E-Mail-Adresse
+          kind: text
+          required: false
+          options: []
+        - label: Telefonnummer
+          kind: text
+          required: false
+          options: []
+        - label: Wie viele Jahre Berufserfahrung haben Sie?
+          kind: text
+          required: false
+          options: []
+        - label: Welche Programmiersprachen beherrschen Sie?
+          kind: multi_select
+          required: false
+          options:
+            - Java
+            - Python
+            - Go
+            - Rust
+            - C++
+        - label: Sind Sie bereit, nach Berlin umzuziehen?
+          kind: single_select
+          required: false
+          options:
+            - Ja
+            - Nein
+        - label: Lebenslauf hochladen
+          kind: file
+          required: false
+          options: []
+        - label: Motivationsschreiben
+          kind: long_text
+          required: false
+          options: []
+        - label: Haben Sie bereits Erfahrung mit Kubernetes?
+          kind: boolean
+          required: false
+          options: []
+        - label: Ich stimme der Verarbeitung meiner Daten gemäß der Datenschutzerklärung zu.
+          kind: boolean
+          required: false
+          options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: mixed-language-page-02
+  scenario: mixed-language-page
+  input:
+    page: |-
+      GreenLeaf Retail Group
+      Home | Jobs | Our Story | Sustainability
+
+      Store Manager Position - Munich Location
+
+      GreenLeaf Retail Group operates over 200 stores across Germany and Austria, committed to sustainable retail practices and exceptional customer service. Our store managers are the backbone of our operations.
+
+      What we offer: Employee discounts, health insurance, and career development programs.
+
+      This site uses cookies. Please review our cookie policy for more information. Autofill data detected from your browser - click to apply.
+
+      Bewerbungsformular
+
+      Vorname
+      Type here...
+
+      Nachname
+      Type here...
+
+      Aktuelle Position
+      Type here...
+
+      Gewünschtes Eintrittsdatum
+      Type here...
+
+      Höchster Bildungsabschluss
+      Abitur
+      Bachelor
+      Master
+      Promotion
+      Keine Angabe
+
+      Haben Sie eine gültige Fahrerlaubnis?
+      Ja
+      Nein
+
+      Bevorzugte Arbeitszeiten
+      Vollzeit
+      Teilzeit
+      Schichtarbeit
+
+      Zeugnisse hochladen
+      Nenhum arquivo escolhido
+
+      Warum möchten Sie bei GreenLeaf arbeiten?
+      Start typing...
+
+      Sind Sie mit einer Probezeit von sechs Monaten einverstanden?
+
+      Ich habe die Datenschutzhinweise gelesen und akzeptiere diese.
+
+      View more open positions | Follow us on social media | Contact HR
+  expected:
+    fields:
+      questions:
+        - label: Vorname
+          kind: text
+          required: false
+          options: []
+        - label: Nachname
+          kind: text
+          required: false
+          options: []
+        - label: Aktuelle Position
+          kind: text
+          required: false
+          options: []
+        - label: Gewünschtes Eintrittsdatum
+          kind: text
+          required: false
+          options: []
+        - label: Höchster Bildungsabschluss
+          kind: single_select
+          required: false
+          options:
+            - Abitur
+            - Bachelor
+            - Master
+            - Promotion
+            - Keine Angabe
+        - label: Haben Sie eine gültige Fahrerlaubnis?
+          kind: single_select
+          required: false
+          options:
+            - Ja
+            - Nein
+        - label: Bevorzugte Arbeitszeiten
+          kind: multi_select
+          required: false
+          options:
+            - Vollzeit
+            - Teilzeit
+            - Schichtarbeit
+        - label: Zeugnisse hochladen
+          kind: file
+          required: false
+          options: []
+        - label: Warum möchten Sie bei GreenLeaf arbeiten?
+          kind: long_text
+          required: false
+          options: []
+        - label: Sind Sie mit einer Probezeit von sechs Monaten einverstanden?
+          kind: boolean
+          required: false
+          options: []
+        - label: Ich habe die Datenschutzhinweise gelesen und akzeptiere diese.
+          kind: boolean
+          required: false
+          options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: mixed-language-page-03
+  scenario: mixed-language-page
+  input:
+    page: |-
+      Bergmann Engineering AG
+      Home | Careers | Products | Investors
+
+      Junior Mechanical Engineer - Stuttgart Office
+
+      Bergmann Engineering AG designs and manufactures precision components for the automotive and aerospace industries. With over 50 years of experience, we combine German engineering excellence with innovative thinking.
+
+      Our benefits package includes company pension plans, subsidized meals, and continuous training opportunities.
+
+      This website may use analytics cookies to enhance your browsing experience. By continuing, you consent to our data usage policy as described in our terms.
+
+      Apply Now
+
+      Geburtsdatum
+      Type here...
+
+      Staatsangehörigkeit
+      Start typing...
+
+      Höchster akademischer Grad
+      Bachelor of Engineering
+      Master of Engineering
+      Diplom-Ingenieur
+      Promotion
+
+      Kenntnisse in CAD-Software
+      AutoCAD
+      SolidWorks
+      CATIA
+      Fusion 360
+
+      Sind Sie bereit für gelegentliche Dienstreisen?
+      Ja
+      Nein
+
+      Motivationsschreiben hochladen
+      drag and drop here
+
+      Beschreiben Sie ein technisches Projekt, an dem Sie gearbeitet haben.
+      Start typing...
+
+      Verfügen Sie über einen Führerschein der Klasse B?
+
+      Ich bestätige, dass alle Angaben in dieser Bewerbung wahrheitsgemäß sind.
+
+      Explore our other engineering roles | Investor Relations | Legal Notice
+  expected:
+    fields:
+      questions:
+        - label: Geburtsdatum
+          kind: text
+          required: false
+          options: []
+        - label: Staatsangehörigkeit
+          kind: text
+          required: false
+          options: []
+        - label: Höchster akademischer Grad
+          kind: single_select
+          required: false
+          options:
+            - Bachelor of Engineering
+            - Master of Engineering
+            - Diplom-Ingenieur
+            - Promotion
+        - label: Kenntnisse in CAD-Software
+          kind: multi_select
+          required: false
+          options:
+            - AutoCAD
+            - SolidWorks
+            - CATIA
+            - Fusion 360
+        - label: Sind Sie bereit für gelegentliche Dienstreisen?
+          kind: single_select
+          required: false
+          options:
+            - Ja
+            - Nein
+        - label: Motivationsschreiben hochladen
+          kind: file
+          required: false
+          options: []
+        - label: Beschreiben Sie ein technisches Projekt, an dem Sie gearbeitet haben.
+          kind: long_text
+          required: false
+          options: []
+        - label: Verfügen Sie über einen Führerschein der Klasse B?
+          kind: boolean
+          required: false
+          options: []
+        - label: Ich bestätige, dass alle Angaben in dieser Bewerbung wahrheitsgemäß sind.
+          kind: boolean
+          required: false
+          options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5

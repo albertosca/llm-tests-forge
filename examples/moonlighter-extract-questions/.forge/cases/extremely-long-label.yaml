@@ -1,0 +1,301 @@
+- id: extremely-long-label-01
+  scenario: extremely-long-label
+  input:
+    page: 'Acme Robotics
+
+      Careers > Software Engineer > Apply
+
+
+      Software Engineer - Backend
+
+      San Francisco, CA · Full-time
+
+
+      We are looking for talented backend engineers to join our growing team, working on distributed systems that power millions of robotic operations every day.
+
+
+      Apply for this position
+
+
+      Full Name
+
+      Type here...
+
+
+      Email Address
+
+      hello@example.com...
+
+
+      Resume
+
+      Upload File
+
+
+      Please describe, in as much detail as possible, a time when you faced a significant technical challenge at work.
+
+
+      Explain the context, the specific obstacles you encountered, the approach you took to resolve them, and the ultimate outcome. Feel free to include metrics or specific technologies used if relevant to illustrate the impact of your solution, and note any lessons learned that you have since applied to later projects.
+
+
+      Start typing...
+
+
+      Years of Experience
+
+      Type here...
+
+
+      By submitting this application you agree to our Privacy Policy and Terms of Service.
+
+
+      Submit Application'
+  expected:
+    fields:
+      questions:
+      - label: Full Name
+        kind: text
+        required: false
+        options: []
+      - label: Email Address
+        kind: text
+        required: false
+        options: []
+      - label: Resume
+        kind: file
+        required: false
+        options: []
+      - label: 'Please describe, in as much detail as possible, a time when you faced a significant technical challenge at work.
+
+
+          Explain the context, the specific obstacles you encountered, the approach you took to resolve them, and the ultimate outcome. Feel free to include metrics or specific technologies used if relevant to illustrate the impact of your solution, and note any lessons learned that you have since applied to later projects.'
+        kind: long_text
+        required: false
+        options: []
+      - label: Years of Experience
+        kind: text
+        required: false
+        options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: extremely-long-label-02
+  scenario: extremely-long-label
+  input:
+    page: 'Bright Path Health
+
+      Home  |  Jobs  |  About Us
+
+
+      Product Manager, Patient Experience
+
+      Remote (US) · Full-time
+
+
+      Bright Path Health is transforming how patients interact with their care teams, using data-driven insights to improve outcomes across the country.
+
+
+      Application Form
+
+
+      First and Last Name
+
+      Type here...
+
+
+      Email
+
+      hello@example.com...
+
+
+      Tell us about   a project you led from ideation through launch,    including how you identified the problem,     the stakeholders you worked with along the way,   and   the metrics you used to measure success once the product shipped.  Please also mention any pivots you made mid-project and why they were necessary.
+
+
+      Start typing...
+
+
+      Which of the following best describes your current role?
+
+      Individual Contributor
+
+      Team Lead
+
+      Manager
+
+      Director
+
+
+      Which product management tools have you used professionally?
+
+      Jira
+
+      Asana
+
+      Trello
+
+      Notion
+
+      Linear
+
+
+      Portfolio Link
+
+      Type here...
+
+
+      How did you hear about this position?
+
+      Select an option...
+
+
+      We are an equal opportunity employer and value diversity in our workplace.
+
+
+      Submit Application'
+  expected:
+    fields:
+      questions:
+      - label: First and Last Name
+        kind: text
+        required: false
+        options: []
+      - label: Email
+        kind: text
+        required: false
+        options: []
+      - label: Tell us about   a project you led from ideation through launch,    including how you identified the problem,     the stakeholders you worked with along the way,   and   the metrics you used to measure success once the product shipped.  Please also mention any pivots you made mid-project and why they were necessary.
+        kind: long_text
+        required: false
+        options: []
+      - label: Which of the following best describes your current role?
+        kind: single_select
+        required: false
+        options:
+        - Individual Contributor
+        - Team Lead
+        - Manager
+        - Director
+      - label: Which product management tools have you used professionally?
+        kind: multi_select
+        required: false
+        options:
+        - Jira
+        - Asana
+        - Trello
+        - Notion
+        - Linear
+      - label: Portfolio Link
+        kind: text
+        required: false
+        options: []
+      - label: How did you hear about this position?
+        kind: long_text
+        required: false
+        options: []
+  status: edited
+  generated_by: anthropic/claude-sonnet-5
+- id: extremely-long-label-03
+  scenario: extremely-long-label
+  input:
+    page: 'Nimbus Design Studio
+
+      Careers
+
+
+      UX Designer II
+
+      Austin, TX · Hybrid
+
+
+      Nimbus Design Studio partners with startups to craft delightful user experiences that drive measurable business outcomes.
+
+
+      Job Application
+
+
+      Full Name
+
+      Type here...
+
+
+      Email
+
+      hello@example.com...
+
+
+      We want to understand your design philosophy and how it has evolved over time. Please walk us through
+
+      a specific project where you had to balance user needs against business constraints, describing the
+
+      research methods you used, the trade-offs you considered, and how you communicated your final
+
+      recommendation to stakeholders who may not have had a design background.
+
+
+      Start typing...
+
+
+      Are you legally authorized to work in the United States?
+
+      Yes
+
+      No
+
+
+      Do you require visa sponsorship now or in the future?
+
+      Yes
+
+      No
+
+
+      Upload your portfolio (PDF or link)
+
+      Drag and drop here
+
+
+      I agree to the processing of my personal data as described in the Privacy Policy.
+
+
+      This role requires occasional travel to client sites.
+
+
+      Submit Application'
+  expected:
+    fields:
+      questions:
+      - label: Full Name
+        kind: text
+        required: false
+        options: []
+      - label: Email
+        kind: text
+        required: false
+        options: []
+      - label: 'We want to understand your design philosophy and how it has evolved over time. Please walk us through
+
+          a specific project where you had to balance user needs against business constraints, describing the
+
+          research methods you used, the trade-offs you considered, and how you communicated your final
+
+          recommendation to stakeholders who may not have had a design background.'
+        kind: long_text
+        required: false
+        options: []
+      - label: Are you legally authorized to work in the United States?
+        kind: boolean
+        required: false
+        options: []
+      - label: Do you require visa sponsorship now or in the future?
+        kind: boolean
+        required: false
+        options: []
+      - label: Upload your portfolio (PDF or link)
+        kind: file
+        required: false
+        options: []
+      - label: I agree to the processing of my personal data as described in the Privacy Policy.
+        kind: boolean
+        required: false
+        options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5

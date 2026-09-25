@@ -1,0 +1,148 @@
+- id: no-questions-present-01
+  scenario: no-questions-present
+  input:
+    page: |-
+      Home  About Us  Careers  Contact
+
+      Join Our Team at Meridian Analytics
+
+      Meridian Analytics is a fast-growing data intelligence firm headquartered in Austin, Texas, with satellite offices in Denver and Toronto. Founded in 2014, we have grown from a three-person startup to a company of over 400 employees serving Fortune 500 clients across finance, healthcare, and retail sectors.
+
+      Why Work With Us?
+
+      At Meridian, we believe in fostering a culture of innovation, collaboration, and continuous learning. Our benefits package includes comprehensive health insurance, unlimited PTO, a generous 401(k) match, and an annual professional development stipend of $3,000 per employee. We host quarterly hackathons, monthly team outings, and an annual company retreat in various locations around the world.
+
+      Our Values
+
+      Integrity: We do what we say we will do.
+      Curiosity: We never stop asking questions and seeking better solutions.
+      Collaboration: We believe the best ideas come from diverse teams working together.
+      Excellence: We hold ourselves to the highest standards in everything we build.
+
+      Office Locations
+
+      Austin, TX (Headquarters)
+      123 Congress Avenue, Suite 400
+
+      Denver, CO
+      456 Larimer Street, Floor 2
+
+      Toronto, ON
+      789 Bay Street, Suite 1200
+
+      This site uses cookies to enhance your browsing experience. By continuing to browse, you agree to our use of cookies. Learn more in our Privacy Policy.
+
+      Follow us on LinkedIn, Twitter, and Instagram to stay up to date on company news and open roles.
+
+      Footer: © 2024 Meridian Analytics. All rights reserved. Terms of Service | Privacy Policy | Sitemap
+  expected:
+    fields:
+      questions: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: no-questions-present-02
+  scenario: no-questions-present
+  input:
+    page: |-
+      Senior Backend Engineer — Remote (US)
+
+      About the Role
+
+      We are looking for a Senior Backend Engineer to join our platform team. You will design and implement scalable microservices, mentor junior engineers, and collaborate closely with product managers to ship features that delight our customers.
+
+      Responsibilities
+
+      Design, build, and maintain backend services using Go and Python
+      Participate in on-call rotation for production systems
+      Conduct code reviews and provide constructive feedback to teammates
+      Collaborate with the data science team on model deployment pipelines
+      Write technical documentation for new features and architecture decisions
+
+      Requirements
+
+      5+ years of professional software engineering experience
+      Strong proficiency in Go, Python, or similar backend languages
+      Experience with distributed systems and cloud infrastructure (AWS, GCP, or Azure)
+      Excellent communication skills and ability to work cross-functionally
+      BS or MS in Computer Science or equivalent practical experience
+
+      Nice to Have
+
+      Experience with Kubernetes and container orchestration
+      Prior experience in a high-growth startup environment
+      Contributions to open source projects
+
+      Benefits
+
+      Competitive salary and equity package
+      Fully remote work with flexible hours
+      Health, dental, and vision insurance
+      Home office stipend
+
+      About Our Company
+
+      We are a mission-driven organization dedicated to making financial services accessible to everyone. Since our founding in 2018, we have helped over two million customers manage their finances more effectively through our award-winning mobile app.
+
+      Equal Opportunity Employer
+
+      We are an equal opportunity employer and value diversity at our company. We do not discriminate on the basis of race, religion, color, national origin, gender, sexual orientation, age, marital status, veteran status, or disability status.
+
+      Home  Jobs  Blog  Contact Us
+
+      © 2024 FinReach Technologies. All rights reserved.
+  expected:
+    fields:
+      questions: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: no-questions-present-01
+- id: no-questions-present-03
+  scenario: no-questions-present
+  input:
+    page: |-
+      Marketing Coordinator Position
+
+      Sunrise Beverages is seeking a creative and detail-oriented Marketing Coordinator to support our growing brand team. This is an exciting opportunity to work on campaigns for our nationally distributed line of sparkling waters and juices.
+
+      What You'll Do
+
+      Assist in the planning and execution of marketing campaigns across digital and print channels
+      Coordinate with external agencies and vendors on creative assets
+      Manage social media content calendar and community engagement
+      Track campaign performance metrics and prepare monthly reports
+      Support trade show logistics and event coordination
+
+      What We're Looking For
+
+      2+ years of marketing or communications experience
+      Excellent written and verbal communication skills
+      Proficiency with Adobe Creative Suite and social media management tools
+      Strong organizational skills and attention to detail
+      Ability to manage multiple projects simultaneously in a fast-paced environment
+
+      Company Culture
+
+      Sunrise Beverages was founded on the belief that healthy drinks should also taste amazing. Our team is passionate about sustainability, and we source our ingredients from local farms whenever possible. We sponsor community 5K runs and donate a portion of proceeds to clean water initiatives.
+
+      Perks and Benefits
+
+      Free beverages stocked in the office daily
+      Summer Fridays with early office closure
+      Casual dress code
+      Professional development budget
+
+      Note: This job posting will remain active until the position is filled. We review applications on a rolling basis and will contact qualified candidates directly.
+
+      Explore More Opportunities
+
+      View all open positions at Sunrise Beverages by visiting our careers page. Sign up for job alerts to be notified when new roles matching your interests become available.
+
+      Connect with us on social media: Instagram @SunriseBeverages, LinkedIn Sunrise Beverages Inc, Twitter @SunriseBev
+
+      Sunrise Beverages Inc. | 890 Orchard Lane, Portland, OR 97201 | (503) 555-0142
+  expected:
+    fields:
+      questions: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: no-questions-present-01

@@ -1,0 +1,286 @@
+- id: standard-multi-field-form-01
+  scenario: standard-multi-field-form
+  input:
+    page: |-
+      Acme Robotics
+      Careers  |  About Us  |  Contact
+
+      We use cookies to improve your experience. Accept All  Manage Preferences
+
+      Software Engineer, Backend
+      San Francisco, CA · Full-time · Engineering
+
+      About Acme Robotics
+      Acme Robotics builds autonomous warehouse robots that help retailers move goods faster and safer. Our backend team owns the fleet coordination services that keep hundreds of robots in sync.
+
+      What you'll do
+      Design and build distributed systems that coordinate robot fleets in real time. Collaborate with hardware and ML teams to ship new capabilities. Own services from design through production.
+
+      What we're looking for
+      5+ years of backend experience, strong Go or Java skills, and experience with distributed systems.
+
+      Apply for this position
+
+      First Name
+      Type here...
+
+      Last Name
+      Type here...
+
+      Email
+      hello@example.com...
+
+      Phone Number
+      Type here...
+
+      Are you legally authorized to work in the United States?
+      Yes
+      No
+
+      Will you now or in the future require sponsorship for employment visa status?
+      Yes
+      No
+
+      Resume/CV
+      Upload File
+
+      How did you hear about this position?
+      Type here...
+
+      By submitting this application, you agree to our Privacy Policy and Terms of Service.
+  expected:
+    fields:
+      questions:
+        - label: First Name
+          kind: text
+          required: false
+          options: []
+        - label: Last Name
+          kind: text
+          required: false
+          options: []
+        - label: Email
+          kind: text
+          required: false
+          options: []
+        - label: Phone Number
+          kind: text
+          required: false
+          options: []
+        - label: Are you legally authorized to work in the United States?
+          kind: single_select
+          required: false
+          options:
+            - Yes
+            - No
+        - label: Will you now or in the future require sponsorship for employment visa status?
+          kind: single_select
+          required: false
+          options:
+            - Yes
+            - No
+        - label: Resume/CV
+          kind: file
+          required: false
+          options: []
+        - label: How did you hear about this position?
+          kind: text
+          required: false
+          options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: standard-multi-field-form-02
+  scenario: standard-multi-field-form
+  input:
+    page: |-
+      BrightWave Media
+      Home  Jobs  About  Blog
+
+      BrightWave Media is hiring! We're a fast-growing digital marketing agency helping brands tell their stories.
+
+      Marketing Coordinator
+      Austin, TX · Full-time · Marketing
+
+      Role Overview
+      You'll support campaign execution across social, email, and paid channels, working closely with account managers and designers.
+
+      Responsibilities
+      Coordinate content calendars, track campaign performance, and assist with client reporting.
+
+      Qualifications
+      1-2 years of marketing experience, strong writing skills, familiarity with Google Analytics.
+
+      This site uses cookies. By continuing to browse, you accept our cookie policy.
+
+      Application Form
+
+      Full Name
+      Type here...
+
+      Email Address
+      hello@example.com...
+
+      LinkedIn Profile URL
+      Type here...
+
+      Which marketing channels have you worked with?
+      Social Media
+      Email Marketing
+      Paid Search
+      SEO
+      Content Marketing
+
+      Years of Marketing Experience
+      Less than 1 year
+      1-2 years
+      3-5 years
+      5+ years
+
+      Cover Letter
+      Start typing...
+
+      Resume
+      Nenhum arquivo escolhido
+
+      I agree to the processing of my personal data in accordance with the Privacy Policy.
+
+      Submit Application
+  expected:
+    fields:
+      questions:
+        - label: Full Name
+          kind: text
+          required: false
+          options: []
+        - label: Email Address
+          kind: text
+          required: false
+          options: []
+        - label: LinkedIn Profile URL
+          kind: text
+          required: false
+          options: []
+        - label: Which marketing channels have you worked with?
+          kind: multi_select
+          required: false
+          options:
+            - Social Media
+            - Email Marketing
+            - Paid Search
+            - SEO
+            - Content Marketing
+        - label: Years of Marketing Experience
+          kind: single_select
+          required: false
+          options:
+            - Less than 1 year
+            - 1-2 years
+            - 3-5 years
+            - 5+ years
+        - label: Cover Letter
+          kind: long_text
+          required: false
+          options: []
+        - label: Resume
+          kind: file
+          required: false
+          options: []
+        - label: I agree to the processing of my personal data in accordance with the Privacy Policy.
+          kind: boolean
+          required: false
+          options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: standard-multi-field-form-03
+  scenario: standard-multi-field-form
+  input:
+    page: |-
+      Northgate Analytics
+      Careers Portal
+
+      Northgate Analytics turns raw data into decisions for Fortune 500 retailers. Join our growing analytics team.
+
+      Data Analyst II
+      Remote (US) · Full-time · Data & Insights
+
+      Why Northgate
+      We're a remote-first company with team members across 12 states. We value curiosity, rigor, and clear communication.
+
+      What You'll Do
+      Build dashboards, run statistical analyses, and partner with product teams to answer key business questions.
+
+      Requirements
+      3+ years in a data analyst role, proficiency in SQL and Python, experience with Tableau or Looker.
+
+      We respect your privacy. See our Privacy Notice for details on how we handle your data.
+
+      Apply Now
+
+      Full Legal Name
+      Type here...
+
+      Preferred Email
+      hello@example.com...
+
+      Current Location
+      Search for a city...
+
+      Are you authorized to work in the US without sponsorship?
+      Yes
+      No
+
+      Do you have experience with Python?
+      Yes
+      No
+
+      Portfolio or GitHub Link
+      Type here...
+
+      Resume
+      drag and drop here
+
+      Additional Comments
+      Start typing...
+
+      We're excited to review your application!
+  expected:
+    fields:
+      questions:
+        - label: Full Legal Name
+          kind: text
+          required: false
+          options: []
+        - label: Preferred Email
+          kind: text
+          required: false
+          options: []
+        - label: Current Location
+          kind: text
+          required: false
+          options: []
+        - label: Are you authorized to work in the US without sponsorship?
+          kind: single_select
+          required: false
+          options:
+            - Yes
+            - No
+        - label: Do you have experience with Python?
+          kind: single_select
+          required: false
+          options:
+            - Yes
+            - No
+        - label: Portfolio or GitHub Link
+          kind: text
+          required: false
+          options: []
+        - label: Resume
+          kind: file
+          required: false
+          options: []
+        - label: Additional Comments
+          kind: long_text
+          required: false
+          options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5

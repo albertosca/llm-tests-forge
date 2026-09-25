@@ -1,0 +1,118 @@
+- id: select-vs-text-freeform-01
+  scenario: select-vs-text-freeform
+  input:
+    page: |-
+      Nimbus Analytics Careers
+      Home | Jobs | About Us | Contact
+
+      Backend Engineer (Remote)
+      Nimbus Analytics is looking for a Backend Engineer to join our growing platform team. You will design and maintain high-throughput data pipelines and work closely with our infrastructure group.
+
+      We use cookies to improve your experience. Accept | Decline
+
+      Apply Now
+
+      Full Name
+      Type here...
+
+      Email Address
+      hello@example.com...
+
+      How did you hear about us?
+      Select an option
+
+      Years of experience with Python
+      Type here...
+
+      Resume
+      Upload File
+
+      Why do you want to work at Nimbus Analytics?
+      Start typing...
+
+      By submitting this application you agree to our Privacy Policy and Terms of Service.
+
+      Submit Application
+  expected:
+    rubric: Is the classification of the 'How did you hear about us?' question internally consistent, meaning it is either single_select with a non-empty list of verbatim options or text/long_text with an empty options list, rather than an unrelated kind like file or boolean?
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: select-vs-text-freeform-02
+  scenario: select-vs-text-freeform
+  input:
+    page: |-
+      BrightPath Consulting — Join Our Team
+
+      Senior Data Analyst
+      BrightPath Consulting helps mid-market companies make sense of their data. We're hiring a Senior Data Analyst to build dashboards and support executive decision-making.
+
+      Application Form
+
+      First Name
+      Type here...
+
+      Last Name
+      Type here...
+
+      What is your desired salary range?
+      Type your answer or choose from the suggestions below:
+      $60,000 - $80,000
+      $80,000 - $100,000
+      $100,000+
+      Prefer not to say
+
+      Available Start Date
+      Type here...
+
+      Are you legally authorized to work in this country?
+      Yes
+      No
+
+      Cover Letter
+      Start typing...
+
+      Thank you for considering BrightPath Consulting. We review applications on a rolling basis.
+
+      Submit
+  expected:
+    rubric: Does the output either classify 'What is your desired salary range?' as single_select containing exactly the four listed options verbatim (no invented options), or as text/long_text with an empty options list, rather than mixing the two?
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: select-vs-text-freeform-03
+  scenario: select-vs-text-freeform
+  input:
+    page: |-
+      Solstice Manufacturing — Careers Portal
+
+      Production Supervisor (Night Shift)
+      Solstice Manufacturing is expanding its night shift operations and needs an experienced Production Supervisor to lead a team of 15 line workers.
+
+      This site uses cookies. Manage Preferences | Accept All
+
+      Candidate Application
+
+      Full Legal Name
+      Type here...
+
+      Phone Number
+      Type here...
+
+      Preferred work location
+      Start typing to search for a city...
+
+      Years of supervisory experience
+      Type here...
+
+      Are you willing to work night shifts?
+      I agree
+
+      Upload your certification (if applicable)
+      Nenhum arquivo escolhido
+
+      Veterans and individuals with disabilities are encouraged to apply. Solstice Manufacturing is an equal opportunity employer.
+
+      Submit Application
+  expected:
+    rubric: Does the output classify 'Preferred work location' as text with an empty options list (matching the typing-oriented, no-visible-options placeholder), or as single_select only if it also supplies non-empty verbatim options, and mark required as false since no required marker is present?
+  status: approved
+  generated_by: anthropic/claude-sonnet-5

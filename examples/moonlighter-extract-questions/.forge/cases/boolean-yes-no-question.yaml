@@ -1,0 +1,315 @@
+- id: boolean-yes-no-question-01
+  scenario: boolean-yes-no-question
+  input:
+    page: 'TechNova Solutions
+
+      Careers
+
+      Home  About  Jobs  Contact
+
+
+      Senior Backend Engineer
+
+      San Francisco, CA · Full-time
+
+
+      We are looking for a Senior Backend Engineer to join our growing team and help us scale our platform to millions of users. You will work closely with our infrastructure team to design resilient services.
+
+
+      Apply Now
+
+
+      Full Name
+
+      Type here...
+
+
+      Email Address
+
+      hello@example.com...
+
+
+      Phone Number
+
+      Type here...
+
+
+      Resume
+
+      Upload File
+
+
+      Are you legally authorized to work in the United States?
+
+      Yes
+
+      No
+
+
+      Cover Letter
+
+      Start typing...
+
+
+      How did you hear about us?
+
+      Search...
+
+
+      By submitting this application, you agree to our Privacy Policy and Terms of Service.
+
+
+      Submit Application'
+  expected:
+    fields:
+      questions:
+      - label: Full Name
+        kind: text
+        required: false
+        options: []
+      - label: Email Address
+        kind: text
+        required: false
+        options: []
+      - label: Phone Number
+        kind: text
+        required: false
+        options: []
+      - label: Resume
+        kind: file
+        required: false
+        options: []
+      - label: Are you legally authorized to work in the United States?
+        kind: boolean
+        required: false
+        options: []
+      - label: Cover Letter
+        kind: long_text
+        required: false
+        options: []
+      - label: How did you hear about us?
+        kind: long_text
+        required: false
+        options: []
+  status: edited
+  generated_by: anthropic/claude-sonnet-5
+- id: boolean-yes-no-question-02
+  scenario: boolean-yes-no-question
+  input:
+    page: 'BrightPath Analytics
+
+      Now Hiring: Data Scientist
+
+
+      Join our team building cutting edge analytics tools for retail clients across North America.
+
+
+      Home | Careers | Blog
+
+
+      Apply for this position
+
+
+      First Name
+
+      Type here...
+
+
+      Last Name
+
+      Type here...
+
+
+      Email
+
+      hello@example.com...
+
+
+      Are you at least 18 years of age?
+
+      Yes
+
+      No
+
+
+      Do you have a valid driver''s license?
+
+      Yes
+
+      No
+
+
+      Which programming languages are you proficient in?
+
+      Python
+
+      R
+
+      SQL
+
+      Java
+
+
+      Tell us about a data project you''re proud of
+
+      Start typing...
+
+
+      Portfolio Link
+
+      Type here...
+
+
+      We are an equal opportunity employer.
+
+
+      Submit'
+  expected:
+    fields:
+      questions:
+      - label: First Name
+        kind: text
+        required: false
+        options: []
+      - label: Last Name
+        kind: text
+        required: false
+        options: []
+      - label: Email
+        kind: text
+        required: false
+        options: []
+      - label: Are you at least 18 years of age?
+        kind: boolean
+        required: false
+        options: []
+      - label: Do you have a valid driver's license?
+        kind: boolean
+        required: false
+        options: []
+      - label: Which programming languages are you proficient in?
+        kind: multi_select
+        required: false
+        options:
+        - Python
+        - R
+        - SQL
+        - Java
+      - label: Tell us about a data project you're proud of
+        kind: long_text
+        required: false
+        options: []
+      - label: Portfolio Link
+        kind: text
+        required: false
+        options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: boolean-yes-no-question-03
+  scenario: boolean-yes-no-question
+  input:
+    page: 'Riverside Hospitality Group
+
+      Now Hiring: Front Desk Associate
+
+
+      Riverside Hotels is expanding its team across three new locations this year. We pride ourselves on excellent guest service.
+
+
+      Home  Locations  Careers
+
+
+      Apply Today
+
+
+      Full Name
+
+      Type here...
+
+
+      Email Address
+
+      hello@example.com...
+
+
+      Phone
+
+      Type here...
+
+
+      Are you willing to work weekends and holidays?
+
+      Yes
+
+      No
+
+
+      Preferred Shift
+
+      Morning
+
+      Afternoon
+
+      Evening
+
+      Overnight
+
+
+      I agree to receive text messages about my application status
+
+
+      Why do you want to work at Riverside Hotels?
+
+      Start typing...
+
+
+      ID or Passport
+
+      Nenhum arquivo escolhido
+
+
+      Riverside Hospitality Group is an equal opportunity employer.
+
+
+      Submit Application'
+  expected:
+    fields:
+      questions:
+      - label: Full Name
+        kind: text
+        required: false
+        options: []
+      - label: Email Address
+        kind: text
+        required: false
+        options: []
+      - label: Phone
+        kind: text
+        required: false
+        options: []
+      - label: Are you willing to work weekends and holidays?
+        kind: boolean
+        required: false
+        options: []
+      - label: Preferred Shift
+        kind: single_select
+        required: false
+        options:
+        - Morning
+        - Afternoon
+        - Evening
+        - Overnight
+      - label: I agree to receive text messages about my application status
+        kind: boolean
+        required: false
+        options: []
+      - label: Why do you want to work at Riverside Hotels?
+        kind: long_text
+        required: false
+        options: []
+      - label: ID or Passport
+        kind: file
+        required: false
+        options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5

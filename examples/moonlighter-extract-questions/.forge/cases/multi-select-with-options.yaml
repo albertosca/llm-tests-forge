@@ -1,0 +1,197 @@
+- id: multi-select-with-options-01
+  scenario: multi-select-with-options
+  input:
+    page: |-
+      Acme Robotics Careers
+      Home | Jobs | About Us | Contact
+
+      Senior Software Engineer - Remote
+
+      We are looking for a passionate engineer to join our growing team building the next generation of robotics software. You will work closely with our hardware team to deliver world-class solutions.
+
+      Apply Now
+
+      Full Name
+      Type here...
+
+      Email Address
+      hello@example.com
+
+      Which locations are you open to?
+      San Francisco
+      New York
+      Austin
+      Remote (US only)
+      Remote (International)
+
+      Resume
+      Upload File
+
+      How did you hear about this position?
+      Type here...
+
+      By submitting this application you agree to our Privacy Policy and Terms of Service.
+
+      © 2024 Acme Robotics. All rights reserved.
+  expected:
+    fields:
+      questions:
+        - label: Full Name
+          kind: text
+          required: false
+          options: []
+        - label: Email Address
+          kind: text
+          required: false
+          options: []
+        - label: Which locations are you open to?
+          kind: multi_select
+          required: false
+          options:
+            - San Francisco
+            - New York
+            - Austin
+            - Remote (US only)
+            - Remote (International)
+        - label: Resume
+          kind: file
+          required: false
+          options: []
+        - label: How did you hear about this position?
+          kind: text
+          required: false
+          options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: multi-select-with-options-02
+  scenario: multi-select-with-options
+  input:
+    page: |-
+      Bright Path Health — Careers
+      Nurse Practitioner (Full-Time)
+
+      Bright Path Health is expanding our clinical team across multiple states. We are seeking dedicated nurse practitioners to join our mission of accessible healthcare for all.
+
+      Home  Careers  Our Mission  Contact Us
+
+      Start Your Application
+
+      First and Last Name
+      Start typing...
+
+      Which departments are you interested in working in?
+      Pediatrics
+      Cardiology
+      Emergency Medicine
+      Family Practice
+      Oncology
+
+      Tell us why you want to join our team
+      Start typing...
+
+      I agree to receive email communications from Bright Path Health
+      I agree
+
+      We use cookies to enhance your experience. Accept All | Reject All
+
+      © Bright Path Health 2024
+  expected:
+    fields:
+      questions:
+        - label: First and Last Name
+          kind: text
+          required: false
+          options: []
+        - label: Which departments are you interested in working in?
+          kind: multi_select
+          required: false
+          options:
+            - Pediatrics
+            - Cardiology
+            - Emergency Medicine
+            - Family Practice
+            - Oncology
+        - label: Tell us why you want to join our team
+          kind: long_text
+          required: false
+          options: []
+        - label: I agree to receive email communications from Bright Path Health
+          kind: boolean
+          required: false
+          options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: multi-select-with-options-03
+  scenario: multi-select-with-options
+  input:
+    page: |-
+      NovaTech Solutions
+      Frontend Developer — Hybrid (Chicago, IL)
+
+      NovaTech is redefining how teams collaborate on data-driven products. Join us in building tools used by thousands of businesses worldwide.
+
+      About | Careers | Blog | Login
+
+      Application Form
+
+      Full Name
+      Type here...
+
+      Phone Number
+      Type here...
+
+      Which programming languages are you comfortable with?
+      JavaScript
+      TypeScript
+      Python
+      Go
+      Rust
+      Java
+
+      Portfolio Link
+      Type here...
+
+      Upload your resume
+      Nenhum arquivo escolhido
+
+      I agree to the processing of my personal data as described in the Privacy Policy
+      I agree
+
+      This position was posted 3 days ago. 42 applicants so far.
+
+      © 2024 NovaTech Solutions, Inc.
+  expected:
+    fields:
+      questions:
+        - label: Full Name
+          kind: text
+          required: false
+          options: []
+        - label: Phone Number
+          kind: text
+          required: false
+          options: []
+        - label: Which programming languages are you comfortable with?
+          kind: multi_select
+          required: false
+          options:
+            - JavaScript
+            - TypeScript
+            - Python
+            - Go
+            - Rust
+            - Java
+        - label: Portfolio Link
+          kind: text
+          required: false
+          options: []
+        - label: Upload your resume
+          kind: file
+          required: false
+          options: []
+        - label: I agree to the processing of my personal data as described in the Privacy Policy
+          kind: boolean
+          required: false
+          options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
