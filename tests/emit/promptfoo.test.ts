@@ -242,6 +242,71 @@ describe("buildPromptfooConfig", () => {
 			failure('fields differ: type="rejection" (expected "offer")'),
 		);
 	});
+	test("a list field is compared item by item, keyed by label when the items carry one", () => {
+		const questions = [
+			{ label: "Name", kind: "text", options: [] },
+			{ label: "Relocate?", kind: "single_select", options: ["Yes", "No"] },
+			{ label: "Visa?", kind: "single_select", options: ["Yes", "No"] },
+		];
+		const selection: Selection = {
+			scenarios: [sc("f", "edge", "fields")],
+			cases: [cs("f-01", "f", { fields: { questions } })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		const got = [
+			{ label: "Name", kind: "text", options: [] },
+			{ label: "Relocate?", kind: "boolean", options: [] },
+			{ label: "Start date", kind: "text", options: [] },
+		];
+		expect(runAssert(body, JSON.stringify({ questions: got }))).toEqual(
+			failure(
+				'fields differ: questions: "Relocate?" kind="boolean" (expected "single_select"), options=[] (expected ["Yes","No"]); missing "Visa?"; unexpected "Start date"',
+			),
+		);
+		expect(runAssert(body, JSON.stringify({ questions }))).toBe(true);
+	});
+	test("a list without a label-like key is compared by position, and a length difference is named", () => {
+		const selection: Selection = {
+			scenarios: [sc("f", "edge", "fields")],
+			cases: [cs("f-01", "f", { fields: { scores: [1, 2, 3] } })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		expect(runAssert(body, JSON.stringify({ scores: [1, 5] }))).toEqual(
+			failure(
+				"fields differ: scores: 2 items (expected 3); [1]=5 (expected 2)",
+			),
+		);
+	});
+	test("more than five differences are counted rather than listed", () => {
+		const want = Array.from({ length: 8 }, (_, index) => ({
+			label: `q${index}`,
+			kind: "text",
+		}));
+		const got = want.map((item) => ({ ...item, kind: "long_text" }));
+		const selection: Selection = {
+			scenarios: [sc("f", "edge", "fields")],
+			cases: [cs("f-01", "f", { fields: { questions: want } })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		const reason = reasonOf(
+			runAssert(body, JSON.stringify({ questions: got })),
+		);
+		expect(reason).toContain('"q4" kind="long_text" (expected "text")');
+		expect(reason).not.toContain('"q5"');
+		expect(reason).toEndWith("; and 3 more");
+	});
 	test("a label containing a quote cannot break the snippet", () => {
 		const sel: Selection = {
 			scenarios: [sc("q", "edge", "label")],
