@@ -411,6 +411,41 @@ describe("estimateSuite", () => {
 			"tokens are estimated as characters / 4; output size is a guess from output.kind",
 		);
 	});
+	test("a label long enough to beat the guess is still not measured on a json feature: the gate excludes it, not the floor", () => {
+		// guessOutputTokens({ kind: "json", fields: ["a"] }) = 24 + 16*1 = 40.
+		// The previous "not measured" test used a short label ("rejection",
+		// approxTokens 3) that stays below this guess either way, so it could
+		// not tell the kind gate apart from the floor alone: with no gate at
+		// all, chooseOutputSize would still pick the guess over 3. This label
+		// is long enough (approxTokens("x".repeat(400)) = 100) that it would
+		// win as a measured mean if the gate were not there — so this test
+		// only passes because the gate excludes it outright.
+		const jsonFeature: Feature = {
+			...feature,
+			output: { kind: "json", fields: ["a"] },
+		};
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "label")],
+			cases: [caseOf("a-01", "a", "x".repeat(40), { label: "x".repeat(400) })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature: jsonFeature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(1 * 40);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+		);
+	});
 	test("a label mean at or above the label guess wins, using the measured mean", () => {
 		const selection: Selection = {
 			scenarios: [scenarioOf("a", "label")],
