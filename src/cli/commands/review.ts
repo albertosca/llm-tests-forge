@@ -2,6 +2,8 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { ForgeError, UsageError } from "../../core/errors";
 import {
+	type CaseFileFingerprint,
+	caseFileFingerprint,
 	forgePaths,
 	listCaseScenarios,
 	readCases,
@@ -33,11 +35,11 @@ function parseOnlyFlag(raw: string | undefined): string | undefined {
 }
 
 export async function reviewCommand(
-	args: string[],
-	ctx: CliContext,
+	commandArguments: string[],
+	context: CliContext,
 ): Promise<void> {
 	const { values } = parseArgs({
-		args,
+		args: commandArguments,
 		options: {
 			scenario: { type: "string" },
 			only: { type: "string" },
@@ -59,14 +61,14 @@ export async function reviewCommand(
 	// interactive path, where a typo answered "nothing pending" and exited
 	// 0 while `cases`, `dedupe` and `review --all` all named the same bad id
 	// and exited 1.
-	const paths = forgePaths(ctx.forgeDir);
+	const paths = forgePaths(context.forgeDir);
 	// `scenarios` and `feature` below move with the pass: `onDecided`
 	// replaces the entry a decision just produced, so the oracle a later
 	// case is checked against is the one this pass approved, not the one
 	// that was on disk when it started.
-	let scenarios = await readScenarios(ctx.forgeDir);
+	let scenarios = await readScenarios(context.forgeDir);
 	const named = values.scenario
-		? scenarios.find((s) => s.id === values.scenario)
+		? scenarios.find((scenario) => scenario.id === values.scenario)
 		: undefined;
 	if (values.scenario !== undefined && named === undefined)
 		throw new ForgeError(`scenario "${values.scenario}" not found`, {
@@ -81,10 +83,21 @@ export async function reviewCommand(
 
 	const scenarioIds = values.scenario
 		? [values.scenario]
-		: await listCaseScenarios(ctx.forgeDir);
+		: await listCaseScenarios(context.forgeDir);
 	const casesById = new Map<string, Case[]>();
-	for (const id of scenarioIds)
-		casesById.set(id, await readCases(ctx.forgeDir, id));
+	// A snapshot of each cases file's size and modification time, taken at
+	// the same moment its cases are read. The write-back below takes the
+	// same fingerprint again just before it writes a file back, so it can
+	// tell a file exactly as it was read apart from one removed, or
+	// replaced with something else, while this pass was open.
+	const caseFileFingerprints = new Map<string, CaseFileFingerprint | null>();
+	for (const id of scenarioIds) {
+		casesById.set(id, await readCases(context.forgeDir, id));
+		caseFileFingerprints.set(
+			id,
+			await caseFileFingerprint(context.forgeDir, id),
+		);
+	}
 	// `pendingItems` places one entry per id, so a file holding two under
 	// the same one offers the first and passes over the second in silence —
 	// and the write-back deliberately applies a decision to at most one
@@ -94,10 +107,11 @@ export async function reviewCommand(
 	// loud, before either pass, is what nobody was doing.
 	for (const [scenarioId, list] of casesById) {
 		const seen = new Map<string, number>();
-		for (const c of list) seen.set(c.id, (seen.get(c.id) ?? 0) + 1);
+		for (const caseEntry of list)
+			seen.set(caseEntry.id, (seen.get(caseEntry.id) ?? 0) + 1);
 		for (const [caseId, count] of seen)
 			if (count > 1)
-				ctx.stdout(
+				context.stdout(
 					`review: ${join(paths.casesDir, `${scenarioId}.yaml`)} holds ${count} entries under id "${caseId}"; only the first is offered — fix the file`,
 				);
 	}
@@ -107,25 +121,25 @@ export async function reviewCommand(
 	// loud so the "still pending" count reads right.
 	const filesById = new Map<string, string[]>();
 	for (const [scenarioId, list] of casesById)
-		for (const c of new Set(list.map((c) => c.id)))
-			filesById.set(c, [...(filesById.get(c) ?? []), scenarioId]);
+		for (const caseId of new Set(list.map((caseEntry) => caseEntry.id)))
+			filesById.set(caseId, [...(filesById.get(caseId) ?? []), scenarioId]);
 	for (const [caseId, files] of filesById)
 		if (files.length > 1)
-			ctx.stdout(
-				`review: id "${caseId}" is in ${files.map((f) => join(paths.casesDir, `${f}.yaml`)).join(" and ")}; each pass offers the first pending one — give them distinct ids`,
+			context.stdout(
+				`review: id "${caseId}" is in ${files.map((scenarioId) => join(paths.casesDir, `${scenarioId}.yaml`)).join(" and ")}; each pass offers the first pending one — give them distinct ids`,
 			);
 	if (named !== undefined && values.all) {
 		await reviewAllCommand({
 			scenario: named,
 			cases: casesById.get(named.id) ?? [],
-			feature: await readFeature(ctx.forgeDir),
-			forgeDir: ctx.forgeDir,
-			stdout: ctx.stdout,
+			feature: await readFeature(context.forgeDir),
+			forgeDir: context.forgeDir,
+			stdout: context.stdout,
 		});
 		return;
 	}
 
-	let feature = await readFeature(ctx.forgeDir);
+	let feature = await readFeature(context.forgeDir);
 	// The list as it was read off disk. The write-back below matches every
 	// decision against the file by the id the item had on entry, so it
 	// reads from here rather than from the live `scenarios`, which moves
@@ -136,14 +150,18 @@ export async function reviewCommand(
 	const allCases = [...casesById.values()].flat();
 	/** Which file each case was read from; a case's `scenario` should agree. */
 	const fileOf = new Map<Case, string>();
-	for (const [id, list] of casesById) for (const c of list) fileOf.set(c, id);
+	for (const [id, list] of casesById)
+		for (const caseEntry of list) fileOf.set(caseEntry, id);
 
 	const scopedScenarios = values.scenario
-		? scenarios.filter((s) => s.id === values.scenario)
+		? scenarios.filter((scenario) => scenario.id === values.scenario)
 		: scenarios;
 	const pending = pendingItems(feature, scopedScenarios, allCases);
 	const items = only
-		? pending.filter((i) => i.kind === only || `${i.kind}s` === only)
+		? pending.filter(
+				(pendingItem) =>
+					pendingItem.kind === only || `${pendingItem.kind}s` === only,
+			)
 		: pending;
 	// Counted on disk, not from `pendingItems`: that list offers one entry
 	// per id, so a twin id across files was counted once and the second
@@ -151,17 +169,17 @@ export async function reviewCommand(
 	// --only line alike.
 	const pendingOnDisk =
 		(feature.status === "pending" ? 1 : 0) +
-		scopedScenarios.filter((s) => s.status === "pending").length +
-		allCases.filter((c) => c.status === "pending").length;
+		scopedScenarios.filter((scenario) => scenario.status === "pending").length +
+		allCases.filter((caseEntry) => caseEntry.status === "pending").length;
 	if (items.length === 0) {
 		// "nothing pending" has to mean nothing is pending. When --only is
 		// what emptied the list, say so and name how much is still pending
 		// outside the filter, rather than sending someone away.
 		if (only && pending.length > 0)
-			ctx.stdout(
+			context.stdout(
 				`review: nothing pending matching --only ${only}; ${pendingOnDisk} item(s) still pending outside that filter`,
 			);
-		else ctx.stdout("review: nothing pending");
+		else context.stdout("review: nothing pending");
 		return;
 	}
 
@@ -169,12 +187,14 @@ export async function reviewCommand(
 	// used to answer `rubric` and ask the person for a rubric sentence —
 	// the wrong question, against a file nobody can review until it is
 	// fixed.
-	const oracleOf = (c: Case): Oracle => {
-		const scenario = scenarios.find((s) => s.id === c.scenario);
+	const oracleOf = (caseEntry: Case): Oracle => {
+		const scenario = scenarios.find(
+			(candidate) => candidate.id === caseEntry.scenario,
+		);
 		if (scenario === undefined)
 			throw new ForgeError(
-				`case ${c.id} names scenario "${c.scenario}", which is not in scenarios.yaml`,
-				{ file: paths.scenarios, id: c.id },
+				`case ${caseEntry.id} names scenario "${caseEntry.scenario}", which is not in scenarios.yaml`,
+				{ file: paths.scenarios, id: caseEntry.id },
 			);
 		return scenario.oracle;
 	};
@@ -213,18 +233,18 @@ export async function reviewCommand(
 	>();
 	/** Case ids this pass has decided, per file, for `takenIdsFor`. */
 	const decidedIdsIn = new Map<string, Set<string>>();
-	const io = { stdin: ctx.stdin, stdout: ctx.stdout };
+	const io = { stdin: context.stdin, stdout: context.stdout };
 	// Color only for a person at a terminal: a redirected or piped run, and
 	// every test, keeps the plain text it always had.
 	const paint = palette(colorEnabled(process.env, process.stdout.isTTY));
 	const result = await runReviewLoop({
 		items,
-		ask: (q, choices) => askChoice(paint.prompt(q), choices, io),
+		ask: (question, choices) => askChoice(paint.prompt(question), choices, io),
 		openEditor: openInEditor,
 		// The human's expected value answers to the same oracle contract as
 		// the model's, checked with the same function.
-		askExpected: (c, oracle) =>
-			askExpectedFor(c, oracle, io, (expected) =>
+		askExpected: (caseEntry, oracle) =>
+			askExpectedFor(caseEntry, oracle, io, (expected) =>
 				expectedMatchesOracle(expected, oracle, feature),
 			),
 		// Collisions are per file: scenarios share scenarios.yaml, cases share
@@ -234,18 +254,21 @@ export async function reviewCommand(
 		// were both accepted, and the file came back with two entries under
 		// it and a `duplicate_of` pointing at an ambiguous target.
 		takenIdsFor: (item) => {
-			if (item.kind === "scenario") return new Set(scenarios.map((s) => s.id));
+			if (item.kind === "scenario")
+				return new Set(scenarios.map((scenario) => scenario.id));
 			if (item.kind === "case")
 				return new Set([
-					...(casesById.get(item.item.scenario) ?? []).map((c) => c.id),
+					...(casesById.get(item.item.scenario) ?? []).map(
+						(caseEntry) => caseEntry.id,
+					),
 					...(decidedIdsIn.get(item.item.scenario) ?? []),
 				]);
 			return new Set();
 		},
-		checkExpected: (c, oracle) =>
-			c.expected === undefined
+		checkExpected: (caseEntry, oracle) =>
+			caseEntry.expected === undefined
 				? null
-				: expectedMatchesOracle(c.expected, oracle, feature),
+				: expectedMatchesOracle(caseEntry.expected, oracle, feature),
 		oracleOf,
 		onDecided: (item, originalId) => {
 			if (item.kind === "feature") {
@@ -262,32 +285,40 @@ export async function reviewCommand(
 			// Read before the replacement below overwrites it: the old
 			// oracle is what says which of its cases this decision
 			// invalidates, and it exists nowhere else once the pass moves on.
-			const before = scenarios.find((s) => s.id === originalId);
+			const before = scenarios.find((scenario) => scenario.id === originalId);
 			if (before !== undefined && before.oracle !== decided.oracle)
 				oracleChanges.set(originalId, {
 					id: decided.id,
 					from: before.oracle,
 					to: decided.oracle,
 				});
-			scenarios = scenarios.map((s) => (s.id === originalId ? decided : s));
+			scenarios = scenarios.map((scenario) =>
+				scenario.id === originalId ? decided : scenario,
+			);
 		},
 		print: (line) =>
-			ctx.stdout(line.startsWith("cannot apply:") ? paint.error(line) : line),
+			context.stdout(
+				line.startsWith("cannot apply:") ? paint.error(line) : line,
+			),
 		render: (item) => renderItem(item, paint),
 	});
 
-	const decidedFeature = result.decisions.find((d) => d.kind === "feature");
-	if (decidedFeature) await writeFeature(ctx.forgeDir, decidedFeature.item);
+	const decidedFeature = result.decisions.find(
+		(decision) => decision.kind === "feature",
+	);
+	if (decidedFeature) await writeFeature(context.forgeDir, decidedFeature.item);
 
 	const decidedScenarios = new Map(
 		result.decisions
-			.filter((d) => d.kind === "scenario")
-			.map((d) => [d.originalId, d.item] as const),
+			.filter((decision) => decision.kind === "scenario")
+			.map((decision) => [decision.originalId, decision.item] as const),
 	);
 	if (decidedScenarios.size > 0)
 		await writeScenarios(
-			ctx.forgeDir,
-			scenariosAsRead.map((s) => takeOnce(decidedScenarios, s.id) ?? s),
+			context.forgeDir,
+			scenariosAsRead.map(
+				(scenario) => takeOnce(decidedScenarios, scenario.id) ?? scenario,
+			),
 		);
 
 	/**
@@ -301,15 +332,24 @@ export async function reviewCommand(
 	const decidedCasesIn = (id: string): Map<string, Case> =>
 		new Map(
 			result.decisions
-				.filter((d) => d.kind === "case")
-				.filter((d) => d.item.scenario === id)
-				.map((d) => [d.originalId, d.item] as const),
+				.filter((decision) => decision.kind === "case")
+				.filter((decision) => decision.item.scenario === id)
+				.map((decision) => [decision.originalId, decision.item] as const),
 		);
 	let totalReopened = 0;
+	// Decisions belonging to a file the write-back below refused to touch:
+	// counted so the summary can say how many of "N approved" and the rest
+	// never actually reached disk, instead of reporting them as landed.
+	let totalDecisionsNotWritten = 0;
 	for (const [id, list] of casesById) {
 		const oracleChange = oracleChanges.get(id);
 		const decidedCases = decidedCasesIn(id);
-		if (decidedCases.size === 0 && oracleChange === undefined) continue;
+		// Read before `applyReviewDecisions` below drains `decidedCases` via
+		// `takeOnce`: by the time the write-back guard needs this count, the
+		// map it would read is already empty, regardless of how many
+		// decisions this file actually had.
+		const decidedCaseCount = decidedCases.size;
+		if (decidedCaseCount === 0 && oracleChange === undefined) continue;
 		// An oracle change against a file holding nothing re-opens nothing
 		// and writes nothing; the pass below reports it, together with the
 		// scenarios that have no file at all, so one change is announced
@@ -322,7 +362,7 @@ export async function reviewCommand(
 			feature,
 		});
 		if (oracleChange !== undefined) {
-			ctx.stdout(
+			context.stdout(
 				// What to do next, not just what happened: a re-opened case keeps
 				// the expected it was approved with, which the new oracle no
 				// longer accepts, so approving it again is refused until it is
@@ -334,18 +374,32 @@ export async function reviewCommand(
 			totalReopened += reopened;
 		}
 		if (touched) {
-			// The file this pass is about to overwrite may have been removed
-			// while a person was answering it — by hand, or by another
-			// process. Checked once, after the loop, against the id the file
-			// was named for: writing `next` back over a file that is gone
-			// would recreate it holding only the decisions from this pass,
-			// silently discarding whatever removed it for.
-			const stillOnDisk = (await listCaseScenarios(ctx.forgeDir)).includes(id);
-			if (stillOnDisk) await writeCases(ctx.forgeDir, id, next);
-			else
-				ctx.stdout(
+			// The file this pass is about to overwrite may have been removed,
+			// or replaced with something else entirely, while a person was
+			// answering it — by hand, or by another process. Compared against
+			// the fingerprint taken when this pass read the file, not just
+			// checked for existence: a file removed and then recreated with
+			// different content is back by the time this runs, and existence
+			// alone would miss that it is not the file this pass read.
+			const before = caseFileFingerprints.get(id) ?? null;
+			const after = await caseFileFingerprint(context.forgeDir, id);
+			if (after === null) {
+				context.stdout(
 					`review: cases/${id}.yaml was removed during the pass; its decisions were not written`,
 				);
+				totalDecisionsNotWritten += decidedCaseCount;
+			} else if (
+				before === null ||
+				before.modifiedAtInMilliseconds !== after.modifiedAtInMilliseconds ||
+				before.sizeInBytes !== after.sizeInBytes
+			) {
+				context.stdout(
+					`review: cases/${id}.yaml changed on disk during the pass; its decisions were not written`,
+				);
+				totalDecisionsNotWritten += decidedCaseCount;
+			} else {
+				await writeCases(context.forgeDir, id, next);
+			}
 		}
 	}
 	// The pass above walks the cases files, so a scenario whose oracle this
@@ -355,11 +409,11 @@ export async function reviewCommand(
 	// to re-open; the line exists so the change is on the record.
 	for (const [id, change] of oracleChanges) {
 		if ((casesById.get(id) ?? []).length > 0) continue;
-		ctx.stdout(
+		context.stdout(
 			`review: scenario ${change.id} changed oracle ${change.from} → ${change.to}; no cases yet`,
 		);
 	}
-	const s = result.summary;
+	const summary = result.summary;
 	// `skipped` counts the items a person answered "skip" to; it is not the
 	// same set as "still pending", which also holds everything --only
 	// filtered out of this pass. Every decision leaves its item approved,
@@ -368,7 +422,15 @@ export async function reviewCommand(
 	// re-opened, which are pending now whether or not they were on entry,
 	// and which the line reports on their own so the total adds up.
 	const stillPending = pendingOnDisk - result.decisions.length + totalReopened;
-	ctx.stdout(
-		`review: ${s.approved} approved, ${s.rejected} rejected, ${s.edited} edited, ${s.skipped} skipped, ${totalReopened} re-opened, ${stillPending} still pending`,
+	// The counts above stay exactly what the loop decided, even for a
+	// decision the write-back above refused: "2 approved" is true of the
+	// pass regardless of whether both landed. This clause is what says some
+	// of them did not reach disk, without pretending they were never taken.
+	const notWrittenSuffix =
+		totalDecisionsNotWritten > 0
+			? `; ${totalDecisionsNotWritten} decision(s) not written`
+			: "";
+	context.stdout(
+		`review: ${summary.approved} approved, ${summary.rejected} rejected, ${summary.edited} edited, ${summary.skipped} skipped, ${totalReopened} re-opened, ${stillPending} still pending${notWrittenSuffix}`,
 	);
 }

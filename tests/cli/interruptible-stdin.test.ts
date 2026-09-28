@@ -42,7 +42,7 @@ describe("createInterruptibleReader", () => {
 		expect(exits).toEqual([]);
 	});
 
-	test("an interrupt with no read pending exits 130 at once: a model call or a write is not waiting on the person", () => {
+	test("an interrupt before any read exits 130: cases and emit never call read, so there is no pass to end", () => {
 		const exits: number[] = [];
 		const reader = createInterruptibleReader({
 			readLine: pendingLines().readLine,
@@ -51,6 +51,30 @@ describe("createInterruptibleReader", () => {
 		});
 		reader.interrupt();
 		expect(exits).toEqual([130]);
+	});
+
+	test("an interrupt after a completed read, with none pending (the editor case), ends the input: no exit, the line printed once, the next read answers empty", async () => {
+		const source = pendingLines();
+		const printed: string[] = [];
+		const exits: number[] = [];
+		const reader = createInterruptibleReader({
+			readLine: source.readLine,
+			stdout: (line) => printed.push(line),
+			exit: (code) => exits.push(code),
+		});
+		const answer = reader.read();
+		source.answer("edit");
+		expect(await answer).toBe("edit");
+		// The person is now inside $EDITOR: read() already resolved, and
+		// nothing has called it again yet -- exactly the gap where the old
+		// rule saw no pending read and exited, throwing away the "edit"
+		// decision above along with everything already approved this pass.
+		reader.interrupt();
+		expect(printed).toEqual([
+			"interrupted: no more answers; the decisions already taken are written",
+		]);
+		expect(exits).toEqual([]);
+		expect(await reader.read()).toBe("");
 	});
 
 	test("a second interrupt exits 130 even after the first ended the input", async () => {
