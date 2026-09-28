@@ -6,6 +6,7 @@ import {
 	readdir,
 	readFile,
 	stat,
+	unlink,
 	utimes,
 	writeFile,
 } from "node:fs/promises";
@@ -1324,6 +1325,59 @@ describe("review: a decision applies to at most one entry (regression)", () => {
 		);
 		expect(raw).not.toContain("*");
 		expect(raw).not.toContain("&");
+	});
+});
+
+describe("review: a write-back never recreates a cases file removed during the pass", () => {
+	test("the file is deleted before answering approve: the decision is not written back, and the removal is reported", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDir = join(cwd, ".forge");
+		let { ctx } = await ctxIn(cwd);
+		expect(await run(["describe", "text"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd));
+		expect(await run(["scenarios"], ctx)).toBe(0);
+		({ ctx } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review", "--only", "scenarios"], ctx)).toBe(0);
+
+		await writeCases(forgeDir, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		const casesPath = join(forgeDir, "cases", "polite-rejection.yaml");
+		// `ctxIn` scripts stdin from a fixed queue of lines; here the answer
+		// itself has to remove the file first, so the context is built by
+		// hand with a `stdin` that does both.
+		const out: string[] = [];
+		const removingContext = createContext({
+			cwd,
+			model: MODEL,
+			stdin: async () => {
+				await unlink(casesPath);
+				return "approve";
+			},
+		});
+		removingContext.stdout = (line) => out.push(line);
+
+		expect(
+			await run(
+				["review", "--scenario", "polite-rejection", "--only", "cases"],
+				removingContext,
+			),
+		).toBe(0);
+
+		expect(out).toContain(
+			"review: cases/polite-rejection.yaml was removed during the pass; its decisions were not written",
+		);
+		await expect(stat(casesPath)).rejects.toThrow();
 	});
 });
 

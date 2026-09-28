@@ -333,7 +333,20 @@ export async function reviewCommand(
 			);
 			totalReopened += reopened;
 		}
-		if (touched) await writeCases(ctx.forgeDir, id, next);
+		if (touched) {
+			// The file this pass is about to overwrite may have been removed
+			// while a person was answering it — by hand, or by another
+			// process. Checked once, after the loop, against the id the file
+			// was named for: writing `next` back over a file that is gone
+			// would recreate it holding only the decisions from this pass,
+			// silently discarding whatever removed it for.
+			const stillOnDisk = (await listCaseScenarios(ctx.forgeDir)).includes(id);
+			if (stillOnDisk) await writeCases(ctx.forgeDir, id, next);
+			else
+				ctx.stdout(
+					`review: cases/${id}.yaml was removed during the pass; its decisions were not written`,
+				);
+		}
 	}
 	// The pass above walks the cases files, so a scenario whose oracle this
 	// pass changed before `cases` ever ran for it said nothing at all — and
