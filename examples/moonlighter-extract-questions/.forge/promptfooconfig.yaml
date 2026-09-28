@@ -108,8 +108,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -218,8 +221,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -324,8 +330,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -413,8 +422,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -499,8 +511,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -592,8 +607,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -683,8 +701,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -787,8 +808,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -885,8 +909,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -974,8 +1001,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -1074,8 +1104,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -1171,8 +1204,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -1265,8 +1301,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -1364,8 +1403,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -1461,8 +1503,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -1575,8 +1620,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -1680,8 +1728,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -1791,8 +1842,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -2152,8 +2206,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -2239,8 +2296,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -2335,8 +2395,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -2442,8 +2505,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -2550,8 +2616,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -2668,8 +2737,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -2913,8 +2985,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -3013,8 +3088,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -3120,8 +3198,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -3230,8 +3311,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -3340,8 +3424,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -3444,8 +3531,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -3550,8 +3640,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -3660,8 +3753,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
@@ -3764,8 +3860,11 @@ tests:
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
-            if (Array.isArray(obj[field]) && Array.isArray(want[field])) compareItems(field, obj[field], want[field]);
-            else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
           }
           if (differences.length === 0) return true;
           return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
