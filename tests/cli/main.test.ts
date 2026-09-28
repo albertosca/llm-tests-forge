@@ -3583,11 +3583,12 @@ describe("report", () => {
 		// forgeMatchingFixture selects (out-of-scope-newsletter-02, whose
 		// rubric text is the single character "r", 1 token): perJudgeCalls
 		// is 1 target model * repeat 2 = 2; input tokens per call are the
-		// measured output size (the suite's one non-rubric expected value,
-		// "acknowledgement", 15 characters -> approxTokens 4) + the rubric
-		// (1) + JUDGE_PROMPT_OVERHEAD (200) = 205, so 410 total; output
-		// tokens are 2 calls * JUDGE_OUTPUT_TOKENS (174) = 348.
-		expect(judge.estimatedDollars).toBe((410 * 1.5 + 348 * 9) / 1_000_000);
+		// label output guess (8) + the rubric (1) + JUDGE_PROMPT_OVERHEAD
+		// (200) = 209, so 418 total; output tokens are 2 calls *
+		// JUDGE_OUTPUT_TOKENS (174) = 348. The suite's one non-rubric case's
+		// label ("acknowledgement", approxTokens 4) is below the label guess
+		// (8), so the guess wins.
+		expect(judge.estimatedDollars).toBe((418 * 1.5 + 348 * 9) / 1_000_000);
 	});
 
 	test("--baseline reads a previous report.json and reports what changed", async () => {

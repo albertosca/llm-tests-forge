@@ -88,27 +88,42 @@ describe("measuredOutputTokens", () => {
 			// JSON.stringify({ a: "x".repeat(72) }) is 80 characters -> approxTokens 20.
 			caseOf("a-02", "a", "irrelevant", { fields: { a: "x".repeat(72) } }),
 		];
-		expect(measuredOutputTokens(cases)).toBe(15);
+		// A fields expected value always counts, whatever the feature's own
+		// output kind is: this is the raw mean, before it is floored at the
+		// kind-based guess (estimateSuite does that, not this function).
+		expect(measuredOutputTokens(cases, feature)).toBe(15);
 	});
-	test("a label case measures the label text alone", () => {
+	test("a label case measures the label text alone when the feature's own output is itself a label", () => {
 		const cases = [caseOf("a-01", "a", "irrelevant", { label: "rejection" })];
-		expect(measuredOutputTokens(cases)).toBe(3);
+		expect(measuredOutputTokens(cases, feature)).toBe(3);
+	});
+	test("a label case on a json feature is not measured: the label names one field, not the whole answer", () => {
+		const jsonFeature: Feature = {
+			...feature,
+			output: { kind: "json", fields: ["a"] },
+		};
+		const cases = [caseOf("a-01", "a", "irrelevant", { label: "rejection" })];
+		expect(measuredOutputTokens(cases, jsonFeature)).toBeNull();
 	});
 	test("a rubric expected value is not output, so it never contributes a size", () => {
 		const cases = [
 			caseOf("r-01", "r", "irrelevant", { rubric: "z".repeat(80) }),
 		];
-		expect(measuredOutputTokens(cases)).toBeNull();
+		expect(measuredOutputTokens(cases, feature)).toBeNull();
+	});
+	test("a case with no expected value yet is not measured", () => {
+		const cases = [caseOf("a-01", "a", "irrelevant", undefined)];
+		expect(measuredOutputTokens(cases, feature)).toBeNull();
 	});
 	test("no cases at all: null", () => {
-		expect(measuredOutputTokens([])).toBeNull();
+		expect(measuredOutputTokens([], feature)).toBeNull();
 	});
 	test("a mix of a rubric case and a label case measures only the label case", () => {
 		const cases = [
 			caseOf("r-01", "r", "irrelevant", { rubric: "z".repeat(80) }),
 			caseOf("a-01", "a", "irrelevant", { label: "rejection" }),
 		];
-		expect(measuredOutputTokens(cases)).toBe(3);
+		expect(measuredOutputTokens(cases, feature)).toBe(3);
 	});
 });
 
@@ -137,24 +152,25 @@ describe("estimateSuite", () => {
 		expect(estimate.cases).toBe(2);
 		expect(estimate.rubricCases).toBe(0);
 		// Both cases carry the label "rejection" (9 characters, approxTokens 3),
-		// so the measured output size (3) replaces the label guess (8).
+		// but the measured mean (3) is below the label guess (8), so the guess
+		// wins and this behaves exactly as it did with no measuring at all.
 		expect(estimate.lines).toEqual([
 			{
 				model: "anthropic/claude-haiku-4-5",
 				role: "target",
 				calls: 4,
 				inputTokens: (100 + 10) * 2,
-				outputTokens: 4 * 3,
-				dollars: (220 * 1 + 12 * 5) / 1_000_000,
+				outputTokens: 4 * 8,
+				dollars: (220 * 1 + 32 * 5) / 1_000_000,
 				pricedAs: "anthropic/claude-haiku-4-5",
 				approximate: false,
 				priced: true,
 			},
 		]);
-		expect(estimate.totalDollars).toBe((220 * 1 + 12 * 5) / 1_000_000);
+		expect(estimate.totalDollars).toBe((220 * 1 + 32 * 5) / 1_000_000);
 		expect(estimate.pricesUpdated).toBe("2026-09-15");
 		expect(estimate.notes).toEqual([
-			"tokens are estimated as characters / 4; output size is the mean of 2 reviewed expected values",
+			"tokens are estimated as characters / 4; output size is a guess from output.kind",
 			"application prompt not counted: set feature.prompt_file to include it",
 		]);
 	});
@@ -177,10 +193,10 @@ describe("estimateSuite", () => {
 			promptTokens: 500,
 		});
 		expect(estimate.lines[0]?.inputTokens).toBe(510);
-		// The one case carries a label expected value, so the note names the
-		// measured size instead of the guess.
+		// The one case's label ("rejection", approxTokens 3) is below the label
+		// guess (8), so the guess wins and the note says a guess.
 		expect(estimate.notes).toEqual([
-			"tokens are estimated as characters / 4; output size is the mean of 1 reviewed expected value",
+			"tokens are estimated as characters / 4; output size is a guess from output.kind",
 		]);
 	});
 	test("judges are charged only for rubric cases, once per judge per target model per repeat", () => {
@@ -206,9 +222,9 @@ describe("estimateSuite", () => {
 		});
 		expect(estimate.rubricCases).toBe(1);
 		const judge = estimate.lines.find((line) => line.role === "judge");
-		// The only non-rubric case carries label "rejection" (approxTokens 3),
-		// so the measured output size (3) replaces the label guess (8) here too.
-		const perCall = 3 + 20 + JUDGE_PROMPT_OVERHEAD;
+		// The only non-rubric case's label ("rejection", approxTokens 3) is
+		// below the label guess (8), so the guess wins here too.
+		const perCall = 8 + 20 + JUDGE_PROMPT_OVERHEAD;
 		expect(judge).toEqual({
 			model: "google/gemini-3.5-flash",
 			role: "judge",
@@ -302,16 +318,51 @@ describe("estimateSuite", () => {
 		expect(estimate.totalDollars).toBe(0);
 		expect(estimate.lines[0]?.calls).toBe(0);
 	});
-	test("fields cases with a measurable expected value: output size is the mean, and the note says so", () => {
-		const fieldsFeature: Feature = {
+	test("a fields mean below the guess yields the guess, and the note says a guess", () => {
+		// guessOutputTokens({ kind: "json", fields: ["a"] }) = 24 + 16*1 = 40.
+		const jsonFeature: Feature = {
 			...feature,
 			output: { kind: "json", fields: ["a"] },
 		};
 		const selection: Selection = {
 			scenarios: [scenarioOf("a", "fields")],
 			cases: [
+				// JSON.stringify({ a: "x".repeat(32) }) is 40 chars -> approxTokens 10.
 				caseOf("a-01", "a", "x".repeat(40), { fields: { a: "x".repeat(32) } }),
+				// JSON.stringify({ a: "x".repeat(72) }) is 80 chars -> approxTokens 20.
 				caseOf("a-02", "a", "y".repeat(40), { fields: { a: "x".repeat(72) } }),
+			], // mean 15, below the guess of 40
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature: jsonFeature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(2 * 40);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+		);
+	});
+	test("a fields mean at or above the guess wins, and the note names the reviewed count", () => {
+		// guessOutputTokens({ kind: "json", fields: ["a"] }) = 24 + 16*1 = 40.
+		const jsonFeature: Feature = {
+			...feature,
+			output: { kind: "json", fields: ["a"] },
+		};
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "fields")],
+			// JSON.stringify({ a: "x".repeat(200) }) is 208 chars -> approxTokens
+			// 52, above the guess of 40.
+			cases: [
+				caseOf("a-01", "a", "x".repeat(40), { fields: { a: "x".repeat(200) } }),
 			],
 			blockers: [],
 			reviewable: 0,
@@ -323,13 +374,65 @@ describe("estimateSuite", () => {
 				1,
 			),
 			selection,
-			feature: fieldsFeature,
+			feature: jsonFeature,
 			prices,
 			promptTokens: 0,
 		});
-		expect(estimate.lines[0]?.outputTokens).toBe(2 * 15);
+		expect(estimate.lines[0]?.outputTokens).toBe(1 * 52);
 		expect(estimate.notes).toContain(
-			"tokens are estimated as characters / 4; output size is the mean of 2 reviewed expected values",
+			"tokens are estimated as characters / 4; output size is the mean of 1 reviewed expected value",
+		);
+	});
+	test("a label expected on a json feature is not measured, so it falls back to the guess", () => {
+		// guessOutputTokens({ kind: "json", fields: ["a"] }) = 24 + 16*1 = 40.
+		const jsonFeature: Feature = {
+			...feature,
+			output: { kind: "json", fields: ["a"] },
+		};
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "label")],
+			cases: [caseOf("a-01", "a", "x".repeat(40), { label: "rejection" })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature: jsonFeature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(1 * 40);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+		);
+	});
+	test("a label mean at or above the label guess wins, using the measured mean", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "label")],
+			// approxTokens("x".repeat(40)) = 10, at or above the label guess of 8.
+			cases: [caseOf("a-01", "a", "x".repeat(40), { label: "x".repeat(40) })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(1 * 10);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is the mean of 1 reviewed expected value",
 		);
 	});
 	test("rubric-only cases: no measurable expected value, so output size falls back to the kind-based guess", () => {

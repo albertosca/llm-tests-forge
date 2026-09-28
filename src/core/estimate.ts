@@ -65,32 +65,96 @@ export function guessOutputTokens(output: Feature["output"]): number {
 }
 
 /**
- * The size a single case's expected value would carry as output, or `null`
- * for a `rubric` expected value (it grades the target's answer, it is not
- * an answer itself) or a case with no `expected` yet.
+ * The size a single case's expected value would carry as output when it
+ * stands for the whole answer the target wrote, or `null` when it does
+ * not: a `rubric` expected value grades the target's answer rather than
+ * being one, a case with no `expected` yet has nothing to measure, and a
+ * `label` expected value only stands for the whole output when the
+ * feature's own output is itself a bare label — checked against a `json`
+ * or `text` output, "rejection" names one field of a larger answer, not
+ * the whole thing, so it is left unmeasured rather than undercounting it.
  */
-function measuredOutputSize(expected: Case["expected"]): number | null {
+function measuredOutputSize(
+	expected: Case["expected"],
+	outputKind: Feature["output"]["kind"],
+): number | null {
 	if (expected === undefined) return null;
 	if (expected.fields !== undefined)
 		return approxTokens(JSON.stringify(expected.fields));
-	if (expected.label !== undefined) return approxTokens(expected.label);
+	if (expected.label !== undefined && outputKind === "label")
+		return approxTokens(expected.label);
 	return null;
+}
+
+interface MeasuredOutputSizes {
+	mean: number;
+	count: number;
+}
+
+/**
+ * One pass over `cases`: the count and the mean (rounded up) of every
+ * measurable expected value's size, together — `estimateSuite` needs both
+ * the count (for its note) and the mean (for the output size), and reading
+ * them from two separate traversals would run `measuredOutputSize` over
+ * every case twice for no reason.
+ */
+function measureOutputSizes(
+	cases: Case[],
+	feature: Feature,
+): MeasuredOutputSizes | null {
+	let total = 0;
+	let count = 0;
+	for (const testCase of cases) {
+		const size = measuredOutputSize(testCase.expected, feature.output.kind);
+		if (size === null) continue;
+		total += size;
+		count += 1;
+	}
+	return count === 0 ? null : { mean: Math.ceil(total / count), count };
 }
 
 /**
  * The mean output size actually written into the reviewed cases' expected
- * values — a `fields` case as promptfoo would serialise it back
- * (`JSON.stringify`), a `label` case as the label text itself — rounded up.
- * `null` when no selected case has a measurable expected value at all
- * (every case is rubric-only, or none carries an `expected` yet), which
- * tells the caller to fall back to the kind-based guess.
+ * values that stand for the whole output — a `fields` case as promptfoo
+ * would serialise it back (`JSON.stringify`), a `label` case as the label
+ * text itself but only when `feature.output.kind` is itself `"label"` —
+ * rounded up. `null` when no selected case has one (every case is
+ * rubric-only, every label is checked against a richer output shape, or
+ * none carries an `expected` yet), which tells the caller to fall back to
+ * the kind-based guess. This never compares its own result against that
+ * guess — the caller floors it there, since a `fields` expected value may
+ * name only some of the output's fields and must not undercut the guess.
  */
-export function measuredOutputTokens(cases: Case[]): number | null {
-	const sizes = cases
-		.map((testCase) => measuredOutputSize(testCase.expected))
-		.filter((size): size is number => size !== null);
-	if (sizes.length === 0) return null;
-	return Math.ceil(sizes.reduce((sum, size) => sum + size, 0) / sizes.length);
+export function measuredOutputTokens(
+	cases: Case[],
+	feature: Feature,
+): number | null {
+	return measureOutputSizes(cases, feature)?.mean ?? null;
+}
+
+interface ChosenOutputSize {
+	outputSize: number;
+	/** How many reviewed expected values fed the mean; `0` when the guess won. */
+	reviewedExpectedValueCount: number;
+}
+
+/**
+ * The size to charge a single call's output tokens at: the measured mean
+ * when the reviewed cases have one and it is at least the kind-based
+ * guess, the guess otherwise. A low `fields` mean must never pull the
+ * estimate under what the output's own shape already costs, because a
+ * `fields` expected value can name only some of the output's fields.
+ */
+function chooseOutputSize(
+	measured: MeasuredOutputSizes | null,
+	guessedOutputSize: number,
+): ChosenOutputSize {
+	if (measured !== null && measured.mean >= guessedOutputSize)
+		return {
+			outputSize: measured.mean,
+			reviewedExpectedValueCount: measured.count,
+		};
+	return { outputSize: guessedOutputSize, reviewedExpectedValueCount: 0 };
 }
 
 function dollars(
@@ -109,11 +173,10 @@ export function estimateSuite(parameters: {
 	promptTokens: number;
 }): Estimate {
 	const { suite, selection, feature, prices, promptTokens } = parameters;
-	const measuredOutput = measuredOutputTokens(selection.cases);
-	const outputSize = measuredOutput ?? guessOutputTokens(feature.output);
-	const reviewedExpectedValueCount = selection.cases.filter(
-		(testCase) => measuredOutputSize(testCase.expected) !== null,
-	).length;
+	const { outputSize, reviewedExpectedValueCount } = chooseOutputSize(
+		measureOutputSizes(selection.cases, feature),
+		guessOutputTokens(feature.output),
+	);
 	const scenarioOracleById = new Map(
 		selection.scenarios.map((scenario) => [scenario.id, scenario.oracle]),
 	);
@@ -171,7 +234,7 @@ export function estimateSuite(parameters: {
 		});
 	}
 	const outputSizeNote =
-		measuredOutput !== null
+		reviewedExpectedValueCount > 0
 			? `output size is the mean of ${plural(reviewedExpectedValueCount, "reviewed expected value")}`
 			: "output size is a guess from output.kind";
 	const notes = [`tokens are estimated as characters / 4; ${outputSizeNote}`];

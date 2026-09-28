@@ -65,10 +65,10 @@ The one expected value worth arguing about is `empty-subject-and-minimal-body-03
 
     $ bun ../../src/cli/bin.ts estimate
     estimate: 24 cases, 3 with a rubric; prices dated 2026-09-16
-      target  anthropic/claude-haiku-4-5           48 calls   23036 in     144 out  $0.023756
-      judge   anthropic/claude-sonnet-5             6 calls    1482 in    1044 out  $0.013404
-      total                                                                         $0.037160
-    note: tokens are estimated as characters / 4; output size is the mean of 21 reviewed expected values
+      target  anthropic/claude-haiku-4-5           48 calls   23036 in    5760 out  $0.051836
+      judge   anthropic/claude-sonnet-5             6 calls    2184 in    1044 out  $0.014808
+      total                                                                         $0.066644
+    note: tokens are estimated as characters / 4; output size is a guess from output.kind
 
 ## The run
 
@@ -84,7 +84,7 @@ which renders as:
 
 Every scenario ran 6 times (3 cases × `repeat: 2`). Seven of the eight passed 6 times; `empty-subject-and-minimal-body` comes out 4 passed, 2 failed, 0 errored, and both failures are the same case, `empty-subject-and-minimal-body-03`, which `report.md` lists under **Failing or errored cases**. **Flaky cases** is empty this time, which is itself a result and not an improvement: the previous run had `-02` there, and the only thing that changed between the two is which answer the model happened to pick. Both are described below.
 
-The cost table is real on both rows for the first time. The target billed $0.046218 on 23588 in / 4526 out against an estimate of $0.051836 — 10.8% low, because `estimate` counts characters ÷ 4 and Haiku's tokeniser packs these emails slightly tighter. The judge billed $0.011270 against $0.014808 — 23.9% high, and that gap is the calibration working in the other direction: `JUDGE_OUTPUT_TOKENS` was set to 174 from the previous run, where three of the six `llm-rubric` calls rejected and wrote long explanations; here only two did, the six calls came to 666 output tokens instead of 1042, and the same constant now overshoots. The size of that error tracks how many rubric cases fail, which nothing can know before the run — a per-judge constant gets the order of magnitude right and no more.
+The cost table is real on both rows for the first time. The target billed $0.046218 on 23588 in / 4526 out against an estimate of $0.051836 — 10.8% low, because `estimate` counts characters ÷ 4 and Haiku's tokeniser packs these emails slightly tighter. The judge billed $0.011270 against $0.014808 — 23.9% low, and that gap comes from the other side of the estimate: `JUDGE_OUTPUT_TOKENS` was set to 174 from the previous run, where three of the six `llm-rubric` calls rejected and wrote long explanations; here only two did, the six calls came to 666 output tokens instead of 1042, and the same constant now overshoots the real output. The size of that error tracks how many rubric cases fail, which nothing can know before the run — a per-judge constant gets the order of magnitude right and no more.
 
 Two kinds of noise on stderr are expected and are not failures: promptfoo 0.123.0 prints `ExperimentalWarning: DecompressInterceptor`, and the Python worker prints an `asyncio` traceback ending in `RuntimeError: Event loop is closed` when it tears down moonlighter's HTTP client after the loop has closed. All 48 rows still carry a result.
 
