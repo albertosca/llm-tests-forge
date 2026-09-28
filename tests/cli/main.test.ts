@@ -2187,6 +2187,70 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 2 re-opened, 2 still pending",
 		);
 	});
+	test("an oracle change whose cases file changed on disk during the pass re-opens nothing: no re-opened line or count, and still pending matches the disk", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		const approvedCases = [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "approved" as const,
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "two" },
+				expected: { label: "acknowledgement" },
+				status: "approved" as const,
+				generated_by: "hand",
+			},
+		];
+		await writeCases(forgeDirectory, "polite-rejection", approvedCases);
+		const casesPath = join(forgeDirectory, "cases", "polite-rejection.yaml");
+		const out: string[] = [];
+		const context = createContext({
+			cwd,
+			model: MODEL,
+			// The only answer is the scenario's "edit"; before giving it, the
+			// cases file is rewritten by "someone else" and dated long ago, so
+			// the write-back guard cannot mistake it for the file it read.
+			stdin: async () => {
+				await writeCases(forgeDirectory, "polite-rejection", approvedCases);
+				await utimes(casesPath, LONG_AGO, LONG_AGO);
+				return "edit";
+			},
+		});
+		context.stdout = (line) => out.push(line);
+		await editOracleToRubric(cwd, out, context);
+
+		expect(out).toContain(
+			"review: cases/polite-rejection.yaml changed on disk during the pass; its decisions were not written",
+		);
+		expect(out.some((line) => line.includes("case(s) re-opened"))).toBe(false);
+		// Nothing was re-opened on disk: both cases are still approved, and
+		// the one pending scenario was decided, so nothing is pending.
+		const onDisk = await readCases(forgeDirectory, "polite-rejection");
+		expect(onDisk.map((caseEntry) => caseEntry.status)).toEqual([
+			"approved",
+			"approved",
+		]);
+		expect(out.at(-1)).toBe(
+			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 0 still pending",
+		);
+	});
 
 	test("a case whose expected already fits the new oracle stays approved, and a rejected one is not re-opened", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));

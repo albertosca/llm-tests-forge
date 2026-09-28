@@ -4,9 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ForgeError } from "../../src/core/errors";
 import {
+	caseFileFingerprint,
 	forgePaths,
 	listCaseScenarios,
 	readAllCases,
+	readCaseFile,
 	readCases,
 	readFailure,
 	readFeature,
@@ -22,38 +24,38 @@ import type { Case, Scenario } from "../../src/core/schemas";
 import { SuiteSchema } from "../../src/core/schemas";
 
 async function tmpForge(): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "forge-"));
-	return join(dir, ".forge");
+	const directory = await mkdtemp(join(tmpdir(), "forge-"));
+	return join(directory, ".forge");
 }
 
 describe("forgePaths", () => {
 	test("derives every path from the forge dir", () => {
-		const p = forgePaths("/x/.forge");
-		expect(p.feature).toBe("/x/.forge/feature.yaml");
-		expect(p.scenarios).toBe("/x/.forge/scenarios.yaml");
-		expect(p.casesDir).toBe("/x/.forge/cases");
-		expect(p.suite).toBe("/x/.forge/suite.yaml");
-		expect(p.usage).toBe("/x/.forge/usage.jsonl");
-		expect(p.failuresDir).toBe("/x/.forge/failures");
+		const paths = forgePaths("/x/.forge");
+		expect(paths.feature).toBe("/x/.forge/feature.yaml");
+		expect(paths.scenarios).toBe("/x/.forge/scenarios.yaml");
+		expect(paths.casesDir).toBe("/x/.forge/cases");
+		expect(paths.suite).toBe("/x/.forge/suite.yaml");
+		expect(paths.usage).toBe("/x/.forge/usage.jsonl");
+		expect(paths.failuresDir).toBe("/x/.forge/failures");
 	});
 });
 
 describe("feature round trip", () => {
 	test("write then read returns the same object and creates the directory", async () => {
-		const dir = await tmpForge();
+		const directory = await tmpForge();
 		const fixture = await readFile(
 			join(import.meta.dir, "../fixtures/feature.yaml"),
 			"utf8",
 		);
 		const { parse } = await import("yaml");
 		const feature = parse(fixture);
-		await writeFeature(dir, feature);
-		expect(await readFeature(dir)).toEqual(feature);
+		await writeFeature(directory, feature);
+		expect(await readFeature(directory)).toEqual(feature);
 	});
 
 	test("invalid file throws ForgeError naming the file", async () => {
-		const dir = await tmpForge();
-		await writeFeature(dir, {
+		const directory = await tmpForge();
+		await writeFeature(directory, {
 			id: "a",
 			purpose: "b",
 			inputs: [{ name: "x", kind: "text" }],
@@ -61,25 +63,31 @@ describe("feature round trip", () => {
 			invariants: [],
 			status: "pending",
 		});
-		await writeFile(forgePaths(dir).feature, "id: only-an-id\n");
-		const err = await readFeature(dir).catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toContain("does not match schema");
-		expect((err as ForgeError).message).toContain("feature.yaml");
+		await writeFile(forgePaths(directory).feature, "id: only-an-id\n");
+		const caught = await readFeature(directory).catch(
+			(error: unknown) => error,
+		);
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect((caught as ForgeError).message).toContain("does not match schema");
+		expect((caught as ForgeError).message).toContain("feature.yaml");
 	});
 
 	test("missing file throws ForgeError naming the file", async () => {
-		const dir = await tmpForge();
-		const err = await readFeature(dir).catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toContain("file not found");
-		expect((err as ForgeError).message).toContain("feature.yaml");
-		expect((err as ForgeError).details.file).toBe(forgePaths(dir).feature);
+		const directory = await tmpForge();
+		const caught = await readFeature(directory).catch(
+			(error: unknown) => error,
+		);
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect((caught as ForgeError).message).toContain("file not found");
+		expect((caught as ForgeError).message).toContain("feature.yaml");
+		expect((caught as ForgeError).details.file).toBe(
+			forgePaths(directory).feature,
+		);
 	});
 
 	test("malformed YAML syntax throws ForgeError naming the file", async () => {
-		const dir = await tmpForge();
-		await writeFeature(dir, {
+		const directory = await tmpForge();
+		await writeFeature(directory, {
 			id: "a",
 			purpose: "b",
 			inputs: [{ name: "x", kind: "text" }],
@@ -87,24 +95,26 @@ describe("feature round trip", () => {
 			invariants: [],
 			status: "pending",
 		});
-		await writeFile(forgePaths(dir).feature, "id: [unterminated\n");
-		const err = await readFeature(dir).catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toContain("invalid YAML");
-		expect((err as ForgeError).message).toContain("feature.yaml");
+		await writeFile(forgePaths(directory).feature, "id: [unterminated\n");
+		const caught = await readFeature(directory).catch(
+			(error: unknown) => error,
+		);
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect((caught as ForgeError).message).toContain("invalid YAML");
+		expect((caught as ForgeError).message).toContain("feature.yaml");
 	});
 });
 
 describe("scenarios and cases", () => {
 	test("missing files read as empty lists", async () => {
-		const dir = await tmpForge();
-		expect(await readScenarios(dir)).toEqual([]);
-		expect(await readCases(dir, "nope")).toEqual([]);
-		expect(await listCaseScenarios(dir)).toEqual([]);
+		const directory = await tmpForge();
+		expect(await readScenarios(directory)).toEqual([]);
+		expect(await readCases(directory, "nope")).toEqual([]);
+		expect(await listCaseScenarios(directory)).toEqual([]);
 	});
 
 	test("round trip and listing sorted by scenario id", async () => {
-		const dir = await tmpForge();
+		const directory = await tmpForge();
 		const scenarios: Scenario[] = [
 			{
 				id: "b-scn",
@@ -114,8 +124,8 @@ describe("scenarios and cases", () => {
 				status: "pending",
 			},
 		];
-		await writeScenarios(dir, scenarios);
-		expect(await readScenarios(dir)).toEqual(scenarios);
+		await writeScenarios(directory, scenarios);
+		expect(await readScenarios(directory)).toEqual(scenarios);
 		const cases: Case[] = [
 			{
 				id: "b-scn-01",
@@ -126,24 +136,55 @@ describe("scenarios and cases", () => {
 				generated_by: "t",
 			},
 		];
-		await writeCases(dir, "b-scn", cases);
+		await writeCases(directory, "b-scn", cases);
 		await writeCases(
-			dir,
+			directory,
 			"a-scn",
-			cases.map((c) => ({ ...c, id: "a-scn-01", scenario: "a-scn" })),
+			cases.map((caseEntry) => ({
+				...caseEntry,
+				id: "a-scn-01",
+				scenario: "a-scn",
+			})),
 		);
-		expect(await readCases(dir, "b-scn")).toEqual(cases);
-		expect(await listCaseScenarios(dir)).toEqual(["a-scn", "b-scn"]);
+		expect(await readCases(directory, "b-scn")).toEqual(cases);
+		expect(await listCaseScenarios(directory)).toEqual(["a-scn", "b-scn"]);
+	});
+});
+
+describe("readCaseFile", () => {
+	test("a cases file that does not exist reads as null, not as an empty list with no fingerprint", async () => {
+		const forgeDirectory = await tmpForge();
+		expect(await readCaseFile(forgeDirectory, "absent")).toBeNull();
+	});
+	test("an existing cases file reads as its cases together with the fingerprint of that file", async () => {
+		const forgeDirectory = await tmpForge();
+		const cases: Case[] = [
+			{
+				id: "present-01",
+				scenario: "present",
+				input: { email: "hi" },
+				expected: { label: "x" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		];
+		await writeCases(forgeDirectory, "present", cases);
+		const fingerprint = await caseFileFingerprint(forgeDirectory, "present");
+		if (fingerprint === null) throw new Error("the file was just written");
+		expect(await readCaseFile(forgeDirectory, "present")).toEqual({
+			cases,
+			fingerprint,
+		});
 	});
 });
 
 describe("forgePaths: plan 2 entries", () => {
 	test("names the emitted config, the JSONL export and both report files under .forge", () => {
-		const p = forgePaths("/x/.forge");
-		expect(p.promptfooConfig).toBe("/x/.forge/promptfooconfig.yaml");
-		expect(p.casesJsonl).toBe("/x/.forge/cases.jsonl");
-		expect(p.reportMd).toBe("/x/.forge/report.md");
-		expect(p.reportJson).toBe("/x/.forge/report.json");
+		const paths = forgePaths("/x/.forge");
+		expect(paths.promptfooConfig).toBe("/x/.forge/promptfooconfig.yaml");
+		expect(paths.casesJsonl).toBe("/x/.forge/cases.jsonl");
+		expect(paths.reportMd).toBe("/x/.forge/report.md");
+		expect(paths.reportJson).toBe("/x/.forge/report.json");
 	});
 });
 
@@ -159,55 +200,69 @@ describe("suite.yaml", () => {
 		include: [],
 	};
 	test("round-trips through writeSuite/readSuite", async () => {
-		const dir = join(await mkdtemp(join(tmpdir(), "forge-files-")), ".forge");
-		await writeSuite(dir, suite);
-		expect(await readSuite(dir)).toEqual(suite);
+		const directory = join(
+			await mkdtemp(join(tmpdir(), "forge-files-")),
+			".forge",
+		);
+		await writeSuite(directory, suite);
+		expect(await readSuite(directory)).toEqual(suite);
 	});
 	test("readSuite on a missing file names the path and prints an example to copy", async () => {
-		const dir = join(await mkdtemp(join(tmpdir(), "forge-files-")), ".forge");
-		const err = await readSuite(dir).catch((e: Error) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as Error).message).toContain(join(dir, "suite.yaml"));
-		expect((err as Error).message).toContain("target:");
-		expect((err as Error).message).toContain("judges:");
+		const directory = join(
+			await mkdtemp(join(tmpdir(), "forge-files-")),
+			".forge",
+		);
+		const caught = await readSuite(directory).catch((error: Error) => error);
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect((caught as Error).message).toContain(join(directory, "suite.yaml"));
+		expect((caught as Error).message).toContain("target:");
+		expect((caught as Error).message).toContain("judges:");
 	});
 });
 
 describe("readAllCases", () => {
 	test("returns one entry per cases file, keyed by scenario id, in sorted order", async () => {
-		const dir = join(await mkdtemp(join(tmpdir(), "forge-files-")), ".forge");
-		const mk = (id: string, scenario: string) => ({
+		const directory = join(
+			await mkdtemp(join(tmpdir(), "forge-files-")),
+			".forge",
+		);
+		const makeCase = (id: string, scenario: string) => ({
 			id,
 			scenario,
 			input: { email: id },
 			status: "approved" as const,
 			generated_by: "t",
 		});
-		await writeCases(dir, "zeta", [mk("zeta-01", "zeta")]);
-		await writeCases(dir, "alpha", [
-			mk("alpha-01", "alpha"),
-			mk("alpha-02", "alpha"),
+		await writeCases(directory, "zeta", [makeCase("zeta-01", "zeta")]);
+		await writeCases(directory, "alpha", [
+			makeCase("alpha-01", "alpha"),
+			makeCase("alpha-02", "alpha"),
 		]);
-		const all = await readAllCases(dir);
+		const all = await readAllCases(directory);
 		expect([...all.keys()]).toEqual(["alpha", "zeta"]);
-		expect(all.get("alpha")?.map((c) => c.id)).toEqual([
+		expect(all.get("alpha")?.map((caseEntry) => caseEntry.id)).toEqual([
 			"alpha-01",
 			"alpha-02",
 		]);
-		expect(all.get("zeta")?.map((c) => c.id)).toEqual(["zeta-01"]);
+		expect(all.get("zeta")?.map((caseEntry) => caseEntry.id)).toEqual([
+			"zeta-01",
+		]);
 	});
 	test("is empty when there is no cases directory", async () => {
-		const dir = join(await mkdtemp(join(tmpdir(), "forge-files-")), ".forge");
-		expect((await readAllCases(dir)).size).toBe(0);
+		const directory = join(
+			await mkdtemp(join(tmpdir(), "forge-files-")),
+			".forge",
+		);
+		expect((await readAllCases(directory)).size).toBe(0);
 	});
 });
 
 describe("readYamlFile: array schema errors name the element, not just the path", () => {
 	test("an issue on an array item with a string id reports the id and the index", async () => {
-		const dir = await tmpForge();
-		await mkdir(dir, { recursive: true });
+		const directory = await tmpForge();
+		await mkdir(directory, { recursive: true });
 		await writeFile(
-			forgePaths(dir).scenarios,
+			forgePaths(directory).scenarios,
 			`- id: first-id
   kind: happy
   oracle: label
@@ -225,17 +280,21 @@ describe("readYamlFile: array schema errors name the element, not just the path"
   status: pending
 `,
 		);
-		const err = await readScenarios(dir).catch((e: Error) => e);
-		expect((err as Error).message).toContain(
+		const caught = await readScenarios(directory).catch(
+			(error: Error) => error,
+		);
+		expect((caught as Error).message).toContain(
 			'item "third-id" (index 2).oracle:',
 		);
-		expect((err as Error).message).toContain(forgePaths(dir).scenarios);
+		expect((caught as Error).message).toContain(
+			forgePaths(directory).scenarios,
+		);
 	});
 	test("an issue on an array item with no string id keeps the plain index.field form", async () => {
-		const dir = await tmpForge();
-		await mkdir(dir, { recursive: true });
+		const directory = await tmpForge();
+		await mkdir(directory, { recursive: true });
 		await writeFile(
-			forgePaths(dir).scenarios,
+			forgePaths(directory).scenarios,
 			`- id: first-id
   kind: happy
   oracle: label
@@ -252,14 +311,18 @@ describe("readYamlFile: array schema errors name the element, not just the path"
   status: pending
 `,
 		);
-		const err = await readScenarios(dir).catch((e: Error) => e);
-		expect((err as Error).message).toContain("2.oracle: Invalid option");
-		expect((err as Error).message).not.toContain('item "');
-		expect((err as Error).message).toContain(forgePaths(dir).scenarios);
+		const caught = await readScenarios(directory).catch(
+			(error: Error) => error,
+		);
+		expect((caught as Error).message).toContain("2.oracle: Invalid option");
+		expect((caught as Error).message).not.toContain('item "');
+		expect((caught as Error).message).toContain(
+			forgePaths(directory).scenarios,
+		);
 	});
 	test("a schema error on a non-array file keeps the plain 'field: message' form", async () => {
-		const dir = await tmpForge();
-		await writeFeature(dir, {
+		const directory = await tmpForge();
+		await writeFeature(directory, {
 			id: "a",
 			purpose: "b",
 			inputs: [{ name: "x", kind: "text" }],
@@ -267,20 +330,22 @@ describe("readYamlFile: array schema errors name the element, not just the path"
 			invariants: [],
 			status: "pending",
 		});
-		await writeFile(forgePaths(dir).feature, "id: only-an-id\n");
-		const err = await readFeature(dir).catch((e: Error) => e);
-		expect((err as Error).message).toContain("purpose: Invalid input");
+		await writeFile(forgePaths(directory).feature, "id: only-an-id\n");
+		const caught = await readFeature(directory).catch((error: Error) => error);
+		expect((caught as Error).message).toContain("purpose: Invalid input");
 	});
 });
 
 describe("readYamlFile: the real cause of a read failure", () => {
 	test("a directory where a file was expected says so, not 'file not found'", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "forge-files-"));
-		const target = join(dir, "suite.yaml");
+		const directory = await mkdtemp(join(tmpdir(), "forge-files-"));
+		const target = join(directory, "suite.yaml");
 		await mkdir(target);
-		const err = await readYamlFile(target, SuiteSchema).catch((e: Error) => e);
-		expect((err as Error).message).toContain("is a directory");
-		expect((err as Error).message).not.toContain("not found");
+		const caught = await readYamlFile(target, SuiteSchema).catch(
+			(error: Error) => error,
+		);
+		expect((caught as Error).message).toContain("is a directory");
+		expect((caught as Error).message).not.toContain("not found");
 	});
 	// Skipped as root (e.g. some CI/container setups): root ignores the
 	// 0o000 permission bits and the read succeeds instead of failing with
@@ -288,37 +353,42 @@ describe("readYamlFile: the real cause of a read failure", () => {
 	test.skipIf(process.getuid?.() === 0)(
 		"an unreadable file says 'permission denied'",
 		async () => {
-			const dir = await mkdtemp(join(tmpdir(), "forge-files-"));
-			const target = join(dir, "suite.yaml");
+			const directory = await mkdtemp(join(tmpdir(), "forge-files-"));
+			const target = join(directory, "suite.yaml");
 			await writeFile(target, "target: {}");
 			await chmod(target, 0o000);
-			const err = await readYamlFile(target, SuiteSchema).catch(
-				(e: Error) => e,
+			const caught = await readYamlFile(target, SuiteSchema).catch(
+				(error: Error) => error,
 			);
 			await chmod(target, 0o600);
-			expect((err as Error).message).toContain("permission denied");
+			expect((caught as Error).message).toContain("permission denied");
 		},
 	);
 	test("a missing file still says 'file not found'", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "forge-files-"));
-		const err = await readYamlFile(join(dir, "nope.yaml"), SuiteSchema).catch(
-			(e: Error) => e,
-		);
-		expect((err as Error).message).toContain("file not found");
+		const directory = await mkdtemp(join(tmpdir(), "forge-files-"));
+		const caught = await readYamlFile(
+			join(directory, "nope.yaml"),
+			SuiteSchema,
+		).catch((error: Error) => error);
+		expect((caught as Error).message).toContain("file not found");
 	});
 	test("an error with no code at all (not from fs) falls through to 'cannot read: <message>'", () => {
 		expect(readFailure(new Error("boom"))).toBe("cannot read: boom");
 	});
 	test("an OS error with no special-cased code (ENOTDIR) falls through to 'cannot read: <message>'", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "forge-files-"));
-		const notADir = join(dir, "afile");
-		await writeFile(notADir, "hi");
-		const target = join(notADir, "child.yaml");
-		const rawErr = await readFile(target, "utf8").catch((e: Error) => e);
-		const err = await readYamlFile(target, SuiteSchema).catch((e: Error) => e);
-		expect((rawErr as NodeJS.ErrnoException).code).toBe("ENOTDIR");
-		expect((err as Error).message).toBe(
-			`cannot read: ${(rawErr as Error).message} (file: ${target})`,
+		const directory = await mkdtemp(join(tmpdir(), "forge-files-"));
+		const fileNotDirectory = join(directory, "afile");
+		await writeFile(fileNotDirectory, "hi");
+		const target = join(fileNotDirectory, "child.yaml");
+		const rawError = await readFile(target, "utf8").catch(
+			(error: Error) => error,
+		);
+		const caught = await readYamlFile(target, SuiteSchema).catch(
+			(error: Error) => error,
+		);
+		expect((rawError as NodeJS.ErrnoException).code).toBe("ENOTDIR");
+		expect((caught as Error).message).toBe(
+			`cannot read: ${(rawError as Error).message} (file: ${target})`,
 		);
 	});
 });

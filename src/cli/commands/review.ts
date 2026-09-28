@@ -6,7 +6,8 @@ import {
 	caseFileFingerprint,
 	forgePaths,
 	listCaseScenarios,
-	readCases,
+	type ReadCaseFile,
+	readCaseFile,
 	readFeature,
 	readScenarios,
 	writeCases,
@@ -32,6 +33,26 @@ function parseOnlyFlag(raw: string | undefined): string | undefined {
 			`--only "${raw}" is not valid; choose one of: ${ONLY_VALUES.join(", ")}`,
 		);
 	return raw;
+}
+
+/**
+ * Why the write-back must not overwrite one cases file, or `null` when the
+ * file is exactly as this pass read it: removed, or changed (a different
+ * size or modification time than the fingerprint taken on reading it).
+ */
+async function writeBackSkipReason(
+	forgeDirectory: string,
+	scenarioId: string,
+	before: CaseFileFingerprint,
+): Promise<string | null> {
+	const after = await caseFileFingerprint(forgeDirectory, scenarioId);
+	if (after === null) return "was removed";
+	if (
+		before.modifiedAtInMilliseconds !== after.modifiedAtInMilliseconds ||
+		before.sizeInBytes !== after.sizeInBytes
+	)
+		return "changed on disk";
+	return null;
 }
 
 export async function reviewCommand(
@@ -85,18 +106,19 @@ export async function reviewCommand(
 		? [values.scenario]
 		: await listCaseScenarios(context.forgeDir);
 	const casesById = new Map<string, Case[]>();
-	// A snapshot of each cases file's size and modification time, taken at
-	// the same moment its cases are read. The write-back below takes the
-	// same fingerprint again just before it writes a file back, so it can
-	// tell a file exactly as it was read apart from one removed, or
-	// replaced with something else, while this pass was open.
-	const caseFileFingerprints = new Map<string, CaseFileFingerprint | null>();
+	// Every cases file that existed, with a snapshot of its size and
+	// modification time taken as its cases were read. The write-back below
+	// walks these, not `casesById`, and takes the same fingerprint again
+	// just before it writes a file back, so it can tell a file exactly as
+	// it was read apart from one removed, or replaced with something else,
+	// while this pass was open. The fingerprint travels with the cases, so
+	// no lookup can come back empty; a scenario with no file has nothing to
+	// write back and is simply absent here.
+	const readCaseFiles = new Map<string, ReadCaseFile>();
 	for (const id of scenarioIds) {
-		casesById.set(id, await readCases(context.forgeDir, id));
-		caseFileFingerprints.set(
-			id,
-			await caseFileFingerprint(context.forgeDir, id),
-		);
+		const caseFile = await readCaseFile(context.forgeDir, id);
+		casesById.set(id, caseFile?.cases ?? []);
+		if (caseFile !== null) readCaseFiles.set(id, caseFile);
 	}
 	// `pendingItems` places one entry per id, so a file holding two under
 	// the same one offers the first and passes over the second in silence —
@@ -347,7 +369,7 @@ export async function reviewCommand(
 	// counted so the summary can say how many of "N approved" and the rest
 	// never actually reached disk, instead of reporting them as landed.
 	let totalDecisionsNotWritten = 0;
-	for (const [id, list] of casesById) {
+	for (const [id, { cases: list, fingerprint: before }] of readCaseFiles) {
 		const oracleChange = oracleChanges.get(id);
 		const decidedCases = decidedCasesIn(id);
 		// Read before `applyReviewDecisions` below drains `decidedCases` via
@@ -367,6 +389,26 @@ export async function reviewCommand(
 			oracleChange,
 			feature,
 		});
+		// The file this pass is about to overwrite may have been removed, or
+		// replaced with something else entirely, while a person was answering
+		// it — by hand, or by another process. Compared against the
+		// fingerprint taken when this pass read the file, not just checked for
+		// existence: a file removed and then recreated with different content
+		// is back by the time this runs, and existence alone would miss that
+		// it is not the file this pass read. Decided before anything about
+		// this file is announced: a file the guard skips re-opened nothing on
+		// disk, so its re-opens are neither printed nor counted, and "still
+		// pending" keeps describing the disk.
+		const skipReason = touched
+			? await writeBackSkipReason(context.forgeDir, id, before)
+			: null;
+		if (skipReason !== null) {
+			context.stdout(
+				`review: cases/${id}.yaml ${skipReason} during the pass; its decisions were not written`,
+			);
+			totalDecisionsNotWritten += decidedCaseCount;
+			continue;
+		}
 		if (oracleChange !== undefined) {
 			context.stdout(
 				// What to do next, not just what happened: a re-opened case keeps
@@ -379,34 +421,7 @@ export async function reviewCommand(
 			);
 			totalReopened += reopened;
 		}
-		if (touched) {
-			// The file this pass is about to overwrite may have been removed,
-			// or replaced with something else entirely, while a person was
-			// answering it — by hand, or by another process. Compared against
-			// the fingerprint taken when this pass read the file, not just
-			// checked for existence: a file removed and then recreated with
-			// different content is back by the time this runs, and existence
-			// alone would miss that it is not the file this pass read.
-			const before = caseFileFingerprints.get(id) ?? null;
-			const after = await caseFileFingerprint(context.forgeDir, id);
-			if (after === null) {
-				context.stdout(
-					`review: cases/${id}.yaml was removed during the pass; its decisions were not written`,
-				);
-				totalDecisionsNotWritten += decidedCaseCount;
-			} else if (
-				before === null ||
-				before.modifiedAtInMilliseconds !== after.modifiedAtInMilliseconds ||
-				before.sizeInBytes !== after.sizeInBytes
-			) {
-				context.stdout(
-					`review: cases/${id}.yaml changed on disk during the pass; its decisions were not written`,
-				);
-				totalDecisionsNotWritten += decidedCaseCount;
-			} else {
-				await writeCases(context.forgeDir, id, next);
-			}
-		}
+		if (touched) await writeCases(context.forgeDir, id, next);
 	}
 	// The pass above walks the cases files, so a scenario whose oracle this
 	// pass changed before `cases` ever ran for it said nothing at all — and

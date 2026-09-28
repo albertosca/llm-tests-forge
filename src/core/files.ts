@@ -292,6 +292,28 @@ export async function caseFileFingerprint(
 	);
 }
 
+/** A cases file as `forge review` read it: its cases and the fingerprint of the file they came from. */
+export interface ReadCaseFile {
+	cases: Case[];
+	fingerprint: CaseFileFingerprint;
+}
+
+/**
+ * Reads one cases file together with its fingerprint, or `null` when the
+ * file does not exist. The fingerprint is taken first: a file changed
+ * between the two reads then carries a fingerprint older than its content,
+ * which the write-back guard reads as changed and refuses — never the other
+ * way round, a file whose content is older than the fingerprint it passes.
+ */
+export async function readCaseFile(
+	forgeDirectory: string,
+	scenarioId: string,
+): Promise<ReadCaseFile | null> {
+	const fingerprint = await caseFileFingerprint(forgeDirectory, scenarioId);
+	if (fingerprint === null) return null;
+	return { cases: await readCases(forgeDirectory, scenarioId), fingerprint };
+}
+
 export const SUITE_EXAMPLE = `target:
   kind: promptfoo-python
   entry: forge_target.py          # the shim emit writes next to this file
