@@ -134,8 +134,8 @@ export function measuredOutputTokens(
 
 interface ChosenOutputSize {
 	outputSize: number;
-	/** How many reviewed expected values fed the mean; `0` when the guess won. */
-	reviewedExpectedValueCount: number;
+	/** Which size won and why, for the estimate's note. */
+	note: string;
 }
 
 /**
@@ -143,18 +143,27 @@ interface ChosenOutputSize {
  * when the reviewed cases have one and it is at least the kind-based
  * guess, the guess otherwise. A low `fields` mean must never pull the
  * estimate under what the output's own shape already costs, because a
- * `fields` expected value can name only some of the output's fields.
+ * `fields` expected value can name only some of the output's fields. The
+ * note tells the three outcomes apart: the mean won, the guess won over a
+ * lower mean, or nothing was measurable.
  */
 function chooseOutputSize(
 	measured: MeasuredOutputSizes | null,
 	guessedOutputSize: number,
 ): ChosenOutputSize {
-	if (measured !== null && measured.mean >= guessedOutputSize)
+	const guessNote = "output size is a guess from output.kind";
+	if (measured === null)
+		return { outputSize: guessedOutputSize, note: guessNote };
+	const reviewedValues = plural(measured.count, "reviewed expected value");
+	if (measured.mean >= guessedOutputSize)
 		return {
 			outputSize: measured.mean,
-			reviewedExpectedValueCount: measured.count,
+			note: `output size is the mean of ${reviewedValues}`,
 		};
-	return { outputSize: guessedOutputSize, reviewedExpectedValueCount: 0 };
+	return {
+		outputSize: guessedOutputSize,
+		note: `${guessNote}; the ${reviewedValues} measured below it`,
+	};
 }
 
 function dollars(
@@ -173,7 +182,7 @@ export function estimateSuite(parameters: {
 	promptTokens: number;
 }): Estimate {
 	const { suite, selection, feature, prices, promptTokens } = parameters;
-	const { outputSize, reviewedExpectedValueCount } = chooseOutputSize(
+	const { outputSize, note: outputSizeNote } = chooseOutputSize(
 		measureOutputSizes(selection.cases, feature),
 		guessOutputTokens(feature.output),
 	);
@@ -233,10 +242,6 @@ export function estimateSuite(parameters: {
 			priced: price.priced,
 		});
 	}
-	const outputSizeNote =
-		reviewedExpectedValueCount > 0
-			? `output size is the mean of ${plural(reviewedExpectedValueCount, "reviewed expected value")}`
-			: "output size is a guess from output.kind";
 	const notes = [`tokens are estimated as characters / 4; ${outputSizeNote}`];
 	if (promptTokens === 0)
 		notes.push(

@@ -170,7 +170,7 @@ describe("estimateSuite", () => {
 		expect(estimate.totalDollars).toBe((220 * 1 + 32 * 5) / 1_000_000);
 		expect(estimate.pricesUpdated).toBe("2026-09-15");
 		expect(estimate.notes).toEqual([
-			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+			"tokens are estimated as characters / 4; output size is a guess from output.kind; the 2 reviewed expected values measured below it",
 			"application prompt not counted: set feature.prompt_file to include it",
 		]);
 	});
@@ -194,9 +194,10 @@ describe("estimateSuite", () => {
 		});
 		expect(estimate.lines[0]?.inputTokens).toBe(510);
 		// The one case's label ("rejection", approxTokens 3) is below the label
-		// guess (8), so the guess wins and the note says a guess.
+		// guess (8), so the guess wins and the note says the one measured value
+		// fell below it.
 		expect(estimate.notes).toEqual([
-			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+			"tokens are estimated as characters / 4; output size is a guess from output.kind; the 1 reviewed expected value measured below it",
 		]);
 	});
 	test("judges are charged only for rubric cases, once per judge per target model per repeat", () => {
@@ -318,7 +319,7 @@ describe("estimateSuite", () => {
 		expect(estimate.totalDollars).toBe(0);
 		expect(estimate.lines[0]?.calls).toBe(0);
 	});
-	test("a fields mean below the guess yields the guess, and the note says a guess", () => {
+	test("a fields mean below the guess yields the guess, and the note says the reviewed values measured below it", () => {
 		// guessOutputTokens({ kind: "json", fields: ["a"] }) = 24 + 16*1 = 40.
 		const jsonFeature: Feature = {
 			...feature,
@@ -348,7 +349,7 @@ describe("estimateSuite", () => {
 		});
 		expect(estimate.lines[0]?.outputTokens).toBe(2 * 40);
 		expect(estimate.notes).toContain(
-			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+			"tokens are estimated as characters / 4; output size is a guess from output.kind; the 2 reviewed expected values measured below it",
 		);
 	});
 	test("a fields mean at or above the guess wins, and the note names the reviewed count", () => {
