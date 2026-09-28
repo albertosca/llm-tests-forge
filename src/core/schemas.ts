@@ -26,8 +26,9 @@ export const FeatureOutputSchema = z
 		labels: z.array(z.string()).optional(),
 	})
 	.refine(
-		(o) =>
-			o.kind !== "label" || (o.labels !== undefined && o.labels.length > 0),
+		(output) =>
+			output.kind !== "label" ||
+			(output.labels !== undefined && output.labels.length > 0),
 		{
 			message: "output.kind 'label' requires a non-empty labels list",
 		},
@@ -58,8 +59,10 @@ export const ExpectedSchema = z
 		rubric: z.string().optional(),
 	})
 	.refine(
-		(e) =>
-			[e.label, e.fields, e.rubric].filter((v) => v !== undefined).length === 1,
+		(expected) =>
+			[expected.label, expected.fields, expected.rubric].filter(
+				(value) => value !== undefined,
+			).length === 1,
 		{
 			message: "expected must carry exactly one of label, fields, rubric",
 		},
@@ -75,14 +78,71 @@ export const CaseSchema = z.object({
 	duplicate_of: z.string().optional(),
 });
 
-export const SuiteSchema = z.object({
-	target: z.object({
-		kind: z.literal("promptfoo-python"),
-		entry: z.string().min(1),
+export const TARGET_KINDS = [
+	"python",
+	"javascript",
+	"typescript",
+	"elixir",
+	"ruby",
+	"rust",
+	"go",
+	"exec",
+	"http",
+] as const;
+export type TargetKind = (typeof TARGET_KINDS)[number];
+
+const TargetSchema = z
+	.object({
+		// Suites written before the kinds existed say promptfoo-python.
+		kind: z.preprocess(
+			(value) => (value === "promptfoo-python" ? "python" : value),
+			z.enum(TARGET_KINDS),
+		),
+		/** The shim's file (or, for rust and go, directory) inside .forge; absent → the kind's default. */
+		entry: z.string().min(1).optional(),
 		models: z.array(z.string()).min(1),
-		/** Interpreter for the shim; promptfoo's `pythonExecutable`. Absent → promptfoo's default (`python3`). */
+		/** Interpreter for the python shim; promptfoo's `pythonExecutable`. */
 		python: z.string().min(1).optional(),
-	}),
+		/** The command promptfoo runs for kind exec, from .forge/. */
+		command: z.string().min(1).optional(),
+		url: z.string().min(1).optional(),
+		method: z.string().min(1).optional(),
+		headers: z.record(z.string(), z.string()).optional(),
+		/** The request body for kind http; `{{input}}` is rendered. Absent → one key per feature input. */
+		body: z.unknown().optional(),
+		/** An expression over `json` naming the part of the http response that is the output. */
+		response: z.string().min(1).optional(),
+	})
+	.superRefine((target, context) => {
+		if (target.kind === "exec" && target.command === undefined)
+			context.addIssue({
+				code: "custom",
+				path: ["command"],
+				message: "target.command is required when target.kind is exec",
+			});
+		if (target.kind === "http" && target.url === undefined)
+			context.addIssue({
+				code: "custom",
+				path: ["url"],
+				message: "target.url is required when target.kind is http",
+			});
+		if (target.url !== undefined && !/^https?:\/\//.test(target.url))
+			context.addIssue({
+				code: "custom",
+				path: ["url"],
+				message: "target.url must start with http:// or https://",
+			});
+		if (target.response?.includes("=>"))
+			context.addIssue({
+				code: "custom",
+				path: ["response"],
+				message:
+					"target.response must be an expression over json, not a function: promptfoo calls any text holding => as a function",
+			});
+	});
+
+export const SuiteSchema = z.object({
+	target: TargetSchema,
 	judges: z.array(z.string()).min(1),
 	repeat: z.number().int().min(1).default(1),
 	include: z.array(z.string()).default([]),
@@ -102,7 +162,7 @@ export const PricesSchema = z.object({
 				output: z.number().nonnegative(),
 			}),
 		)
-		.refine((m) => Object.keys(m).length > 0, {
+		.refine((models) => Object.keys(models).length > 0, {
 			message: "models must list at least one model",
 		}),
 });

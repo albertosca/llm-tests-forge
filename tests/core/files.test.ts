@@ -191,7 +191,7 @@ describe("forgePaths: plan 2 entries", () => {
 describe("suite.yaml", () => {
 	const suite = {
 		target: {
-			kind: "promptfoo-python" as const,
+			kind: "python" as const,
 			entry: "forge_target.py",
 			models: ["anthropic/claude-haiku-4-5"],
 		},

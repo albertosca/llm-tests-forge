@@ -36,7 +36,7 @@ const cs = (id: string, scenario: string, extra: Partial<Case> = {}): Case => ({
 
 const suiteWith = (include: string[]): Suite => ({
 	target: {
-		kind: "promptfoo-python",
+		kind: "python",
 		entry: "forge_target.py",
 		models: ["anthropic/claude-haiku-4-5"],
 	},

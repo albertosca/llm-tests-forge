@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "yaml";
 import { ForgeError } from "../../src/core/errors";
 import type { Case, Feature, Scenario, Suite } from "../../src/core/schemas";
+import { SuiteSchema } from "../../src/core/schemas";
 import type { Selection } from "../../src/core/select";
 import {
 	buildPromptfooConfig,
@@ -28,7 +29,7 @@ const jsonFeature: Feature = {
 };
 const suite: Suite = {
 	target: {
-		kind: "promptfoo-python",
+		kind: "python",
 		entry: "forge_target.py",
 		models: ["anthropic/claude-haiku-4-5", "google/gemini-3.5-flash"],
 		python: ".venv/bin/python",
@@ -92,6 +93,99 @@ function reasonOf(result: true | Failure): string {
 }
 
 describe("buildPromptfooConfig", () => {
+	test("each target kind emits the provider promptfoo 0.123 calls for it", () => {
+		const withTarget = (target: Record<string, unknown>) => ({
+			...suite,
+			target: { models: ["anthropic/claude-haiku-4-5"], ...target },
+		});
+		const providerFor = (target: Record<string, unknown>, command?: string) =>
+			buildPromptfooConfig({
+				feature: jsonFeature,
+				suite: SuiteSchema.parse(withTarget(target)),
+				selection,
+				command,
+			}).providers[0];
+		expect(providerFor({ kind: "python", python: ".venv/bin/python" })).toEqual(
+			{
+				id: "file://forge_target.py",
+				label: "anthropic/claude-haiku-4-5",
+				config: {
+					model: "anthropic/claude-haiku-4-5",
+					pythonExecutable: ".venv/bin/python",
+				},
+			},
+		);
+		expect(providerFor({ kind: "javascript" })?.id).toBe(
+			"file://forge_target.mjs",
+		);
+		expect(providerFor({ kind: "typescript" })).toEqual({
+			id: "file://forge_target.ts",
+			label: "anthropic/claude-haiku-4-5",
+			config: { model: "anthropic/claude-haiku-4-5" },
+		});
+		expect(providerFor({ kind: "ruby" }, "ruby forge_target.rb")).toEqual({
+			id: "exec: ruby forge_target.rb",
+			label: "anthropic/claude-haiku-4-5",
+			config: { model: "anthropic/claude-haiku-4-5" },
+		});
+		expect(providerFor({ kind: "exec", command: "./run.sh" })?.id).toBe(
+			"exec: ./run.sh",
+		);
+		expect(
+			providerFor({
+				kind: "http",
+				url: "http://127.0.0.1:4000/extract",
+				response: "json.result",
+			}),
+		).toEqual({
+			id: "http",
+			label: "anthropic/claude-haiku-4-5",
+			config: {
+				url: "http://127.0.0.1:4000/extract",
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: Object.fromEntries(
+					jsonFeature.inputs.map((input) => [input.name, `{{${input.name}}}`]),
+				),
+				transformResponse:
+					'typeof (json.result) === "string" ? (json.result) : JSON.stringify(json.result)',
+			},
+		});
+	});
+	test("a shim kind that runs through exec, emitted without its command, is refused by name", () => {
+		expect(() =>
+			buildPromptfooConfig({
+				feature: jsonFeature,
+				suite: SuiteSchema.parse({
+					...suite,
+					target: { kind: "elixir", models: ["m/x"] },
+				}),
+				selection,
+			}),
+		).toThrow("no exec command for target.kind elixir");
+	});
+	test("an http target keeps its own method, headers and body", () => {
+		const provider = buildPromptfooConfig({
+			feature: jsonFeature,
+			suite: SuiteSchema.parse({
+				...suite,
+				target: {
+					kind: "http",
+					models: ["m/x"],
+					url: "http://127.0.0.1:1/x",
+					method: "PUT",
+					headers: { "X-Key": "1" },
+					body: { text: "{{email}}" },
+				},
+			}),
+			selection,
+		}).providers[0];
+		expect(provider?.config).toMatchObject({
+			method: "PUT",
+			headers: { "X-Key": "1" },
+			body: { text: "{{email}}" },
+		});
+	});
 	test("providers: one file:// provider per target model, labelled by the model, with the python path", () => {
 		const config = buildPromptfooConfig({
 			feature: labelFeature,

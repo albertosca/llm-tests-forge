@@ -10,6 +10,7 @@ import {
 	readSuite,
 } from "../../core/files";
 import { selectCases } from "../../core/select";
+import { entryFor, isShimKind } from "../../core/target";
 import { plural } from "../../core/text";
 import { renderCasesJsonl } from "../../emit/jsonl";
 import {
@@ -55,12 +56,15 @@ export async function emitCommand(
 	const suite = await readSuite(context.forgeDir);
 	// The shim is written into, and run from, `.forge/`; a path here would
 	// let suite.yaml write a file anywhere on the disk.
-	const entry = suite.target.entry;
-	if (entry.includes("/") || entry.includes("\\") || entry.includes(".."))
-		throw new ForgeError(
-			"target.entry must be a file name inside .forge, not a path",
-			{ file: paths.suite },
-		);
+	const shimKind = isShimKind(suite.target.kind);
+	if (shimKind) {
+		const entry = entryFor(suite.target);
+		if (entry.includes("/") || entry.includes("\\") || entry.includes(".."))
+			throw new ForgeError(
+				"target.entry must be a file name inside .forge, not a path",
+				{ file: paths.suite },
+			);
+	}
 	const selection = selectCases({
 		suite,
 		scenarios: await readScenarios(context.forgeDir),
@@ -102,7 +106,8 @@ export async function emitCommand(
 	context.stdout(
 		`emit: wrote ${paths.promptfooConfig} (${plural(selection.cases.length, "case")}, ${plural(selection.scenarios.length, "scenario")}, ${plural(suite.target.models.length, "target model")}, ${plural(suite.judges.length, "judge")})`,
 	);
-	const shim = join(context.forgeDir, suite.target.entry);
+	if (!shimKind) return;
+	const shim = join(context.forgeDir, entryFor(suite.target));
 	if (await exists(shim)) {
 		context.stdout(`emit: kept existing ${shim}`);
 	} else {

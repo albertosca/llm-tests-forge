@@ -9,6 +9,7 @@ import type {
 	Suite,
 } from "../core/schemas";
 import type { Selection } from "../core/select";
+import { entryFor, httpTransform } from "../core/target";
 import { toPromptfooProvider } from "./providers";
 
 export interface PromptfooAssert {
@@ -25,7 +26,7 @@ export interface PromptfooTest {
 export interface PromptfooProvider {
 	id: string;
 	label: string;
-	config: { model: string; pythonExecutable?: string };
+	config: Record<string, unknown>;
 }
 export interface PromptfooConfig {
 	description: string;
@@ -171,6 +172,59 @@ function fieldsAssert(fields: Record<string, unknown>): PromptfooAssert {
 	};
 }
 
+function providerFor(
+	model: string,
+	suite: Suite,
+	feature: Feature,
+	command: string | undefined,
+): PromptfooProvider {
+	const target = suite.target;
+	switch (target.kind) {
+		case "python":
+			return {
+				id: `file://${entryFor(target)}`,
+				label: model,
+				config: target.python
+					? { model, pythonExecutable: target.python }
+					: { model },
+			};
+		case "javascript":
+		case "typescript":
+			return {
+				id: `file://${entryFor(target)}`,
+				label: model,
+				config: { model },
+			};
+		case "exec":
+			return { id: `exec: ${target.command}`, label: model, config: { model } };
+		case "http":
+			return {
+				id: "http",
+				label: model,
+				config: {
+					url: target.url,
+					method: target.method ?? "POST",
+					headers: target.headers ?? { "Content-Type": "application/json" },
+					body:
+						target.body ??
+						Object.fromEntries(
+							feature.inputs.map((input) => [input.name, `{{${input.name}}}`]),
+						),
+					transformResponse: httpTransform(target.response),
+				},
+			};
+		case "elixir":
+		case "ruby":
+		case "rust":
+		case "go":
+			if (command === undefined)
+				throw new ForgeError(
+					`no exec command for target.kind ${target.kind}; emit computes it from the project's files`,
+				);
+			return { id: `exec: ${command}`, label: model, config: { model } };
+	}
+}
+
 /**
  * The oracle decides which half of `expected` is read, so each arm narrows
  * to it rather than defaulting: a missing value used to become `""` or
@@ -222,6 +276,8 @@ export function buildPromptfooConfig(options: {
 	suite: Suite;
 	selection: Selection;
 	featureFile?: string;
+	/** The exec command for the shim kinds that run through exec (elixir, ruby, rust, go). */
+	command?: string;
 }): PromptfooConfig {
 	const { feature, suite, selection } = options;
 	const featureFile = options.featureFile ?? "feature.yaml";
@@ -270,13 +326,9 @@ export function buildPromptfooConfig(options: {
 	return {
 		description: `${feature.id}: forge suite, ${selection.cases.length} cases from ${selection.scenarios.length} scenarios`,
 		prompts: [`{{${firstInput}}}`],
-		providers: suite.target.models.map((model) => ({
-			id: `file://${suite.target.entry}`,
-			label: model,
-			config: suite.target.python
-				? { model, pythonExecutable: suite.target.python }
-				: { model },
-		})),
+		providers: suite.target.models.map((model) =>
+			providerFor(model, suite, feature, options.command),
+		),
 		evaluateOptions: { repeat: suite.repeat },
 		tests,
 	};

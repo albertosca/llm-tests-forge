@@ -319,8 +319,8 @@ export async function readCaseFile(
 }
 
 export const SUITE_EXAMPLE = `target:
-  kind: promptfoo-python
-  entry: forge_target.py          # the shim emit writes next to this file
+  kind: python                    # python | javascript | typescript | elixir | ruby | rust | go | exec | http
+  entry: forge_target.py          # optional: the shim emit writes next to this file
   python: .venv/bin/python        # optional: interpreter that can import your application
   models: [anthropic/claude-haiku-4-5]
 judges: [google/gemini-3.5-flash]

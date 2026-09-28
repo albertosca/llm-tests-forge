@@ -1786,7 +1786,7 @@ const FEATURE = {
 };
 const SUITE = {
 	target: {
-		kind: "promptfoo-python" as const,
+		kind: "python" as const,
 		entry: "forge_target.py",
 		models: ["anthropic/claude-haiku-4-5"],
 	},

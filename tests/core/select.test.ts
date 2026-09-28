@@ -43,7 +43,7 @@ const kase = (
 });
 const suite = (include: string[] = []): Suite => ({
 	target: {
-		kind: "promptfoo-python",
+		kind: "python",
 		entry: "forge_target.py",
 		models: ["anthropic/claude-haiku-4-5"],
 	},

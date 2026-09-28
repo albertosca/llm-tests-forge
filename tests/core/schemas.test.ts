@@ -55,35 +55,35 @@ describe("FeatureSchema", () => {
 
 describe("ScenarioSchema", () => {
 	test("requires kind and oracle from the enums", () => {
-		const ok = {
+		const validScenario = {
 			id: "polite-rejection",
 			kind: "happy",
 			oracle: "label",
 			description: "a polite no",
 			status: "pending",
 		} satisfies Scenario;
-		expect(ScenarioSchema.parse(ok)).toEqual(ok);
-		expect(ScenarioSchema.safeParse({ ...ok, kind: "weird" }).success).toBe(
-			false,
-		);
-		expect(ScenarioSchema.safeParse({ ...ok, oracle: "exact" }).success).toBe(
-			false,
-		);
+		expect(ScenarioSchema.parse(validScenario)).toEqual(validScenario);
+		expect(
+			ScenarioSchema.safeParse({ ...validScenario, kind: "weird" }).success,
+		).toBe(false);
+		expect(
+			ScenarioSchema.safeParse({ ...validScenario, oracle: "exact" }).success,
+		).toBe(false);
 	});
 });
 
 describe("CaseSchema", () => {
 	test("expected is optional (imported cases) and duplicate_of is optional", () => {
-		const c = {
+		const caseInput = {
 			id: "polite-rejection-01",
 			scenario: "polite-rejection",
 			input: { email: "..." },
 			status: "pending",
 			generated_by: "google/gemini-3.5-flash",
 		} satisfies Case;
-		expect(CaseSchema.parse(c)).toEqual(c);
+		expect(CaseSchema.parse(caseInput)).toEqual(caseInput);
 		const withExpected = {
-			...c,
+			...caseInput,
 			expected: { label: "rejection" },
 			duplicate_of: "polite-rejection-02",
 		} satisfies Case;
@@ -113,7 +113,7 @@ describe("CaseSchema", () => {
 
 describe("SuiteSchema", () => {
 	test("defaults repeat to 1 and include to []", () => {
-		const s = SuiteSchema.parse({
+		const parsedSuite = SuiteSchema.parse({
 			target: {
 				kind: "promptfoo-python",
 				entry: "forge_target.py",
@@ -121,8 +121,62 @@ describe("SuiteSchema", () => {
 			},
 			judges: ["anthropic/claude-sonnet-5"],
 		});
-		expect(s.repeat).toBe(1);
-		expect(s.include).toEqual([]);
+		expect(parsedSuite.repeat).toBe(1);
+		expect(parsedSuite.include).toEqual([]);
+	});
+});
+
+describe("SuiteSchema.target.kind", () => {
+	test("target.kind takes the nine kinds, and the old promptfoo-python reads as python", () => {
+		const base = { models: ["anthropic/claude-haiku-4-5"] };
+		expect(
+			SuiteSchema.parse({
+				target: { ...base, kind: "promptfoo-python", entry: "forge_target.py" },
+				judges: ["google/gemini-3.5-flash"],
+			}).target.kind,
+		).toBe("python");
+		for (const kind of [
+			"python",
+			"javascript",
+			"typescript",
+			"elixir",
+			"ruby",
+			"rust",
+			"go",
+		] as const)
+			expect(
+				SuiteSchema.parse({
+					target: { ...base, kind },
+					judges: ["google/gemini-3.5-flash"],
+				}).target.kind,
+			).toBe(kind);
+	});
+	test("exec needs a command, http needs a url, and a response expression may not hold =>", () => {
+		const judges = ["google/gemini-3.5-flash"];
+		const models = ["m/x"];
+		expect(() =>
+			SuiteSchema.parse({ target: { kind: "exec", models }, judges }),
+		).toThrow("target.command is required when target.kind is exec");
+		expect(() =>
+			SuiteSchema.parse({ target: { kind: "http", models }, judges }),
+		).toThrow("target.url is required when target.kind is http");
+		expect(() =>
+			SuiteSchema.parse({
+				target: {
+					kind: "http",
+					models,
+					url: "http://localhost:1/x",
+					response: "(json) => json.a",
+				},
+				judges,
+			}),
+		).toThrow("target.response must be an expression over json");
+		expect(() =>
+			SuiteSchema.parse({
+				target: { kind: "http", models, url: "ftp://x" },
+				judges,
+			}),
+		).toThrow("target.url must start with http:// or https://");
 	});
 });
 
@@ -168,8 +222,8 @@ describe("PricesSchema", () => {
 		});
 	});
 	test("rejects an empty models table", () => {
-		const r = PricesSchema.safeParse({ ...good, models: {} });
-		expect(r.success).toBe(false);
+		const result = PricesSchema.safeParse({ ...good, models: {} });
+		expect(result.success).toBe(false);
 	});
 	test("rejects an updated field that is not YYYY-MM-DD", () => {
 		expect(
