@@ -11,8 +11,11 @@ import type { Feature } from "../core/schemas";
  */
 export function requireApprovedFeature(feature: Feature, file: string): void {
 	if (feature.status === "pending")
-		throw new ForgeError("feature is pending; run `forge review` first", {
-			file,
-			id: feature.id,
-		});
+		throw new ForgeError(
+			"feature is pending; run `llm-tests-forge review` first",
+			{
+				file,
+				id: feature.id,
+			},
+		);
 }

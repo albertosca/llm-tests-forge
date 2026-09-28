@@ -17,47 +17,47 @@ Requer o [bun](https://bun.sh) 1.4 ou mais recente. Ainda não está publicado n
     git clone https://github.com/albertosca/llm-test-forge.git
     cd llm-test-forge
     bun install
-    bun link      # expõe o `forge` no seu PATH
+    bun link      # expõe o `llm-tests-forge` no seu PATH
 
 ## Uso
 
 Rode estes comandos nesta ordem, a partir da raiz da aplicação cuja funcionalidade de LLM você está testando.
 
-    export FORGE_MODEL=google/gemini-3.5-flash
-    forge describe "The bot classifies hiring emails into rejection, acknowledgement, interview, screening, offer, info_request or unrelated" --prompt-file src/prompt.txt
+    export FORGE_DRAFTER=google/gemini-3.5-flash
+    llm-tests-forge describe "The bot classifies hiring emails into rejection, acknowledgement, interview, screening, offer, info_request or unrelated" --prompt-file src/prompt.txt
 
 Escreve `.forge/feature.yaml` como uma descrição estruturada e pendente da funcionalidade (propósito, entradas, formato da saída, invariantes). `--prompt-file` é opcional; passe-o quando a aplicação tiver um system prompt real que valha a pena copiar regras dele. Rodar `describe` de novo por cima de uma funcionalidade que você já revisou é recusado, porque sobrescreveria as invariantes que você escreveu à mão; passe `--force` quando substituir for exatamente o que você quer.
 
-    forge review
+    llm-tests-forge review
 
 Abre uma revisão interativa do que estiver pendente — aqui, a funcionalidade. Aprove, edite ou rejeite; a aprovação libera o próximo passo.
 
-    forge scenarios
+    llm-tests-forge scenarios
 
 Gera `.forge/scenarios.yaml`: um conjunto de cenários cobrindo os seis tipos para a funcionalidade aprovada.
 
-    forge review --only scenarios
+    llm-tests-forge review --only scenarios
 
 Revisa os cenários pendentes, um por um.
 
-    forge cases --n 5
+    llm-tests-forge cases --n 5
 
 Gera 5 casos pendentes por cenário aprovado em `.forge/cases/<scenario-id>.yaml`, cada um com uma saída esperada calculada a partir do formato de oráculo da funcionalidade (label, fields ou rubric).
 
-    forge dedupe
+    llm-tests-forge dedupe
 
 Marca casos provavelmente duplicados dentro de cada cenário (`duplicate_of`), sem removê-los.
 
-    forge import logs/real-inputs.jsonl
+    llm-tests-forge import logs/real-inputs.jsonl
 
 Lê um objeto JSON `{"input-name": "value"}` por linha a partir de logs reais de produção e os adiciona como casos pendentes no cenário `imported`, sem saída esperada — você fornece isso durante a revisão.
 
-    forge review
+    llm-tests-forge review
 
-Revisa tudo que ainda está pendente: casos (confirmando ou corrigindo a saída esperada) e qualquer caso importado (definindo sua saída esperada pela primeira vez). Duas coisas a revisão não muda para você: o `id` de um cenário e o campo `scenario` de um caso, porque os dois nomeiam o arquivo onde os casos moram (`.forge/cases/<scenario>.yaml`) — a recusa diz qual chamada de `forge move` faz isso. E editar o `oracle` de um cenário reabre os casos aprovados daquele cenário cujo esperado o novo oráculo não aceita mais: cada um precisa então de `edit` para ganhar um esperado no novo formato, não de `approve`. Um Ctrl+C durante a revisão salva o que já foi decidido; um segundo aborta sem escrever nada.
+Revisa tudo que ainda está pendente: casos (confirmando ou corrigindo a saída esperada) e qualquer caso importado (definindo sua saída esperada pela primeira vez). Duas coisas a revisão não muda para você: o `id` de um cenário e o campo `scenario` de um caso, porque os dois nomeiam o arquivo onde os casos moram (`.forge/cases/<scenario>.yaml`) — a recusa diz qual chamada de `llm-tests-forge move` faz isso. E editar o `oracle` de um cenário reabre os casos aprovados daquele cenário cujo esperado o novo oráculo não aceita mais: cada um precisa então de `edit` para ganhar um esperado no novo formato, não de `approve`. Um Ctrl+C durante a revisão salva o que já foi decidido, se chegar antes de o salvamento terminar; um segundo aborta sem escrever nada.
 
-    forge move --scenario <antigo> <novo>
-    forge move --case <id> --to <cenário>
+    llm-tests-forge move --scenario <antigo> <novo>
+    llm-tests-forge move --case <id> --to <cenário>
 
 Renomeia um cenário ou move um caso para outro cenário, reescrevendo o que os ids nomeiam: o arquivo de casos do cenário, cada id de caso numerado a partir dele, os ponteiros `duplicate_of` e o `suite.include`. Um caso movido é numerado depois do último caso do destino; quando o oráculo do destino não aceita o esperado dele, o caso volta a pendente e a linha diz por quê. O destino é escrito antes de a origem ser tocada, então uma falha no meio deixa uma duplicata para limpar, nunca um caso sumido.
 
@@ -75,11 +75,11 @@ Os três verbos restantes transformam essa suíte em uma rodada. Eles leem o `.f
     repeat: 2
     include: []                       # vazio = todos os cenários revisados
 
-    forge estimate
+    llm-tests-forge estimate
 
 Calcula o preço da rodada antes de você gastar: casos × modelos alvo × `repeat`, mais uma chamada de juiz por caso `rubric` por juiz, modelo alvo e `repeat`, contra o `prices.yaml` (que é seu para editar — a saída imprime a data que ele carrega e marca com `~` qualquer modelo que teve de ser precificado pelo irmão mais próximo da lista). Um modelo cujo provedor não tem nenhuma linha na tabela não é precificado de jeito nenhum: a linha dele mostra `not priced`, e o total o deixa de fora dizendo quantas linhas ficaram de fora. Os tokens são contados como caracteres ÷ 4, então leia o número como ordem de grandeza. Não faz nenhuma chamada de API.
 
-    forge emit
+    llm-tests-forge emit
 
 Escreve o `.forge/promptfooconfig.yaml` a partir dos casos aprovados: um teste por caso com as entradas como `vars`, um assert `javascript` para o oráculo `label` ou `fields`, e um `llm-rubric` por juiz no caso de `rubric`. Recusa-se a gerar enquanto houver qualquer coisa pendente, e diz o quê. Na primeira vez também escreve o `.forge/forge_target.py` e nunca mais o sobrescreve — **edite o `run_application` dele para chamar a sua aplicação**, que é o que faz a suíte testar o seu código em vez de uma cópia do seu prompt. Com `--format jsonl`, escreve a mesma seleção em `.forge/cases.jsonl`, para um executor seu.
 
@@ -87,7 +87,7 @@ Escreve o `.forge/promptfooconfig.yaml` a partir dos casos aprovados: um teste p
 
 O promptfoo roda a suíte; a forja não roda por você e não precisa do promptfoo instalado.
 
-    forge report results.json [--baseline .forge/report.json]
+    llm-tests-forge report results.json [--baseline .forge/report.json]
 
 Lê a saída do promptfoo para `.forge/report.md` e `.forge/report.json`: taxa de acerto, tabela por cenário, quais cenários revisados não têm caso, não tiveram rodada casada ou não estão nesta suíte, casos que passaram em uma repetição e falharam em outra, juízes que discordaram (com as duas justificativas) e custo real contra o estimado. Com `--baseline`, um `report.json` anterior é comparado e as regressões vêm primeiro; pares que a baseline tem e esta rodada não (depois de um rename, por exemplo) são nomeados em vez de sumirem do diff em silêncio; um `--baseline` escrito por uma versão mais antiga da forja é aceito, inclusive as chaves que ela escrevia com outro nome.
 
@@ -105,7 +105,7 @@ Commite `feature.yaml`, `scenarios.yaml`, `cases/<scenario>.yaml`, `suite.yaml`,
 
 ## O que isso ainda não faz
 
-- Não chama o promptfoo por você: o `forge emit` escreve a config e você roda a avaliação.
+- Não chama o promptfoo por você: o `llm-tests-forge emit` escreve a config e você roda a avaliação.
 - Não existe servidor MCP, então o loop de revisão não roda dentro de uma conversa.
 - Testa um turno por vez. Casos multi-turno, em que a própria resposta da aplicação molda o turno seguinte, precisam de um usuário simulado, que isto não é.
 - Não guarda histórico: o `--baseline` compara duas rodadas, e nada as acumula ao longo do tempo.
@@ -114,7 +114,7 @@ Veja `docs/superpowers/specs/2026-09-14-llm-test-forge-design.md` para o design 
 
 ## Provedores
 
-Defina `FORGE_MODEL` ou passe `--model` como `provider/model`:
+O drafter é o modelo que escreve a funcionalidade, os cenários e os casos; tudo o que ele escreve chega pendente. Defina `FORGE_DRAFTER` ou passe `--drafter` como `provider/model`:
 
 | Provedor | Variável de ambiente | Exemplo |
 |---|---|---|
@@ -130,7 +130,7 @@ Defina `FORGE_MODEL` ou passe `--model` como `provider/model`:
     bun run lint       # Biome
     bun run typecheck  # tsc --noEmit
     bun run check      # lint, depois typecheck, depois test
-    bun run test:live  # duas chamadas reais contra google/gemini-3.5-flash por padrão (FORGE_LIVE=1); sobrescreva com FORGE_MODEL
+    bun run test:live  # duas chamadas reais contra google/gemini-3.5-flash por padrão (FORGE_LIVE=1); sobrescreva com FORGE_DRAFTER
     bun run validate:example  # valida o promptfooconfig.yaml do exemplo commitado com o promptfoo de verdade; sem API key
 
 O gate de cobertura é o do próprio bun: um piso de 1,0 sobre **linhas e funções**, com `src/cli/bin.ts` excluído. O bun não mede cobertura de branch nenhuma, então um arquivo em 100% ainda pode ter braços de guarda sem teste — leia o gate como um piso, não como prova de que a suíte está completa.

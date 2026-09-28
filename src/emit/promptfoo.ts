@@ -226,9 +226,12 @@ export function buildPromptfooConfig(options: {
 	const { feature, suite, selection } = options;
 	const featureFile = options.featureFile ?? "feature.yaml";
 	if (selection.cases.length === 0)
-		throw new ForgeError("no approved case to emit; run `forge review` first", {
-			file: featureFile,
-		});
+		throw new ForgeError(
+			"no approved case to emit; run `llm-tests-forge review` first",
+			{
+				file: featureFile,
+			},
+		);
 	const byId = new Map(
 		selection.scenarios.map((scenario) => [scenario.id, scenario]),
 	);
@@ -280,5 +283,5 @@ export function buildPromptfooConfig(options: {
 }
 
 export function renderPromptfooConfig(config: PromptfooConfig): string {
-	return `# Written by forge emit; edit suite.yaml and re-run instead of editing this file.\n${stringify(config, { lineWidth: 0 })}`;
+	return `# Written by llm-tests-forge emit; edit suite.yaml and re-run instead of editing this file.\n${stringify(config, { lineWidth: 0 })}`;
 }

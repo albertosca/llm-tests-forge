@@ -15,7 +15,7 @@ import { join, resolve } from "node:path";
 import { parse } from "yaml";
 import type { CliContext } from "../../src/cli/context";
 import { createContext } from "../../src/cli/context";
-import { modelFlag, run } from "../../src/cli/main";
+import { drafterFlag, run, USAGE } from "../../src/cli/main";
 import {
 	readCases,
 	readFeature,
@@ -41,7 +41,7 @@ async function ctxIn(cwd: string, stdinLines: string[] = []) {
 	const queue = [...stdinLines];
 	const context = createContext({
 		cwd,
-		model: MODEL,
+		drafter: MODEL,
 		stdin: async () => queue.shift() ?? "",
 	});
 	context.stdout = (line) => out.push(line);
@@ -186,13 +186,43 @@ describe("forge CLI end to end (fake provider)", () => {
 		}
 	});
 
-	test("missing model is a usage error (exit 2) naming the flag", async () => {
+	test("missing drafter is a usage error (exit 2) naming the flag", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const out: string[] = [];
 		const context = createContext({ cwd, env: {}, stdin: async () => "" });
 		context.stdout = (line) => out.push(line);
 		expect(await run(["describe", "x"], context)).toBe(2);
-		expect(out.at(-1)).toContain("--model");
+		expect(out.at(-1)).toContain("--drafter");
+	});
+
+	test("the drafter comes from --drafter or FORGE_DRAFTER; the old --model and FORGE_MODEL are gone", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-drafter-"));
+		const fromEnvironment = createContext({
+			cwd: directory,
+			env: { FORGE_DRAFTER: "fake/x" },
+			stdin: async () => "",
+		});
+		expect(fromEnvironment.drafter).toBe("fake/x");
+		const oldName = createContext({
+			cwd: directory,
+			env: { FORGE_MODEL: "fake/x" },
+			stdin: async () => "",
+		});
+		expect(() => oldName.drafter).toThrow(
+			"no drafter: pass --drafter provider/model or set FORGE_DRAFTER",
+		);
+		const { context, out } = await ctxIn(directory);
+		expect(await run(["describe", "text", "--model", "fake/x"], context)).toBe(
+			2,
+		);
+		expect(out.join("\n")).toContain("--model");
+	});
+
+	test("every message that names a command says llm-tests-forge", async () => {
+		expect(USAGE).toStartWith("usage: llm-tests-forge <verb>");
+		expect(USAGE).not.toMatch(
+			/(^|[\s`])forge (describe|scenarios|cases|dedupe|import|review|move|estimate|emit|report)\b/m,
+		);
 	});
 });
 
@@ -537,7 +567,7 @@ describe("review --all: never approves a case with no expected (Finding 2)", () 
 			true,
 		);
 		expect(out.at(-1)).toBe(
-			"review: approved 0 pending case(s) of imported; 2 left pending (no expected set — run `forge review --scenario imported` to fill them in)",
+			"review: approved 0 pending case(s) of imported; 2 left pending (no expected set — run `llm-tests-forge review --scenario imported` to fill them in)",
 		);
 	});
 
@@ -586,7 +616,7 @@ describe("review --all: never approves a case with no expected (Finding 2)", () 
 		expect(after[1]?.status).toBe("pending");
 		expect(after[1]?.expected).toBeUndefined();
 		expect(out.at(-1)).toBe(
-			"review: approved 1 pending case(s) of polite-rejection; 1 left pending (no expected set — run `forge review --scenario polite-rejection` to fill them in)",
+			"review: approved 1 pending case(s) of polite-rejection; 1 left pending (no expected set — run `llm-tests-forge review --scenario polite-rejection` to fill them in)",
 		);
 	});
 });
@@ -670,15 +700,15 @@ describe("import: --oracle validation", () => {
 	});
 });
 
-describe("modelFlag", () => {
-	test("reads --model from raw argv", () => {
-		expect(modelFlag(["describe", "x", "--model", "anthropic/haiku"])).toBe(
+describe("drafterFlag", () => {
+	test("reads --drafter from raw argv", () => {
+		expect(drafterFlag(["describe", "x", "--drafter", "anthropic/haiku"])).toBe(
 			"anthropic/haiku",
 		);
 	});
 
-	test("returns undefined when --model is absent", () => {
-		expect(modelFlag(["describe", "x"])).toBeUndefined();
+	test("returns undefined when --drafter is absent", () => {
+		expect(drafterFlag(["describe", "x"])).toBeUndefined();
 	});
 });
 
@@ -757,7 +787,7 @@ describe("createContext defaults", () => {
 		try {
 			const context = createContext({
 				cwd: "/tmp",
-				env: { FORGE_MODEL: "fake/x" },
+				env: { FORGE_DRAFTER: "fake/x" },
 				stdin: async () => "",
 			});
 			context.stdout("hello");
@@ -795,7 +825,7 @@ describe("the downstream gate: nothing runs on a pending feature (whole-branch F
 		noModelCalls(context);
 		expect(await run(["scenarios"], context)).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: feature is pending; run \`forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
+			`error: feature is pending; run \`llm-tests-forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
 		);
 	});
 
@@ -807,7 +837,7 @@ describe("the downstream gate: nothing runs on a pending feature (whole-branch F
 		noModelCalls(context);
 		expect(await run(["cases"], context)).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: feature is pending; run \`forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
+			`error: feature is pending; run \`llm-tests-forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
 		);
 	});
 
@@ -820,7 +850,7 @@ describe("the downstream gate: nothing runs on a pending feature (whole-branch F
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["import", jsonl], context)).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: feature is pending; run \`forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
+			`error: feature is pending; run \`llm-tests-forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
 		);
 		const wrote = await stat(
 			join(cwd, ".forge", "cases", "imported.yaml"),
@@ -976,7 +1006,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 		});
 
 		expect(out).toContain(
-			`cannot apply: a scenario's id cannot be changed in review (from "polite-rejection" to "polite-rejection-fixed"): it names .forge/cases/<id>.yaml; run \`forge move --scenario polite-rejection polite-rejection-fixed\` (id: polite-rejection)`,
+			`cannot apply: a scenario's id cannot be changed in review (from "polite-rejection" to "polite-rejection-fixed"): it names .forge/cases/<id>.yaml; run \`llm-tests-forge move --scenario polite-rejection polite-rejection-fixed\` (id: polite-rejection)`,
 		);
 		const scenarios = await readScenarios(forgeDirectory);
 		expect(scenarios.map((scenario) => [scenario.id, scenario.status])).toEqual(
@@ -1062,7 +1092,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 			out.some(
 				(line) =>
 					line ===
-					`cannot apply: a case's scenario cannot be changed in review (from "polite-rejection" to "huge-signature"); run \`forge move --case polite-rejection-01 --to huge-signature\` (id: polite-rejection-01)`,
+					`cannot apply: a case's scenario cannot be changed in review (from "polite-rejection" to "huge-signature"); run \`llm-tests-forge move --case polite-rejection-01 --to huge-signature\` (id: polite-rejection-01)`,
 			),
 		).toBe(true);
 		const cases = await readCases(forgeDirectory, "polite-rejection");
@@ -1169,7 +1199,7 @@ describe("dedupe never writes a phantom empty cases file (whole-branch Finding 5
 			await run(["dedupe", "--scenario", "polite-rejection"], context),
 		).toBe(1);
 		expect(out.at(-1)).toBe(
-			'error: scenario "polite-rejection" has no cases yet; run `forge cases --scenario polite-rejection` first (id: polite-rejection)',
+			'error: scenario "polite-rejection" has no cases yet; run `llm-tests-forge cases --scenario polite-rejection` first (id: polite-rejection)',
 		);
 		expect(out.join("\n")).not.toContain("0 marked as duplicates");
 
@@ -1438,7 +1468,7 @@ describe("review: a write-back never recreates a cases file removed during the p
 		const out: string[] = [];
 		const removingContext = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			stdin: async () => {
 				await unlink(casesPath);
 				return "approve";
@@ -1486,7 +1516,7 @@ describe("review: a write-back guard also skips a cases file recreated during th
 		const out: string[] = [];
 		const removingContext = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			stdin: async () => {
 				await unlink(casesPath);
 				await writeFile(casesPath, outsideContent, "utf8");
@@ -1565,7 +1595,7 @@ describe("review: a write-back guard skips just the files it cannot trust, and s
 		const out: string[] = [];
 		const removingContext = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			stdin: async () => {
 				questionsAnswered += 1;
 				// Removed while answering the second question -- after its
@@ -1612,7 +1642,7 @@ describe("review: onInteractivePass arms end-of-input only for the interactive p
 		const out: string[] = [];
 		const context = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			stdin: async () => "approve",
 			onInteractivePass: () => {
 				interactivePassCalls += 1;
@@ -1648,7 +1678,7 @@ describe("review: onInteractivePass arms end-of-input only for the interactive p
 		const out: string[] = [];
 		const context = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			stdin: async () => "",
 			onInteractivePass: () => {
 				interactivePassCalls += 1;
@@ -1704,7 +1734,7 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 		// nothing else uses" was advice no free id could satisfy: the
 		// refusal a person can act on is the one that names the file move.
 		expect(out).toContain(
-			'cannot apply: a scenario\'s id cannot be changed in review (from "polite-rejection" to "huge-signature"): it names .forge/cases/<id>.yaml; run `forge move --scenario polite-rejection huge-signature` (id: polite-rejection)',
+			'cannot apply: a scenario\'s id cannot be changed in review (from "polite-rejection" to "huge-signature"): it names .forge/cases/<id>.yaml; run `llm-tests-forge move --scenario polite-rejection huge-signature` (id: polite-rejection)',
 		);
 		expect(out.join("\n")).not.toContain("pick an id nothing else uses");
 		const scenarios = await readScenarios(join(cwd, ".forge"));
@@ -1865,7 +1895,7 @@ describe("review --all checks that every case in the file belongs to it", () => 
 		).toBe(1);
 
 		expect(out.at(-1)).toBe(
-			`error: case polite-rejection-02 names scenario "huge-signature" but lives in ${casesFile}; run \`forge move --case polite-rejection-02 --to huge-signature\` or fix the file (file: ${casesFile}, id: polite-rejection-02)`,
+			`error: case polite-rejection-02 names scenario "huge-signature" but lives in ${casesFile}; run \`llm-tests-forge move --case polite-rejection-02 --to huge-signature\` or fix the file (file: ${casesFile}, id: polite-rejection-02)`,
 		);
 		// Checked before the first write: the sibling that would have been
 		// approved is still pending, and the file was never rewritten.
@@ -2241,7 +2271,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		const out: string[] = [];
 		const context = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			// The only answer is the scenario's "edit"; before giving it, the
 			// cases file is rewritten by "someone else" and dated long ago, so
 			// the write-back guard cannot mistake it for the file it read.
@@ -2970,7 +3000,7 @@ describe("review refuses a case that names another existing scenario before the 
 		const { context, out } = await ctxIn(cwd, ["approve", "approve"]);
 		expect(await run(["review", "--only", "cases"], context)).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: case aa-02 names scenario "bb" but lives in ${aaFile}; run \`forge move --case aa-02 --to bb\` or fix the file (file: ${aaFile}, id: aa-02)`,
+			`error: case aa-02 names scenario "bb" but lives in ${aaFile}; run \`llm-tests-forge move --case aa-02 --to bb\` or fix the file (file: ${aaFile}, id: aa-02)`,
 		);
 		expect(out.some((line) => line.startsWith("--- case"))).toBe(false);
 		expect((await stat(aaFile)).mtime.getTime()).toBe(LONG_AGO.getTime());
@@ -3065,7 +3095,7 @@ describe("dedupe checks every scenario before it writes the first one", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["dedupe"], context)).toBe(1);
 		expect(out.at(-1)).toBe(
-			'error: scenario "zzz-empty" has no cases yet; run `forge cases --scenario zzz-empty` first (id: zzz-empty)',
+			'error: scenario "zzz-empty" has no cases yet; run `llm-tests-forge cases --scenario zzz-empty` first (id: zzz-empty)',
 		);
 		expect((await stat(first)).mtime.getTime()).toBe(LONG_AGO.getTime());
 		expect(out.some((line) => line.includes("marked as duplicates"))).toBe(
@@ -3195,7 +3225,7 @@ describe("estimate", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["estimate"], context)).toBe(0);
 		expect(out).toContain(
-			"estimate: 1 item excluded; run `forge review` to include it:",
+			"estimate: 1 item excluded; run `llm-tests-forge review` to include it:",
 		);
 		expect(out).toContain(
 			"  case polite-rejection-01 is pending (" +
@@ -3239,7 +3269,7 @@ describe("estimate", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["estimate"], context)).toBe(0);
 		expect(out.slice(-3)).toEqual([
-			"estimate: 2 items excluded; run `forge review` to include them:",
+			"estimate: 2 items excluded; run `llm-tests-forge review` to include them:",
 			`  case polite-rejection-01 is pending (${join(forgeDirectory, "cases", "polite-rejection.yaml")})`,
 			`  case vague-rubric-01 is pending (${join(forgeDirectory, "cases", "vague-rubric.yaml")})`,
 		]);
@@ -3273,7 +3303,7 @@ describe("estimate", () => {
 			"estimate: 1 item excluded:",
 			`  scenario vague-rubric is rejected (${join(forgeDirectory, "scenarios.yaml")})`,
 		]);
-		expect(out.join("\n")).not.toContain("forge review");
+		expect(out.join("\n")).not.toContain("llm-tests-forge review");
 	});
 	test("selecting no case at all exits 1 naming the cases directory, printing no table", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -3404,7 +3434,7 @@ describe("emit", () => {
 		expect(await run(["emit"], context)).toBe(1);
 		const text = out.join("\n");
 		expect(text).toContain(
-			"error: emit refused: 2 items block it; run `forge review`",
+			"error: emit refused: 2 items block it; run `llm-tests-forge review`",
 		);
 		expect(text).toContain("case polite-rejection-01 is pending");
 		expect(text).toContain("case polite-rejection-02 is pending");
@@ -3436,7 +3466,7 @@ describe("emit", () => {
 		const text = out.join("\n");
 		expect(text).toContain("error: emit refused: 1 item blocks it");
 		expect(text).toContain("scenario polite-rejection is rejected");
-		expect(text).not.toContain("forge review");
+		expect(text).not.toContain("llm-tests-forge review");
 	});
 	test("a case whose expected no longer matches its scenario's oracle blocks emit, naming both", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -3460,7 +3490,7 @@ describe("emit", () => {
 		expect(await run(["emit"], context)).toBe(1);
 		const text = out.join("\n");
 		expect(text).toContain(
-			"error: emit refused: 1 item blocks it; run `forge review`",
+			"error: emit refused: 1 item blocks it; run `llm-tests-forge review`",
 		);
 		expect(text).toContain(
 			`case polite-rejection-01: oracle is fields but expected.fields is missing (${join(forgeDirectory, "cases", "polite-rejection.yaml")})`,
@@ -3803,7 +3833,7 @@ describe("report", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["report", RESULTS, "--baseline", bad], context)).toBe(1);
 		expect(out.at(-1)).toContain(bad);
-		expect(out.at(-1)).toContain("is not a forge report");
+		expect(out.at(-1)).toContain("is not a report written by llm-tests-forge");
 	});
 
 	test("a baseline that is not JSON at all names the file and the problem", async () => {
@@ -3879,7 +3909,7 @@ describe("report", () => {
 		);
 	});
 
-	test("after forge move renames a scenario, the baseline diff names the pairs it could not compare and coverage names the scenario", async () => {
+	test("after llm-tests-forge move renames a scenario, the baseline diff names the pairs it could not compare and coverage names the scenario", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeMatchingFixture(cwd);
 		const first = await ctxIn(cwd);
@@ -3959,7 +3989,7 @@ const CASE = (
 	...extra,
 });
 
-describe("forge move --scenario <old> <new>", () => {
+describe("llm-tests-forge move --scenario <old> <new>", () => {
 	test("renames the scenario, renumbers its cases into the new file, deletes the old file, and follows suite.include", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
@@ -4161,7 +4191,7 @@ describe("forge move --scenario <old> <new>", () => {
 			),
 		).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: "Polite-Rejection" differs from "polite-rejection" only in letter case or Unicode normalisation, which is one file on the default macOS filesystem; rename through a temporary id: forge move --scenario polite-rejection tmp-Polite-Rejection && forge move --scenario tmp-Polite-Rejection Polite-Rejection (file: ${oldFile}, id: Polite-Rejection)`,
+			`error: "Polite-Rejection" differs from "polite-rejection" only in letter case or Unicode normalisation, which is one file on the default macOS filesystem; rename through a temporary id: llm-tests-forge move --scenario polite-rejection tmp-Polite-Rejection && llm-tests-forge move --scenario tmp-Polite-Rejection Polite-Rejection (file: ${oldFile}, id: Polite-Rejection)`,
 		);
 		// The advice, followed: two renames, three files never in
 		// conflict, and the cases renumbered at the end.
@@ -4249,7 +4279,7 @@ include: [keep, polite-rejection, keep]   # only these for now
 	});
 });
 
-describe("forge move --scenario: the source file and the suite", () => {
+describe("llm-tests-forge move --scenario: the source file and the suite", () => {
 	test("a source file spelled with different case than the id is refused, and scenarios.yaml is untouched", async () => {
 		// The read resolves case-insensitively on macOS, so the cases were
 		// read and renamed in memory, the file was neither written nor
@@ -4386,7 +4416,7 @@ judges: [google/gemini-3.5-flash]
 	});
 });
 
-describe("forge move --case <id> --to <scenario>", () => {
+describe("llm-tests-forge move --case <id> --to <scenario>", () => {
 	async function twoScenarios(
 		cwd: string,
 		destinationOracle: "label" | "rubric" = "label",
@@ -4477,7 +4507,7 @@ describe("forge move --case <id> --to <scenario>", () => {
 		).toBe(0);
 		expect(out.slice(0, 2)).toEqual([
 			"move: polite-rejection-01 → huge-signature-01 (scenario huge-signature)",
-			"move: huge-signature-01 re-opened: oracle is rubric but expected.rubric is missing — edit it in `forge review` to give it an expected the rubric oracle accepts",
+			"move: huge-signature-01 re-opened: oracle is rubric but expected.rubric is missing — edit it in `llm-tests-forge review` to give it an expected the rubric oracle accepts",
 		]);
 		const destination = await readCases(forgeDirectory, "huge-signature");
 		expect(
@@ -4636,7 +4666,7 @@ describe("forge move --case <id> --to <scenario>", () => {
 	});
 });
 
-describe("forge move --case: the destination's file and status", () => {
+describe("llm-tests-forge move --case: the destination's file and status", () => {
 	test("a destination whose cases file is spelled with different case is refused, so the file is never replaced", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = join(cwd, ".forge");
@@ -4733,7 +4763,7 @@ describe("forge move --case: the destination's file and status", () => {
 	});
 });
 
-describe("forge move --case: a twin id in the source", () => {
+describe("llm-tests-forge move --case: a twin id in the source", () => {
 	test("exits 1 naming the file, moves nothing, and drops nothing", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = join(cwd, ".forge");
@@ -4784,7 +4814,7 @@ describe("forge move --case: a twin id in the source", () => {
 	});
 });
 
-describe("forge move: a file name that differs from the id only in Unicode normalisation", () => {
+describe("llm-tests-forge move: a file name that differs from the id only in Unicode normalisation", () => {
 	// `café` written to disk as NFC, named in scenarios.yaml as NFD: APFS
 	// opens the file by either spelling, JavaScript compares them unequal,
 	// and the case-only guard let both forms through.
@@ -4861,7 +4891,7 @@ describe("forge move: a file name that differs from the id only in Unicode norma
 	});
 });
 
-describe("forge move --scenario: a write that fails after the first one", () => {
+describe("llm-tests-forge move --scenario: a write that fails after the first one", () => {
 	test("names what is already on disk and what to do by hand", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
@@ -4902,7 +4932,7 @@ describe("forge move --scenario: a write that fails after the first one", () => 
 	});
 });
 
-describe("forge move --scenario: when suite.yaml cannot be rewritten", () => {
+describe("llm-tests-forge move --scenario: when suite.yaml cannot be rewritten", () => {
 	test("the failure lists what is already written and the two hand steps", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
@@ -4943,7 +4973,7 @@ describe("forge move --scenario: when suite.yaml cannot be rewritten", () => {
 	});
 });
 
-describe("forge move --case: when the source cannot be rewritten", () => {
+describe("llm-tests-forge move --case: when the source cannot be rewritten", () => {
 	test("the failure names the copy already in the destination and what to remove by hand", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = join(cwd, ".forge");
@@ -4997,7 +5027,7 @@ describe("forge move --case: when the source cannot be rewritten", () => {
 	});
 });
 
-describe("forge move --case: when the source cannot be removed", () => {
+describe("llm-tests-forge move --case: when the source cannot be removed", () => {
 	test("the failure names the file and what is already written, and a retry is refused rather than writing a second copy", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = join(cwd, ".forge");
@@ -5069,7 +5099,7 @@ describe("forge move --case: when the source cannot be removed", () => {
 	});
 });
 
-describe("forge move usage", () => {
+describe("llm-tests-forge move usage", () => {
 	test("neither form, both forms, a half form and stray arguments are usage errors", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		await forgeWithApprovedScenario(cwd);

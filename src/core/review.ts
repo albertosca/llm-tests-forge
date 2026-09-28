@@ -162,12 +162,12 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// Renaming it here rewrote scenarios.yaml alone: in the same pass
 			// every case of that scenario was then refused as naming a
 			// scenario "not in scenarios.yaml" — false at that moment, since
-			// the file still held it — and the next `forge review` exited 1
+			// the file still held it — and the next `llm-tests-forge review` exited 1
 			// on everything. Refused by name so the edit is re-asked, rather
 			// than half applied across files the reviewer never opened.
 			if (isScenario(item) && isScenario(next) && next.id !== item.id)
 				throw new ForgeError(
-					`a scenario's id cannot be changed in review (from "${item.id}" to "${next.id}"): it names .forge/cases/<id>.yaml; run \`forge move --scenario ${item.id} ${next.id}\``,
+					`a scenario's id cannot be changed in review (from "${item.id}" to "${next.id}"): it names .forge/cases/<id>.yaml; run \`llm-tests-forge move --scenario ${item.id} ${next.id}\``,
 					{ id: item.id },
 				);
 			// Two entries of the same file sharing an id are
@@ -190,7 +190,7 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// reviewer never opened.
 			if (isCase(item) && isCase(next) && next.scenario !== item.scenario)
 				throw new ForgeError(
-					`a case's scenario cannot be changed in review (from "${item.scenario}" to "${next.scenario}"); run \`forge move --case ${item.id} --to ${next.scenario}\``,
+					`a case's scenario cannot be changed in review (from "${item.scenario}" to "${next.scenario}"); run \`llm-tests-forge move --case ${item.id} --to ${next.scenario}\``,
 					{ id: item.id },
 				);
 			return { ...next, status: "edited" };

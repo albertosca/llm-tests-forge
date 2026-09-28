@@ -2,7 +2,7 @@
  * One real call per verb against a live model. Off by default; run with
  * `bun run test:live` (sets FORGE_LIVE=1).
  *
- * Default model: google/gemini-3.5-flash. Override with FORGE_MODEL to
+ * Default model: google/gemini-3.5-flash. Override with FORGE_DRAFTER to
  * point at a different provider/model. GOOGLE_API_KEY comes from the shell
  * or, when the shell does not export it, from ~/.config/google/api.env
  * (loaded by `tests/live/preload.ts`) -- a key in neither place fails this
@@ -36,7 +36,7 @@ import { expectedMatchesOracle } from "../../src/core/oracle";
 import { DEFAULT_RETRY_CONFIG, retryTransient } from "./retry";
 
 const live = process.env.FORGE_LIVE === "1";
-const model = process.env.FORGE_MODEL ?? "google/gemini-3.5-flash";
+const model = process.env.FORGE_DRAFTER ?? "google/gemini-3.5-flash";
 
 const MISSING_GOOGLE_KEY =
 	"GOOGLE_API_KEY is not set. Export it before running `bun run test:live` " +
@@ -54,12 +54,12 @@ describe.skipIf(!live)(
 				throw new Error(MISSING_GOOGLE_KEY);
 
 			const cwd = await mkdtemp(join(tmpdir(), "forge-live-"));
-			const ctx = createContext({ cwd, model, stdin: async () => "" });
+			const ctx = createContext({ cwd, drafter: model, stdin: async () => "" });
 			const out: string[] = [];
 			ctx.stdout = (l) => out.push(l);
 
 			await retryTransient(
-				"`forge describe`",
+				"`llm-tests-forge describe`",
 				async () => ({
 					code: await run(
 						[
@@ -80,7 +80,7 @@ describe.skipIf(!live)(
 			});
 
 			await retryTransient(
-				"`forge scenarios`",
+				"`llm-tests-forge scenarios`",
 				async () => ({
 					code: await run(["scenarios"], ctx),
 					message: out.at(-1) ?? "(no output)",
@@ -92,14 +92,16 @@ describe.skipIf(!live)(
 
 			const target = scenarios[0];
 			if (!target)
-				throw new Error("expected `forge scenarios` to write at least one");
+				throw new Error(
+					"expected `llm-tests-forge scenarios` to write at least one",
+				);
 			await writeScenarios(join(cwd, ".forge"), [
 				{ ...target, status: "approved" },
 				...scenarios.slice(1),
 			]);
 
 			await retryTransient(
-				"`forge cases`",
+				"`llm-tests-forge cases`",
 				async () => ({
 					code: await run(["cases", "--scenario", target.id, "--n", "2"], ctx),
 					message: out.at(-1) ?? "(no output)",
@@ -108,7 +110,9 @@ describe.skipIf(!live)(
 			);
 			const cases = await readCases(join(cwd, ".forge"), target.id);
 			if (cases.length === 0)
-				throw new Error("expected `forge cases` to write at least one case");
+				throw new Error(
+					"expected `llm-tests-forge cases` to write at least one case",
+				);
 			for (const c of cases) {
 				for (const inputDef of feature.inputs) {
 					const value = c.input[inputDef.name];

@@ -14,7 +14,7 @@ export interface Selection {
 	/**
 	 * How many of `blockers` the person can still clear at the review
 	 * prompt. A rejected item is not one of them — it is a decision already
-	 * taken — so a caller that tells the person to run `forge review` asks
+	 * taken — so a caller that tells the person to run `llm-tests-forge review` asks
 	 * this rather than the length of `blockers`.
 	 */
 	reviewable: number;

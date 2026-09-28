@@ -39,7 +39,7 @@ async function readBaseline(path: string): Promise<Report> {
 	const parsed = ReportSchema.safeParse(data);
 	if (!parsed.success)
 		throw new ForgeError(
-			`is not a forge report: ${parsed.error.issues
+			`is not a report written by llm-tests-forge: ${parsed.error.issues
 				.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
 				.join("; ")}`,
 			{ file: path },

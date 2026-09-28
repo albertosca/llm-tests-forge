@@ -222,7 +222,7 @@ describe("applyDecision", () => {
 		}
 		expect(err).toBeInstanceOf(ForgeError);
 		expect((err as ForgeError).message).toBe(
-			`a scenario's id cannot be changed in review (from "s" to "renamed"): it names .forge/cases/<id>.yaml; run \`forge move --scenario s renamed\` (id: s)`,
+			`a scenario's id cannot be changed in review (from "s" to "renamed"): it names .forge/cases/<id>.yaml; run \`llm-tests-forge move --scenario s renamed\` (id: s)`,
 		);
 
 		// Even when the new id is one a sibling already holds: the collision
@@ -240,7 +240,7 @@ describe("applyDecision", () => {
 			taken = e;
 		}
 		expect((taken as ForgeError).message).toBe(
-			`a scenario's id cannot be changed in review (from "s" to "sibling"): it names .forge/cases/<id>.yaml; run \`forge move --scenario s sibling\` (id: s)`,
+			`a scenario's id cannot be changed in review (from "s" to "sibling"): it names .forge/cases/<id>.yaml; run \`llm-tests-forge move --scenario s sibling\` (id: s)`,
 		);
 
 		// The rule is about the id alone: every other field of a scenario is

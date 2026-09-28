@@ -49,7 +49,7 @@ describe("retryTransient", () => {
 			sleep,
 		};
 
-		await retryTransient("`forge describe`", attempt, config);
+		await retryTransient("`llm-tests-forge describe`", attempt, config);
 
 		expect(callCount()).toBe(3);
 		expect(sleepCalls).toEqual([3_000, 3_000]);
@@ -61,7 +61,11 @@ describe("retryTransient", () => {
 			message: "describe: feature written as pending",
 		});
 
-		await retryTransient("`forge describe`", attempt, DEFAULT_RETRY_CONFIG);
+		await retryTransient(
+			"`llm-tests-forge describe`",
+			attempt,
+			DEFAULT_RETRY_CONFIG,
+		);
 
 		expect(callCount()).toBe(1);
 	});
@@ -82,7 +86,7 @@ describe("retryTransient", () => {
 
 		let err: unknown;
 		try {
-			await retryTransient("`forge scenarios`", attempt, config);
+			await retryTransient("`llm-tests-forge scenarios`", attempt, config);
 		} catch (e) {
 			err = e;
 		}
@@ -115,7 +119,7 @@ describe("retryTransient", () => {
 
 		let err: unknown;
 		try {
-			await retryTransient("`forge describe`", attempt, config);
+			await retryTransient("`llm-tests-forge describe`", attempt, config);
 		} catch (e) {
 			err = e;
 		}
@@ -152,7 +156,7 @@ describe("retryTransient", () => {
 			sleep: async () => {},
 		};
 
-		await retryTransient("`forge describe`", attempt, config);
+		await retryTransient("`llm-tests-forge describe`", attempt, config);
 
 		expect(callCount()).toBe(0);
 	});

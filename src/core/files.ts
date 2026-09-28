@@ -296,7 +296,7 @@ export async function caseFileFingerprint(
 	);
 }
 
-/** A cases file as `forge review` read it: its cases and the fingerprint of the file they came from. */
+/** A cases file as `llm-tests-forge review` read it: its cases and the fingerprint of the file they came from. */
 export interface ReadCaseFile {
 	cases: Case[];
 	fingerprint: CaseFileFingerprint;

@@ -118,7 +118,9 @@ const lines = (report: Report) => renderReportMarkdown(report).split("\n");
 describe("renderReportMarkdown", () => {
 	test("puts the decisive numbers in the first two lines", () => {
 		const markdown = lines(REPORT);
-		expect(markdown[0]).toBe("# forge report — 2026-09-15T20:00:00.000Z");
+		expect(markdown[0]).toBe(
+			"# llm-tests-forge report — 2026-09-15T20:00:00.000Z",
+		);
 		expect(markdown).toContain(
 			"**Pass rate:** 50.0% (3 of 6 runs, 0 errored) · **failing or errored:** 1 · **flaky:** 1 · **judge disagreements:** 1 · **regressions since baseline:** 1",
 		);

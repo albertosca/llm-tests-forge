@@ -5,7 +5,7 @@ import { createLlm, type Llm } from "../llm/generate";
 export interface CliContext {
 	forgeDir: string;
 	llm: Llm;
-	readonly model: string;
+	readonly drafter: string;
 	stdout: (line: string) => void;
 	stdin: () => Promise<string>;
 	/**
@@ -23,12 +23,12 @@ export interface CliContext {
 
 export interface CreateContextOptions {
 	cwd: string;
-	model?: string;
+	drafter?: string;
 	env?: Record<string, string | undefined>;
 	/**
 	 * How to read one line of input. There is no real-terminal default
 	 * here on purpose: reading a real line (via `console`'s async
-	 * iterator) is I/O that only makes sense for the actual `forge`
+	 * iterator) is I/O that only makes sense for the actual `llm-tests-forge`
 	 * binary, so `src/cli/bin.ts` supplies that implementation and every
 	 * test supplies its own scripted one.
 	 */
@@ -40,16 +40,16 @@ export interface CreateContextOptions {
 export function createContext(options: CreateContextOptions): CliContext {
 	const environment = options.env ?? process.env;
 	const forgeDirectory = join(options.cwd, ".forge");
-	const model = options.model ?? environment.FORGE_MODEL;
+	const drafter = options.drafter ?? environment.FORGE_DRAFTER;
 	return {
 		forgeDir: forgeDirectory,
 		llm: createLlm({ forgeDir: forgeDirectory }),
-		get model(): string {
-			if (!model)
+		get drafter(): string {
+			if (!drafter)
 				throw new UsageError(
-					"no model: pass --model provider/model or set FORGE_MODEL",
+					"no drafter: pass --drafter provider/model or set FORGE_DRAFTER",
 				);
-			return model;
+			return drafter;
 		},
 		stdout: (line) => console.log(line),
 		stdin: options.stdin,

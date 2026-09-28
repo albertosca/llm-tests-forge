@@ -5,7 +5,7 @@ import { expectedMatchesOracle } from "./oracle";
 import type { Case, Feature, Scenario, Suite } from "./schemas";
 
 /**
- * The two moves `forge review` refuses to make as decisions, because each
+ * The two moves `llm-tests-forge review` refuses to make as decisions, because each
  * one rewrites files the reviewer never opened: a scenario's id names
  * `.forge/cases/<id>.yaml` and is the prefix every one of its cases is
  * numbered from, and a case's `scenario` is which of those files it lives

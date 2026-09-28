@@ -16,7 +16,7 @@ export interface ReviewAllArgs {
 }
 
 /**
- * `forge review --scenario <id> --all`: bulk-approves every pending case of
+ * `llm-tests-forge review --scenario <id> --all`: bulk-approves every pending case of
  * one scenario, without a prompt. It is for someone who already read the
  * file, not a way around the oracle contract every other path enforces —
  * a case whose `expected` the scenario's oracle does not accept is left
@@ -37,7 +37,7 @@ export async function reviewAllCommand(args: ReviewAllArgs): Promise<void> {
 	for (const c of cases)
 		if (c.status === "pending" && c.scenario !== id)
 			throw new ForgeError(
-				`case ${c.id} names scenario "${c.scenario}" but lives in ${file}; run \`forge move --case ${c.id} --to ${c.scenario}\` or fix the file`,
+				`case ${c.id} names scenario "${c.scenario}" but lives in ${file}; run \`llm-tests-forge move --case ${c.id} --to ${c.scenario}\` or fix the file`,
 				{ file, id: c.id },
 			);
 
@@ -64,7 +64,7 @@ export async function reviewAllCommand(args: ReviewAllArgs): Promise<void> {
 	const notes: string[] = [];
 	if (noExpected > 0)
 		notes.push(
-			`${noExpected} left pending (no expected set — run \`forge review --scenario ${id}\` to fill them in)`,
+			`${noExpected} left pending (no expected set — run \`llm-tests-forge review --scenario ${id}\` to fill them in)`,
 		);
 	if (offOracle > 0)
 		notes.push(

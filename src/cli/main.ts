@@ -12,12 +12,12 @@ import { reviewCommand } from "./commands/review";
 import { scenariosCommand } from "./commands/scenarios";
 import type { CliContext } from "./context";
 
-export const USAGE = `usage: forge <verb> [options]
-  describe <text...> [--prompt-file f] [--force] [--model m]
+export const USAGE = `usage: llm-tests-forge <verb> [options]
+  describe <text...> [--prompt-file f] [--force] [--drafter m]
                                                      free text (or stdin) -> .forge/feature.yaml (pending)
-  scenarios [--kinds a,b] [--more n] [--model m]      feature -> .forge/scenarios.yaml
-  cases [--n 5] [--scenario id] [--model m]           approved scenarios -> .forge/cases/<id>.yaml
-  dedupe [--scenario id] [--model m]                  mark likely duplicates (duplicate_of)
+  scenarios [--kinds a,b] [--more n] [--drafter m]    feature -> .forge/scenarios.yaml
+  cases [--n 5] [--scenario id] [--drafter m]         approved scenarios -> .forge/cases/<id>.yaml
+  dedupe [--scenario id] [--drafter m]                mark likely duplicates (duplicate_of)
   import <file.jsonl> [--oracle label|fields|rubric]  real inputs -> .forge/cases/imported.yaml
   review [--scenario id] [--only feature|scenarios|cases] | review --scenario id --all
   move --scenario <old> <new> | move --case <id> --to <scenario>
@@ -26,7 +26,7 @@ export const USAGE = `usage: forge <verb> [options]
   emit [--format promptfoo|jsonl]                    approved cases -> .forge/promptfooconfig.yaml + forge_target.py, or cases.jsonl
   report <results.json> [--baseline report.json]      promptfoo output -> .forge/report.md + report.json
   help | --help, version | --version
-model: --model provider/model or FORGE_MODEL; providers: anthropic, google, openai, ollama, fake/<file>`;
+drafter: --drafter provider/model or FORGE_DRAFTER; providers: anthropic, google, openai, ollama, fake/<file>`;
 
 const COMMANDS: Record<
 	string,
@@ -125,7 +125,7 @@ export async function run(
 	}
 }
 
-export function modelFlag(argv: string[]): string | undefined {
-	const index = argv.indexOf("--model");
+export function drafterFlag(argv: string[]): string | undefined {
+	const index = argv.indexOf("--drafter");
 	return index >= 0 ? argv[index + 1] : undefined;
 }

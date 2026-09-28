@@ -2,11 +2,11 @@
 import { defaultConfigDirectory, loadProviderKeys } from "../llm/credentials";
 import { createContext } from "./context";
 import { createInterruptibleReader } from "./interruptible-stdin";
-import { modelFlag, run } from "./main";
+import { drafterFlag, run } from "./main";
 
 /**
  * The real stdin reader: reads exactly one line from the process's actual
- * standard input. This only makes sense when `forge` is genuinely running
+ * standard input. This only makes sense when `llm-tests-forge` is genuinely running
  * as a CLI attached to a terminal or a pipe — it is deliberately kept out
  * of `context.ts` and `main.ts` so those files hold only code a test can
  * assert something about. Nothing here is meant to be unit tested; it is
@@ -41,7 +41,7 @@ process.exit(
 		process.argv.slice(2),
 		createContext({
 			cwd: process.cwd(),
-			model: modelFlag(process.argv),
+			drafter: drafterFlag(process.argv),
 			stdin: reader.read,
 			onInteractivePass: reader.armEndOfInputOnInterrupt,
 		}),

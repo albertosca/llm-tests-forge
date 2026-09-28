@@ -26,32 +26,32 @@ function parseKindsFlag(raw: string | undefined): Kind[] | undefined {
 }
 
 export async function scenariosCommand(
-	args: string[],
-	ctx: CliContext,
+	commandArguments: string[],
+	context: CliContext,
 ): Promise<void> {
 	const { values } = parseArgs({
-		args,
+		args: commandArguments,
 		options: {
 			kinds: { type: "string" },
 			more: { type: "string" },
-			model: { type: "string" },
+			drafter: { type: "string" },
 		},
 	});
-	const feature = await readFeature(ctx.forgeDir);
-	requireApprovedFeature(feature, forgePaths(ctx.forgeDir).feature);
+	const feature = await readFeature(context.forgeDir);
+	requireApprovedFeature(feature, forgePaths(context.forgeDir).feature);
 	const kinds = parseKindsFlag(values.kinds);
 	const more = parsePositiveIntFlag("--more", values.more);
-	const existing = await readScenarios(ctx.forgeDir);
+	const existing = await readScenarios(context.forgeDir);
 	const all = await enumerateScenarios({
 		feature,
 		existing,
 		kinds,
 		more,
-		model: values.model ?? ctx.model,
-		llm: ctx.llm,
+		model: values.drafter ?? context.drafter,
+		llm: context.llm,
 	});
-	await writeScenarios(ctx.forgeDir, all);
-	ctx.stdout(
-		`scenarios: ${all.length - existing.length} new pending (${all.length} total) -> ${forgePaths(ctx.forgeDir).scenarios}`,
+	await writeScenarios(context.forgeDir, all);
+	context.stdout(
+		`scenarios: ${all.length - existing.length} new pending (${all.length} total) -> ${forgePaths(context.forgeDir).scenarios}`,
 	);
 }

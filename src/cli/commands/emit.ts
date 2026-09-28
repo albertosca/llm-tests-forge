@@ -70,17 +70,21 @@ export async function emitCommand(
 	});
 	if (selection.blockers.length > 0) {
 		const n = selection.blockers.length;
-		// A rejected item is not something `forge review` can give back, so
+		// A rejected item is not something `llm-tests-forge review` can give back, so
 		// the hint is printed only when at least one blocker is reviewable.
-		const hint = selection.reviewable > 0 ? "; run `forge review`" : "";
+		const hint =
+			selection.reviewable > 0 ? "; run `llm-tests-forge review`" : "";
 		throw new ForgeError(
 			`emit refused: ${n} item${n === 1 ? " blocks" : "s block"} it${hint}\n  ${selection.blockers.join("\n  ")}`,
 		);
 	}
 	if (selection.cases.length === 0)
-		throw new ForgeError("no approved case to emit; run `forge review` first", {
-			file: paths.casesDir,
-		});
+		throw new ForgeError(
+			"no approved case to emit; run `llm-tests-forge review` first",
+			{
+				file: paths.casesDir,
+			},
+		);
 	if (format === "jsonl") {
 		await writeFile(paths.casesJsonl, renderCasesJsonl({ selection }), "utf8");
 		ctx.stdout(

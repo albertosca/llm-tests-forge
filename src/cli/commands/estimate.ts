@@ -62,7 +62,7 @@ export async function estimateCommand(
 	// run is free" when it means "this run has nothing in it".
 	if (selection.cases.length === 0)
 		throw new ForgeError(
-			"no approved case to estimate; run `forge review` first",
+			"no approved case to estimate; run `llm-tests-forge review` first",
 			{ file: paths.casesDir },
 		);
 	const estimate = estimateSuite({
@@ -76,10 +76,10 @@ export async function estimateCommand(
 	if (selection.blockers.length > 0) {
 		const n = selection.blockers.length;
 		// Same rule as `emit`: a rejected item was already decided, so
-		// pointing at `forge review` for it would be wrong advice.
+		// pointing at `llm-tests-forge review` for it would be wrong advice.
 		const hint =
 			selection.reviewable > 0
-				? `; run \`forge review\` to include ${n === 1 ? "it" : "them"}`
+				? `; run \`llm-tests-forge review\` to include ${n === 1 ? "it" : "them"}`
 				: "";
 		ctx.stdout(`estimate: ${n} item${n === 1 ? "" : "s"} excluded${hint}:`);
 		for (const b of selection.blockers) ctx.stdout(`  ${b}`);

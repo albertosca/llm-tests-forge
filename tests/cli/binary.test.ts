@@ -73,7 +73,7 @@ describe("the compiled binary", () => {
 		const fresh = await mkdtemp(join(tmpdir(), "forge-binary-fresh-"));
 		const described = runBinary(
 			binary,
-			["describe", "classify hiring emails", "--model", FAKE_MODEL],
+			["describe", "classify hiring emails", "--drafter", FAKE_MODEL],
 			fresh,
 		);
 		expectSuccess(described);

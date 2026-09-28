@@ -1,18 +1,18 @@
 {
-	"name": "llm-test-forge",
+	"name": "llm-tests-forge",
 	"version": "0.1.0",
 	"description": "Forge reviewed regression suites for your LLM features and emit them for promptfoo",
 	"license": "MIT",
 	"type": "module",
 	"bin": {
-		"forge": "src/cli/bin.ts"
+		"llm-tests-forge": "src/cli/bin.ts"
 	},
 	"scripts": {
 		"test": "bun test",
 		"lint": "biome check .",
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit",
-		"build:binary": "bun build --compile src/cli/bin.ts --outfile dist/llm-test-forge",
+		"build:binary": "bun build --compile src/cli/bin.ts --outfile dist/llm-tests-forge",
 		"check": "bun run lint && bun run typecheck && bun test",
 		"validate:example": "bunx promptfoo@0.123.0 validate -c examples/moonlighter-classify-email/.forge/promptfooconfig.yaml",
 		"test:live": "FORGE_LIVE=1 bun test tests/live --config=bunfig.live.toml"

@@ -83,7 +83,7 @@ const BaselinePairSchema = z.object({ case: z.string(), model: z.string() });
  * `--baseline` takes a `report.json` an earlier run wrote, and the whole
  * point of the flag is that the earlier run is older than this binary: a
  * schema that knows only the new spelling rejects every file a person
- * actually has, naming it "not a forge report". The old key is read as the
+ * actually has, naming it "not a report written by llm-tests-forge". The old key is read as the
  * new one when the new one is absent, and ignored when both are there, so
  * a file this version wrote is never reinterpreted by a stale field.
  */
@@ -173,7 +173,7 @@ export const ReportSchema = z.object({
 			/**
 			 * Pairs the baseline has and this run does not. A pair only one
 			 * side has says nothing about a change, so it is rightly left
-			 * out of the two lists above — but after a `forge move` every
+			 * out of the two lists above — but after a `llm-tests-forge move` every
 			 * renamed pair lands here, and without this list the diff read
 			 * as "nothing changed" rather than "nothing could be compared".
 			 * Defaulted for older baselines.

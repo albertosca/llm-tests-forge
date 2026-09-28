@@ -1,4 +1,4 @@
-# Written by forge emit; edit suite.yaml and re-run instead of editing this file.
+# Written by llm-tests-forge emit; edit suite.yaml and re-run instead of editing this file.
 description: "classify-hiring-process-email: forge suite, 24 cases from 8 scenarios"
 prompts:
   - "{{email}}"

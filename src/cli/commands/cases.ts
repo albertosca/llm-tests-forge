@@ -13,43 +13,46 @@ import { parsePositiveIntFlag } from "../flags";
 import { requireApprovedFeature } from "../gates";
 
 export async function casesCommand(
-	args: string[],
-	ctx: CliContext,
+	commandArguments: string[],
+	context: CliContext,
 ): Promise<void> {
 	const { values } = parseArgs({
-		args,
+		args: commandArguments,
 		options: {
 			n: { type: "string" },
 			scenario: { type: "string" },
-			model: { type: "string" },
+			drafter: { type: "string" },
 		},
 	});
-	const n = parsePositiveIntFlag("--n", values.n) ?? 5;
-	const feature = await readFeature(ctx.forgeDir);
-	requireApprovedFeature(feature, forgePaths(ctx.forgeDir).feature);
-	const scenarios = await readScenarios(ctx.forgeDir);
+	const count = parsePositiveIntFlag("--n", values.n) ?? 5;
+	const feature = await readFeature(context.forgeDir);
+	requireApprovedFeature(feature, forgePaths(context.forgeDir).feature);
+	const scenarios = await readScenarios(context.forgeDir);
 	const targets = values.scenario
-		? scenarios.filter((s) => s.id === values.scenario)
-		: scenarios.filter((s) => s.status === "approved" || s.status === "edited");
+		? scenarios.filter((scenario) => scenario.id === values.scenario)
+		: scenarios.filter(
+				(scenario) =>
+					scenario.status === "approved" || scenario.status === "edited",
+			);
 	if (targets.length === 0)
 		throw new ForgeError(
 			values.scenario
 				? `scenario "${values.scenario}" not found`
-				: "no approved scenario; run `forge review` first",
+				: "no approved scenario; run `llm-tests-forge review` first",
 			{ id: values.scenario },
 		);
 	for (const scenario of targets) {
-		const existing = await readCases(ctx.forgeDir, scenario.id);
+		const existing = await readCases(context.forgeDir, scenario.id);
 		const all = await generateCases({
 			feature,
 			scenario,
 			existing,
-			n,
-			model: values.model ?? ctx.model,
-			llm: ctx.llm,
+			n: count,
+			model: values.drafter ?? context.drafter,
+			llm: context.llm,
 		});
-		await writeCases(ctx.forgeDir, scenario.id, all);
-		ctx.stdout(
+		await writeCases(context.forgeDir, scenario.id, all);
+		context.stdout(
 			`cases: ${scenario.id}: ${all.length - existing.length} new pending (${all.length} total)`,
 		);
 	}

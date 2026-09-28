@@ -629,7 +629,7 @@ describe("renderPromptfooConfig", () => {
 		const text = renderPromptfooConfig(config);
 		expect(
 			text.startsWith(
-				"# Written by forge emit; edit suite.yaml and re-run instead of editing this file.\n",
+				"# Written by llm-tests-forge emit; edit suite.yaml and re-run instead of editing this file.\n",
 			),
 		).toBe(true);
 		expect(parse(text)).toEqual(config);

@@ -238,7 +238,7 @@ export async function reviewCommand(
 		if (item.item.scenario !== file) {
 			const path = join(paths.casesDir, `${file}.yaml`);
 			throw new ForgeError(
-				`case ${item.item.id} names scenario "${item.item.scenario}" but lives in ${path}; run \`forge move --case ${item.item.id} --to ${item.item.scenario}\` or fix the file`,
+				`case ${item.item.id} names scenario "${item.item.scenario}" but lives in ${path}; run \`llm-tests-forge move --case ${item.item.id} --to ${item.item.scenario}\` or fix the file`,
 				{ file: path, id: item.item.id },
 			);
 		}

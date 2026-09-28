@@ -17,47 +17,47 @@ Requires [bun](https://bun.sh) 1.4 or newer. This is not published to npm yet, s
     git clone https://github.com/albertosca/llm-test-forge.git
     cd llm-test-forge
     bun install
-    bun link      # exposes `forge` on your PATH
+    bun link      # exposes `llm-tests-forge` on your PATH
 
 ## Use
 
 Run these in order, from the root of the application whose LLM feature you are testing.
 
-    export FORGE_MODEL=google/gemini-3.5-flash
-    forge describe "The bot classifies hiring emails into rejection, acknowledgement, interview, screening, offer, info_request or unrelated" --prompt-file src/prompt.txt
+    export FORGE_DRAFTER=google/gemini-3.5-flash
+    llm-tests-forge describe "The bot classifies hiring emails into rejection, acknowledgement, interview, screening, offer, info_request or unrelated" --prompt-file src/prompt.txt
 
 Writes `.forge/feature.yaml` as a pending, structured description of the feature (purpose, inputs, output shape, invariants). `--prompt-file` is optional; pass it when the application has a real system prompt worth copying rules from. Running `describe` again over a feature you have already reviewed is refused, because it would overwrite the invariants you wrote by hand; pass `--force` when replacing it is what you want.
 
-    forge review
+    llm-tests-forge review
 
 Opens an interactive review of whatever is pending — here, the feature. Approve it, edit it, or reject it; approval unblocks the next step.
 
-    forge scenarios
+    llm-tests-forge scenarios
 
 Generates `.forge/scenarios.yaml`: a set of scenarios covering all six kinds for the approved feature.
 
-    forge review --only scenarios
+    llm-tests-forge review --only scenarios
 
 Reviews the pending scenarios one by one.
 
-    forge cases --n 5
+    llm-tests-forge cases --n 5
 
 Generates 5 pending cases per approved scenario in `.forge/cases/<scenario-id>.yaml`, each with an expected output computed from the feature's oracle shape (label, fields, or rubric).
 
-    forge dedupe
+    llm-tests-forge dedupe
 
 Flags likely-duplicate cases within each scenario (`duplicate_of`) without removing them.
 
-    forge import logs/real-inputs.jsonl
+    llm-tests-forge import logs/real-inputs.jsonl
 
 Reads one `{"input-name": "value"}` JSON object per line from real production logs and adds them as pending cases in the `imported` scenario, without an expected output — you supply that during review.
 
-    forge review
+    llm-tests-forge review
 
-Reviews everything still pending: cases (confirming or fixing the expected output), and any imported case (setting its expected output for the first time). Two things review will not change for you: a scenario's `id` and a case's `scenario`, because both name the file the cases live in (`.forge/cases/<scenario>.yaml`) — the refusal names the `forge move` call that does it. And editing a scenario's `oracle` re-opens the approved cases of that scenario whose expected the new oracle no longer accepts: each one then needs `edit` to be given an expected in the new shape, not `approve`. One Ctrl+C during a review saves what was decided so far; a second one aborts without writing.
+Reviews everything still pending: cases (confirming or fixing the expected output), and any imported case (setting its expected output for the first time). Two things review will not change for you: a scenario's `id` and a case's `scenario`, because both name the file the cases live in (`.forge/cases/<scenario>.yaml`) — the refusal names the `llm-tests-forge move` call that does it. And editing a scenario's `oracle` re-opens the approved cases of that scenario whose expected the new oracle no longer accepts: each one then needs `edit` to be given an expected in the new shape, not `approve`. One Ctrl+C during a review saves what was decided so far, if it arrives before the save finishes; a second one aborts without writing.
 
-    forge move --scenario <old> <new>
-    forge move --case <id> --to <scenario>
+    llm-tests-forge move --scenario <old> <new>
+    llm-tests-forge move --case <id> --to <scenario>
 
 Renames a scenario or moves a case into another scenario, rewriting what the ids name: the scenario's cases file, every case id numbered from it, `duplicate_of` pointers, and `suite.include`. A moved case is numbered after the destination's last case; when the destination's oracle does not accept its expected, it goes back to pending and the line says why. The destination is written before the source is touched, so a failure part-way leaves a duplicate to clean up, never a missing case.
 
@@ -75,11 +75,11 @@ The remaining three verbs turn that suite into a run. They read `.forge/suite.ya
     repeat: 2
     include: []                       # empty = every reviewed scenario
 
-    forge estimate
+    llm-tests-forge estimate
 
 Prices the run before you spend it: cases × target models × `repeat`, plus one judge call per `rubric` case per judge, target model and `repeat`, against `prices.yaml` (which is yours to edit — the output prints the date it carries, and marks with `~` any model it had to price as its closest listed sibling). A model whose provider has no row at all is not priced as anything: its line reads `not priced`, and the total leaves it out and says how many lines it left out. Tokens are counted as characters ÷ 4, so read it as an order of magnitude. It makes no API call.
 
-    forge emit
+    llm-tests-forge emit
 
 Writes `.forge/promptfooconfig.yaml` from the approved cases: one test per case with its inputs as `vars`, a `javascript` assert for a `label` or `fields` oracle, and one `llm-rubric` per judge for a `rubric` one. It refuses to emit while anything is still pending, and names what. On the first run it also writes `.forge/forge_target.py` and never overwrites it again — **edit its `run_application` to call your application**, which is what makes the suite test your code rather than a copy of your prompt. `--format jsonl` writes the same selection as `.forge/cases.jsonl` instead, for a runner of your own.
 
@@ -87,7 +87,7 @@ Writes `.forge/promptfooconfig.yaml` from the approved cases: one test per case 
 
 Promptfoo runs the suite; the forge does not run it for you and does not need promptfoo installed.
 
-    forge report results.json [--baseline .forge/report.json]
+    llm-tests-forge report results.json [--baseline .forge/report.json]
 
 Reads promptfoo's output into `.forge/report.md` and `.forge/report.json`: pass rate, a per-scenario table, which reviewed scenarios had no case, no matched run, or were not in this suite, cases that passed on one repeat and failed on another, judges that disagreed (with both reasons), and real cost against the estimate. With `--baseline`, an earlier `report.json` is compared and regressions are listed first; pairs the baseline has and this run does not (after a rename, say) are named rather than silently left out of the diff; a `--baseline` written by an older version of the forge is accepted, keys it spelled differently included.
 
@@ -105,7 +105,7 @@ Commit `feature.yaml`, `scenarios.yaml`, `cases/<scenario>.yaml`, `suite.yaml`, 
 
 ## What this does not do yet
 
-- It does not call promptfoo for you: `forge emit` writes the config and you run the eval yourself.
+- It does not call promptfoo for you: `llm-tests-forge emit` writes the config and you run the eval yourself.
 - There is no MCP server, so the review loop cannot run inside a conversation.
 - It tests one turn at a time. Multi-turn cases where your application's own reply shapes the next turn need a simulated user, which this is not.
 - It keeps no history: `--baseline` compares two runs, and nothing collects them over time.
@@ -114,7 +114,7 @@ See `docs/superpowers/specs/2026-09-14-llm-test-forge-design.md` for the full de
 
 ## Providers
 
-Set `FORGE_MODEL` or pass `--model` as `provider/model`:
+The drafter is the model that writes the feature, scenarios and cases; everything it writes arrives pending. Set `FORGE_DRAFTER` or pass `--drafter` as `provider/model`:
 
 | Provider | Env var | Example |
 |---|---|---|
@@ -130,7 +130,7 @@ Set `FORGE_MODEL` or pass `--model` as `provider/model`:
     bun run lint       # Biome
     bun run typecheck  # tsc --noEmit
     bun run check      # lint, then typecheck, then test
-    bun run test:live  # two real calls against google/gemini-3.5-flash by default (FORGE_LIVE=1); override with FORGE_MODEL
+    bun run test:live  # two real calls against google/gemini-3.5-flash by default (FORGE_LIVE=1); override with FORGE_DRAFTER
     bun run validate:example  # checks the committed example's promptfooconfig.yaml with the real promptfoo; no API key
 
 The coverage gate is bun's own: a 1.0 floor on **lines and functions**, with `src/cli/bin.ts` excluded. Bun measures no branch coverage at all, so a file at 100% can still have untested guard arms — read the gate as a floor, not as proof the suite is complete.

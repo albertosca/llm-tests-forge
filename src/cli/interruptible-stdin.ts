@@ -1,5 +1,5 @@
 /**
- * Ctrl+C during `forge review` used to kill the process before the
+ * Ctrl+C during `llm-tests-forge review` used to kill the process before the
  * write-back, and every decision of the pass went with it (measured
  * 2026-09-24, 43 cases). "End of input" mode changes what an interrupt
  * does: unarmed, an interrupt exits — the behaviour every command had
@@ -14,7 +14,7 @@
  * armed or not, as Ctrl+C always did.
  *
  * Arming has to be a separate call, not "after the first `read()`": task
- * review 2026-09-28 found that `forge describe` calls `read()` once for
+ * review 2026-09-28 found that `llm-tests-forge describe` calls `read()` once for
  * its free text and then calls the model — under the "has read once"
  * rule, a Ctrl+C during that model call printed the end-of-input message
  * and did not stop the process; only a second Ctrl+C did. `reviewCommand`

@@ -72,7 +72,7 @@ function requireBareId(id: string): void {
 }
 
 /**
- * `forge move`: the two file moves `forge review` refuses to make as
+ * `llm-tests-forge move`: the two file moves `llm-tests-forge review` refuses to make as
  * decisions. Every check runs before the first write, and the destination
  * is written before the source is touched, so a failure part-way leaves a
  * duplicate to clean up rather than a case that exists nowhere.
@@ -155,7 +155,7 @@ async function moveScenario(
 	// is what the refusal says.
 	if (hasFile && fold(to) === fold(from))
 		throw new ForgeError(
-			`"${to}" differs from "${from}" only in letter case or Unicode normalisation, which is one file on the default macOS filesystem; rename through a temporary id: forge move --scenario ${from} tmp-${to} && forge move --scenario tmp-${to} ${to}`,
+			`"${to}" differs from "${from}" only in letter case or Unicode normalisation, which is one file on the default macOS filesystem; rename through a temporary id: llm-tests-forge move --scenario ${from} tmp-${to} && llm-tests-forge move --scenario tmp-${to} ${to}`,
 			{ file: join(paths.casesDir, `${from}.yaml`), id: to },
 		);
 	const clash = casesFileFor(files, to);
@@ -285,7 +285,7 @@ async function moveOneCase(
 	ctx.stdout(`move: ${caseId} → ${result.moved.id} (scenario ${toId})`);
 	if (result.reopened !== null)
 		ctx.stdout(
-			`move: ${result.moved.id} re-opened: ${result.reopened} — edit it in \`forge review\` to give it an expected the ${to.oracle} oracle accepts`,
+			`move: ${result.moved.id} re-opened: ${result.reopened} — edit it in \`llm-tests-forge review\` to give it an expected the ${to.oracle} oracle accepts`,
 		);
 	if (result.fromCases.length === 0)
 		ctx.stdout(`move: cases/${fromId}.yaml removed; it held no other case`);

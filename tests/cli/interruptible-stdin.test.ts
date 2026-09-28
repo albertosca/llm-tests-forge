@@ -37,7 +37,7 @@ describe("createInterruptibleReader", () => {
 		expect(printed).toEqual([]);
 	});
 
-	test("unarmed: an interrupt after a completed read, with none pending, exits 130 -- the `forge describe` case: one read for the free text, then a model call, never armed because describe is not an interactive review pass", async () => {
+	test("unarmed: an interrupt after a completed read, with none pending, exits 130 -- the `llm-tests-forge describe` case: one read for the free text, then a model call, never armed because describe is not an interactive review pass", async () => {
 		const source = pendingLines();
 		const exits: number[] = [];
 		const reader = createInterruptibleReader({
