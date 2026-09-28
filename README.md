@@ -54,7 +54,7 @@ Reads one `{"input-name": "value"}` JSON object per line from real production lo
 
     forge review
 
-Reviews everything still pending: cases (confirming or fixing the expected output), and any imported case (setting its expected output for the first time). Two things review will not change for you: a scenario's `id` and a case's `scenario`, because both name the file the cases live in (`.forge/cases/<scenario>.yaml`) — the refusal names the `forge move` call that does it. And editing a scenario's `oracle` re-opens the approved cases of that scenario whose expected the new oracle no longer accepts: each one then needs `edit` to be given an expected in the new shape, not `approve`.
+Reviews everything still pending: cases (confirming or fixing the expected output), and any imported case (setting its expected output for the first time). Two things review will not change for you: a scenario's `id` and a case's `scenario`, because both name the file the cases live in (`.forge/cases/<scenario>.yaml`) — the refusal names the `forge move` call that does it. And editing a scenario's `oracle` re-opens the approved cases of that scenario whose expected the new oracle no longer accepts: each one then needs `edit` to be given an expected in the new shape, not `approve`. One Ctrl+C during a review saves what was decided so far; a second one aborts without writing.
 
     forge move --scenario <old> <new>
     forge move --case <id> --to <scenario>
@@ -89,7 +89,7 @@ Promptfoo runs the suite; the forge does not run it for you and does not need pr
 
     forge report results.json [--baseline .forge/report.json]
 
-Reads promptfoo's output into `.forge/report.md` and `.forge/report.json`: pass rate, a per-scenario table, which reviewed scenarios had no case or no matched run, cases that passed on one repeat and failed on another, judges that disagreed (with both reasons), and real cost against the estimate. With `--baseline`, an earlier `report.json` is compared and regressions are listed first; pairs the baseline has and this run does not (after a rename, say) are named rather than silently left out of the diff; a `--baseline` written by an older version of the forge is accepted, keys it spelled differently included.
+Reads promptfoo's output into `.forge/report.md` and `.forge/report.json`: pass rate, a per-scenario table, which reviewed scenarios had no case, no matched run, or were not in this suite, cases that passed on one repeat and failed on another, judges that disagreed (with both reasons), and real cost against the estimate. With `--baseline`, an earlier `report.json` is compared and regressions are listed first; pairs the baseline has and this run does not (after a rename, say) are named rather than silently left out of the diff; a `--baseline` written by an older version of the forge is accepted, keys it spelled differently included.
 
 ### What to commit under `.forge/`
 

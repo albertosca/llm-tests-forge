@@ -54,7 +54,7 @@ Lê um objeto JSON `{"input-name": "value"}` por linha a partir de logs reais de
 
     forge review
 
-Revisa tudo que ainda está pendente: casos (confirmando ou corrigindo a saída esperada) e qualquer caso importado (definindo sua saída esperada pela primeira vez). Duas coisas a revisão não muda para você: o `id` de um cenário e o campo `scenario` de um caso, porque os dois nomeiam o arquivo onde os casos moram (`.forge/cases/<scenario>.yaml`) — a recusa diz qual chamada de `forge move` faz isso. E editar o `oracle` de um cenário reabre os casos aprovados daquele cenário cujo esperado o novo oráculo não aceita mais: cada um precisa então de `edit` para ganhar um esperado no novo formato, não de `approve`.
+Revisa tudo que ainda está pendente: casos (confirmando ou corrigindo a saída esperada) e qualquer caso importado (definindo sua saída esperada pela primeira vez). Duas coisas a revisão não muda para você: o `id` de um cenário e o campo `scenario` de um caso, porque os dois nomeiam o arquivo onde os casos moram (`.forge/cases/<scenario>.yaml`) — a recusa diz qual chamada de `forge move` faz isso. E editar o `oracle` de um cenário reabre os casos aprovados daquele cenário cujo esperado o novo oráculo não aceita mais: cada um precisa então de `edit` para ganhar um esperado no novo formato, não de `approve`. Um Ctrl+C durante a revisão salva o que já foi decidido; um segundo aborta sem escrever nada.
 
     forge move --scenario <antigo> <novo>
     forge move --case <id> --to <cenário>
@@ -89,7 +89,7 @@ O promptfoo roda a suíte; a forja não roda por você e não precisa do promptf
 
     forge report results.json [--baseline .forge/report.json]
 
-Lê a saída do promptfoo para `.forge/report.md` e `.forge/report.json`: taxa de acerto, tabela por cenário, quais cenários revisados não têm caso ou não tiveram rodada casada, casos que passaram em uma repetição e falharam em outra, juízes que discordaram (com as duas justificativas) e custo real contra o estimado. Com `--baseline`, um `report.json` anterior é comparado e as regressões vêm primeiro; pares que a baseline tem e esta rodada não (depois de um rename, por exemplo) são nomeados em vez de sumirem do diff em silêncio; um `--baseline` escrito por uma versão mais antiga da forja é aceito, inclusive as chaves que ela escrevia com outro nome.
+Lê a saída do promptfoo para `.forge/report.md` e `.forge/report.json`: taxa de acerto, tabela por cenário, quais cenários revisados não têm caso, não tiveram rodada casada ou não estão nesta suíte, casos que passaram em uma repetição e falharam em outra, juízes que discordaram (com as duas justificativas) e custo real contra o estimado. Com `--baseline`, um `report.json` anterior é comparado e as regressões vêm primeiro; pares que a baseline tem e esta rodada não (depois de um rename, por exemplo) são nomeados em vez de sumirem do diff em silêncio; um `--baseline` escrito por uma versão mais antiga da forja é aceito, inclusive as chaves que ela escrevia com outro nome.
 
 ### O que commitar dentro de `.forge/`
 
