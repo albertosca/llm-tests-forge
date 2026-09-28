@@ -1575,6 +1575,77 @@ describe("review: a write-back guard skips just the files it cannot trust, and s
 	});
 });
 
+describe("review: onInteractivePass arms end-of-input only for the interactive path", () => {
+	test("the interactive path calls it exactly once, before the loop asks its first question", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		let interactivePassCalls = 0;
+		const out: string[] = [];
+		const context = createContext({
+			cwd,
+			model: MODEL,
+			stdin: async () => "approve",
+			onInteractivePass: () => {
+				interactivePassCalls += 1;
+			},
+		});
+		context.stdout = (line) => out.push(line);
+
+		expect(
+			await run(
+				["review", "--scenario", "polite-rejection", "--only", "cases"],
+				context,
+			),
+		).toBe(0);
+
+		expect(interactivePassCalls).toBe(1);
+	});
+
+	test("--all never calls it: it asks nothing, so an interrupt during its model calls must not be mistaken for the middle of a review pass", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		let interactivePassCalls = 0;
+		const out: string[] = [];
+		const context = createContext({
+			cwd,
+			model: MODEL,
+			stdin: async () => "",
+			onInteractivePass: () => {
+				interactivePassCalls += 1;
+			},
+		});
+		context.stdout = (line) => out.push(line);
+
+		expect(
+			await run(["review", "--scenario", "polite-rejection", "--all"], context),
+		).toBe(0);
+
+		expect(interactivePassCalls).toBe(0);
+	});
+});
+
 describe("review: an edit cannot rename an item onto an id already in its file", () => {
 	async function withEditor<T>(
 		path: string,

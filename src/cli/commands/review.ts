@@ -237,6 +237,12 @@ export async function reviewCommand(
 	// Color only for a person at a terminal: a redirected or piped run, and
 	// every test, keeps the plain text it always had.
 	const paint = palette(colorEnabled(process.env, process.stdout.isTTY));
+	// Arms "Ctrl+C ends the input" for the reader behind `context.stdin`,
+	// right before the first question this pass asks. `--all` returns
+	// above without ever reaching here, so it never arms it: it asks
+	// nothing, and an interrupt during its model calls should exit as it
+	// always did, not be mistaken for the middle of a review pass.
+	context.onInteractivePass?.();
 	const result = await runReviewLoop({
 		items,
 		ask: (question, choices) => askChoice(paint.prompt(question), choices, io),
