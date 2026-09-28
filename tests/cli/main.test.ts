@@ -215,7 +215,7 @@ describe("forge CLI end to end (fake provider)", () => {
 		expect(await run(["describe", "text", "--model", "fake/x"], context)).toBe(
 			2,
 		);
-		expect(out.join("\n")).toContain("--model");
+		expect(out.join("\n")).toContain("Unknown option '--model'");
 	});
 
 	test("every message that names a command says llm-tests-forge", async () => {

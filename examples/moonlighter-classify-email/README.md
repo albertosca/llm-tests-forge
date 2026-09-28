@@ -2,7 +2,7 @@
 
 The target is [moonlighter](https://github.com/albertosca/moonlighter), a job-application tracker. Its `classify_response` (`packages/email/moonlighter/tracking/classification.py`) takes one email a candidate received and returns a JSON object with `type`, `stage`, `new_stage`, `company`, `job_title` and `summary`, where `type` is one of seven labels. The rule this suite exists to protect is the one that is easiest to get wrong: an automated "we have received your application" is `acknowledgement`, never `screening` and never `interview` — the process has not started. `prompt.txt` in this directory is that function's prompt, copied verbatim, with the untrusted-email block and the stage list replaced by placeholders.
 
-Everything under `.forge/` here was produced by `forge` and reviewed by hand, then run against the real application. `results.json` is promptfoo's own record of that run and is never hand-edited; `.forge/report.*` are `forge report` read back from it, so their `generatedAt` (`2026-09-16T16:44:08.804Z`, promptfoo 0.123.0) is the clock of the last re-render, not of the run. `.forge/usage.jsonl` is deliberately **not** committed — it is gitignored repository-wide, because it logs every model call the forge itself made on one person's machine.
+Everything under `.forge/` here was produced by `llm-tests-forge` and reviewed by hand, then run against the real application. `results.json` is promptfoo's own record of that run and is never hand-edited; `.forge/report.*` are `llm-tests-forge report` read back from it, so their `generatedAt` (`2026-09-16T16:44:08.804Z`, promptfoo 0.123.0) is the clock of the last re-render, not of the run. `.forge/usage.jsonl` is deliberately **not** committed — it is gitignored repository-wide, because it logs every model call the forge itself made on one person's machine.
 
 ## Models used, and why Google is absent
 
@@ -14,17 +14,17 @@ Everything under `.forge/` here was produced by `forge` and reviewed by hand, th
 | target under test (`suite.yaml`) | `anthropic/claude-haiku-4-5` |
 | judge (`suite.yaml`) | `anthropic/claude-sonnet-5` |
 
-The suite names no Google model even though `prices.yaml` prices several. On the run day the free tier answered `429 … Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20` for every Gemini Flash model, minutes apart and after idling, so `describe` is the only verb that got through before the quota ran out. Nothing about the suite depends on the provider: change `judges:` in `suite.yaml` and re-run `forge emit`.
+The suite names no Google model even though `prices.yaml` prices several. On the run day the free tier answered `429 … Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20` for every Gemini Flash model, minutes apart and after idling, so `describe` is the only verb that got through before the quota ran out. Nothing about the suite depends on the provider: change `judges:` in `suite.yaml` and re-run `llm-tests-forge emit`.
 
 The judge is deliberately not the model under test.
 
 ## The commands, in order
 
-Everything runs from this directory, with `FORGE_MODEL` set and the provider's key in the environment. The table above is the truth about which verb ran on which model: `describe` ran with `FORGE_MODEL=google/gemini-3.6-flash` and `scenarios` with `anthropic/claude-haiku-4-5`, before the rest settled on:
+Everything runs from this directory, with `FORGE_DRAFTER` set and the provider's key in the environment. The table above is the truth about which verb ran on which model: `describe` ran with `FORGE_DRAFTER=google/gemini-3.6-flash` and `scenarios` with `anthropic/claude-haiku-4-5`, before the rest settled on:
 
-    export FORGE_MODEL=anthropic/claude-sonnet-5
+    export FORGE_DRAFTER=anthropic/claude-sonnet-5
 
-    bun ../../src/cli/bin.ts describe "Classify one hiring-process email received by a job candidate into exactly one of: rejection, acknowledgement, interview, screening, offer, info_request, unrelated. The answer is a JSON object with type, stage, new_stage, company, job_title, summary. An automated confirmation that an application was received is acknowledgement, never screening or interview." --prompt-file prompt.txt   # ran with FORGE_MODEL=google/gemini-3.6-flash on the first day
+    bun ../../src/cli/bin.ts describe "Classify one hiring-process email received by a job candidate into exactly one of: rejection, acknowledgement, interview, screening, offer, info_request, unrelated. The answer is a JSON object with type, stage, new_stage, company, job_title, summary. An automated confirmation that an application was received is acknowledgement, never screening or interview." --prompt-file prompt.txt   # ran with FORGE_DRAFTER=google/gemini-3.6-flash on the first day
     bun ../../src/cli/bin.ts review                      # answered: approve
     bun ../../src/cli/bin.ts scenarios                   # ran with anthropic/claude-haiku-4-5
     bun ../../src/cli/bin.ts review --only scenarios     # 7 approved, 5 rejected, 1 edited
@@ -53,11 +53,11 @@ Five were rejected:
 | `suspicious-attachment-with-stage-claim` | "obfuscated or contains embedded code" is not something a reviewer can write an expected output for. |
 | `sparse-email-with-only-company-name` | `fields` oracle, and it overlaps `empty-subject-and-minimal-body`. |
 
-One was **edited**: `formal-job-offer-letter` came back with `oracle: fields`. Rejecting it would have dropped the `offer` label from the suite entirely, so it was edited to `oracle: label` through `forge review`'s `edit` path instead — which is why its status on disk is `edited`, not `approved`.
+One was **edited**: `formal-job-offer-letter` came back with `oracle: fields`. Rejecting it would have dropped the `offer` label from the suite entirely, so it was edited to `oracle: label` through `llm-tests-forge review`'s `edit` path instead — which is why its status on disk is `edited`, not `approved`.
 
 **The cases.** 3 per scenario, 24 in all, every one read before it was approved. **None was rejected and none was edited**: the expected label was right in all 24, including the four the scenario set out to make hard — the receipt that also asks for a 15-minute skills assessment (`screening`, because a human is asking the candidate to do something), and the three prompt-injection cases whose bodies order the classifier to answer `offer`, `interview` and `unrelated` (the right answers are `acknowledgement`, `rejection` and `screening`, each ignoring the injected instruction).
 
-`forge dedupe` flagged 12 of the 24 with `duplicate_of`. All 12 were **kept**. Three cases drawn from one scenario are near-duplicates by construction — that is what a scenario is — and `dedupe` flags without removing, on purpose. The flagged inputs differ in company, role, channel and wording, so each is still a distinct test; the flag is a prompt to look, and looking is what happened.
+`llm-tests-forge dedupe` flagged 12 of the 24 with `duplicate_of`. All 12 were **kept**. Three cases drawn from one scenario are near-duplicates by construction — that is what a scenario is — and `dedupe` flags without removing, on purpose. The flagged inputs differ in company, role, channel and wording, so each is still a distinct test; the flag is a prompt to look, and looking is what happened.
 
 The one expected value worth arguing about is `empty-subject-and-minimal-body-03`, whose rubric asks for `company` to be null on a one-word email from a recruiting domain. A model that infers the company from the sender would fail it. It was left as generated — and it did fail, twice, for exactly that reason: see "The failures" below. That is a finding about the application, not about the case.
 
@@ -101,7 +101,7 @@ The run above is the third, and the only thing that changed in the shim since th
 They are worth reading, because they are what the suite is for:
 
 - **`empty-subject-and-minimal-body-03`, both repeats of both runs that had a body.** The rubric asks for `company` to be null on a one-word email with no identifying details; moonlighter answered `company: "Harbor Oak Recruiting"`, inferred from the sender's domain. The judge scored it 0 and 0 here (0 and 0.3 in the previous run) with that reason every time. This is the case flagged during review as the one worth arguing about — whether inferring a company from a recruiting domain is correct behaviour is a real question about moonlighter, not a defect in the case, so it stays as generated.
-- **`empty-subject-and-minimal-body-02`, flaky in the previous run, clean in this one.** On the body "following up", moonlighter answered `unrelated` twice here and scored 1 both times; in the previous run the same input got `unrelated` once and `screening` once, and `forge report` listed it under **flaky** for exactly that reason. Nothing was fixed in between. A one-word email is genuinely ambiguous, the rubric's demand that it not be called `screening` is the stricter reading, and a case that passes today having failed yesterday is worth no more trust than one that fails today.
+- **`empty-subject-and-minimal-body-02`, flaky in the previous run, clean in this one.** On the body "following up", moonlighter answered `unrelated` twice here and scored 1 both times; in the previous run the same input got `unrelated` once and `screening` once, and `llm-tests-forge report` listed it under **flaky** for exactly that reason. Nothing was fixed in between. A one-word email is genuinely ambiguous, the rubric's demand that it not be called `screening` is the stricter reading, and a case that passes today having failed yesterday is worth no more trust than one that fails today.
 
 ## Two honest limitations of the shim
 
@@ -120,6 +120,6 @@ They are worth reading, because they are what the suite is for:
     $ bunx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml -o results.json --no-cache --no-progress-bar -j 2
     $ bun ../../src/cli/bin.ts report results.json --baseline .forge/report.json
 
-`suite.yaml` is committed with `python: .venv/bin/python`, which is a placeholder, not a path that exists here: the run used an absolute path to moonlighter's own virtualenv on the machine it ran on, and it was put back before committing so the file does not carry one person's home directory. `results.json` still names that absolute path, because it is promptfoo's own unedited record of the run and editing it would make it a worse record. `forge emit` copies whatever it finds there into `promptfooconfig.yaml` as `pythonExecutable`, so change `suite.yaml` and re-emit rather than editing the emitted config.
+`suite.yaml` is committed with `python: .venv/bin/python`, which is a placeholder, not a path that exists here: the run used an absolute path to moonlighter's own virtualenv on the machine it ran on, and it was put back before committing so the file does not carry one person's home directory. `results.json` still names that absolute path, because it is promptfoo's own unedited record of the run and editing it would make it a worse record. `llm-tests-forge emit` copies whatever it finds there into `promptfooconfig.yaml` as `pythonExecutable`, so change `suite.yaml` and re-emit rather than editing the emitted config.
 
 `bun run validate:example`, from the repository root, checks this config with the real promptfoo and needs no key; CI runs the same command on every push.
