@@ -68,6 +68,7 @@ const REPORT: Report = {
 		withRuns: 1,
 		withoutCase: ["r"],
 		withoutRun: [],
+		notSelected: [],
 	},
 	disagreements: [
 		{
@@ -112,43 +113,45 @@ const REPORT: Report = {
 	},
 };
 
-const lines = (r: Report) => renderReportMarkdown(r).split("\n");
+const lines = (report: Report) => renderReportMarkdown(report).split("\n");
 
 describe("renderReportMarkdown", () => {
 	test("puts the decisive numbers in the first two lines", () => {
-		const md = lines(REPORT);
-		expect(md[0]).toBe("# forge report — 2026-09-15T20:00:00.000Z");
-		expect(md).toContain(
+		const markdown = lines(REPORT);
+		expect(markdown[0]).toBe("# forge report — 2026-09-15T20:00:00.000Z");
+		expect(markdown).toContain(
 			"**Pass rate:** 50.0% (3 of 6 runs, 0 errored) · **failing or errored:** 1 · **flaky:** 1 · **judge disagreements:** 1 · **regressions since baseline:** 1",
 		);
 	});
 
 	test("names every regression against the baseline", () => {
-		const md = lines(REPORT);
-		expect(md).toContain("## Regressions since baseline");
-		expect(md).toContain("| a-01 | m | stable | failing |");
-		expect(md).toContain("Fixed since baseline: 0.");
+		const markdown = lines(REPORT);
+		expect(markdown).toContain("## Regressions since baseline");
+		expect(markdown).toContain("| a-01 | m | stable | failing |");
+		expect(markdown).toContain("Fixed since baseline: 0.");
 	});
 
 	test("lists each flaky case with its counts and its failure reasons", () => {
-		const md = lines(REPORT);
-		expect(md).toContain("## Flaky cases");
-		expect(md).toContain('| a-01 | m | 2 | 1 | 1 | 0 | type was "offer" |');
+		const markdown = lines(REPORT);
+		expect(markdown).toContain("## Flaky cases");
+		expect(markdown).toContain(
+			'| a-01 | m | 2 | 1 | 1 | 0 | type was "offer" |',
+		);
 	});
 
 	test("puts each judge's verdict in its own column", () => {
-		const md = lines(REPORT);
-		expect(md).toContain("## Judge disagreement");
-		expect(md).toContain(
+		const markdown = lines(REPORT);
+		expect(markdown).toContain("## Judge disagreement");
+		expect(markdown).toContain(
 			"| case | model | disagreeing runs | judge 1 | judge 2 |",
 		);
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"| r-01 | m | 1 | google/gemini-3.5-flash: pass — ok | anthropic/claude-sonnet-5: fail — no |",
 		);
 	});
 
 	test("baseline pairs this run does not have are named after the fixed count", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			baseline: {
 				regressions: [],
@@ -159,74 +162,93 @@ describe("renderReportMarkdown", () => {
 				],
 			},
 		});
-		expect(md).toContain("No regression since baseline.");
-		expect(md).toContain("Fixed since baseline: 0.");
-		expect(md).toContain(
+		expect(markdown).toContain("No regression since baseline.");
+		expect(markdown).toContain("Fixed since baseline: 0.");
+		expect(markdown).toContain(
 			"Not in this run, so not compared: 2 baseline pair(s) — old-01 @ m, old-02 @ m.",
 		);
 	});
 
 	test("a baseline with every pair present says nothing about pairs not in the run", () => {
-		const md = lines(REPORT);
-		expect(md.some((l) => l.startsWith("Not in this run"))).toBe(false);
+		const markdown = lines(REPORT);
+		expect(markdown.some((line) => line.startsWith("Not in this run"))).toBe(
+			false,
+		);
 	});
 
 	test("coverage names the scenarios with cases but no run, after the ones with no case", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			coverage: {
 				reviewedScenarios: 3,
 				withRuns: 1,
 				withoutCase: ["r"],
 				withoutRun: ["s"],
+				notSelected: [],
 			},
 		});
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"Coverage: 1 of 3 reviewed scenarios ran; no case yet: r; no matched run: s",
 		);
 	});
 
+	test("coverage names the scenarios the suite did not select, after the ones with no matched run", () => {
+		const markdown = lines({
+			...REPORT,
+			coverage: {
+				reviewedScenarios: 4,
+				withRuns: 1,
+				withoutCase: ["n"],
+				withoutRun: ["s"],
+				notSelected: ["r"],
+			},
+		});
+		expect(markdown).toContain(
+			"Coverage: 1 of 4 reviewed scenarios ran; no case yet: n; no matched run: s; not in this suite: r",
+		);
+	});
+
 	test("counts every scenario and says which approved ones have no case", () => {
-		const md = lines(REPORT);
-		expect(md).toContain("## Per scenario");
-		expect(md).toContain("| a | happy | 6 | 3 | 3 | 0 |");
-		expect(md).toContain("| r | ambiguous | 0 | 0 | 0 | 0 |");
-		expect(md).toContain(
+		const markdown = lines(REPORT);
+		expect(markdown).toContain("## Per scenario");
+		expect(markdown).toContain("| a | happy | 6 | 3 | 3 | 0 |");
+		expect(markdown).toContain("| r | ambiguous | 0 | 0 | 0 | 0 |");
+		expect(markdown).toContain(
 			"Coverage: 1 of 2 reviewed scenarios ran; no case yet: r",
 		);
 	});
 
 	test("prints real against estimated dollars, and marks an approximated price", () => {
-		const md = lines(REPORT);
-		expect(md).toContain("## Cost");
-		expect(md).toContain(
+		const markdown = lines(REPORT);
+		expect(markdown).toContain("## Cost");
+		expect(markdown).toContain(
 			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.001000 | $0.000500 | +100.0% |",
 		);
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"| google/gemini-3.5-flash ~ | judge | 526 | 642 | $0.001763 | — | — |",
 		);
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"~ marks a model priced as the closest listed model in prices.yaml.",
 		);
-		expect(md).toContain("Target usage: reported by the shim.");
+		expect(markdown).toContain("Target usage: reported by the shim.");
 	});
 
 	test("lists the rows that matched no case", () => {
-		const md = lines(REPORT);
-		expect(md).toContain("## Unmatched rows");
-		expect(md).toContain("- row 6 (testIdx 3): m: ghost-01");
+		const markdown = lines(REPORT);
+		expect(markdown).toContain("## Unmatched rows");
+		expect(markdown).toContain("- row 6 (testIdx 3): m: ghost-01");
 	});
 
 	test("without a baseline there is no regressions section and no regressions clause", () => {
-		const md = lines({ ...REPORT, baseline: null });
-		expect(md).toContain(
+		const markdown = lines({ ...REPORT, baseline: null });
+		expect(markdown).toContain(
 			"**Pass rate:** 50.0% (3 of 6 runs, 0 errored) · **failing or errored:** 1 · **flaky:** 1 · **judge disagreements:** 1",
 		);
-		expect(md).not.toContain("## Regressions since baseline");
+		expect(markdown).not.toContain("## Regressions since baseline");
 	});
 
 	test("a baseline with nothing broken says so instead of printing an empty table", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			baseline: {
 				regressions: [],
@@ -236,37 +258,37 @@ describe("renderReportMarkdown", () => {
 				onlyInBaseline: [],
 			},
 		});
-		expect(md).toContain("No regression since baseline.");
-		expect(md).toContain("Fixed since baseline: 1.");
-		expect(md).not.toContain("| a-01 | m | stable | failing |");
+		expect(markdown).toContain("No regression since baseline.");
+		expect(markdown).toContain("Fixed since baseline: 1.");
+		expect(markdown).not.toContain("| a-01 | m | stable | failing |");
 	});
 
 	test("lists each failing or errored case above the flaky ones, with its counts and reasons", () => {
-		const md = lines(REPORT);
-		expect(md).toContain("## Failing or errored cases");
-		expect(md).toContain(
+		const markdown = lines(REPORT);
+		expect(markdown).toContain("## Failing or errored cases");
+		expect(markdown).toContain(
 			"| a-03 | m | 2 | 0 | 2 | 0 | company was inferred from the sender domain |",
 		);
-		expect(md.indexOf("## Failing or errored cases")).toBeLessThan(
-			md.indexOf("## Flaky cases"),
+		expect(markdown.indexOf("## Failing or errored cases")).toBeLessThan(
+			markdown.indexOf("## Flaky cases"),
 		);
 	});
 
 	test("no failing or errored case says so", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
-			cases: REPORT.cases.filter((c) => c.case !== "a-03"),
+			cases: REPORT.cases.filter((caseRun) => caseRun.case !== "a-03"),
 			failing: [],
 			failingPairs: [],
 		});
-		expect(md).toContain("No failing or errored case.");
-		expect(md).not.toContain(
+		expect(markdown).toContain("No failing or errored case.");
+		expect(markdown).not.toContain(
 			"| a-03 | m | 2 | 0 | 2 | 0 | company was inferred from the sender domain |",
 		);
 	});
 
 	test("an errored run is named in the headline and left out of the pass rate", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			passRate: 1,
 			cases: [
@@ -298,13 +320,13 @@ describe("renderReportMarkdown", () => {
 			flaky: [],
 			baseline: null,
 		});
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"**Pass rate:** 100.0% (1 of 2 runs, 1 errored) · **failing or errored:** 0 · **flaky:** 0 · **judge disagreements:** 1",
 		);
 	});
 
 	test("a pipe and a newline in a reason stay inside their own cell", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			cases: [
 				{
@@ -322,13 +344,13 @@ describe("renderReportMarkdown", () => {
 			failing: [],
 			failingPairs: [],
 		});
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"| a-01 | m | 2 | 1 | 1 | 0 | a \\| b<br>second line |",
 		);
 	});
 
 	test("a target that reported no usage shows no dollars rather than zero", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			targetUsageReported: false,
 			costs: [
@@ -344,65 +366,71 @@ describe("renderReportMarkdown", () => {
 				},
 			],
 		});
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"| anthropic/claude-haiku-4-5 | target | 0 | 0 | — | $0.051836 | — |",
 		);
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"Target usage: not reported by the shim — target rows show 0 tokens; return tokenUsage from forge_target.py to fill this table",
 		);
 	});
 
 	test("no flaky case says so", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
-			cases: REPORT.cases.filter((c) => c.case !== "a-01"),
+			cases: REPORT.cases.filter((caseRun) => caseRun.case !== "a-01"),
 			flaky: [],
 		});
-		expect(md).toContain("No flaky case.");
-		expect(md).not.toContain('| a-01 | m | 2 | 1 | 1 | 0 | type was "offer" |');
+		expect(markdown).toContain("No flaky case.");
+		expect(markdown).not.toContain(
+			'| a-01 | m | 2 | 1 | 1 | 0 | type was "offer" |',
+		);
 	});
 
 	test("no disagreement says so", () => {
-		const md = lines({ ...REPORT, disagreements: [] });
-		expect(md).toContain("No disagreement.");
-		expect(md).not.toContain(
+		const markdown = lines({ ...REPORT, disagreements: [] });
+		expect(markdown).toContain("No disagreement.");
+		expect(markdown).not.toContain(
 			"| case | model | disagreeing runs | judge 1 | judge 2 |",
 		);
 	});
 
 	test("every approved scenario having a case drops the clause about missing ones", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			coverage: {
 				reviewedScenarios: 2,
 				withRuns: 2,
 				withoutCase: [],
 				withoutRun: [],
+				notSelected: [],
 			},
 		});
-		expect(md).toContain("Coverage: 2 of 2 reviewed scenarios ran.");
+		expect(markdown).toContain("Coverage: 2 of 2 reviewed scenarios ran.");
 	});
 
 	test("no unmatched row means no unmatched section", () => {
-		const md = lines({ ...REPORT, unmatched: [] });
-		expect(md).not.toContain("## Unmatched rows");
+		const markdown = lines({ ...REPORT, unmatched: [] });
+		expect(markdown).not.toContain("## Unmatched rows");
 	});
 
 	test("prices that are all exact drop the approximation legend", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
-			costs: REPORT.costs.map((c) => ({ ...c, approximatePrice: false })),
+			costs: REPORT.costs.map((modelCost) => ({
+				...modelCost,
+				approximatePrice: false,
+			})),
 		});
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"| google/gemini-3.5-flash | judge | 526 | 642 | $0.001763 | — | — |",
 		);
-		expect(md).not.toContain(
+		expect(markdown).not.toContain(
 			"~ marks a model priced as the closest listed model in prices.yaml.",
 		);
 	});
 
 	test("two target models get a side by side table of stability per case", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			cases: [
 				...REPORT.cases,
@@ -432,11 +460,11 @@ describe("renderReportMarkdown", () => {
 				},
 			],
 		});
-		expect(md).toContain("## Per model");
-		expect(md).toContain("| case | m | m2 |");
-		expect(md).toContain("| a-01 | flaky | stable |");
-		expect(md).toContain("| a-02 | stable | — |");
-		expect(md).toContain("| a-03 | failing | — |");
+		expect(markdown).toContain("## Per model");
+		expect(markdown).toContain("| case | m | m2 |");
+		expect(markdown).toContain("| a-01 | flaky | stable |");
+		expect(markdown).toContain("| a-02 | stable | — |");
+		expect(markdown).toContain("| a-03 | failing | — |");
 	});
 
 	test("a single target model gets no side by side table", () => {
@@ -444,7 +472,7 @@ describe("renderReportMarkdown", () => {
 	});
 
 	test("an error percent below the estimate keeps its sign", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			costs: [
 				{
@@ -459,14 +487,14 @@ describe("renderReportMarkdown", () => {
 				},
 			],
 		});
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.000250 | $0.000500 | -50.0% |",
 		);
 	});
 	test("a case whose id contains ` @ ` is listed once, in the table its stability names", () => {
 		// Both rows render the same `"<case> @ <model>"` display string, so a
 		// filter built from that string puts the stable one in the flaky table.
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			cases: [
 				{
@@ -496,13 +524,13 @@ describe("renderReportMarkdown", () => {
 			failingPairs: [],
 			flaky: ["a @ m @ m2"],
 		});
-		expect(md.filter((l) => l.startsWith("| a @ m | m2 |"))).toEqual([
-			"| a @ m | m2 | 2 | 1 | 1 | 0 | unstable |",
-		]);
-		expect(md).not.toContain("| a | m @ m2 | 2 | 2 | 0 | 0 |  |");
+		expect(
+			markdown.filter((line) => line.startsWith("| a @ m | m2 |")),
+		).toEqual(["| a @ m | m2 | 2 | 1 | 1 | 0 | unstable |"]);
+		expect(markdown).not.toContain("| a | m @ m2 | 2 | 2 | 0 | 0 |  |");
 	});
 	test("a partly-errored case is listed among the failing or errored ones, never among the flaky", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			cases: [
 				{
@@ -522,15 +550,17 @@ describe("renderReportMarkdown", () => {
 			flaky: [],
 		});
 		const listed = "| a-04 | m | 2 | 1 | 0 | 1 | overloaded |";
-		expect(md).toContain(listed);
-		expect(md).toContain("No flaky case.");
-		expect(md.indexOf(listed)).toBeGreaterThan(
-			md.indexOf("## Failing or errored cases"),
+		expect(markdown).toContain(listed);
+		expect(markdown).toContain("No flaky case.");
+		expect(markdown.indexOf(listed)).toBeGreaterThan(
+			markdown.indexOf("## Failing or errored cases"),
 		);
-		expect(md.indexOf(listed)).toBeLessThan(md.indexOf("## Flaky cases"));
+		expect(markdown.indexOf(listed)).toBeLessThan(
+			markdown.indexOf("## Flaky cases"),
+		);
 	});
 	test("the disagreeing runs column counts the repeats a case disagreed on", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			disagreements: [
 				{
@@ -544,12 +574,12 @@ describe("renderReportMarkdown", () => {
 				},
 			],
 		});
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"| r-01 | m | 3 | google/gemini-3.5-flash: pass — ok | anthropic/claude-sonnet-5: fail — no |",
 		);
 	});
 	test("a row with fewer judges than the widest is padded to the same width", () => {
-		const md = lines({
+		const markdown = lines({
 			...REPORT,
 			disagreements: [
 				{
@@ -573,15 +603,15 @@ describe("renderReportMarkdown", () => {
 				},
 			],
 		});
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"| case | model | disagreeing runs | judge 1 | judge 2 | judge 3 |",
 		);
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"| r-01 | m | 1 | one: pass — ok | two: fail — no | three: pass — fine |",
 		);
 		// the third cell is empty, not missing: a short row would shift the
 		// pipe count and break the table for every row after it
-		expect(md).toContain(
+		expect(markdown).toContain(
 			"| r-02 | m | 1 | one: pass — ok | two: fail — no |  |",
 		);
 	});

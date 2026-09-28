@@ -31,8 +31,8 @@ async function readBaseline(path: string): Promise<Report> {
 	let data: unknown;
 	try {
 		data = JSON.parse(text);
-	} catch (e) {
-		throw new ForgeError(`invalid JSON: ${(e as Error).message}`, {
+	} catch (error) {
+		throw new ForgeError(`invalid JSON: ${(error as Error).message}`, {
 			file: path,
 		});
 	}
@@ -40,7 +40,7 @@ async function readBaseline(path: string): Promise<Report> {
 	if (!parsed.success)
 		throw new ForgeError(
 			`is not a forge report: ${parsed.error.issues
-				.map((i) => `${i.path.join(".")}: ${i.message}`)
+				.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
 				.join("; ")}`,
 			{ file: path },
 		);
@@ -48,23 +48,23 @@ async function readBaseline(path: string): Promise<Report> {
 }
 
 export async function reportCommand(
-	args: string[],
-	ctx: CliContext,
+	commandArguments: string[],
+	context: CliContext,
 ): Promise<void> {
 	const { values, positionals } = parseArgs({
-		args,
+		args: commandArguments,
 		options: { baseline: { type: "string" } },
 		allowPositionals: true,
 	});
 	const resultsPath = positionals[0];
 	if (!resultsPath)
 		throw new UsageError("report needs the path of promptfoo's results.json");
-	const paths = forgePaths(ctx.forgeDir);
-	const feature = await readFeature(ctx.forgeDir);
+	const paths = forgePaths(context.forgeDir);
+	const feature = await readFeature(context.forgeDir);
 	requireApprovedFeature(feature, paths.feature);
-	const suite = await readSuite(ctx.forgeDir);
-	const scenarios = await readScenarios(ctx.forgeDir);
-	const casesByScenario = await readAllCases(ctx.forgeDir);
+	const suite = await readSuite(context.forgeDir);
+	const scenarios = await readScenarios(context.forgeDir);
+	const casesByScenario = await readAllCases(context.forgeDir);
 	const prices = await loadPrices();
 	const allCases = [...casesByScenario.values()].flat();
 	const selection = selectCases({
@@ -81,7 +81,7 @@ export async function reportCommand(
 		selection,
 		feature,
 		prices,
-		promptTokens: await promptTokensFor(ctx.forgeDir, feature.prompt_file),
+		promptTokens: await promptTokensFor(context.forgeDir, feature.prompt_file),
 	});
 	const results = await readResults(resultsPath);
 	// Checked against undefined, not truthiness: `--baseline ""` is a
@@ -94,6 +94,7 @@ export async function reportCommand(
 		scenarios,
 		cases: selection.cases,
 		knownCases: allCases,
+		selectedScenarios: selection.scenarios.map((scenario) => scenario.id),
 		estimate,
 		prices,
 		baseline,
@@ -105,12 +106,12 @@ export async function reportCommand(
 		`${JSON.stringify(report, null, 2)}\n`,
 		"utf8",
 	);
-	ctx.stdout(
+	context.stdout(
 		`report: ${report.matched} of ${report.rows} rows matched; pass rate ${(report.passRate * 100).toFixed(1)}%; ${report.failing.length} failing or errored; ${report.flaky.length} flaky; ${plural(report.disagreements.length, "judge disagreement")}`,
 	);
 	if (report.baseline)
-		ctx.stdout(
+		context.stdout(
 			`report: since baseline: ${report.baseline.regressions.length} regressions, ${report.baseline.fixed.length} fixed${report.baseline.onlyInBaseline.length > 0 ? `, ${report.baseline.onlyInBaseline.length} baseline pair(s) not in this run` : ""}`,
 		);
-	ctx.stdout(`report: wrote ${paths.reportMd} and ${paths.reportJson}`);
+	context.stdout(`report: wrote ${paths.reportMd} and ${paths.reportJson}`);
 }

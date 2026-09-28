@@ -3566,6 +3566,31 @@ describe("report", () => {
 		);
 	});
 
+	test("a scenario the suite's include leaves out is named under not in this suite", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeMatchingFixture(cwd);
+		// `include` narrows the suite to one of the two fixture scenarios;
+		// the other still has a reviewed case on disk, so the coverage
+		// sentence must name it apart from a scenario that ran and matched
+		// nothing.
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: { ...SUITE.target, models: ["target-haiku-4-5"] },
+			include: ["ack-optional-quiz"],
+		});
+		const { context } = await ctxIn(cwd);
+		expect(await run(["report", RESULTS], context)).toBe(0);
+		const json = JSON.parse(
+			await readFile(join(forgeDirectory, "report.json"), "utf8"),
+		);
+		expect(json.coverage.notSelected).toEqual(["out-of-scope-newsletter"]);
+		expect(json.coverage.withoutRun).toEqual([]);
+		const markdown = await readFile(join(forgeDirectory, "report.md"), "utf8");
+		expect(markdown).toContain(
+			"Coverage: 1 of 2 reviewed scenarios ran; not in this suite: out-of-scope-newsletter",
+		);
+	});
+
 	test("compares the run against the estimate the person saw before running", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeMatchingFixture(cwd);

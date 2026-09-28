@@ -17,60 +17,72 @@ const rule = (width: number): string =>
 	row(Array.from({ length: width }, () => "---"));
 const percent = (fraction: number): string => `${(fraction * 100).toFixed(1)}%`;
 const money = (dollars: number): string => `$${dollars.toFixed(6)}`;
-const signed = (n: number): string => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
+const signed = (amount: number): string =>
+	`${amount >= 0 ? "+" : ""}${amount.toFixed(1)}%`;
 
 function table(header: string[], rows: string[][]): string[] {
 	return [row(header), rule(header.length), ...rows.map(row)];
 }
 
-function headline(r: Report): string {
-	const runs = r.cases.reduce((n, c) => n + c.runs, 0);
-	const passed = r.cases.reduce((n, c) => n + c.passed, 0);
-	const errored = r.cases.reduce((n, c) => n + c.errored, 0);
+function headline(report: Report): string {
+	const runs = report.cases.reduce((total, caseRun) => total + caseRun.runs, 0);
+	const passed = report.cases.reduce(
+		(total, caseRun) => total + caseRun.passed,
+		0,
+	);
+	const errored = report.cases.reduce(
+		(total, caseRun) => total + caseRun.errored,
+		0,
+	);
 	const parts = [
-		`**Pass rate:** ${percent(r.passRate)} (${passed} of ${runs} runs, ${errored} errored)`,
-		`**failing or errored:** ${r.failing.length}`,
-		`**flaky:** ${r.flaky.length}`,
-		`**judge disagreements:** ${r.disagreements.length}`,
+		`**Pass rate:** ${percent(report.passRate)} (${passed} of ${runs} runs, ${errored} errored)`,
+		`**failing or errored:** ${report.failing.length}`,
+		`**flaky:** ${report.flaky.length}`,
+		`**judge disagreements:** ${report.disagreements.length}`,
 	];
-	if (r.baseline)
+	if (report.baseline)
 		parts.push(
-			`**regressions since baseline:** ${r.baseline.regressions.length}`,
+			`**regressions since baseline:** ${report.baseline.regressions.length}`,
 		);
 	return parts.join(" · ");
 }
 
-function regressions(r: Report): string[] {
-	if (!r.baseline) return [];
+function regressions(report: Report): string[] {
+	if (!report.baseline) return [];
 	const out = ["## Regressions since baseline", ""];
-	if (r.baseline.regressions.length === 0)
+	if (report.baseline.regressions.length === 0)
 		out.push("No regression since baseline.");
 	else
 		out.push(
 			...table(
 				["case", "model", "before", "after"],
-				r.baseline.regressions.map((d) => [d.case, d.model, d.before, d.after]),
+				report.baseline.regressions.map((entry) => [
+					entry.case,
+					entry.model,
+					entry.before,
+					entry.after,
+				]),
 			),
 		);
-	out.push("", `Fixed since baseline: ${r.baseline.fixed.length}.`, "");
+	out.push("", `Fixed since baseline: ${report.baseline.fixed.length}.`, "");
 	// Why the two lists above may be empty: a renamed pair is compared to
 	// nothing, and "0 regressions" alone read as "nothing changed".
-	if (r.baseline.onlyInBaseline.length > 0)
+	if (report.baseline.onlyInBaseline.length > 0)
 		out.push(
-			`Not in this run, so not compared: ${r.baseline.onlyInBaseline.length} baseline pair(s) — ${r.baseline.onlyInBaseline.map((p) => `${p.case} @ ${p.model}`).join(", ")}.`,
+			`Not in this run, so not compared: ${report.baseline.onlyInBaseline.length} baseline pair(s) — ${report.baseline.onlyInBaseline.map((pair) => `${pair.case} @ ${pair.model}`).join(", ")}.`,
 			"",
 		);
 	return out;
 }
 
-const caseRow = (c: CaseRun): string[] => [
-	c.case,
-	c.model,
-	String(c.runs),
-	String(c.passed),
-	String(c.failed),
-	String(c.errored),
-	c.reasons.join("; "),
+const caseRow = (caseRun: CaseRun): string[] => [
+	caseRun.case,
+	caseRun.model,
+	String(caseRun.runs),
+	String(caseRun.passed),
+	String(caseRun.failed),
+	String(caseRun.errored),
+	caseRun.reasons.join("; "),
 ];
 
 /**
@@ -84,13 +96,13 @@ const caseRow = (c: CaseRun): string[] => [
  * `"<case> @ <model>"`, which two different pairs can spell the same way
  * when a case id contains ` @ `. The lists stay as the JSON summary.
  */
-function caseSection(args: {
+function caseSection(parameters: {
 	title: string;
 	empty: string;
-	pick: (c: CaseRun) => boolean;
+	pick: (caseRun: CaseRun) => boolean;
 	report: Report;
 }): string[] {
-	const { title, empty, pick, report } = args;
+	const { title, empty, pick, report } = parameters;
 	const out = [`## ${title}`, ""];
 	const runs = report.cases.filter(pick);
 	if (runs.length === 0) out.push(empty);
@@ -105,13 +117,15 @@ function caseSection(args: {
 	return out;
 }
 
-function disagreement(r: Report): string[] {
+function disagreement(report: Report): string[] {
 	const out = ["## Judge disagreement", ""];
-	if (r.disagreements.length === 0) {
+	if (report.disagreements.length === 0) {
 		out.push("No disagreement.", "");
 		return out;
 	}
-	const columns = Math.max(...r.disagreements.map((d) => d.judges.length));
+	const columns = Math.max(
+		...report.disagreements.map((entry) => entry.judges.length),
+	);
 	// "disagreeing runs", not "runs": every other table in the report counts
 	// how often the pair ran, and this column counts only the runs the
 	// judges split on — the same word for two different numbers.
@@ -119,17 +133,18 @@ function disagreement(r: Report): string[] {
 		"case",
 		"model",
 		"disagreeing runs",
-		...Array.from({ length: columns }, (_, i) => `judge ${i + 1}`),
+		...Array.from({ length: columns }, (_, index) => `judge ${index + 1}`),
 	];
 	out.push(
 		...table(
 			header,
-			r.disagreements.map((d) => {
-				const cells = d.judges.map(
-					(j) => `${j.judge}: ${j.pass ? "pass" : "fail"} — ${j.reason}`,
+			report.disagreements.map((entry) => {
+				const cells = entry.judges.map(
+					(judgeVerdict) =>
+						`${judgeVerdict.judge}: ${judgeVerdict.pass ? "pass" : "fail"} — ${judgeVerdict.reason}`,
 				);
 				while (cells.length < columns) cells.push("");
-				return [d.case, d.model, String(d.occurrences), ...cells];
+				return [entry.case, entry.model, String(entry.occurrences), ...cells];
 			}),
 		),
 	);
@@ -137,42 +152,46 @@ function disagreement(r: Report): string[] {
 	return out;
 }
 
-function perScenario(r: Report): string[] {
-	const coverage = `Coverage: ${r.coverage.withRuns} of ${r.coverage.reviewedScenarios} reviewed scenarios ran`;
+function perScenario(report: Report): string[] {
+	const coverage = `Coverage: ${report.coverage.withRuns} of ${report.coverage.reviewedScenarios} reviewed scenarios ran`;
 	return [
 		"## Per scenario",
 		"",
 		...table(
 			["scenario", "kind", "runs", "passed", "failed", "errored"],
-			r.scenarios.map((s) => [
-				s.scenario,
-				s.kind,
-				String(s.run),
-				String(s.passed),
-				String(s.failed),
-				String(s.errored),
+			report.scenarios.map((scenarioStat) => [
+				scenarioStat.scenario,
+				scenarioStat.kind,
+				String(scenarioStat.run),
+				String(scenarioStat.passed),
+				String(scenarioStat.failed),
+				String(scenarioStat.errored),
 			]),
 		),
 		"",
-		coverageSentence(r, coverage),
+		coverageSentence(report, coverage),
 		"",
 	];
 }
 
 /**
- * The README promises to say which reviewed scenarios never ran. A
- * scenario with no case and one with cases but no matched row are two
- * different things to do next, so they are two clauses.
+ * The README promises to say which reviewed scenarios never ran. A scenario
+ * with no case, one with cases but no matched row, and one the suite's
+ * `include` left out entirely are three different things to do next, so
+ * they are three clauses.
  */
-function coverageSentence(r: Report, coverage: string): string {
+function coverageSentence(report: Report, coverage: string): string {
 	const clauses = [
-		r.coverage.withoutCase.length === 0
+		report.coverage.withoutCase.length === 0
 			? null
-			: `no case yet: ${r.coverage.withoutCase.join(", ")}`,
-		r.coverage.withoutRun.length === 0
+			: `no case yet: ${report.coverage.withoutCase.join(", ")}`,
+		report.coverage.withoutRun.length === 0
 			? null
-			: `no matched run: ${r.coverage.withoutRun.join(", ")}`,
-	].filter((c) => c !== null);
+			: `no matched run: ${report.coverage.withoutRun.join(", ")}`,
+		report.coverage.notSelected.length === 0
+			? null
+			: `not in this suite: ${report.coverage.notSelected.join(", ")}`,
+	].filter((clause) => clause !== null);
 	return clauses.length === 0
 		? `${coverage}.`
 		: `${coverage}; ${clauses.join("; ")}`;
@@ -182,12 +201,18 @@ function coverageSentence(r: Report, coverage: string): string {
  * Only worth a section when there is something to compare: with one target
  * model the stability column is already in every other table.
  */
-function perModel(r: Report): string[] {
-	if (r.costs.filter((c) => c.role === "target").length < 2) return [];
-	const models = [...new Set(r.cases.map((c) => c.model))];
-	const cases = [...new Set(r.cases.map((c) => c.case))];
+function perModel(report: Report): string[] {
+	if (
+		report.costs.filter((modelCost) => modelCost.role === "target").length < 2
+	)
+		return [];
+	const models = [...new Set(report.cases.map((caseRun) => caseRun.model))];
+	const cases = [...new Set(report.cases.map((caseRun) => caseRun.case))];
 	const stability = new Map(
-		r.cases.map((c) => [JSON.stringify([c.model, c.case]), c.stability]),
+		report.cases.map((caseRun) => [
+			JSON.stringify([caseRun.model, caseRun.case]),
+			caseRun.stability,
+		]),
 	);
 	return [
 		"## Per model",
@@ -196,38 +221,42 @@ function perModel(r: Report): string[] {
 			["case", ...models],
 			cases.map((id) => [
 				id,
-				...models.map((m) => stability.get(JSON.stringify([m, id])) ?? NONE),
+				...models.map(
+					(model) => stability.get(JSON.stringify([model, id])) ?? NONE,
+				),
 			]),
 		),
 		"",
 	];
 }
 
-function cost(r: Report): string[] {
+function cost(report: Report): string[] {
 	const out = [
 		"## Cost",
 		"",
 		...table(
 			["model", "role", "input", "output", "real", "estimated", "error"],
-			r.costs.map((c) => [
-				`${c.model}${c.approximatePrice ? " ~" : ""}`,
-				c.role,
-				String(c.inputTokens),
-				String(c.outputTokens),
-				c.realDollars === null ? NONE : money(c.realDollars),
-				c.estimatedDollars === null ? NONE : money(c.estimatedDollars),
-				c.errorPercent === null ? NONE : signed(c.errorPercent),
+			report.costs.map((modelCost) => [
+				`${modelCost.model}${modelCost.approximatePrice ? " ~" : ""}`,
+				modelCost.role,
+				String(modelCost.inputTokens),
+				String(modelCost.outputTokens),
+				modelCost.realDollars === null ? NONE : money(modelCost.realDollars),
+				modelCost.estimatedDollars === null
+					? NONE
+					: money(modelCost.estimatedDollars),
+				modelCost.errorPercent === null ? NONE : signed(modelCost.errorPercent),
 			]),
 		),
 		"",
 	];
-	if (r.costs.some((c) => c.approximatePrice))
+	if (report.costs.some((modelCost) => modelCost.approximatePrice))
 		out.push(
 			"~ marks a model priced as the closest listed model in prices.yaml.",
 			"",
 		);
 	out.push(
-		r.targetUsageReported
+		report.targetUsageReported
 			? "Target usage: reported by the shim."
 			: "Target usage: not reported by the shim — target rows show 0 tokens; return tokenUsage from forge_target.py to fill this table",
 		"",
@@ -235,12 +264,12 @@ function cost(r: Report): string[] {
 	return out;
 }
 
-function unmatched(r: Report): string[] {
-	if (r.unmatched.length === 0) return [];
+function unmatched(report: Report): string[] {
+	if (report.unmatched.length === 0) return [];
 	return [
 		"## Unmatched rows",
 		"",
-		...r.unmatched.map((u) => `- ${cell(u)}`),
+		...report.unmatched.map((unmatchedRow) => `- ${cell(unmatchedRow)}`),
 		"",
 	];
 }
@@ -250,29 +279,29 @@ function unmatched(r: Report): string[] {
  * actually asks of a run: what broke since last time, what is unstable,
  * where the judges disagree, what the suite covers, and what it cost.
  */
-export function renderReportMarkdown(r: Report): string {
+export function renderReportMarkdown(report: Report): string {
 	return [
-		`# forge report — ${r.generatedAt}`,
+		`# forge report — ${report.generatedAt}`,
 		"",
-		headline(r),
+		headline(report),
 		"",
-		...regressions(r),
+		...regressions(report),
 		...caseSection({
 			title: "Failing or errored cases",
 			empty: "No failing or errored case.",
 			pick: notPassingCleanly,
-			report: r,
+			report,
 		}),
 		...caseSection({
 			title: "Flaky cases",
 			empty: "No flaky case.",
-			pick: (c) => c.stability === "flaky",
-			report: r,
+			pick: (caseRun) => caseRun.stability === "flaky",
+			report,
 		}),
-		...disagreement(r),
-		...perScenario(r),
-		...perModel(r),
-		...cost(r),
-		...unmatched(r),
+		...disagreement(report),
+		...perScenario(report),
+		...perModel(report),
+		...cost(report),
+		...unmatched(report),
 	].join("\n");
 }
