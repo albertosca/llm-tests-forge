@@ -52,24 +52,25 @@ export function pendingItems(
 	const out: PendingItem[] = [];
 	if (feature.status === "pending")
 		out.push({ kind: "feature", item: feature });
-	for (const s of scenarios)
-		if (s.status === "pending") out.push({ kind: "scenario", item: s });
+	for (const scenario of scenarios)
+		if (scenario.status === "pending")
+			out.push({ kind: "scenario", item: scenario });
 
-	const pendingCases = cases.filter((c) => c.status === "pending");
+	const pendingCases = cases.filter((kase) => kase.status === "pending");
 	const placed = new Set<string>();
 	const ordered: Case[] = [];
-	for (const c of pendingCases) {
-		if (placed.has(c.id)) continue;
-		ordered.push(c);
-		placed.add(c.id);
-		for (const d of pendingCases) {
-			if (d.duplicate_of === c.id && !placed.has(d.id)) {
-				ordered.push(d);
-				placed.add(d.id);
+	for (const kase of pendingCases) {
+		if (placed.has(kase.id)) continue;
+		ordered.push(kase);
+		placed.add(kase.id);
+		for (const duplicate of pendingCases) {
+			if (duplicate.duplicate_of === kase.id && !placed.has(duplicate.id)) {
+				ordered.push(duplicate);
+				placed.add(duplicate.id);
 			}
 		}
 	}
-	for (const c of ordered) out.push({ kind: "case", item: c });
+	for (const kase of ordered) out.push({ kind: "case", item: kase });
 	return out;
 }
 
@@ -115,7 +116,7 @@ function validate<T extends Feature | Scenario | Case>(
 	const result = schema.safeParse(edited);
 	if (!result.success) {
 		throw new ForgeError(
-			`edited item is invalid: ${result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+			`edited item is invalid: ${result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`,
 			{ id: original.id },
 		);
 	}
@@ -209,13 +210,13 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 	}
 }
 
-export function withExpected(c: Case, expected: Expected): Case {
+export function withExpected(kase: Case, expected: Expected): Case {
 	const result = ExpectedSchema.safeParse(expected);
 	if (!result.success) {
 		throw new ForgeError(
-			`expected is invalid: ${result.error.issues.map((i) => i.message).join("; ")}`,
-			{ id: c.id },
+			`expected is invalid: ${result.error.issues.map((issue) => issue.message).join("; ")}`,
+			{ id: kase.id },
 		);
 	}
-	return { ...c, expected: result.data };
+	return { ...kase, expected: result.data };
 }

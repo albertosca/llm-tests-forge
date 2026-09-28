@@ -8,8 +8,8 @@ import {
 
 function fakeSleep() {
 	const calls: number[] = [];
-	const sleep = async (ms: number) => {
-		calls.push(ms);
+	const sleep = async (milliseconds: number) => {
+		calls.push(milliseconds);
 	};
 	return { sleep, calls };
 }
@@ -18,11 +18,11 @@ function fakeAttempts(...results: AttemptResult[]) {
 	let calls = 0;
 	return {
 		attempt: async (): Promise<AttemptResult> => {
-			const r = results[calls];
+			const result = results[calls];
 			calls += 1;
-			if (!r)
+			if (!result)
 				throw new Error("fakeAttempts called more times than results provided");
-			return r;
+			return result;
 		},
 		callCount: () => calls,
 	};
@@ -84,15 +84,15 @@ describe("retryTransient", () => {
 			sleep,
 		};
 
-		let err: unknown;
+		let caught: unknown;
 		try {
 			await retryTransient("`llm-tests-forge scenarios`", attempt, config);
-		} catch (e) {
-			err = e;
+		} catch (error) {
+			caught = error;
 		}
 
-		expect(err).toBeInstanceOf(Error);
-		const message = (err as Error).message;
+		expect(caught).toBeInstanceOf(Error);
+		const message = (caught as Error).message;
 		expect(message).toContain(
 			"was still a transient provider-overload failure after 3 attempts",
 		);
@@ -117,15 +117,15 @@ describe("retryTransient", () => {
 			sleep,
 		};
 
-		let err: unknown;
+		let caught: unknown;
 		try {
 			await retryTransient("`llm-tests-forge describe`", attempt, config);
-		} catch (e) {
-			err = e;
+		} catch (error) {
+			caught = error;
 		}
 
-		expect(err).toBeInstanceOf(Error);
-		const message = (err as Error).message;
+		expect(caught).toBeInstanceOf(Error);
+		const message = (caught as Error).message;
 		expect(message).toContain(
 			"failed with a non-transient error on attempt 1/3",
 		);

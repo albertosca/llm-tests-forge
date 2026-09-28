@@ -22,8 +22,14 @@ export interface ReviewAllArgs {
  * a case whose `expected` the scenario's oracle does not accept is left
  * pending and named, and so is one with no `expected` at all.
  */
-export async function reviewAllCommand(args: ReviewAllArgs): Promise<void> {
-	const { scenario, cases, feature, forgeDir, stdout } = args;
+export async function reviewAllCommand(request: ReviewAllArgs): Promise<void> {
+	const {
+		scenario,
+		cases,
+		feature,
+		forgeDir: forgeDirectory,
+		stdout,
+	} = request;
 	const id = scenario.id;
 	// The file is named for the scenario its cases belong to, and that is
 	// the scenario whose oracle `--all` approves them against. A
@@ -33,33 +39,37 @@ export async function reviewAllCommand(args: ReviewAllArgs): Promise<void> {
 	// went in rather than half-approved — and only for the pending cases
 	// this path would approve, as the interactive path refuses only what
 	// it offers: an approved entry nobody touches does not block the pass.
-	const file = join(forgePaths(forgeDir).casesDir, `${id}.yaml`);
-	for (const c of cases)
-		if (c.status === "pending" && c.scenario !== id)
+	const file = join(forgePaths(forgeDirectory).casesDir, `${id}.yaml`);
+	for (const kase of cases)
+		if (kase.status === "pending" && kase.scenario !== id)
 			throw new ForgeError(
-				`case ${c.id} names scenario "${c.scenario}" but lives in ${file}; run \`llm-tests-forge move --case ${c.id} --to ${c.scenario}\` or fix the file`,
-				{ file, id: c.id },
+				`case ${kase.id} names scenario "${kase.scenario}" but lives in ${file}; run \`llm-tests-forge move --case ${kase.id} --to ${kase.scenario}\` or fix the file`,
+				{ file, id: kase.id },
 			);
 
 	let approved = 0;
 	let noExpected = 0;
 	let offOracle = 0;
-	const updated = cases.map((c) => {
-		if (c.status !== "pending") return c;
-		if (c.expected === undefined) {
+	const updated = cases.map((kase) => {
+		if (kase.status !== "pending") return kase;
+		if (kase.expected === undefined) {
 			noExpected += 1;
-			return c;
+			return kase;
 		}
-		const problem = expectedMatchesOracle(c.expected, scenario.oracle, feature);
+		const problem = expectedMatchesOracle(
+			kase.expected,
+			scenario.oracle,
+			feature,
+		);
 		if (problem !== null) {
 			offOracle += 1;
-			stdout(`review: ${c.id}: ${problem}`);
-			return c;
+			stdout(`review: ${kase.id}: ${problem}`);
+			return kase;
 		}
 		approved += 1;
-		return applyDecision(c, "approve");
+		return applyDecision(kase, "approve");
 	});
-	if (approved > 0) await writeCases(forgeDir, id, updated);
+	if (approved > 0) await writeCases(forgeDirectory, id, updated);
 
 	const notes: string[] = [];
 	if (noExpected > 0)

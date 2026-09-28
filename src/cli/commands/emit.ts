@@ -25,7 +25,7 @@ type Format = (typeof FORMATS)[number];
 
 function parseFormat(raw: string | undefined): Format {
 	if (raw === undefined) return "promptfoo";
-	const found = FORMATS.find((f) => f === raw);
+	const found = FORMATS.find((format) => format === raw);
 	if (!found)
 		throw new UsageError(
 			`--format "${raw}" is not valid; choose one of: ${FORMATS.join(", ")}`,
@@ -41,18 +41,18 @@ async function exists(path: string): Promise<boolean> {
 }
 
 export async function emitCommand(
-	args: string[],
-	ctx: CliContext,
+	commandArguments: string[],
+	context: CliContext,
 ): Promise<void> {
 	const { values } = parseArgs({
-		args,
+		args: commandArguments,
 		options: { format: { type: "string" } },
 	});
 	const format = parseFormat(values.format);
-	const paths = forgePaths(ctx.forgeDir);
-	const feature = await readFeature(ctx.forgeDir);
+	const paths = forgePaths(context.forgeDir);
+	const feature = await readFeature(context.forgeDir);
 	requireApprovedFeature(feature, paths.feature);
-	const suite = await readSuite(ctx.forgeDir);
+	const suite = await readSuite(context.forgeDir);
 	// The shim is written into, and run from, `.forge/`; a path here would
 	// let suite.yaml write a file anywhere on the disk.
 	const entry = suite.target.entry;
@@ -63,19 +63,19 @@ export async function emitCommand(
 		);
 	const selection = selectCases({
 		suite,
-		scenarios: await readScenarios(ctx.forgeDir),
-		casesByScenario: await readAllCases(ctx.forgeDir),
+		scenarios: await readScenarios(context.forgeDir),
+		casesByScenario: await readAllCases(context.forgeDir),
 		paths,
 		feature,
 	});
 	if (selection.blockers.length > 0) {
-		const n = selection.blockers.length;
+		const count = selection.blockers.length;
 		// A rejected item is not something `llm-tests-forge review` can give back, so
 		// the hint is printed only when at least one blocker is reviewable.
 		const hint =
 			selection.reviewable > 0 ? "; run `llm-tests-forge review`" : "";
 		throw new ForgeError(
-			`emit refused: ${n} item${n === 1 ? " blocks" : "s block"} it${hint}\n  ${selection.blockers.join("\n  ")}`,
+			`emit refused: ${count} item${count === 1 ? " blocks" : "s block"} it${hint}\n  ${selection.blockers.join("\n  ")}`,
 		);
 	}
 	if (selection.cases.length === 0)
@@ -87,7 +87,7 @@ export async function emitCommand(
 		);
 	if (format === "jsonl") {
 		await writeFile(paths.casesJsonl, renderCasesJsonl({ selection }), "utf8");
-		ctx.stdout(
+		context.stdout(
 			`emit: wrote ${paths.casesJsonl} (${plural(selection.cases.length, "case")})`,
 		);
 		return;
@@ -99,15 +99,15 @@ export async function emitCommand(
 		featureFile: paths.feature,
 	});
 	await writeFile(paths.promptfooConfig, renderPromptfooConfig(config), "utf8");
-	ctx.stdout(
+	context.stdout(
 		`emit: wrote ${paths.promptfooConfig} (${plural(selection.cases.length, "case")}, ${plural(selection.scenarios.length, "scenario")}, ${plural(suite.target.models.length, "target model")}, ${plural(suite.judges.length, "judge")})`,
 	);
-	const shim = join(ctx.forgeDir, suite.target.entry);
+	const shim = join(context.forgeDir, suite.target.entry);
 	if (await exists(shim)) {
-		ctx.stdout(`emit: kept existing ${shim}`);
+		context.stdout(`emit: kept existing ${shim}`);
 	} else {
 		await writeFile(shim, await shimSource(feature), "utf8");
-		ctx.stdout(
+		context.stdout(
 			`emit: wrote ${shim}; edit run_application() to call your application`,
 		);
 	}
