@@ -65,10 +65,10 @@ The one expected value worth arguing about is `empty-subject-and-minimal-body-03
 
     $ bun ../../src/cli/bin.ts estimate
     estimate: 24 cases, 3 with a rubric; prices dated 2026-09-16
-      target  anthropic/claude-haiku-4-5           48 calls   23036 in    5760 out  $0.051836
-      judge   anthropic/claude-sonnet-5             6 calls    2184 in    1044 out  $0.014808
-      total                                                                         $0.066644
-    note: tokens are estimated as characters / 4; output size is a guess from output.kind
+      target  anthropic/claude-haiku-4-5           48 calls   23036 in     144 out  $0.023756
+      judge   anthropic/claude-sonnet-5             6 calls    1482 in    1044 out  $0.013404
+      total                                                                         $0.037160
+    note: tokens are estimated as characters / 4; output size is the mean of 21 reviewed expected values
 
 ## The run
 

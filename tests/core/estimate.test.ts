@@ -5,6 +5,7 @@ import {
 	guessOutputTokens,
 	JUDGE_OUTPUT_TOKENS,
 	JUDGE_PROMPT_OVERHEAD,
+	measuredOutputTokens,
 	renderEstimate,
 } from "../../src/core/estimate";
 import type {
@@ -33,14 +34,14 @@ const prices: Prices = {
 		"google/gemini-3.5-flash": { input: 0.3, output: 2.5 },
 	},
 };
-const sc = (id: string, oracle: Scenario["oracle"]): Scenario => ({
+const scenarioOf = (id: string, oracle: Scenario["oracle"]): Scenario => ({
 	id,
 	kind: "happy",
 	oracle,
 	description: id,
 	status: "approved",
 });
-const cs = (
+const caseOf = (
 	id: string,
 	scenario: string,
 	text: string,
@@ -79,18 +80,50 @@ describe("approxTokens / guessOutputTokens", () => {
 	});
 });
 
+describe("measuredOutputTokens", () => {
+	test("mean of approxTokens over each fields case's serialised expected value, rounded up", () => {
+		const cases = [
+			// JSON.stringify({ a: "x".repeat(32) }) is 40 characters -> approxTokens 10.
+			caseOf("a-01", "a", "irrelevant", { fields: { a: "x".repeat(32) } }),
+			// JSON.stringify({ a: "x".repeat(72) }) is 80 characters -> approxTokens 20.
+			caseOf("a-02", "a", "irrelevant", { fields: { a: "x".repeat(72) } }),
+		];
+		expect(measuredOutputTokens(cases)).toBe(15);
+	});
+	test("a label case measures the label text alone", () => {
+		const cases = [caseOf("a-01", "a", "irrelevant", { label: "rejection" })];
+		expect(measuredOutputTokens(cases)).toBe(3);
+	});
+	test("a rubric expected value is not output, so it never contributes a size", () => {
+		const cases = [
+			caseOf("r-01", "r", "irrelevant", { rubric: "z".repeat(80) }),
+		];
+		expect(measuredOutputTokens(cases)).toBeNull();
+	});
+	test("no cases at all: null", () => {
+		expect(measuredOutputTokens([])).toBeNull();
+	});
+	test("a mix of a rubric case and a label case measures only the label case", () => {
+		const cases = [
+			caseOf("r-01", "r", "irrelevant", { rubric: "z".repeat(80) }),
+			caseOf("a-01", "a", "irrelevant", { label: "rejection" }),
+		];
+		expect(measuredOutputTokens(cases)).toBe(3);
+	});
+});
+
 describe("estimateSuite", () => {
 	test("one target, two label cases, repeat 2: calls, tokens and dollars are exact", () => {
 		const selection: Selection = {
-			scenarios: [sc("a", "label")],
+			scenarios: [scenarioOf("a", "label")],
 			cases: [
-				cs("a-01", "a", "x".repeat(400), { label: "rejection" }),
-				cs("a-02", "a", "y".repeat(40), { label: "rejection" }),
+				caseOf("a-01", "a", "x".repeat(400), { label: "rejection" }),
+				caseOf("a-02", "a", "y".repeat(40), { label: "rejection" }),
 			],
 			blockers: [],
 			reviewable: 0,
 		};
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["anthropic/claude-haiku-4-5"],
 				["google/gemini-3.5-flash"],
@@ -101,36 +134,38 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 0,
 		});
-		expect(e.cases).toBe(2);
-		expect(e.rubricCases).toBe(0);
-		expect(e.lines).toEqual([
+		expect(estimate.cases).toBe(2);
+		expect(estimate.rubricCases).toBe(0);
+		// Both cases carry the label "rejection" (9 characters, approxTokens 3),
+		// so the measured output size (3) replaces the label guess (8).
+		expect(estimate.lines).toEqual([
 			{
 				model: "anthropic/claude-haiku-4-5",
 				role: "target",
 				calls: 4,
 				inputTokens: (100 + 10) * 2,
-				outputTokens: 4 * 8,
-				dollars: (220 * 1 + 32 * 5) / 1_000_000,
+				outputTokens: 4 * 3,
+				dollars: (220 * 1 + 12 * 5) / 1_000_000,
 				pricedAs: "anthropic/claude-haiku-4-5",
 				approximate: false,
 				priced: true,
 			},
 		]);
-		expect(e.totalDollars).toBe((220 * 1 + 32 * 5) / 1_000_000);
-		expect(e.pricesUpdated).toBe("2026-09-15");
-		expect(e.notes).toEqual([
-			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+		expect(estimate.totalDollars).toBe((220 * 1 + 12 * 5) / 1_000_000);
+		expect(estimate.pricesUpdated).toBe("2026-09-15");
+		expect(estimate.notes).toEqual([
+			"tokens are estimated as characters / 4; output size is the mean of 2 reviewed expected values",
 			"application prompt not counted: set feature.prompt_file to include it",
 		]);
 	});
 	test("promptTokens are added to every target call and the prompt note disappears", () => {
 		const selection: Selection = {
-			scenarios: [sc("a", "label")],
-			cases: [cs("a-01", "a", "x".repeat(40), { label: "rejection" })],
+			scenarios: [scenarioOf("a", "label")],
+			cases: [caseOf("a-01", "a", "x".repeat(40), { label: "rejection" })],
 			blockers: [],
 			reviewable: 0,
 		};
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["anthropic/claude-haiku-4-5"],
 				["google/gemini-3.5-flash"],
@@ -141,22 +176,24 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 500,
 		});
-		expect(e.lines[0]?.inputTokens).toBe(510);
-		expect(e.notes).toEqual([
-			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+		expect(estimate.lines[0]?.inputTokens).toBe(510);
+		// The one case carries a label expected value, so the note names the
+		// measured size instead of the guess.
+		expect(estimate.notes).toEqual([
+			"tokens are estimated as characters / 4; output size is the mean of 1 reviewed expected value",
 		]);
 	});
 	test("judges are charged only for rubric cases, once per judge per target model per repeat", () => {
 		const selection: Selection = {
-			scenarios: [sc("a", "label"), sc("r", "rubric")],
+			scenarios: [scenarioOf("a", "label"), scenarioOf("r", "rubric")],
 			cases: [
-				cs("a-01", "a", "x".repeat(40), { label: "rejection" }),
-				cs("r-01", "r", "y".repeat(40), { rubric: "z".repeat(80) }),
+				caseOf("a-01", "a", "x".repeat(40), { label: "rejection" }),
+				caseOf("r-01", "r", "y".repeat(40), { rubric: "z".repeat(80) }),
 			],
 			blockers: [],
 			reviewable: 0,
 		};
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-5"],
 				["google/gemini-3.5-flash"],
@@ -167,9 +204,11 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 0,
 		});
-		expect(e.rubricCases).toBe(1);
-		const judge = e.lines.find((l) => l.role === "judge");
-		const perCall = 8 + 20 + JUDGE_PROMPT_OVERHEAD;
+		expect(estimate.rubricCases).toBe(1);
+		const judge = estimate.lines.find((line) => line.role === "judge");
+		// The only non-rubric case carries label "rejection" (approxTokens 3),
+		// so the measured output size (3) replaces the label guess (8) here too.
+		const perCall = 3 + 20 + JUDGE_PROMPT_OVERHEAD;
 		expect(judge).toEqual({
 			model: "google/gemini-3.5-flash",
 			role: "judge",
@@ -181,7 +220,7 @@ describe("estimateSuite", () => {
 			approximate: false,
 			priced: true,
 		});
-		expect(e.lines.map((l) => `${l.role}:${l.model}`)).toEqual([
+		expect(estimate.lines.map((line) => `${line.role}:${line.model}`)).toEqual([
 			"target:anthropic/claude-haiku-4-5",
 			"target:anthropic/claude-sonnet-5",
 			"judge:google/gemini-3.5-flash",
@@ -189,12 +228,12 @@ describe("estimateSuite", () => {
 	});
 	test("an unlisted model is marked approximate and the note says what ~ means", () => {
 		const selection: Selection = {
-			scenarios: [sc("a", "label")],
-			cases: [cs("a-01", "a", "x", { label: "rejection" })],
+			scenarios: [scenarioOf("a", "label")],
+			cases: [caseOf("a-01", "a", "x", { label: "rejection" })],
 			blockers: [],
 			reviewable: 0,
 		};
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["anthropic/claude-haiku-9"],
 				["google/gemini-3.5-flash"],
@@ -205,22 +244,22 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 0,
 		});
-		expect(e.lines[0]?.approximate).toBe(true);
-		expect(e.lines[0]?.pricedAs).toBe("anthropic/claude-haiku-4-5");
-		expect(e.notes).toContain(
+		expect(estimate.lines[0]?.approximate).toBe(true);
+		expect(estimate.lines[0]?.pricedAs).toBe("anthropic/claude-haiku-4-5");
+		expect(estimate.notes).toContain(
 			"~ marks a model priced as the closest listed model",
 		);
 	});
 	test("a model whose provider has no row at all is not priced, and the total is the priced line alone", () => {
 		const selection: Selection = {
-			scenarios: [sc("a", "label")],
-			cases: [cs("a-01", "a", "x".repeat(40), { label: "rejection" })],
+			scenarios: [scenarioOf("a", "label")],
+			cases: [caseOf("a-01", "a", "x".repeat(40), { label: "rejection" })],
 			blockers: [],
 			reviewable: 0,
 		};
 		// Two lines, not one: with a single unpriced line the total is zero
 		// whether the filter works or not, so the test could not fail.
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["ollama/llama3", "anthropic/claude-haiku-4-5"],
 				["google/gemini-3.5-flash"],
@@ -231,20 +270,24 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 0,
 		});
-		const unpriced = e.lines.find((l) => l.model === "ollama/llama3");
-		const haiku = e.lines.find((l) => l.model === "anthropic/claude-haiku-4-5");
+		const unpriced = estimate.lines.find(
+			(line) => line.model === "ollama/llama3",
+		);
+		const haiku = estimate.lines.find(
+			(line) => line.model === "anthropic/claude-haiku-4-5",
+		);
 		expect(unpriced?.priced).toBe(false);
 		expect(unpriced?.pricedAs).toBe("ollama/llama3");
 		expect(unpriced?.dollars).toBe(0);
 		expect(haiku?.priced).toBe(true);
 		expect(haiku?.dollars).toBeGreaterThan(0);
-		expect(e.totalDollars).toBe(haiku?.dollars ?? -1);
-		expect(e.notes).toContain(
+		expect(estimate.totalDollars).toBe(haiku?.dollars ?? -1);
+		expect(estimate.notes).toContain(
 			"not priced: ollama/llama3 has no row in prices.yaml",
 		);
 	});
 	test("a suite with zero selected cases estimates zero and says so, rather than throwing", () => {
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["anthropic/claude-haiku-4-5"],
 				["google/gemini-3.5-flash"],
@@ -255,9 +298,62 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 0,
 		});
-		expect(e.cases).toBe(0);
-		expect(e.totalDollars).toBe(0);
-		expect(e.lines[0]?.calls).toBe(0);
+		expect(estimate.cases).toBe(0);
+		expect(estimate.totalDollars).toBe(0);
+		expect(estimate.lines[0]?.calls).toBe(0);
+	});
+	test("fields cases with a measurable expected value: output size is the mean, and the note says so", () => {
+		const fieldsFeature: Feature = {
+			...feature,
+			output: { kind: "json", fields: ["a"] },
+		};
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "fields")],
+			cases: [
+				caseOf("a-01", "a", "x".repeat(40), { fields: { a: "x".repeat(32) } }),
+				caseOf("a-02", "a", "y".repeat(40), { fields: { a: "x".repeat(72) } }),
+			],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature: fieldsFeature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(2 * 15);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is the mean of 2 reviewed expected values",
+		);
+	});
+	test("rubric-only cases: no measurable expected value, so output size falls back to the kind-based guess", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("r", "rubric")],
+			cases: [caseOf("r-01", "r", "x".repeat(40), { rubric: "z".repeat(80) })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(1 * 8);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+		);
 	});
 });
 
@@ -343,7 +439,7 @@ describe("renderEstimate", () => {
 			],
 		});
 		const lines = text.split("\n");
-		const unpriced = lines.find((l) => l.includes("ollama/llama3"));
+		const unpriced = lines.find((line) => line.includes("ollama/llama3"));
 		expect(unpriced).toContain("not priced");
 		expect(unpriced).not.toContain("$");
 		expect(unpriced).not.toContain("(priced as");
@@ -421,13 +517,13 @@ describe("renderEstimate", () => {
 			],
 		});
 		const lines = text.split("\n");
-		const totalRow = lines.find((l) => l.startsWith("  total"));
+		const totalRow = lines.find((line) => line.startsWith("  total"));
 		expect(totalRow).toBe(
 			"  total                                                                         not priced  (2 lines not priced)",
 		);
 		// The total sits in the same column as the rows it summarises, which
 		// a column computed from a "$" no row carries could not do.
-		const dataRow = lines.find((l) => l.includes("ollama/qwen3"));
+		const dataRow = lines.find((line) => line.includes("ollama/qwen3"));
 		expect(totalRow?.indexOf("not priced")).toBe(
 			dataRow?.indexOf("not priced"),
 		);
@@ -456,8 +552,8 @@ describe("renderEstimate", () => {
 			],
 		});
 		const lines = text.split("\n");
-		const dataRow = lines.find((l) => l.includes(longModel));
-		const totalRow = lines.find((l) => l.startsWith("  total"));
+		const dataRow = lines.find((line) => line.includes(longModel));
+		const totalRow = lines.find((line) => line.startsWith("  total"));
 		expect(dataRow).toBeDefined();
 		expect(totalRow).toBeDefined();
 		expect(totalRow?.indexOf("$")).toBe(dataRow?.indexOf("$"));
