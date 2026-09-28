@@ -165,7 +165,11 @@ export async function readYamlFile<T>(
 	return parseYamlText(path, await readText(path), schema);
 }
 
-function parseYamlText<T>(path: string, text: string, schema: ZodType<T>): T {
+export function parseYamlText<T>(
+	path: string,
+	text: string,
+	schema: ZodType<T>,
+): T {
 	let data: unknown;
 	try {
 		data = parse(text);

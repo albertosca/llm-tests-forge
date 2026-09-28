@@ -1,4 +1,5 @@
 import { ForgeError, UsageError } from "../core/errors";
+import { FORGE_VERSION } from "../core/version";
 import { casesCommand } from "./commands/cases";
 import { dedupeCommand } from "./commands/dedupe";
 import { describeCommand } from "./commands/describe";
@@ -24,11 +25,12 @@ export const USAGE = `usage: forge <verb> [options]
   estimate                                            suite + approved cases -> tokens and dollars per model (no call)
   emit [--format promptfoo|jsonl]                    approved cases -> .forge/promptfooconfig.yaml + forge_target.py, or cases.jsonl
   report <results.json> [--baseline report.json]      promptfoo output -> .forge/report.md + report.json
+  help | --help, version | --version
 model: --model provider/model or FORGE_MODEL; providers: anthropic, google, openai, ollama, fake/<file>`;
 
 const COMMANDS: Record<
 	string,
-	(args: string[], ctx: CliContext) => Promise<void>
+	(commandArguments: string[], context: CliContext) => Promise<void>
 > = {
 	describe: describeCommand,
 	scenarios: scenariosCommand,
@@ -67,31 +69,44 @@ const PROGRAMMING_ERROR_TYPES = [
 	URIError,
 ];
 
-function isProgrammingError(e: unknown): boolean {
-	return PROGRAMMING_ERROR_TYPES.some((ctor) => e instanceof ctor);
+function isProgrammingError(error: unknown): boolean {
+	return PROGRAMMING_ERROR_TYPES.some(
+		(errorType) => error instanceof errorType,
+	);
 }
 
-export async function run(argv: string[], ctx: CliContext): Promise<number> {
+export async function run(
+	argv: string[],
+	context: CliContext,
+): Promise<number> {
 	const [verb, ...rest] = argv;
+	if (verb === "--help" || verb === "-h" || verb === "help") {
+		context.stdout(USAGE);
+		return 0;
+	}
+	if (verb === "--version" || verb === "-V" || verb === "version") {
+		context.stdout(FORGE_VERSION);
+		return 0;
+	}
 	const command = verb ? COMMANDS[verb] : undefined;
 	if (!command) {
-		ctx.stdout(USAGE);
+		context.stdout(USAGE);
 		return 2;
 	}
 	try {
-		await command(rest, ctx);
+		await command(rest, context);
 		return 0;
-	} catch (e) {
-		if (e instanceof UsageError) {
-			ctx.stdout(`error: ${e.message}`);
+	} catch (error) {
+		if (error instanceof UsageError) {
+			context.stdout(`error: ${error.message}`);
 			return 2;
 		}
-		if (e instanceof ForgeError) {
-			ctx.stdout(`error: ${e.message}`);
+		if (error instanceof ForgeError) {
+			context.stdout(`error: ${error.message}`);
 			return 1;
 		}
-		if (e instanceof TypeError && /option|argument/i.test(e.message)) {
-			ctx.stdout(`error: ${e.message}\n${USAGE}`);
+		if (error instanceof TypeError && /option|argument/i.test(error.message)) {
+			context.stdout(`error: ${error.message}\n${USAGE}`);
 			return 2;
 		}
 		// A parseArgs usage TypeError is handled above; any other
@@ -102,15 +117,15 @@ export async function run(argv: string[], ctx: CliContext): Promise<number> {
 		// the same clean `error: ...` treatment as a ForgeError, so a real
 		// user never sees a raw stack trace for something they can't fix
 		// by reading a stack trace anyway.
-		if (!isProgrammingError(e) && e instanceof Error) {
-			ctx.stdout(`error: ${e.message}`);
+		if (!isProgrammingError(error) && error instanceof Error) {
+			context.stdout(`error: ${error.message}`);
 			return 1;
 		}
-		throw e;
+		throw error;
 	}
 }
 
 export function modelFlag(argv: string[]): string | undefined {
-	const i = argv.indexOf("--model");
-	return i >= 0 ? argv[i + 1] : undefined;
+	const index = argv.indexOf("--model");
+	return index >= 0 ? argv[index + 1] : undefined;
 }

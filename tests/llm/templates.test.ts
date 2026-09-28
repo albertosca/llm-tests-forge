@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { ForgeError } from "../../src/core/errors";
 import { loadTemplate, render } from "../../src/llm/templates";
 
 describe("render", () => {
@@ -19,19 +18,17 @@ describe("render", () => {
 });
 
 describe("loadTemplate", () => {
-	test("reads templates/<name>.md from the package root", async () => {
-		const text = await loadTemplate("describe");
-		expect(text).toContain("{{description}}");
+	test("every template the forge renders is embedded, and none is empty", () => {
+		for (const name of [
+			"describe",
+			"scenarios",
+			"cases",
+			"dedupe",
+			"shims/python",
+		])
+			expect(loadTemplate(name).length).toBeGreaterThan(100);
 	});
-	test("throws ForgeError naming the file when absent", async () => {
-		const err = await loadTemplate("nope").catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toContain("nope.md");
-	});
-	test("loadTemplate takes an extension, defaulting to md", async () => {
-		const py = await loadTemplate("forge_target", "py");
-		expect(py).toContain("def call_api");
-		const md = await loadTemplate("describe");
-		expect(md.length).toBeGreaterThan(0);
+	test("an unknown template name is refused by name", () => {
+		expect(() => loadTemplate("nope")).toThrow("template not found (id: nope)");
 	});
 });

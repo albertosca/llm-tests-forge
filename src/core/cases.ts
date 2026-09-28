@@ -55,7 +55,9 @@ function expectedSchemaFor(oracle: Oracle) {
  */
 export function casesOutputSchema(feature: Feature, scenario: Scenario) {
 	const input = z.object(
-		Object.fromEntries(feature.inputs.map((i) => [i.name, z.string()])),
+		Object.fromEntries(
+			feature.inputs.map((featureInput) => [featureInput.name, z.string()]),
+		),
 	);
 	return z.object({
 		cases: z.array(
@@ -88,8 +90,10 @@ function decodeExpected(raw: {
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(raw.fields);
-	} catch (e) {
-		return { problem: `expected.fields is not JSON: ${(e as Error).message}` };
+	} catch (error) {
+		return {
+			problem: `expected.fields is not JSON: ${(error as Error).message}`,
+		};
 	}
 	const object = FieldsObject.safeParse(parsed);
 	if (!object.success)
@@ -121,48 +125,52 @@ function oracleInstructions(feature: Feature, scenario: Scenario): string {
 	}
 }
 
-export async function generateCases(args: GenerateCasesArgs): Promise<Case[]> {
+export async function generateCases(
+	request: GenerateCasesArgs,
+): Promise<Case[]> {
 	if (
-		args.scenario.status !== "approved" &&
-		args.scenario.status !== "edited"
+		request.scenario.status !== "approved" &&
+		request.scenario.status !== "edited"
 	) {
 		throw new ForgeError(
-			`scenario is ${args.scenario.status}; approve it in review before generating cases`,
-			{ id: args.scenario.id },
+			`scenario is ${request.scenario.status}; approve it in review before generating cases`,
+			{ id: request.scenario.id },
 		);
 	}
-	const inputNames = args.feature.inputs.map((i) => i.name);
-	const template = await loadTemplate("cases");
+	const inputNames = request.feature.inputs.map(
+		(featureInput) => featureInput.name,
+	);
+	const template = loadTemplate("cases");
 	const prompt = render(template, {
-		feature: stringify(args.feature, { lineWidth: 0 }),
+		feature: stringify(request.feature, { lineWidth: 0 }),
 		scenario: stringify(
 			{
-				id: args.scenario.id,
-				kind: args.scenario.kind,
-				description: args.scenario.description,
+				id: request.scenario.id,
+				kind: request.scenario.kind,
+				description: request.scenario.description,
 			},
 			{ lineWidth: 0 },
 		),
-		n: String(args.n),
+		n: String(request.n),
 		input_names: inputNames.join(", "),
-		oracle: args.scenario.oracle,
-		oracle_instructions: oracleInstructions(args.feature, args.scenario),
+		oracle: request.scenario.oracle,
+		oracle_instructions: oracleInstructions(request.feature, request.scenario),
 		existing:
-			args.existing.length > 0
+			request.existing.length > 0
 				? stringify(
-						args.existing.map((c) => c.input),
+						request.existing.map((existingCase) => existingCase.input),
 						{ lineWidth: 0 },
 					)
 				: "(none)",
 	});
-	const { object } = await args.llm.generate({
-		schema: casesOutputSchema(args.feature, args.scenario),
+	const { object } = await request.llm.generate({
+		schema: casesOutputSchema(request.feature, request.scenario),
 		prompt,
-		model: args.model,
+		model: request.model,
 		verb: "cases",
 	});
 
-	const accepted: Case[] = [...args.existing];
+	const accepted: Case[] = [...request.existing];
 	const reasons: string[] = [];
 	for (const candidate of object.cases) {
 		const decoded = decodeExpected(candidate.expected);
@@ -173,32 +181,36 @@ export async function generateCases(args: GenerateCasesArgs): Promise<Case[]> {
 		const expected = decoded.expected;
 		const problem = expectedMatchesOracle(
 			expected,
-			args.scenario.oracle,
-			args.feature,
+			request.scenario.oracle,
+			request.feature,
 		);
 		if (problem) {
 			reasons.push(problem);
 			continue;
 		}
-		if (accepted.some((c) => sameInput(c.input, candidate.input))) {
+		if (
+			accepted.some((acceptedCase) =>
+				sameInput(acceptedCase.input, candidate.input),
+			)
+		) {
 			reasons.push("exact duplicate of an existing input");
 			continue;
 		}
 		accepted.push({
-			id: nextCaseId(args.scenario.id, accepted),
-			scenario: args.scenario.id,
+			id: nextCaseId(request.scenario.id, accepted),
+			scenario: request.scenario.id,
 			input: candidate.input,
 			expected,
 			status: "pending",
-			generated_by: args.model,
+			generated_by: request.model,
 		});
 	}
-	if (accepted.length === args.existing.length) {
+	if (accepted.length === request.existing.length) {
 		throw new ForgeError(
 			reasons.length === 0
 				? "no usable case generated for scenario: the model returned no candidates"
 				: `no usable case generated for scenario (${reasons.length} dropped: ${reasons.join("; ")})`,
-			{ id: args.scenario.id },
+			{ id: request.scenario.id },
 		);
 	}
 	return accepted;

@@ -19,28 +19,35 @@ const table: Prices = {
 
 describe("loadPrices", () => {
 	test("reads the repository's prices.yaml by default, and it validates", async () => {
-		const p = await loadPrices();
-		expect(p.unit).toBe("usd_per_million_tokens");
-		expect(p.models["anthropic/claude-haiku-4-5"]).toEqual({
+		const prices = await loadPrices();
+		expect(prices.unit).toBe("usd_per_million_tokens");
+		expect(prices.models["anthropic/claude-haiku-4-5"]).toEqual({
 			input: 1,
 			output: 5,
 		});
 	});
+	test("with no path, reads the table embedded in the build, not a file next to the source", async () => {
+		const prices = await loadPrices();
+		expect(prices.unit).toBe("usd_per_million_tokens");
+		expect(Object.keys(prices.models).length).toBeGreaterThan(0);
+	});
 	test("names the file when it is missing", async () => {
-		const err = await loadPrices("/nowhere/prices.yaml").catch((e: Error) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as Error).message).toContain("/nowhere/prices.yaml");
+		const error = await loadPrices("/nowhere/prices.yaml").catch(
+			(caught: Error) => caught,
+		);
+		expect(error).toBeInstanceOf(ForgeError);
+		expect((error as Error).message).toContain("/nowhere/prices.yaml");
 	});
 	test("rejects a table that does not validate, naming the file", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "forge-prices-"));
-		const f = join(dir, "prices.yaml");
+		const directory = await mkdtemp(join(tmpdir(), "forge-prices-"));
+		const file = join(directory, "prices.yaml");
 		await writeFile(
-			f,
+			file,
 			"updated: 2026-09-15\nunit: usd_per_million_tokens\nmodels: {}\n",
 		);
-		const err = await loadPrices(f).catch((e: Error) => e);
-		expect((err as Error).message).toContain("at least one model");
-		expect((err as Error).message).toContain(f);
+		const error = await loadPrices(file).catch((caught: Error) => caught);
+		expect((error as Error).message).toContain("at least one model");
+		expect((error as Error).message).toContain(file);
 	});
 });
 
@@ -73,14 +80,14 @@ describe("priceFor", () => {
 		});
 	});
 	test("prefix ties resolve to the first listed candidate (file order), so the result is deterministic", () => {
-		const t: Prices = {
+		const tiedTable: Prices = {
 			...table,
 			models: {
 				"google/gemini-3.5-pro": { input: 1, output: 2 },
 				"google/gemini-3.5-flash": { input: 3, output: 4 },
 			},
 		};
-		expect(priceFor("google/gemini-3.5-x", t).pricedAs).toBe(
+		expect(priceFor("google/gemini-3.5-x", tiedTable).pricedAs).toBe(
 			"google/gemini-3.5-pro",
 		);
 	});

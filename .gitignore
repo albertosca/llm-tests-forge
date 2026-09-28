@@ -5,3 +5,5 @@ coverage/
 **/.forge/failures/
 **/.forge/usage.jsonl
 __pycache__/
+dist/
+*.bun-build

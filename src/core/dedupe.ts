@@ -14,26 +14,28 @@ export interface DedupeArgs {
 	llm: Llm;
 }
 
-export async function dedupeCases(args: DedupeArgs): Promise<Case[]> {
-	if (args.cases.length < 2) return args.cases;
-	const template = await loadTemplate("dedupe");
+export async function dedupeCases(request: DedupeArgs): Promise<Case[]> {
+	if (request.cases.length < 2) return request.cases;
+	const template = loadTemplate("dedupe");
 	const prompt = render(template, {
 		cases: stringify(
-			args.cases.map((c) => ({
-				id: c.id,
-				input: c.input,
-				expected: c.expected,
+			request.cases.map((testCase) => ({
+				id: testCase.id,
+				input: testCase.input,
+				expected: testCase.expected,
 			})),
 			{ lineWidth: 0 },
 		),
 	});
-	const { object } = await args.llm.generate({
+	const { object } = await request.llm.generate({
 		schema: DedupeOutputSchema,
 		prompt,
-		model: args.model,
+		model: request.model,
 		verb: "dedupe",
 	});
-	const byId = new Map(args.cases.map((c) => [c.id, c]));
+	const byId = new Map(
+		request.cases.map((testCase) => [testCase.id, testCase]),
+	);
 	const marks = new Map<string, string>();
 	for (const pair of object.duplicates) {
 		const target = byId.get(pair.id);
@@ -46,7 +48,9 @@ export async function dedupeCases(args: DedupeArgs): Promise<Case[]> {
 		if (target.status === "approved" || target.status === "edited") continue;
 		marks.set(pair.id, pair.duplicate_of);
 	}
-	return args.cases.map((c) =>
-		marks.has(c.id) ? { ...c, duplicate_of: marks.get(c.id) } : c,
+	return request.cases.map((testCase) =>
+		marks.has(testCase.id)
+			? { ...testCase, duplicate_of: marks.get(testCase.id) }
+			: testCase,
 	);
 }

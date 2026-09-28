@@ -26,6 +26,7 @@ import {
 	writeScenarios,
 	writeSuite,
 } from "../../src/core/files";
+import { FORGE_VERSION } from "../../src/core/version";
 
 /** An unambiguously old timestamp: any real write resets a file's mtime to
  * "now", which is trivially distinguishable from this regardless of the
@@ -166,6 +167,23 @@ describe("forge CLI end to end (fake provider)", () => {
 		expect(out.join("\n")).toContain(
 			"review [--scenario id] [--only feature|scenarios|cases] | review --scenario id --all",
 		);
+	});
+
+	test("--help, -h and help print the usage and exit 0; --version, -V and version print the version and exit 0", async () => {
+		for (const flag of ["--help", "-h", "help"]) {
+			const { context, out } = await ctxIn(
+				await mkdtemp(join(tmpdir(), "forge-help-")),
+			);
+			expect(await run([flag], context)).toBe(0);
+			expect(out.join("\n")).toContain("describe <text...>");
+		}
+		for (const flag of ["--version", "-V", "version"]) {
+			const { context, out } = await ctxIn(
+				await mkdtemp(join(tmpdir(), "forge-version-")),
+			);
+			expect(await run([flag], context)).toBe(0);
+			expect(out).toEqual([FORGE_VERSION]);
+		}
 	});
 
 	test("missing model is a usage error (exit 2) naming the flag", async () => {
