@@ -3,6 +3,7 @@ import {
 	mkdir,
 	readdir,
 	readFile,
+	stat,
 	unlink,
 	writeFile,
 } from "node:fs/promises";
@@ -36,19 +37,19 @@ export interface ForgePaths {
 	reportJson: string;
 }
 
-export function forgePaths(forgeDir: string): ForgePaths {
+export function forgePaths(forgeDirectory: string): ForgePaths {
 	return {
-		root: forgeDir,
-		feature: join(forgeDir, "feature.yaml"),
-		scenarios: join(forgeDir, "scenarios.yaml"),
-		casesDir: join(forgeDir, "cases"),
-		suite: join(forgeDir, "suite.yaml"),
-		usage: join(forgeDir, "usage.jsonl"),
-		failuresDir: join(forgeDir, "failures"),
-		promptfooConfig: join(forgeDir, "promptfooconfig.yaml"),
-		casesJsonl: join(forgeDir, "cases.jsonl"),
-		reportMd: join(forgeDir, "report.md"),
-		reportJson: join(forgeDir, "report.json"),
+		root: forgeDirectory,
+		feature: join(forgeDirectory, "feature.yaml"),
+		scenarios: join(forgeDirectory, "scenarios.yaml"),
+		casesDir: join(forgeDirectory, "cases"),
+		suite: join(forgeDirectory, "suite.yaml"),
+		usage: join(forgeDirectory, "usage.jsonl"),
+		failuresDir: join(forgeDirectory, "failures"),
+		promptfooConfig: join(forgeDirectory, "promptfooconfig.yaml"),
+		casesJsonl: join(forgeDirectory, "cases.jsonl"),
+		reportMd: join(forgeDirectory, "report.md"),
+		reportJson: join(forgeDirectory, "report.json"),
 	};
 }
 
@@ -59,12 +60,12 @@ async function exists(path: string): Promise<boolean> {
 	);
 }
 
-function hasCode(e: unknown): e is { code: string } {
+function hasCode(error: unknown): error is { code: string } {
 	return (
-		typeof e === "object" &&
-		e !== null &&
-		"code" in e &&
-		typeof (e as { code: unknown }).code === "string"
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		typeof (error as { code: unknown }).code === "string"
 	);
 }
 
@@ -77,8 +78,8 @@ function hasCode(e: unknown): e is { code: string } {
  * and `src/report/results.ts`'s `readResults`, which reads promptfoo's JSON
  * output — neither is YAML, so neither goes through `readYamlFile`.
  */
-export function readFailure(e: unknown): string {
-	const code = hasCode(e) ? e.code : undefined;
+export function readFailure(error: unknown): string {
+	const code = hasCode(error) ? error.code : undefined;
 	switch (code) {
 		case "ENOENT":
 			return "file not found";
@@ -88,7 +89,7 @@ export function readFailure(e: unknown): string {
 		case "EPERM":
 			return "permission denied";
 		default:
-			return `cannot read: ${(e as Error).message}`;
+			return `cannot read: ${(error as Error).message}`;
 	}
 }
 
@@ -118,8 +119,8 @@ function describeIssue(issue: core.$ZodIssue, data: unknown): string {
 
 /** A read whose failure names the file and the OS's reason, as every forge read does. */
 export async function readText(path: string): Promise<string> {
-	return readFile(path, "utf8").catch((e: unknown) => {
-		throw new ForgeError(readFailure(e), { file: path });
+	return readFile(path, "utf8").catch((error: unknown) => {
+		throw new ForgeError(readFailure(error), { file: path });
 	});
 }
 
@@ -132,8 +133,8 @@ export async function readText(path: string): Promise<string> {
 export async function writeText(path: string, text: string): Promise<void> {
 	await mkdir(join(path, ".."), { recursive: true })
 		.then(() => writeFile(path, text, "utf8"))
-		.catch((e: unknown) => {
-			throw new ForgeError(`cannot write: ${(e as Error).message}`, {
+		.catch((error: unknown) => {
+			throw new ForgeError(`cannot write: ${(error as Error).message}`, {
 				file: path,
 			});
 		});
@@ -149,9 +150,9 @@ export async function removeFile(
 	path: string,
 	afterwards: string,
 ): Promise<void> {
-	await unlink(path).catch((e: unknown) => {
+	await unlink(path).catch((error: unknown) => {
 		throw new ForgeError(
-			`cannot remove: ${(e as Error).message}; ${afterwards}`,
+			`cannot remove: ${(error as Error).message}; ${afterwards}`,
 			{ file: path },
 		);
 	});
@@ -168,15 +169,15 @@ function parseYamlText<T>(path: string, text: string, schema: ZodType<T>): T {
 	let data: unknown;
 	try {
 		data = parse(text);
-	} catch (e) {
-		throw new ForgeError(`invalid YAML: ${(e as Error).message}`, {
+	} catch (error) {
+		throw new ForgeError(`invalid YAML: ${(error as Error).message}`, {
 			file: path,
 		});
 	}
 	const result = schema.safeParse(data);
 	if (!result.success) {
 		throw new ForgeError(
-			`does not match schema: ${result.error.issues.map((i) => describeIssue(i, data)).join("; ")}`,
+			`does not match schema: ${result.error.issues.map((issue) => describeIssue(issue, data)).join("; ")}`,
 			{ file: path },
 		);
 	}
@@ -190,8 +191,8 @@ export async function writeYamlFile(
 	await writeText(path, stringify(data, { lineWidth: 0 }));
 }
 
-export async function readFeature(forgeDir: string): Promise<Feature> {
-	return readYamlFile(forgePaths(forgeDir).feature, FeatureSchema);
+export async function readFeature(forgeDirectory: string): Promise<Feature> {
+	return readYamlFile(forgePaths(forgeDirectory).feature, FeatureSchema);
 }
 
 /**
@@ -202,61 +203,115 @@ export async function readFeature(forgeDir: string): Promise<Feature> {
  * treating it as absent is how reviewed work gets destroyed.
  */
 export async function readFeatureIfPresent(
-	forgeDir: string,
+	forgeDirectory: string,
 ): Promise<Feature | undefined> {
-	const path = forgePaths(forgeDir).feature;
+	const path = forgePaths(forgeDirectory).feature;
 	if (!(await exists(path))) return undefined;
 	return readYamlFile(path, FeatureSchema);
 }
 
 export async function writeFeature(
-	forgeDir: string,
+	forgeDirectory: string,
 	feature: Feature,
 ): Promise<void> {
-	await writeYamlFile(forgePaths(forgeDir).feature, feature);
+	await writeYamlFile(forgePaths(forgeDirectory).feature, feature);
 }
 
-export async function readScenarios(forgeDir: string): Promise<Scenario[]> {
-	const path = forgePaths(forgeDir).scenarios;
+export async function readScenarios(
+	forgeDirectory: string,
+): Promise<Scenario[]> {
+	const path = forgePaths(forgeDirectory).scenarios;
 	if (!(await exists(path))) return [];
 	return readYamlFile(path, z.array(ScenarioSchema));
 }
 
 export async function writeScenarios(
-	forgeDir: string,
+	forgeDirectory: string,
 	scenarios: Scenario[],
 ): Promise<void> {
-	await writeYamlFile(forgePaths(forgeDir).scenarios, scenarios);
+	await writeYamlFile(forgePaths(forgeDirectory).scenarios, scenarios);
 }
 
-function casesPath(forgeDir: string, scenarioId: string): string {
-	return join(forgePaths(forgeDir).casesDir, `${scenarioId}.yaml`);
+function casesPath(forgeDirectory: string, scenarioId: string): string {
+	return join(forgePaths(forgeDirectory).casesDir, `${scenarioId}.yaml`);
 }
 
 export async function readCases(
-	forgeDir: string,
+	forgeDirectory: string,
 	scenarioId: string,
 ): Promise<Case[]> {
-	const path = casesPath(forgeDir, scenarioId);
+	const path = casesPath(forgeDirectory, scenarioId);
 	if (!(await exists(path))) return [];
 	return readYamlFile(path, z.array(CaseSchema));
 }
 
 export async function writeCases(
-	forgeDir: string,
+	forgeDirectory: string,
 	scenarioId: string,
 	cases: Case[],
 ): Promise<void> {
-	await writeYamlFile(casesPath(forgeDir, scenarioId), cases);
+	await writeYamlFile(casesPath(forgeDirectory, scenarioId), cases);
 }
 
-export async function listCaseScenarios(forgeDir: string): Promise<string[]> {
-	const dir = forgePaths(forgeDir).casesDir;
-	const names = await readdir(dir).catch(() => [] as string[]);
+export async function listCaseScenarios(
+	forgeDirectory: string,
+): Promise<string[]> {
+	const directory = forgePaths(forgeDirectory).casesDir;
+	const names = await readdir(directory).catch(() => [] as string[]);
 	return names
-		.filter((n) => n.endsWith(".yaml"))
-		.map((n) => basename(n, ".yaml"))
+		.filter((fileName) => fileName.endsWith(".yaml"))
+		.map((fileName) => basename(fileName, ".yaml"))
 		.sort();
+}
+
+/**
+ * A cheap signature of one cases file's on-disk state: its size and last
+ * modification time, or `null` when the file does not exist. `forge
+ * review` snapshots this for every file it reads, and compares again just
+ * before writing back, to tell a file removed or replaced by someone else
+ * during the pass from one still exactly as it was read (measured
+ * 2026-09-28: the file it is about to overwrite may have been removed
+ * *and recreated* with different content while a person was answering
+ * questions about the old one — existence alone missed that case).
+ */
+export interface CaseFileFingerprint {
+	modifiedAtInMilliseconds: number;
+	sizeInBytes: number;
+}
+
+export async function caseFileFingerprint(
+	forgeDirectory: string,
+	scenarioId: string,
+): Promise<CaseFileFingerprint | null> {
+	return stat(casesPath(forgeDirectory, scenarioId)).then(
+		(information) => ({
+			modifiedAtInMilliseconds: information.mtimeMs,
+			sizeInBytes: information.size,
+		}),
+		() => null,
+	);
+}
+
+/** A cases file as `forge review` read it: its cases and the fingerprint of the file they came from. */
+export interface ReadCaseFile {
+	cases: Case[];
+	fingerprint: CaseFileFingerprint;
+}
+
+/**
+ * Reads one cases file together with its fingerprint, or `null` when the
+ * file does not exist. The fingerprint is taken first: a file changed
+ * between the two reads then carries a fingerprint older than its content,
+ * which the write-back guard reads as changed and refuses — never the other
+ * way round, a file whose content is older than the fingerprint it passes.
+ */
+export async function readCaseFile(
+	forgeDirectory: string,
+	scenarioId: string,
+): Promise<ReadCaseFile | null> {
+	const fingerprint = await caseFileFingerprint(forgeDirectory, scenarioId);
+	if (fingerprint === null) return null;
+	return { cases: await readCases(forgeDirectory, scenarioId), fingerprint };
 }
 
 export const SUITE_EXAMPLE = `target:
@@ -268,8 +323,8 @@ judges: [google/gemini-3.5-flash]
 repeat: 2
 include: []                        # scenario ids; empty means every approved scenario`;
 
-export async function readSuite(forgeDir: string): Promise<Suite> {
-	const path = forgePaths(forgeDir).suite;
+export async function readSuite(forgeDirectory: string): Promise<Suite> {
+	const path = forgePaths(forgeDirectory).suite;
 	if (!(await exists(path)))
 		throw new ForgeError(
 			`suite.yaml not found; write one like:\n${SUITE_EXAMPLE}`,
@@ -290,9 +345,9 @@ export async function readSuite(forgeDir: string): Promise<Suite> {
  * still throws.
  */
 export async function readSuiteIfPresent(
-	forgeDir: string,
+	forgeDirectory: string,
 ): Promise<{ suite: Suite; text: string } | null> {
-	const path = forgePaths(forgeDir).suite;
+	const path = forgePaths(forgeDirectory).suite;
 	if (!(await exists(path))) return null;
 	const text = await readText(path);
 	return { suite: parseYamlText(path, text, SuiteSchema), text };
@@ -315,20 +370,20 @@ export async function readSuiteIfPresent(
  * happened. Refused by name rather than reported as done. Pure, so the
  * caller can compute it before its first write.
  */
-export function rewriteSuiteInclude(args: {
+export function rewriteSuiteInclude(options: {
 	path: string;
 	text: string;
 	from: string;
 	to: string;
 	occurrences: number;
 }): string {
-	const { path, text, from, to, occurrences } = args;
-	const doc = parseDocument(text);
-	const include = doc.get("include", true);
+	const { path, text, from, to: replacement, occurrences } = options;
+	const document = parseDocument(text);
+	const include = document.get("include", true);
 	let rewritten = 0;
 	for (const item of isSeq(include) ? include.items : [])
 		if (isScalar(item) && item.value === from) {
-			item.value = to;
+			item.value = replacement;
 			rewritten += 1;
 		}
 	if (rewritten !== occurrences)
@@ -336,21 +391,21 @@ export function rewriteSuiteInclude(args: {
 			`suite.include names "${from}" ${occurrences} time(s) but only ${rewritten} can be rewritten in place: the rest come through a YAML alias; edit suite.yaml by hand`,
 			{ file: path, id: from },
 		);
-	return doc.toString({ flowCollectionPadding: false, lineWidth: 0 });
+	return document.toString({ flowCollectionPadding: false, lineWidth: 0 });
 }
 
 export async function writeSuite(
-	forgeDir: string,
+	forgeDirectory: string,
 	suite: Suite,
 ): Promise<void> {
-	await writeYamlFile(forgePaths(forgeDir).suite, suite);
+	await writeYamlFile(forgePaths(forgeDirectory).suite, suite);
 }
 
 export async function readAllCases(
-	forgeDir: string,
+	forgeDirectory: string,
 ): Promise<Map<string, Case[]>> {
 	const out = new Map<string, Case[]>();
-	for (const id of await listCaseScenarios(forgeDir))
-		out.set(id, await readCases(forgeDir, id));
+	for (const id of await listCaseScenarios(forgeDirectory))
+		out.set(id, await readCases(forgeDirectory, id));
 	return out;
 }

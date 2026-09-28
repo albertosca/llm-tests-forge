@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-25T14:53:27.822Z",
+  "generatedAt": "2026-09-28T16:54:12.237Z",
   "promptfooVersion": "0.123.0",
   "rows": 84,
   "matched": 84,
@@ -686,7 +686,8 @@
     "reviewedScenarios": 14,
     "withRuns": 14,
     "withoutCase": [],
-    "withoutRun": []
+    "withoutRun": [],
+    "notSelected": []
   },
   "disagreements": [],
   "costs": [
@@ -696,7 +697,7 @@
       "inputTokens": 0,
       "outputTokens": 0,
       "realDollars": null,
-      "estimatedDollars": 0.17631,
+      "estimatedDollars": 0.33507,
       "errorPercent": null,
       "approximatePrice": false
     },
@@ -706,8 +707,8 @@
       "inputTokens": 10214,
       "outputTokens": 5145,
       "realDollars": 0.071878,
-      "estimatedDollars": 0.0422,
-      "errorPercent": 70.3,
+      "estimatedDollars": 0.046736,
+      "errorPercent": 53.8,
       "approximatePrice": false
     }
   ],

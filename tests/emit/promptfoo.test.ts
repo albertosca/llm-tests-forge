@@ -37,12 +37,12 @@ const suite: Suite = {
 	repeat: 2,
 	include: [],
 };
-const sc = (
+const scenarioOf = (
 	id: string,
 	kind: Scenario["kind"],
 	oracle: Scenario["oracle"],
 ): Scenario => ({ id, kind, oracle, description: id, status: "approved" });
-const cs = (
+const caseOf = (
 	id: string,
 	scenario: string,
 	expected: Case["expected"],
@@ -57,12 +57,12 @@ const cs = (
 
 const selection: Selection = {
 	scenarios: [
-		sc("polite-rejection", "happy", "label"),
-		sc("vague", "ambiguous", "rubric"),
+		scenarioOf("polite-rejection", "happy", "label"),
+		scenarioOf("vague", "ambiguous", "rubric"),
 	],
 	cases: [
-		cs("polite-rejection-01", "polite-rejection", { label: "rejection" }),
-		cs("vague-01", "vague", { rubric: "says it is a receipt" }),
+		caseOf("polite-rejection-01", "polite-rejection", { label: "rejection" }),
+		caseOf("vague-01", "vague", { rubric: "says it is a receipt" }),
 	],
 	blockers: [],
 	reviewable: 0,
@@ -93,12 +93,12 @@ function reasonOf(result: true | Failure): string {
 
 describe("buildPromptfooConfig", () => {
 	test("providers: one file:// provider per target model, labelled by the model, with the python path", () => {
-		const cfg = buildPromptfooConfig({
+		const config = buildPromptfooConfig({
 			feature: labelFeature,
 			suite,
 			selection,
 		});
-		expect(cfg.providers).toEqual([
+		expect(config.providers).toEqual([
 			{
 				id: "file://forge_target.py",
 				label: "anthropic/claude-haiku-4-5",
@@ -118,51 +118,51 @@ describe("buildPromptfooConfig", () => {
 		]);
 	});
 	test("no python path in the suite → no pythonExecutable key at all", () => {
-		const s: Suite = {
+		const customSuite: Suite = {
 			...suite,
 			target: { ...suite.target, python: undefined },
 		};
-		const cfg = buildPromptfooConfig({
+		const config = buildPromptfooConfig({
 			feature: labelFeature,
-			suite: s,
+			suite: customSuite,
 			selection,
 		});
-		expect(cfg.providers[0]?.config).toEqual({
+		expect(config.providers[0]?.config).toEqual({
 			model: "anthropic/claude-haiku-4-5",
 		});
 	});
 	test("prompts, repeat and description", () => {
-		const cfg = buildPromptfooConfig({
+		const config = buildPromptfooConfig({
 			feature: labelFeature,
 			suite,
 			selection,
 		});
-		expect(cfg.prompts).toEqual(["{{email}}"]);
-		expect(cfg.evaluateOptions).toEqual({ repeat: 2 });
-		expect(cfg.description).toBe(
+		expect(config.prompts).toEqual(["{{email}}"]);
+		expect(config.evaluateOptions).toEqual({ repeat: 2 });
+		expect(config.description).toBe(
 			"classify-email: forge suite, 2 cases from 2 scenarios",
 		);
 	});
 	test("each case becomes a test with its vars and full metadata", () => {
-		const cfg = buildPromptfooConfig({
+		const config = buildPromptfooConfig({
 			feature: labelFeature,
 			suite,
 			selection,
 		});
-		expect(cfg.tests.map((t) => t.description)).toEqual([
+		expect(config.tests.map((emittedTest) => emittedTest.description)).toEqual([
 			"polite-rejection-01",
 			"vague-01",
 		]);
-		expect(cfg.tests[0]?.vars).toEqual({
+		expect(config.tests[0]?.vars).toEqual({
 			email: "body of polite-rejection-01",
 		});
-		expect(cfg.tests[0]?.metadata).toEqual({
+		expect(config.tests[0]?.metadata).toEqual({
 			scenario: "polite-rejection",
 			case: "polite-rejection-01",
 			kind: "happy",
 			oracle: "label",
 		});
-		expect(cfg.tests[1]?.metadata).toEqual({
+		expect(config.tests[1]?.metadata).toEqual({
 			scenario: "vague",
 			case: "vague-01",
 			kind: "ambiguous",
@@ -170,12 +170,12 @@ describe("buildPromptfooConfig", () => {
 		});
 	});
 	test("a rubric case gets one llm-rubric assert per judge, same text, provider set per assert", () => {
-		const cfg = buildPromptfooConfig({
+		const config = buildPromptfooConfig({
 			feature: labelFeature,
 			suite,
 			selection,
 		});
-		expect(cfg.tests[1]?.assert).toEqual([
+		expect(config.tests[1]?.assert).toEqual([
 			{
 				type: "llm-rubric",
 				value: "says it is a receipt",
@@ -189,25 +189,25 @@ describe("buildPromptfooConfig", () => {
 		]);
 	});
 	test("label oracle on a label-kind feature compares the trimmed output to the label", () => {
-		const cfg = buildPromptfooConfig({
+		const config = buildPromptfooConfig({
 			feature: labelFeature,
 			suite,
 			selection,
 		});
-		const a = cfg.tests[0]?.assert[0];
-		expect(a?.type).toBe("javascript");
-		expect(runAssert(a?.value ?? "", "rejection\n")).toBe(true);
-		expect(runAssert(a?.value ?? "", "acknowledgement")).toEqual(
+		const firstAssert = config.tests[0]?.assert[0];
+		expect(firstAssert?.type).toBe("javascript");
+		expect(runAssert(firstAssert?.value ?? "", "rejection\n")).toBe(true);
+		expect(runAssert(firstAssert?.value ?? "", "acknowledgement")).toEqual(
 			failure('output was "acknowledgement", expected rejection'),
 		);
 	});
 	test("label oracle on a json-kind feature reads label_field through the tolerant parser", () => {
-		const cfg = buildPromptfooConfig({
+		const config = buildPromptfooConfig({
 			feature: jsonFeature,
 			suite,
 			selection,
 		});
-		const body = cfg.tests[0]?.assert[0]?.value ?? "";
+		const body = config.tests[0]?.assert[0]?.value ?? "";
 		expect(body).toContain(TOLERANT_PARSE);
 		expect(
 			runAssert(body, '```json\n{"type": "rejection", "company": null}\n```'),
@@ -224,17 +224,19 @@ describe("buildPromptfooConfig", () => {
 	});
 	test("fields oracle does a subset match and names every differing field", () => {
 		const sel: Selection = {
-			scenarios: [sc("f", "edge", "fields")],
-			cases: [cs("f-01", "f", { fields: { company: "Acme", type: "offer" } })],
+			scenarios: [scenarioOf("f", "edge", "fields")],
+			cases: [
+				caseOf("f-01", "f", { fields: { company: "Acme", type: "offer" } }),
+			],
 			blockers: [],
 			reviewable: 0,
 		};
-		const cfg = buildPromptfooConfig({
+		const config = buildPromptfooConfig({
 			feature: jsonFeature,
 			suite,
 			selection: sel,
 		});
-		const body = cfg.tests[0]?.assert[0]?.value ?? "";
+		const body = config.tests[0]?.assert[0]?.value ?? "";
 		expect(runAssert(body, '{"type":"offer","company":"Acme","extra":1}')).toBe(
 			true,
 		);
@@ -242,19 +244,264 @@ describe("buildPromptfooConfig", () => {
 			failure('fields differ: type="rejection" (expected "offer")'),
 		);
 	});
-	test("a label containing a quote cannot break the snippet", () => {
-		const sel: Selection = {
-			scenarios: [sc("q", "edge", "label")],
-			cases: [cs("q-01", "q", { label: 'say "hi"' })],
+	test("a list field is compared item by item, keyed by label when the items carry one", () => {
+		const questions = [
+			{ label: "Name", kind: "text", options: [] },
+			{ label: "Relocate?", kind: "single_select", options: ["Yes", "No"] },
+			{ label: "Visa?", kind: "single_select", options: ["Yes", "No"] },
+		];
+		const selection: Selection = {
+			scenarios: [scenarioOf("f", "edge", "fields")],
+			cases: [caseOf("f-01", "f", { fields: { questions } })],
 			blockers: [],
 			reviewable: 0,
 		};
-		const f: Feature = {
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		const got = [
+			{ label: "Name", kind: "text", options: [] },
+			{ label: "Relocate?", kind: "boolean", options: [] },
+			{ label: "Start date", kind: "text", options: [] },
+		];
+		expect(runAssert(body, JSON.stringify({ questions: got }))).toEqual(
+			failure(
+				'fields differ: questions: "Relocate?" kind="boolean" (expected "single_select"), options=[] (expected ["Yes","No"]); missing "Visa?"; unexpected "Start date"',
+			),
+		);
+		expect(runAssert(body, JSON.stringify({ questions }))).toBe(true);
+	});
+	test("a list without a label-like key is compared by position, and a length difference is named", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("f", "edge", "fields")],
+			cases: [caseOf("f-01", "f", { fields: { scores: [1, 2, 3] } })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		expect(runAssert(body, JSON.stringify({ scores: [1, 5] }))).toEqual(
+			failure(
+				"fields differ: scores: 2 items (expected 3); [1]=5 (expected 2)",
+			),
+		);
+	});
+	test("more than five differences are counted rather than listed", () => {
+		const want = Array.from({ length: 8 }, (_, index) => ({
+			label: `q${index}`,
+			kind: "text",
+		}));
+		const got = want.map((item) => ({ ...item, kind: "long_text" }));
+		const selection: Selection = {
+			scenarios: [scenarioOf("f", "edge", "fields")],
+			cases: [caseOf("f-01", "f", { fields: { questions: want } })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		const reason = reasonOf(
+			runAssert(body, JSON.stringify({ questions: got })),
+		);
+		expect(reason).toContain('"q4" kind="long_text" (expected "text")');
+		expect(reason).not.toContain('"q5"');
+		expect(reason).toEndWith("; and 3 more");
+	});
+	test("a semicolon-space inside a scalar value cannot be mistaken for the separator between differences", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("f", "edge", "fields")],
+			cases: [caseOf("f-01", "f", { fields: { a: "1; 2; 3; 4", b: "y" } })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		expect(
+			runAssert(body, JSON.stringify({ a: "9; 8; 7; 6", b: "z" })),
+		).toEqual(
+			failure(
+				'fields differ: a="9; 8; 7; 6" (expected "1; 2; 3; 4"); b="z" (expected "y")',
+			),
+		);
+	});
+	test("the five-item cap counts real differences, not pieces split out of values that contain the separator", () => {
+		const want = {
+			a: "1; 1",
+			b: "2; 2",
+			c: "3; 3",
+			d: "4; 4",
+			e: "5; 5",
+			f: "6; 6",
+		};
+		const got = {
+			a: "a; a",
+			b: "b; b",
+			c: "c; c",
+			d: "d; d",
+			e: "e; e",
+			f: "f; f",
+		};
+		const selection: Selection = {
+			scenarios: [scenarioOf("f", "edge", "fields")],
+			cases: [caseOf("f-01", "f", { fields: want })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		expect(runAssert(body, JSON.stringify(got))).toEqual(
+			failure(
+				'fields differ: a="a; a" (expected "1; 1"); b="b; b" (expected "2; 2"); c="c; c" (expected "3; 3"); d="d; d" (expected "4; 4"); e="e; e" (expected "5; 5"); and 1 more',
+			),
+		);
+	});
+	test("duplicate labels in the expected list fall back to position, instead of collapsing under one map key", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("f", "edge", "fields")],
+			cases: [
+				caseOf("f-01", "f", {
+					fields: {
+						items: [
+							{ label: "Name", kind: "text" },
+							{ label: "Name", kind: "boolean" },
+						],
+					},
+				}),
+			],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		const got = { items: [{ label: "Name", kind: "text" }] };
+		expect(runAssert(body, JSON.stringify(got))).toEqual(
+			failure("fields differ: items: 1 items (expected 2)"),
+		);
+	});
+	test("duplicate labels in the output only also fall back to position", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("f", "edge", "fields")],
+			cases: [
+				caseOf("f-01", "f", {
+					fields: {
+						items: [
+							{ label: "Name", kind: "text" },
+							{ label: "Age", kind: "number" },
+						],
+					},
+				}),
+			],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		const got = {
+			items: [
+				{ label: "Name", kind: "text" },
+				{ label: "Name", kind: "text" },
+			],
+		};
+		expect(runAssert(body, JSON.stringify(got))).toEqual(
+			failure(
+				'fields differ: items: [1]={"label":"Name","kind":"text"} (expected {"label":"Age","kind":"number"})',
+			),
+		);
+	});
+	describe("a list field passes only when its JSON equals the expected JSON; the item comparison only builds the reason", () => {
+		const labelledItems = [
+			{ label: "Name", kind: "text" },
+			{ label: "Age", kind: "number" },
+		];
+		const labelledBody = (): string => {
+			const labelledSelection: Selection = {
+				scenarios: [scenarioOf("f", "edge", "fields")],
+				cases: [caseOf("f-01", "f", { fields: { items: labelledItems } })],
+				blockers: [],
+				reviewable: 0,
+			};
+			return (
+				buildPromptfooConfig({
+					feature: jsonFeature,
+					suite,
+					selection: labelledSelection,
+				}).tests[0]?.assert[0]?.value ?? ""
+			);
+		};
+		const sameItemsReason =
+			"fields differ: items: same items, but in a different order or with keys the expected value does not name";
+		test("label mode: items in reverse order fail", () => {
+			const got = { items: [...labelledItems].reverse() };
+			expect(runAssert(labelledBody(), JSON.stringify(got))).toEqual(
+				failure(sameItemsReason),
+			);
+		});
+		test("label mode: an extra key on every item fails", () => {
+			const got = {
+				items: labelledItems.map((item) => ({ ...item, placeholder: "" })),
+			};
+			expect(runAssert(labelledBody(), JSON.stringify(got))).toEqual(
+				failure(sameItemsReason),
+			);
+		});
+		test("label mode: item keys in a different order fail", () => {
+			const got = {
+				items: labelledItems.map((item) => ({
+					kind: item.kind,
+					label: item.label,
+				})),
+			};
+			expect(runAssert(labelledBody(), JSON.stringify(got))).toEqual(
+				failure(sameItemsReason),
+			);
+		});
+		test("positional mode (a repeated label): an extra key still fails with its positional reason", () => {
+			const got = {
+				items: [
+					{ label: "Name", kind: "text", placeholder: "" },
+					{ label: "Name", kind: "text", placeholder: "" },
+				],
+			};
+			expect(runAssert(labelledBody(), JSON.stringify(got))).toEqual(
+				failure(
+					'fields differ: items: [0]={"label":"Name","kind":"text","placeholder":""} (expected {"label":"Name","kind":"text"}); [1]={"label":"Name","kind":"text","placeholder":""} (expected {"label":"Age","kind":"number"})',
+				),
+			);
+		});
+	});
+	test("an equal-length positional list names only the index that differs", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("f", "edge", "fields")],
+			cases: [caseOf("f-01", "f", { fields: { scores: [1, 2, 3] } })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		expect(runAssert(body, JSON.stringify({ scores: [1, 5, 3] }))).toEqual(
+			failure("fields differ: scores: [1]=5 (expected 2)"),
+		);
+	});
+	test("a label containing a quote cannot break the snippet", () => {
+		const sel: Selection = {
+			scenarios: [scenarioOf("q", "edge", "label")],
+			cases: [caseOf("q-01", "q", { label: 'say "hi"' })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const feature: Feature = {
 			...labelFeature,
 			output: { kind: "label", labels: ['say "hi"'] },
 		};
 		const body =
-			buildPromptfooConfig({ feature: f, suite, selection: sel }).tests[0]
+			buildPromptfooConfig({ feature, suite, selection: sel }).tests[0]
 				?.assert[0]?.value ?? "";
 		expect(runAssert(body, 'say "hi"')).toBe(true);
 	});
@@ -262,35 +509,35 @@ describe("buildPromptfooConfig", () => {
 		// biome-ignore lint/suspicious/noTemplateCurlyInString: the literal dollar-brace text is exactly what this test attacks with.
 		const label = "say `hi` ${x}";
 		const sel: Selection = {
-			scenarios: [sc("bt", "edge", "label")],
-			cases: [cs("bt-01", "bt", { label })],
+			scenarios: [scenarioOf("bt", "edge", "label")],
+			cases: [caseOf("bt-01", "bt", { label })],
 			blockers: [],
 			reviewable: 0,
 		};
-		const f: Feature = {
+		const feature: Feature = {
 			...labelFeature,
 			output: { kind: "label", labels: [label] },
 		};
 		const body =
-			buildPromptfooConfig({ feature: f, suite, selection: sel }).tests[0]
+			buildPromptfooConfig({ feature, suite, selection: sel }).tests[0]
 				?.assert[0]?.value ?? "";
 		expect(runAssert(body, label)).toBe(true);
 		expect(reasonOf(runAssert(body, "other"))).toContain(label);
 	});
 	test("label oracle on a json feature without label_field is a ForgeError naming output.label_field", () => {
-		const f: Feature = {
+		const feature: Feature = {
 			...jsonFeature,
 			output: { kind: "json", fields: ["type"] },
 		};
-		expect(() =>
-			buildPromptfooConfig({ feature: f, suite, selection }),
-		).toThrow("output.label_field");
+		expect(() => buildPromptfooConfig({ feature, suite, selection })).toThrow(
+			"output.label_field",
+		);
 	});
 	test("label oracle on a text feature is a ForgeError", () => {
-		const f: Feature = { ...labelFeature, output: { kind: "text" } };
-		expect(() =>
-			buildPromptfooConfig({ feature: f, suite, selection }),
-		).toThrow(ForgeError);
+		const feature: Feature = { ...labelFeature, output: { kind: "text" } };
+		expect(() => buildPromptfooConfig({ feature, suite, selection })).toThrow(
+			ForgeError,
+		);
 	});
 	test("zero selected cases is a ForgeError (emit never writes an empty suite)", () => {
 		expect(() =>
@@ -303,8 +550,8 @@ describe("buildPromptfooConfig", () => {
 	});
 	test("a case naming a scenario that is not in the selection is a ForgeError (hand-built Selection guard)", () => {
 		const sel: Selection = {
-			scenarios: [sc("polite-rejection", "happy", "label")],
-			cases: [cs("orphan-01", "not-selected", { label: "rejection" })],
+			scenarios: [scenarioOf("polite-rejection", "happy", "label")],
+			cases: [caseOf("orphan-01", "not-selected", { label: "rejection" })],
 			blockers: [],
 			reviewable: 0,
 		};
@@ -314,9 +561,9 @@ describe("buildPromptfooConfig", () => {
 	});
 	test("a label-oracle case whose expected has no label is a ForgeError, never a vacuous assert", () => {
 		const sel: Selection = {
-			scenarios: [sc("polite-rejection", "happy", "label")],
+			scenarios: [scenarioOf("polite-rejection", "happy", "label")],
 			cases: [
-				cs("polite-rejection-01", "polite-rejection", {
+				caseOf("polite-rejection-01", "polite-rejection", {
 					fields: { type: "rejection" },
 				}),
 			],
@@ -331,8 +578,8 @@ describe("buildPromptfooConfig", () => {
 	});
 	test("a fields-oracle case whose expected has no fields is a ForgeError, never an empty want", () => {
 		const sel: Selection = {
-			scenarios: [sc("shape", "happy", "fields")],
-			cases: [cs("shape-01", "shape", { label: "rejection" })],
+			scenarios: [scenarioOf("shape", "happy", "fields")],
+			cases: [caseOf("shape-01", "shape", { label: "rejection" })],
 			blockers: [],
 			reviewable: 0,
 		};
@@ -342,8 +589,8 @@ describe("buildPromptfooConfig", () => {
 	});
 	test("a rubric-oracle case whose expected has no rubric is a ForgeError, never an empty rubric", () => {
 		const sel: Selection = {
-			scenarios: [sc("vague", "ambiguous", "rubric")],
-			cases: [cs("vague-01", "vague", { label: "rejection" })],
+			scenarios: [scenarioOf("vague", "ambiguous", "rubric")],
+			cases: [caseOf("vague-01", "vague", { label: "rejection" })],
 			blockers: [],
 			reviewable: 0,
 		};
@@ -353,7 +600,7 @@ describe("buildPromptfooConfig", () => {
 	});
 	test("a case with no expected is a ForgeError naming the case (hand-built Selection guard)", () => {
 		const sel: Selection = {
-			scenarios: [sc("polite-rejection", "happy", "label")],
+			scenarios: [scenarioOf("polite-rejection", "happy", "label")],
 			cases: [
 				{
 					id: "bare-01",
@@ -374,17 +621,17 @@ describe("buildPromptfooConfig", () => {
 
 describe("renderPromptfooConfig", () => {
 	test("is YAML that parses back to the same object, with a header comment naming the forge", () => {
-		const cfg = buildPromptfooConfig({
+		const config = buildPromptfooConfig({
 			feature: labelFeature,
 			suite,
 			selection,
 		});
-		const text = renderPromptfooConfig(cfg);
+		const text = renderPromptfooConfig(config);
 		expect(
 			text.startsWith(
 				"# Written by forge emit; edit suite.yaml and re-run instead of editing this file.\n",
 			),
 		).toBe(true);
-		expect(parse(text)).toEqual(cfg);
+		expect(parse(text)).toEqual(config);
 	});
 });

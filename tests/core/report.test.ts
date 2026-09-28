@@ -20,13 +20,13 @@ const prices: Prices = {
 	},
 };
 
-const sc = (
+const scenarioFixture = (
 	id: string,
 	oracle: Scenario["oracle"],
 	status: Scenario["status"] = "approved",
 ): Scenario => ({ id, kind: "happy", oracle, description: id, status });
 
-const cs = (
+const caseFixture = (
 	id: string,
 	scenario: string,
 	status: Case["status"] = "approved",
@@ -41,14 +41,14 @@ const cs = (
 
 type Row = PromptfooResults["results"]["results"][number];
 
-function row(p: Partial<Row> & { case: string; model: string }): Row {
-	const { case: c, model, ...rest } = p;
+function row(partial: Partial<Row> & { case: string; model: string }): Row {
+	const { case: caseId, model, ...rest } = partial;
 	return {
 		testIdx: 0,
 		success: true,
 		cost: 0,
 		provider: { id: "file://forge_target.py", label: model },
-		metadata: { case: c },
+		metadata: { case: caseId },
 		gradingResult: { pass: rest.success ?? true, componentResults: [] },
 		...rest,
 	};
@@ -56,7 +56,12 @@ function row(p: Partial<Row> & { case: string; model: string }): Row {
 
 function results(rows: Row[]): PromptfooResults {
 	return {
-		results: { results: rows.map((r, i) => ({ ...r, testIdx: i })) },
+		results: {
+			results: rows.map((resultRow, index) => ({
+				...resultRow,
+				testIdx: index,
+			})),
+		},
 		metadata: { promptfooVersion: "0.123.0" },
 	};
 }
@@ -64,19 +69,34 @@ function results(rows: Row[]): PromptfooResults {
 const build = (
 	rows: Row[],
 	extra: Partial<Parameters<typeof buildReport>[0]> = {},
-) =>
-	buildReport({
+) => {
+	const cases = extra.cases ?? [
+		caseFixture("a-01", "a"),
+		caseFixture("a-02", "a"),
+		caseFixture("r-01", "r"),
+	];
+	return buildReport({
 		results: results(rows),
 		resultsPath: "r.json",
-		scenarios: [sc("a", "label"), sc("r", "rubric")],
-		cases: [cs("a-01", "a"), cs("a-02", "a"), cs("r-01", "r")],
-		knownCases: [cs("a-01", "a"), cs("a-02", "a"), cs("r-01", "r")],
+		scenarios: [scenarioFixture("a", "label"), scenarioFixture("r", "rubric")],
+		cases,
+		knownCases: [
+			caseFixture("a-01", "a"),
+			caseFixture("a-02", "a"),
+			caseFixture("r-01", "r"),
+		],
+		// Every scenario the given cases belong to, unless the test overrides
+		// it: this keeps every existing expectation (written before the
+		// suite could leave a scenario out) reading as "the suite selected
+		// everything it has cases for".
+		selectedScenarios: [...new Set(cases.map((kase) => kase.scenario))],
 		estimate: null,
 		prices,
 		baseline: null,
 		now: NOW,
 		...extra,
 	});
+};
 
 const rubric = (
 	pass: boolean,
@@ -97,17 +117,18 @@ describe("buildReport", () => {
 			results: await readResults(FIXTURE),
 			resultsPath: FIXTURE,
 			scenarios: [
-				sc("ack-optional-quiz", "label"),
-				sc("out-of-scope-newsletter", "rubric"),
+				scenarioFixture("ack-optional-quiz", "label"),
+				scenarioFixture("out-of-scope-newsletter", "rubric"),
 			],
 			cases: [
-				cs("ack-optional-quiz-01", "ack-optional-quiz"),
-				cs("out-of-scope-newsletter-02", "out-of-scope-newsletter"),
+				caseFixture("ack-optional-quiz-01", "ack-optional-quiz"),
+				caseFixture("out-of-scope-newsletter-02", "out-of-scope-newsletter"),
 			],
 			knownCases: [
-				cs("ack-optional-quiz-01", "ack-optional-quiz"),
-				cs("out-of-scope-newsletter-02", "out-of-scope-newsletter"),
+				caseFixture("ack-optional-quiz-01", "ack-optional-quiz"),
+				caseFixture("out-of-scope-newsletter-02", "out-of-scope-newsletter"),
 			],
+			selectedScenarios: ["ack-optional-quiz", "out-of-scope-newsletter"],
 			estimate: null,
 			prices,
 			baseline: null,
@@ -167,6 +188,7 @@ describe("buildReport", () => {
 			withRuns: 2,
 			withoutCase: [],
 			withoutRun: [],
+			notSelected: [],
 		});
 		expect(report.costs).toEqual([
 			{
@@ -198,14 +220,16 @@ describe("buildReport", () => {
 
 	test("the committed example run: 46 of 48 rows pass, two asserts fail, nothing errored", async () => {
 		const exampleForge = resolve("examples/moonlighter-classify-email/.forge");
+		const cases = [...(await readAllCases(exampleForge)).values()].flat();
 		const report = buildReport({
 			results: await readResults(
 				resolve("examples/moonlighter-classify-email/results.json"),
 			),
 			resultsPath: "results.json",
 			scenarios: await readScenarios(exampleForge),
-			cases: [...(await readAllCases(exampleForge)).values()].flat(),
-			knownCases: [...(await readAllCases(exampleForge)).values()].flat(),
+			cases,
+			knownCases: cases,
+			selectedScenarios: [...new Set(cases.map((kase) => kase.scenario))],
 			estimate: null,
 			prices,
 			baseline: null,
@@ -214,8 +238,14 @@ describe("buildReport", () => {
 		expect(report.rows).toBe(48);
 		expect(report.matched).toBe(48);
 		expect(report.passRate).toBe(0.9583);
-		const failed = report.scenarios.reduce((n, s) => n + s.failed, 0);
-		const errored = report.scenarios.reduce((n, s) => n + s.errored, 0);
+		const failed = report.scenarios.reduce(
+			(total, scenarioStat) => total + scenarioStat.failed,
+			0,
+		);
+		const errored = report.scenarios.reduce(
+			(total, scenarioStat) => total + scenarioStat.errored,
+			0,
+		);
 		// promptfoo itself reports 2 failed and 0 errors for this file
 		expect([failed, errored]).toEqual([2, 0]);
 		expect(report.flaky).toEqual([]);
@@ -317,8 +347,11 @@ describe("buildReport", () => {
 
 	test("a row naming a case that exists but is not selected says so", () => {
 		const report = build([row({ case: "a-01", model: "m" })], {
-			cases: [cs("a-01", "a")],
-			knownCases: [cs("a-01", "a"), cs("a-02", "a", "rejected")],
+			cases: [caseFixture("a-01", "a")],
+			knownCases: [
+				caseFixture("a-01", "a"),
+				caseFixture("a-02", "a", "rejected"),
+			],
 			results: results([
 				row({ case: "a-01", model: "m" }),
 				row({ case: "a-02", model: "m" }),
@@ -396,7 +429,13 @@ describe("buildReport", () => {
 			row({ case: "a-02", model: "m", success: false }),
 			row({ case: "a-02", model: "m", success: false }),
 		]);
-		expect(report.cases.map((c) => [c.case, c.stability, c.reasons])).toEqual([
+		expect(
+			report.cases.map((caseRun) => [
+				caseRun.case,
+				caseRun.stability,
+				caseRun.reasons,
+			]),
+		).toEqual([
 			["a-01", "errored", ["boom"]],
 			["a-02", "failing", []],
 		]);
@@ -542,8 +581,8 @@ describe("buildReport", () => {
 		let caught: unknown;
 		try {
 			build([row({ case: "ghost-01", model: "m" })]);
-		} catch (e) {
-			caught = e;
+		} catch (error) {
+			caught = error;
 		}
 		expect(caught).toBeInstanceOf(ForgeError);
 		expect((caught as ForgeError).message).toContain("forge emitted");
@@ -553,15 +592,19 @@ describe("buildReport", () => {
 	test("scenario stats cover every reviewed scenario in file order, and coverage names the ones with no case", () => {
 		const report = build([row({ case: "a-01", model: "m" })], {
 			scenarios: [
-				sc("a", "label"),
-				sc("r", "rubric"),
-				sc("p", "label", "pending"),
+				scenarioFixture("a", "label"),
+				scenarioFixture("r", "rubric"),
+				scenarioFixture("p", "label", "pending"),
 			],
-			cases: [cs("a-01", "a"), cs("a-02", "a"), cs("r-01", "r", "rejected")],
+			cases: [
+				caseFixture("a-01", "a"),
+				caseFixture("a-02", "a"),
+				caseFixture("r-01", "r", "rejected"),
+			],
 			knownCases: [
-				cs("a-01", "a"),
-				cs("a-02", "a"),
-				cs("r-01", "r", "rejected"),
+				caseFixture("a-01", "a"),
+				caseFixture("a-02", "a"),
+				caseFixture("r-01", "r", "rejected"),
 			],
 		});
 		expect(report.scenarios).toEqual([
@@ -587,6 +630,7 @@ describe("buildReport", () => {
 			withRuns: 1,
 			withoutCase: ["r"],
 			withoutRun: [],
+			notSelected: [],
 		});
 	});
 
@@ -594,9 +638,15 @@ describe("buildReport", () => {
 		const report = build(
 			[row({ case: "a-01", model: "m" }), row({ case: "e-01", model: "m" })],
 			{
-				scenarios: [sc("a", "label"), sc("e", "label", "edited")],
-				cases: [cs("a-01", "a"), cs("e-01", "e", "edited")],
-				knownCases: [cs("a-01", "a"), cs("e-01", "e", "edited")],
+				scenarios: [
+					scenarioFixture("a", "label"),
+					scenarioFixture("e", "label", "edited"),
+				],
+				cases: [caseFixture("a-01", "a"), caseFixture("e-01", "e", "edited")],
+				knownCases: [
+					caseFixture("a-01", "a"),
+					caseFixture("e-01", "e", "edited"),
+				],
 			},
 		);
 		expect(report.scenarios).toEqual([
@@ -622,8 +672,12 @@ describe("buildReport", () => {
 			withRuns: 2,
 			withoutCase: [],
 			withoutRun: [],
+			notSelected: [],
 		});
-		expect(report.cases.map((c) => c.case)).toEqual(["a-01", "e-01"]);
+		expect(report.cases.map((caseRun) => caseRun.case)).toEqual([
+			"a-01",
+			"e-01",
+		]);
 	});
 
 	test("two judges that disagree are reported; agreeing judges and a lone judge are not", () => {
@@ -713,7 +767,7 @@ describe("buildReport", () => {
 				},
 			}),
 		]);
-		const judge = report.costs.find((c) => c.role === "judge");
+		const judge = report.costs.find((modelCost) => modelCost.role === "judge");
 		expect(judge?.model).toBe("ollama/llama3");
 		expect(judge?.realDollars).toBeNull();
 		expect(judge?.approximatePrice).toBe(false);
@@ -972,33 +1026,43 @@ describe("buildReport", () => {
 		// `a` has a reviewed case and rows; `r` has a reviewed case and no
 		// row (its rows carry an old id after a rename); `n` has no case.
 		const report = build([row({ case: "a-01", model: "m" })], {
-			scenarios: [sc("a", "label"), sc("r", "rubric"), sc("n", "label")],
-			cases: [cs("a-01", "a"), cs("r-01", "r")],
-			knownCases: [cs("a-01", "a"), cs("r-01", "r")],
+			scenarios: [
+				scenarioFixture("a", "label"),
+				scenarioFixture("r", "rubric"),
+				scenarioFixture("n", "label"),
+			],
+			cases: [caseFixture("a-01", "a"), caseFixture("r-01", "r")],
+			knownCases: [caseFixture("a-01", "a"), caseFixture("r-01", "r")],
 		});
 		expect(report.coverage).toEqual({
 			reviewedScenarios: 3,
 			withRuns: 1,
 			withoutCase: ["n"],
 			withoutRun: ["r"],
+			notSelected: [],
 		});
 	});
 
-	test("a scenario the suite left out has cases on disk: it is a scenario with no matched run, not one with no case", () => {
-		// `include: [a]` selected only `a`; `r` has a reviewed case on disk
-		// that this run never priced or ran. "no case yet" sent the person
-		// to `forge cases` for a scenario that had them.
+	test("coverage names the reviewed scenarios the suite did not select, and a baseline without notSelected parses with an empty list", () => {
+		// `include: [a]` selects only `a`; `r` has a reviewed case on disk
+		// that this run never priced or ran, so it lands under `notSelected`
+		// rather than `withoutRun`, which stays true only of scenarios the
+		// suite did select.
 		const report = build([row({ case: "a-01", model: "m" })], {
-			scenarios: [sc("a", "label"), sc("r", "rubric")],
-			cases: [cs("a-01", "a")],
-			knownCases: [cs("a-01", "a"), cs("r-01", "r")],
+			cases: [caseFixture("a-01", "a")],
+			selectedScenarios: ["a"],
 		});
 		expect(report.coverage).toEqual({
 			reviewedScenarios: 2,
 			withRuns: 1,
 			withoutCase: [],
-			withoutRun: ["r"],
+			withoutRun: [],
+			notSelected: ["r"],
 		});
+		const { notSelected, ...coverage } = report.coverage;
+		expect(
+			ReportSchema.parse({ ...report, coverage }).coverage.notSelected,
+		).toEqual([]);
 	});
 
 	test("a baseline whose coverage has no withoutRun parses with an empty list", () => {
@@ -1018,12 +1082,9 @@ describe("buildReport", () => {
 			row({ case: "a-02", model: "m1" }),
 			row({ case: "a-01", model: "m2" }),
 		]);
-		expect(report.cases.map((c) => `${c.case}@${c.model}`)).toEqual([
-			"a-01@m1",
-			"a-02@m1",
-			"a-01@m2",
-			"a-02@m2",
-		]);
+		expect(
+			report.cases.map((caseRun) => `${caseRun.case}@${caseRun.model}`),
+		).toEqual(["a-01@m1", "a-02@m1", "a-01@m2", "a-02@m2"]);
 	});
 
 	test("generatedAt is the clock passed in, and an absent promptfoo version is null", () => {
@@ -1061,7 +1122,7 @@ describe("buildReport", () => {
 		expect(ReportSchema.parse(withoutPairs).failingPairs).toEqual([]);
 	});
 	test("failingPairs tells apart two pairs whose `failing` strings collide on a case id containing ` @ `", () => {
-		const cases = [cs("x @ m", "a"), cs("x", "a")];
+		const cases = [caseFixture("x @ m", "a"), caseFixture("x", "a")];
 		const report = build(
 			[
 				row({ case: "x @ m", model: "n", success: false }),
@@ -1136,8 +1197,8 @@ describe("buildReport", () => {
 				row({ case: "ghost-01", model: "m" }),
 				row({ case: "ghost-02", model: "m" }),
 			]);
-		} catch (e) {
-			caught = e;
+		} catch (error) {
+			caught = error;
 		}
 		expect((caught as ForgeError).message).toBe(
 			'no result matches a case in .forge/cases (first metadata.case seen: "ghost-01", 2 rows); was this results.json produced from a config forge emitted? (file: r.json)',
@@ -1151,8 +1212,8 @@ describe("buildReport", () => {
 				row({ case: "x", model: "m", metadata: undefined }),
 				row({ case: "y", model: "m", metadata: {} }),
 			]);
-		} catch (e) {
-			caught = e;
+		} catch (error) {
+			caught = error;
 		}
 		expect((caught as ForgeError).message).toBe(
 			"no result matches a case in .forge/cases (first metadata.case seen: none, 2 rows); was this results.json produced from a config forge emitted? (file: r.json)",

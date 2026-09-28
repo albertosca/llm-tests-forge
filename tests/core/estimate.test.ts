@@ -5,6 +5,7 @@ import {
 	guessOutputTokens,
 	JUDGE_OUTPUT_TOKENS,
 	JUDGE_PROMPT_OVERHEAD,
+	measuredOutputTokens,
 	renderEstimate,
 } from "../../src/core/estimate";
 import type {
@@ -33,14 +34,14 @@ const prices: Prices = {
 		"google/gemini-3.5-flash": { input: 0.3, output: 2.5 },
 	},
 };
-const sc = (id: string, oracle: Scenario["oracle"]): Scenario => ({
+const scenarioOf = (id: string, oracle: Scenario["oracle"]): Scenario => ({
 	id,
 	kind: "happy",
 	oracle,
 	description: id,
 	status: "approved",
 });
-const cs = (
+const caseOf = (
 	id: string,
 	scenario: string,
 	text: string,
@@ -79,18 +80,65 @@ describe("approxTokens / guessOutputTokens", () => {
 	});
 });
 
+describe("measuredOutputTokens", () => {
+	test("mean of approxTokens over each fields case's serialised expected value, rounded up", () => {
+		const cases = [
+			// JSON.stringify({ a: "x".repeat(32) }) is 40 characters -> approxTokens 10.
+			caseOf("a-01", "a", "irrelevant", { fields: { a: "x".repeat(32) } }),
+			// JSON.stringify({ a: "x".repeat(72) }) is 80 characters -> approxTokens 20.
+			caseOf("a-02", "a", "irrelevant", { fields: { a: "x".repeat(72) } }),
+		];
+		// A fields expected value always counts, whatever the feature's own
+		// output kind is: this is the raw mean, before it is floored at the
+		// kind-based guess (estimateSuite does that, not this function).
+		expect(measuredOutputTokens(cases, feature)).toBe(15);
+	});
+	test("a label case measures the label text alone when the feature's own output is itself a label", () => {
+		const cases = [caseOf("a-01", "a", "irrelevant", { label: "rejection" })];
+		expect(measuredOutputTokens(cases, feature)).toBe(3);
+	});
+	test("a label case on a json feature is not measured: the label names one field, not the whole answer", () => {
+		const jsonFeature: Feature = {
+			...feature,
+			output: { kind: "json", fields: ["a"] },
+		};
+		const cases = [caseOf("a-01", "a", "irrelevant", { label: "rejection" })];
+		expect(measuredOutputTokens(cases, jsonFeature)).toBeNull();
+	});
+	test("a rubric expected value is not output, so it never contributes a size", () => {
+		const cases = [
+			caseOf("r-01", "r", "irrelevant", { rubric: "z".repeat(80) }),
+		];
+		expect(measuredOutputTokens(cases, feature)).toBeNull();
+	});
+	test("a case with no expected value yet is not measured", () => {
+		const cases = [caseOf("a-01", "a", "irrelevant", undefined)];
+		expect(measuredOutputTokens(cases, feature)).toBeNull();
+	});
+	test("no cases at all: null", () => {
+		expect(measuredOutputTokens([], feature)).toBeNull();
+	});
+	test("a mix of a rubric case and a label case measures only the label case", () => {
+		const cases = [
+			caseOf("r-01", "r", "irrelevant", { rubric: "z".repeat(80) }),
+			caseOf("a-01", "a", "irrelevant", { label: "rejection" }),
+		];
+		expect(measuredOutputTokens(cases, feature)).toBe(3);
+	});
+});
+
 describe("estimateSuite", () => {
 	test("one target, two label cases, repeat 2: calls, tokens and dollars are exact", () => {
 		const selection: Selection = {
-			scenarios: [sc("a", "label")],
+			scenarios: [scenarioOf("a", "label")],
 			cases: [
-				cs("a-01", "a", "x".repeat(400), { label: "rejection" }),
-				cs("a-02", "a", "y".repeat(40), { label: "rejection" }),
+				caseOf("a-01", "a", "x".repeat(400), { label: "rejection" }),
+				caseOf("a-02", "a", "y".repeat(40), { label: "rejection" }),
 			],
 			blockers: [],
 			reviewable: 0,
 		};
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["anthropic/claude-haiku-4-5"],
 				["google/gemini-3.5-flash"],
@@ -101,9 +149,12 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 0,
 		});
-		expect(e.cases).toBe(2);
-		expect(e.rubricCases).toBe(0);
-		expect(e.lines).toEqual([
+		expect(estimate.cases).toBe(2);
+		expect(estimate.rubricCases).toBe(0);
+		// Both cases carry the label "rejection" (9 characters, approxTokens 3),
+		// but the measured mean (3) is below the label guess (8), so the guess
+		// wins and this behaves exactly as it did with no measuring at all.
+		expect(estimate.lines).toEqual([
 			{
 				model: "anthropic/claude-haiku-4-5",
 				role: "target",
@@ -116,21 +167,21 @@ describe("estimateSuite", () => {
 				priced: true,
 			},
 		]);
-		expect(e.totalDollars).toBe((220 * 1 + 32 * 5) / 1_000_000);
-		expect(e.pricesUpdated).toBe("2026-09-15");
-		expect(e.notes).toEqual([
-			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+		expect(estimate.totalDollars).toBe((220 * 1 + 32 * 5) / 1_000_000);
+		expect(estimate.pricesUpdated).toBe("2026-09-15");
+		expect(estimate.notes).toEqual([
+			"tokens are estimated as characters / 4; output size is a guess from output.kind; the 2 reviewed expected values measured below it",
 			"application prompt not counted: set feature.prompt_file to include it",
 		]);
 	});
 	test("promptTokens are added to every target call and the prompt note disappears", () => {
 		const selection: Selection = {
-			scenarios: [sc("a", "label")],
-			cases: [cs("a-01", "a", "x".repeat(40), { label: "rejection" })],
+			scenarios: [scenarioOf("a", "label")],
+			cases: [caseOf("a-01", "a", "x".repeat(40), { label: "rejection" })],
 			blockers: [],
 			reviewable: 0,
 		};
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["anthropic/claude-haiku-4-5"],
 				["google/gemini-3.5-flash"],
@@ -141,22 +192,25 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 500,
 		});
-		expect(e.lines[0]?.inputTokens).toBe(510);
-		expect(e.notes).toEqual([
-			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+		expect(estimate.lines[0]?.inputTokens).toBe(510);
+		// The one case's label ("rejection", approxTokens 3) is below the label
+		// guess (8), so the guess wins and the note says the one measured value
+		// fell below it.
+		expect(estimate.notes).toEqual([
+			"tokens are estimated as characters / 4; output size is a guess from output.kind; the 1 reviewed expected value measured below it",
 		]);
 	});
 	test("judges are charged only for rubric cases, once per judge per target model per repeat", () => {
 		const selection: Selection = {
-			scenarios: [sc("a", "label"), sc("r", "rubric")],
+			scenarios: [scenarioOf("a", "label"), scenarioOf("r", "rubric")],
 			cases: [
-				cs("a-01", "a", "x".repeat(40), { label: "rejection" }),
-				cs("r-01", "r", "y".repeat(40), { rubric: "z".repeat(80) }),
+				caseOf("a-01", "a", "x".repeat(40), { label: "rejection" }),
+				caseOf("r-01", "r", "y".repeat(40), { rubric: "z".repeat(80) }),
 			],
 			blockers: [],
 			reviewable: 0,
 		};
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-5"],
 				["google/gemini-3.5-flash"],
@@ -167,8 +221,10 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 0,
 		});
-		expect(e.rubricCases).toBe(1);
-		const judge = e.lines.find((l) => l.role === "judge");
+		expect(estimate.rubricCases).toBe(1);
+		const judge = estimate.lines.find((line) => line.role === "judge");
+		// The only non-rubric case's label ("rejection", approxTokens 3) is
+		// below the label guess (8), so the guess wins here too.
 		const perCall = 8 + 20 + JUDGE_PROMPT_OVERHEAD;
 		expect(judge).toEqual({
 			model: "google/gemini-3.5-flash",
@@ -181,7 +237,7 @@ describe("estimateSuite", () => {
 			approximate: false,
 			priced: true,
 		});
-		expect(e.lines.map((l) => `${l.role}:${l.model}`)).toEqual([
+		expect(estimate.lines.map((line) => `${line.role}:${line.model}`)).toEqual([
 			"target:anthropic/claude-haiku-4-5",
 			"target:anthropic/claude-sonnet-5",
 			"judge:google/gemini-3.5-flash",
@@ -189,12 +245,12 @@ describe("estimateSuite", () => {
 	});
 	test("an unlisted model is marked approximate and the note says what ~ means", () => {
 		const selection: Selection = {
-			scenarios: [sc("a", "label")],
-			cases: [cs("a-01", "a", "x", { label: "rejection" })],
+			scenarios: [scenarioOf("a", "label")],
+			cases: [caseOf("a-01", "a", "x", { label: "rejection" })],
 			blockers: [],
 			reviewable: 0,
 		};
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["anthropic/claude-haiku-9"],
 				["google/gemini-3.5-flash"],
@@ -205,22 +261,22 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 0,
 		});
-		expect(e.lines[0]?.approximate).toBe(true);
-		expect(e.lines[0]?.pricedAs).toBe("anthropic/claude-haiku-4-5");
-		expect(e.notes).toContain(
+		expect(estimate.lines[0]?.approximate).toBe(true);
+		expect(estimate.lines[0]?.pricedAs).toBe("anthropic/claude-haiku-4-5");
+		expect(estimate.notes).toContain(
 			"~ marks a model priced as the closest listed model",
 		);
 	});
 	test("a model whose provider has no row at all is not priced, and the total is the priced line alone", () => {
 		const selection: Selection = {
-			scenarios: [sc("a", "label")],
-			cases: [cs("a-01", "a", "x".repeat(40), { label: "rejection" })],
+			scenarios: [scenarioOf("a", "label")],
+			cases: [caseOf("a-01", "a", "x".repeat(40), { label: "rejection" })],
 			blockers: [],
 			reviewable: 0,
 		};
 		// Two lines, not one: with a single unpriced line the total is zero
 		// whether the filter works or not, so the test could not fail.
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["ollama/llama3", "anthropic/claude-haiku-4-5"],
 				["google/gemini-3.5-flash"],
@@ -231,20 +287,24 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 0,
 		});
-		const unpriced = e.lines.find((l) => l.model === "ollama/llama3");
-		const haiku = e.lines.find((l) => l.model === "anthropic/claude-haiku-4-5");
+		const unpriced = estimate.lines.find(
+			(line) => line.model === "ollama/llama3",
+		);
+		const haiku = estimate.lines.find(
+			(line) => line.model === "anthropic/claude-haiku-4-5",
+		);
 		expect(unpriced?.priced).toBe(false);
 		expect(unpriced?.pricedAs).toBe("ollama/llama3");
 		expect(unpriced?.dollars).toBe(0);
 		expect(haiku?.priced).toBe(true);
 		expect(haiku?.dollars).toBeGreaterThan(0);
-		expect(e.totalDollars).toBe(haiku?.dollars ?? -1);
-		expect(e.notes).toContain(
+		expect(estimate.totalDollars).toBe(haiku?.dollars ?? -1);
+		expect(estimate.notes).toContain(
 			"not priced: ollama/llama3 has no row in prices.yaml",
 		);
 	});
 	test("a suite with zero selected cases estimates zero and says so, rather than throwing", () => {
-		const e = estimateSuite({
+		const estimate = estimateSuite({
 			suite: suite(
 				["anthropic/claude-haiku-4-5"],
 				["google/gemini-3.5-flash"],
@@ -255,9 +315,184 @@ describe("estimateSuite", () => {
 			prices,
 			promptTokens: 0,
 		});
-		expect(e.cases).toBe(0);
-		expect(e.totalDollars).toBe(0);
-		expect(e.lines[0]?.calls).toBe(0);
+		expect(estimate.cases).toBe(0);
+		expect(estimate.totalDollars).toBe(0);
+		expect(estimate.lines[0]?.calls).toBe(0);
+	});
+	test("a fields mean below the guess yields the guess, and the note says the reviewed values measured below it", () => {
+		// guessOutputTokens({ kind: "json", fields: ["a"] }) = 24 + 16*1 = 40.
+		const jsonFeature: Feature = {
+			...feature,
+			output: { kind: "json", fields: ["a"] },
+		};
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "fields")],
+			cases: [
+				// JSON.stringify({ a: "x".repeat(32) }) is 40 chars -> approxTokens 10.
+				caseOf("a-01", "a", "x".repeat(40), { fields: { a: "x".repeat(32) } }),
+				// JSON.stringify({ a: "x".repeat(72) }) is 80 chars -> approxTokens 20.
+				caseOf("a-02", "a", "y".repeat(40), { fields: { a: "x".repeat(72) } }),
+			], // mean 15, below the guess of 40
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature: jsonFeature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(2 * 40);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is a guess from output.kind; the 2 reviewed expected values measured below it",
+		);
+	});
+	test("a fields mean at or above the guess wins, and the note names the reviewed count", () => {
+		// guessOutputTokens({ kind: "json", fields: ["a"] }) = 24 + 16*1 = 40.
+		const jsonFeature: Feature = {
+			...feature,
+			output: { kind: "json", fields: ["a"] },
+		};
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "fields")],
+			// JSON.stringify({ a: "x".repeat(200) }) is 208 chars -> approxTokens
+			// 52, above the guess of 40.
+			cases: [
+				caseOf("a-01", "a", "x".repeat(40), { fields: { a: "x".repeat(200) } }),
+			],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature: jsonFeature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(1 * 52);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is the mean of 1 reviewed expected value",
+		);
+	});
+	test("a label expected on a json feature is not measured, so it falls back to the guess", () => {
+		// guessOutputTokens({ kind: "json", fields: ["a"] }) = 24 + 16*1 = 40.
+		const jsonFeature: Feature = {
+			...feature,
+			output: { kind: "json", fields: ["a"] },
+		};
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "label")],
+			cases: [caseOf("a-01", "a", "x".repeat(40), { label: "rejection" })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature: jsonFeature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(1 * 40);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+		);
+	});
+	test("a label long enough to beat the guess is still not measured on a json feature: the gate excludes it, not the floor", () => {
+		// guessOutputTokens({ kind: "json", fields: ["a"] }) = 24 + 16*1 = 40.
+		// The previous "not measured" test used a short label ("rejection",
+		// approxTokens 3) that stays below this guess either way, so it could
+		// not tell the kind gate apart from the floor alone: with no gate at
+		// all, chooseOutputSize would still pick the guess over 3. This label
+		// is long enough (approxTokens("x".repeat(400)) = 100) that it would
+		// win as a measured mean if the gate were not there — so this test
+		// only passes because the gate excludes it outright.
+		const jsonFeature: Feature = {
+			...feature,
+			output: { kind: "json", fields: ["a"] },
+		};
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "label")],
+			cases: [caseOf("a-01", "a", "x".repeat(40), { label: "x".repeat(400) })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature: jsonFeature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(1 * 40);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+		);
+	});
+	test("a label mean at or above the label guess wins, using the measured mean", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "label")],
+			// approxTokens("x".repeat(40)) = 10, at or above the label guess of 8.
+			cases: [caseOf("a-01", "a", "x".repeat(40), { label: "x".repeat(40) })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(1 * 10);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is the mean of 1 reviewed expected value",
+		);
+	});
+	test("rubric-only cases: no measurable expected value, so output size falls back to the kind-based guess", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("r", "rubric")],
+			cases: [caseOf("r-01", "r", "x".repeat(40), { rubric: "z".repeat(80) })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(1 * 8);
+		expect(estimate.notes).toContain(
+			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+		);
 	});
 });
 
@@ -343,7 +578,7 @@ describe("renderEstimate", () => {
 			],
 		});
 		const lines = text.split("\n");
-		const unpriced = lines.find((l) => l.includes("ollama/llama3"));
+		const unpriced = lines.find((line) => line.includes("ollama/llama3"));
 		expect(unpriced).toContain("not priced");
 		expect(unpriced).not.toContain("$");
 		expect(unpriced).not.toContain("(priced as");
@@ -421,13 +656,13 @@ describe("renderEstimate", () => {
 			],
 		});
 		const lines = text.split("\n");
-		const totalRow = lines.find((l) => l.startsWith("  total"));
+		const totalRow = lines.find((line) => line.startsWith("  total"));
 		expect(totalRow).toBe(
 			"  total                                                                         not priced  (2 lines not priced)",
 		);
 		// The total sits in the same column as the rows it summarises, which
 		// a column computed from a "$" no row carries could not do.
-		const dataRow = lines.find((l) => l.includes("ollama/qwen3"));
+		const dataRow = lines.find((line) => line.includes("ollama/qwen3"));
 		expect(totalRow?.indexOf("not priced")).toBe(
 			dataRow?.indexOf("not priced"),
 		);
@@ -456,8 +691,8 @@ describe("renderEstimate", () => {
 			],
 		});
 		const lines = text.split("\n");
-		const dataRow = lines.find((l) => l.includes(longModel));
-		const totalRow = lines.find((l) => l.startsWith("  total"));
+		const dataRow = lines.find((line) => line.includes(longModel));
+		const totalRow = lines.find((line) => line.startsWith("  total"));
 		expect(dataRow).toBeDefined();
 		expect(totalRow).toBeDefined();
 		expect(totalRow?.indexOf("$")).toBe(dataRow?.indexOf("$"));

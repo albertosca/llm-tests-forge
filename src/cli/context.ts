@@ -8,6 +8,17 @@ export interface CliContext {
 	readonly model: string;
 	stdout: (line: string) => void;
 	stdin: () => Promise<string>;
+	/**
+	 * Called once, right before an interactive pass starts asking
+	 * questions — the one signal that arms "Ctrl+C ends the input"
+	 * instead of exiting immediately (see `interruptible-stdin.ts`).
+	 * `reviewCommand` calls it right before its review loop, on the
+	 * interactive path only: `--all` asks nothing and never arms it.
+	 * Undefined for a context nothing ever interrupts (most tests never
+	 * need to supply it); `bin.ts` wires it to the real reader's
+	 * `armEndOfInputOnInterrupt`.
+	 */
+	onInteractivePass?: () => void;
 }
 
 export interface CreateContextOptions {
@@ -22,15 +33,17 @@ export interface CreateContextOptions {
 	 * test supplies its own scripted one.
 	 */
 	stdin: () => Promise<string>;
+	/** See `CliContext.onInteractivePass`. */
+	onInteractivePass?: () => void;
 }
 
-export function createContext(opts: CreateContextOptions): CliContext {
-	const env = opts.env ?? process.env;
-	const forgeDir = join(opts.cwd, ".forge");
-	const model = opts.model ?? env.FORGE_MODEL;
+export function createContext(options: CreateContextOptions): CliContext {
+	const environment = options.env ?? process.env;
+	const forgeDirectory = join(options.cwd, ".forge");
+	const model = options.model ?? environment.FORGE_MODEL;
 	return {
-		forgeDir,
-		llm: createLlm({ forgeDir }),
+		forgeDir: forgeDirectory,
+		llm: createLlm({ forgeDir: forgeDirectory }),
 		get model(): string {
 			if (!model)
 				throw new UsageError(
@@ -39,6 +52,7 @@ export function createContext(opts: CreateContextOptions): CliContext {
 			return model;
 		},
 		stdout: (line) => console.log(line),
-		stdin: opts.stdin,
+		stdin: options.stdin,
+		onInteractivePass: options.onInteractivePass,
 	};
 }

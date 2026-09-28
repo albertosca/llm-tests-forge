@@ -109,13 +109,24 @@ const CoverageSchema = z.preprocess(
 		withRuns: z.number(),
 		withoutCase: z.array(z.string()),
 		/**
-		 * Reviewed scenarios with at least one reviewed case and no matched
-		 * row: after a rename (the rows are there, under the old ids), or a
-		 * run that never reached them. The zero row in the table said so;
-		 * the sentence did not — and it must not say "never ran", which is
-		 * false in the rename case. Defaulted for older baselines.
+		 * Reviewed scenarios the suite selected, with at least one reviewed
+		 * case and no matched row: after a rename (the rows are there, under
+		 * the old ids), or a run that never reached them. The zero row in
+		 * the table said so; the sentence did not — and it must not say
+		 * "never ran", which is false in the rename case. A scenario the
+		 * suite's `include` left out is never counted here, even when it has
+		 * a reviewed case: see `notSelected`. Defaulted for older baselines.
 		 */
 		withoutRun: z.array(z.string()).default([]),
+		/**
+		 * Reviewed scenarios with a reviewed case on disk that the suite's
+		 * `include` left out: this run never priced or ran them, so a zero
+		 * row in the per-scenario table (or none at all) says nothing about
+		 * whether the case still passes. Distinct from `withoutRun`, which
+		 * keeps the scenarios the suite did select and that still matched no
+		 * row. Defaulted for older baselines.
+		 */
+		notSelected: z.array(z.string()).default([]),
 	}),
 );
 
@@ -189,8 +200,8 @@ interface MatchedRow {
 	reasons: string[];
 }
 
-const round = (n: number, places: number): number =>
-	Math.round(n * 10 ** places) / 10 ** places;
+const round = (value: number, places: number): number =>
+	Math.round(value * 10 ** places) / 10 ** places;
 
 /**
  * The name the forge would have written, whenever it can be recovered: a
@@ -237,21 +248,22 @@ function outcomeOf(row: PromptfooRow): { outcome: Outcome; reasons: string[] } {
 	const fallback = row.error ? [row.error] : [];
 	if (providerErrored(row)) return { outcome: "errored", reasons: fallback };
 	const reasons: string[] = [];
-	for (const c of row.gradingResult?.componentResults ?? [])
-		if (!c.pass && c.reason !== undefined) reasons.push(c.reason);
+	for (const component of row.gradingResult?.componentResults ?? [])
+		if (!component.pass && component.reason !== undefined)
+			reasons.push(component.reason);
 	return {
 		outcome: "failed",
 		reasons: reasons.length > 0 ? reasons : fallback,
 	};
 }
 
-function stabilityOf(args: {
+function stabilityOf(parameters: {
 	runs: number;
 	passed: number;
 	failed: number;
 	errored: number;
 }): Stability {
-	const { runs, passed, failed, errored } = args;
+	const { runs, passed, failed, errored } = parameters;
 	if (errored === runs) return "errored";
 	if (errored > 0 && failed === 0 && passed > 0) return "partly-errored";
 	if (passed === runs) return "stable";
@@ -271,7 +283,7 @@ function reviewed(status: Scenario["status"]): boolean {
 
 function rubricComponents(row: PromptfooRow) {
 	return (row.gradingResult?.componentResults ?? []).filter(
-		(c) => c.assertion?.type === "llm-rubric",
+		(component) => component.assertion?.type === "llm-rubric",
 	);
 }
 
@@ -293,8 +305,10 @@ function matchRows(
 	knownCases: Case[],
 	resultsPath: string,
 ): { matched: MatchedRow[]; unmatched: string[] } {
-	const caseById = new Map(cases.map((c) => [c.id, c]));
-	const known = new Set(knownCases.map((c) => c.id));
+	const caseById = new Map(
+		cases.map((selectedCase) => [selectedCase.id, selectedCase]),
+	);
+	const known = new Set(knownCases.map((knownCase) => knownCase.id));
 	const matched: MatchedRow[] = [];
 	const unmatched: string[] = [];
 	for (const [position, row] of results.results.results.entries()) {
@@ -319,7 +333,7 @@ function matchRows(
 		// something else (ids from another tool, or none at all) from a typo
 		// in one case id, which read identically before.
 		const seen = results.results.results
-			.map((r) => r.metadata?.case)
+			.map((resultRow) => resultRow.metadata?.case)
 			.find((id) => typeof id === "string");
 		const observed = seen === undefined ? "none" : `"${seen}"`;
 		throw new ForgeError(
@@ -337,21 +351,29 @@ function matchRows(
  */
 function caseRunsOf(matched: MatchedRow[], cases: Case[]): CaseRun[] {
 	const byPair = new Map<string, MatchedRow[]>();
-	for (const m of matched) {
-		const key = pairKey(m.model, m.kase.id);
+	for (const matchedRow of matched) {
+		const key = pairKey(matchedRow.model, matchedRow.kase.id);
 		const list = byPair.get(key);
-		if (list) list.push(m);
-		else byPair.set(key, [m]);
+		if (list) list.push(matchedRow);
+		else byPair.set(key, [matchedRow]);
 	}
-	const models = [...new Set(matched.map((m) => m.model))].sort();
+	const models = [
+		...new Set(matched.map((matchedRow) => matchedRow.model)),
+	].sort();
 	const runs: CaseRun[] = [];
 	for (const model of models) {
 		for (const kase of cases) {
 			const entries = byPair.get(pairKey(model, kase.id));
 			if (!entries) continue;
-			const passed = entries.filter((e) => e.outcome === "passed").length;
-			const failed = entries.filter((e) => e.outcome === "failed").length;
-			const errored = entries.filter((e) => e.outcome === "errored").length;
+			const passed = entries.filter(
+				(entry) => entry.outcome === "passed",
+			).length;
+			const failed = entries.filter(
+				(entry) => entry.outcome === "failed",
+			).length;
+			const errored = entries.filter(
+				(entry) => entry.outcome === "errored",
+			).length;
 			runs.push({
 				case: kase.id,
 				scenario: kase.scenario,
@@ -366,7 +388,7 @@ function caseRunsOf(matched: MatchedRow[], cases: Case[]): CaseRun[] {
 					failed,
 					errored,
 				}),
-				reasons: [...new Set(entries.flatMap((e) => e.reasons))],
+				reasons: [...new Set(entries.flatMap((entry) => entry.reasons))],
 			});
 		}
 	}
@@ -378,16 +400,21 @@ function scenarioStatsOf(
 	scenarios: Scenario[],
 ): ScenarioStat[] {
 	return scenarios
-		.filter((s) => reviewed(s.status))
-		.map((s) => {
-			const mine = matched.filter((m) => m.kase.scenario === s.id);
+		.filter((scenario) => reviewed(scenario.status))
+		.map((scenario) => {
+			const mine = matched.filter(
+				(matchedRow) => matchedRow.kase.scenario === scenario.id,
+			);
 			return {
-				scenario: s.id,
-				kind: s.kind,
+				scenario: scenario.id,
+				kind: scenario.kind,
 				run: mine.length,
-				passed: mine.filter((m) => m.outcome === "passed").length,
-				failed: mine.filter((m) => m.outcome === "failed").length,
-				errored: mine.filter((m) => m.outcome === "errored").length,
+				passed: mine.filter((matchedRow) => matchedRow.outcome === "passed")
+					.length,
+				failed: mine.filter((matchedRow) => matchedRow.outcome === "failed")
+					.length,
+				errored: mine.filter((matchedRow) => matchedRow.outcome === "errored")
+					.length,
 			};
 		});
 }
@@ -403,23 +430,23 @@ function scenarioStatsOf(
 function disagreementsOf(matched: MatchedRow[]): Disagreement[] {
 	const byPair = new Map<string, Disagreement>();
 	const out: Disagreement[] = [];
-	for (const m of matched) {
-		const judges = rubricComponents(m.row).map((c) => ({
-			judge: judgeName(c.assertion?.provider),
-			pass: c.pass,
-			reason: c.reason ?? "",
+	for (const matchedRow of matched) {
+		const judges = rubricComponents(matchedRow.row).map((component) => ({
+			judge: judgeName(component.assertion?.provider),
+			pass: component.pass,
+			reason: component.reason ?? "",
 		}));
 		if (judges.length < 2) continue;
-		if (new Set(judges.map((j) => j.pass)).size < 2) continue;
-		const key = pairKey(m.model, m.kase.id);
+		if (new Set(judges.map((judge) => judge.pass)).size < 2) continue;
+		const key = pairKey(matchedRow.model, matchedRow.kase.id);
 		const seen = byPair.get(key);
 		if (seen) {
 			seen.occurrences += 1;
 			continue;
 		}
 		const entry: Disagreement = {
-			case: m.kase.id,
-			model: m.model,
+			case: matchedRow.kase.id,
+			model: matchedRow.model,
 			occurrences: 1,
 			judges,
 		};
@@ -429,7 +456,7 @@ function disagreementsOf(matched: MatchedRow[]): Disagreement[] {
 	return out;
 }
 
-function costLine(args: {
+function costLine(parameters: {
 	model: string;
 	role: "target" | "judge";
 	inputTokens: number;
@@ -438,30 +465,35 @@ function costLine(args: {
 	approximatePrice: boolean;
 	estimate: Estimate | null;
 }): ModelCost {
-	const { model, role, realDollars, estimate } = args;
-	const line = estimate?.lines.find(
-		(l) => l.model === model && l.role === role,
+	const { model, role, realDollars, estimate } = parameters;
+	const matchingLine = estimate?.lines.find(
+		(line) => line.model === model && line.role === role,
 	);
 	return {
 		model,
 		role,
-		inputTokens: args.inputTokens,
-		outputTokens: args.outputTokens,
+		inputTokens: parameters.inputTokens,
+		outputTokens: parameters.outputTokens,
 		realDollars: realDollars === null ? null : round(realDollars, 6),
 		// An unpriced line's `dollars` is 0 because no rate existed, not
 		// because the run was free: the estimate column says so with a dash
 		// rather than pricing the model at nothing.
-		estimatedDollars: line?.priced ? round(line.dollars, 6) : null,
+		estimatedDollars: matchingLine?.priced
+			? round(matchingLine.dollars, 6)
+			: null,
 		errorPercent:
-			realDollars !== null && line && line.dollars > 0
-				? round(((realDollars - line.dollars) / line.dollars) * 100, 1)
+			realDollars !== null && matchingLine && matchingLine.dollars > 0
+				? round(
+						((realDollars - matchingLine.dollars) / matchingLine.dollars) * 100,
+						1,
+					)
 				: null,
-		approximatePrice: args.approximatePrice,
+		approximatePrice: parameters.approximatePrice,
 	};
 }
 
-const sum = <T>(items: T[], of: (item: T) => number): number =>
-	items.reduce((total, item) => total + of(item), 0);
+const sum = <T>(items: T[], amountOf: (item: T) => number): number =>
+	items.reduce((total, item) => total + amountOf(item), 0);
 
 /**
  * A target that reports its own `cost` is believed; a shim that reports
@@ -469,20 +501,28 @@ const sum = <T>(items: T[], of: (item: T) => number): number =>
  * also the only source a judge ever has — promptfoo bills rubric calls
  * inside the assertion and never reports a dollar figure for them.
  */
-function costsOf(args: {
+function costsOf(parameters: {
 	matched: MatchedRow[];
 	prices: Prices;
 	estimate: Estimate | null;
 	targetUsageReported: boolean;
 }): ModelCost[] {
-	const { matched, prices, estimate, targetUsageReported } = args;
+	const { matched, prices, estimate, targetUsageReported } = parameters;
 	const costs: ModelCost[] = [];
-	for (const model of [...new Set(matched.map((m) => m.model))].sort()) {
-		const mine = matched.filter((m) => m.model === model);
-		const inputTokens = sum(mine, (m) => m.row.tokenUsage?.prompt ?? 0);
-		const outputTokens = sum(mine, (m) => m.row.tokenUsage?.completion ?? 0);
+	for (const model of [
+		...new Set(matched.map((matchedRow) => matchedRow.model)),
+	].sort()) {
+		const mine = matched.filter((matchedRow) => matchedRow.model === model);
+		const inputTokens = sum(
+			mine,
+			(matchedRow) => matchedRow.row.tokenUsage?.prompt ?? 0,
+		);
+		const outputTokens = sum(
+			mine,
+			(matchedRow) => matchedRow.row.tokenUsage?.completion ?? 0,
+		);
 		const price = priceFor(model, prices);
-		const reported = mine.some((m) => (m.row.cost ?? 0) > 0);
+		const reported = mine.some((matchedRow) => (matchedRow.row.cost ?? 0) > 0);
 		costs.push(
 			costLine({
 				model,
@@ -501,7 +541,7 @@ function costsOf(args: {
 				realDollars: !targetUsageReported
 					? null
 					: reported
-						? sum(mine, (m) => m.row.cost ?? 0)
+						? sum(mine, (matchedRow) => matchedRow.row.cost ?? 0)
 						: price.priced
 							? (inputTokens * price.input + outputTokens * price.output) / 1e6
 							: null,
@@ -517,20 +557,20 @@ function costsOf(args: {
 		);
 	}
 	const judges = new Map<string, { input: number; output: number }>();
-	for (const m of matched)
-		for (const c of rubricComponents(m.row)) {
-			const name = judgeName(c.assertion?.provider);
+	for (const matchedRow of matched)
+		for (const component of rubricComponents(matchedRow.row)) {
+			const name = judgeName(component.assertion?.provider);
 			const totals = judges.get(name) ?? { input: 0, output: 0 };
-			totals.input += c.tokensUsed?.prompt ?? 0;
+			totals.input += component.tokensUsed?.prompt ?? 0;
 			// Providers that bill hidden reasoning report it apart from the
 			// answer; leaving it out understates a thinking judge severalfold.
 			totals.output +=
-				(c.tokensUsed?.completion ?? 0) +
-				(c.tokensUsed?.completionDetails?.reasoning ?? 0);
+				(component.tokensUsed?.completion ?? 0) +
+				(component.tokensUsed?.completionDetails?.reasoning ?? 0);
 			judges.set(name, totals);
 		}
-	for (const [name, totals] of [...judges.entries()].sort((a, b) =>
-		a[0] < b[0] ? -1 : 1,
+	for (const [name, totals] of [...judges.entries()].sort((left, right) =>
+		left[0] < right[0] ? -1 : 1,
 	)) {
 		const price = priceFor(name, prices);
 		costs.push(
@@ -558,8 +598,8 @@ function costsOf(args: {
  * the provider let it. Exported so the Markdown table and this JSON list
  * cannot come to disagree about what "failing or errored" means.
  */
-export function notPassingCleanly(c: CaseRun): boolean {
-	return c.stability !== "stable" && c.stability !== "flaky";
+export function notPassingCleanly(caseRun: CaseRun): boolean {
+	return caseRun.stability !== "stable" && caseRun.stability !== "flaky";
 }
 
 function baselineDiffOf(
@@ -568,32 +608,37 @@ function baselineDiffOf(
 ): Report["baseline"] {
 	if (!baseline) return null;
 	const before = new Map(
-		baseline.cases.map((c) => [pairKey(c.model, c.case), c.stability]),
+		baseline.cases.map((caseRun) => [
+			pairKey(caseRun.model, caseRun.case),
+			caseRun.stability,
+		]),
 	);
 	const regressions: z.infer<typeof BaselineDiffEntrySchema>[] = [];
 	const fixed: z.infer<typeof BaselineDiffEntrySchema>[] = [];
 	const seen = new Set<string>();
-	for (const c of caseRuns) {
-		seen.add(pairKey(c.model, c.case));
-		const was = before.get(pairKey(c.model, c.case));
+	for (const caseRun of caseRuns) {
+		seen.add(pairKey(caseRun.model, caseRun.case));
+		const was = before.get(pairKey(caseRun.model, caseRun.case));
 		// A pair only one run has says nothing about a change.
 		if (was === undefined) continue;
 		const entry = {
-			case: c.case,
-			model: c.model,
+			case: caseRun.case,
+			model: caseRun.model,
 			before: was,
-			after: c.stability,
+			after: caseRun.stability,
 		};
-		if (was === "stable" && c.stability !== "stable") regressions.push(entry);
-		else if (was !== "stable" && c.stability === "stable") fixed.push(entry);
+		if (was === "stable" && caseRun.stability !== "stable")
+			regressions.push(entry);
+		else if (was !== "stable" && caseRun.stability === "stable")
+			fixed.push(entry);
 	}
 	const onlyInBaseline = baseline.cases
-		.filter((c) => !seen.has(pairKey(c.model, c.case)))
-		.map((c) => ({ case: c.case, model: c.model }));
+		.filter((caseRun) => !seen.has(pairKey(caseRun.model, caseRun.case)))
+		.map((caseRun) => ({ case: caseRun.case, model: caseRun.model }));
 	return { regressions, fixed, onlyInBaseline };
 }
 
-export function buildReport(args: {
+export function buildReport(parameters: {
 	results: PromptfooResults;
 	resultsPath: string;
 	scenarios: Scenario[];
@@ -601,39 +646,53 @@ export function buildReport(args: {
 	cases: Case[];
 	/** Every case on disk, so a row naming an unselected one says so. */
 	knownCases: Case[];
+	/** The scenario ids `selectCases` returned: the suite's actual selection. */
+	selectedScenarios: string[];
 	estimate: Estimate | null;
 	prices: Prices;
 	baseline: Report | null;
 	now: Date;
 }): Report {
-	const { results, resultsPath, scenarios, cases, estimate, prices } = args;
+	const { results, resultsPath, scenarios, cases, estimate, prices } =
+		parameters;
 	const { matched, unmatched } = matchRows(
 		results,
 		cases,
-		args.knownCases,
+		parameters.knownCases,
 		resultsPath,
 	);
 	const caseRuns = caseRunsOf(matched, cases);
-	const reviewedScenarios = scenarios.filter((s) => reviewed(s.status));
+	const reviewedScenarios = scenarios.filter((scenario) =>
+		reviewed(scenario.status),
+	);
 	const scenarioStats = scenarioStatsOf(matched, scenarios);
 	// Every case on disk, not the suite's selection: a scenario the suite
 	// left out still has its cases, and "no case yet" said otherwise for
 	// every scenario outside a narrowed `include`. Those land under
-	// `withoutRun`, which is true of them.
+	// `notSelected` (or `withoutRun`, once selected), which is true of them.
 	const withCase = new Set(
-		args.knownCases.filter((c) => reviewed(c.status)).map((c) => c.scenario),
+		parameters.knownCases
+			.filter((knownCase) => reviewed(knownCase.status))
+			.map((knownCase) => knownCase.scenario),
 	);
+	const selectedScenarios = new Set(parameters.selectedScenarios);
 	// An errored row never reached a verdict, so it is neither a pass nor a
 	// failure: counting it as a non-pass reports a model outage as a
 	// behaviour change.
-	const passed = matched.filter((m) => m.outcome === "passed").length;
-	const erroredRows = matched.filter((m) => m.outcome === "errored").length;
+	const passed = matched.filter(
+		(matchedRow) => matchedRow.outcome === "passed",
+	).length;
+	const erroredRows = matched.filter(
+		(matchedRow) => matchedRow.outcome === "errored",
+	).length;
 	const judged = matched.length - erroredRows;
 	const targetUsageReported = matched.some(
-		(m) => (m.row.cost ?? 0) > 0 || (m.row.tokenUsage?.total ?? 0) > 0,
+		(matchedRow) =>
+			(matchedRow.row.cost ?? 0) > 0 ||
+			(matchedRow.row.tokenUsage?.total ?? 0) > 0,
 	);
 	return {
-		generatedAt: args.now.toISOString(),
+		generatedAt: parameters.now.toISOString(),
 		promptfooVersion: results.metadata?.promptfooVersion ?? null,
 		rows: results.results.results.length,
 		matched: matched.length,
@@ -642,30 +701,38 @@ export function buildReport(args: {
 		cases: caseRuns,
 		failing: caseRuns
 			.filter(notPassingCleanly)
-			.map((c) => `${c.case} @ ${c.model}`),
+			.map((caseRun) => `${caseRun.case} @ ${caseRun.model}`),
 		failingPairs: caseRuns
 			.filter(notPassingCleanly)
-			.map((c) => ({ case: c.case, model: c.model })),
+			.map((caseRun) => ({ case: caseRun.case, model: caseRun.model })),
 		flaky: caseRuns
-			.filter((c) => c.stability === "flaky")
-			.map((c) => `${c.case} @ ${c.model}`),
+			.filter((caseRun) => caseRun.stability === "flaky")
+			.map((caseRun) => `${caseRun.case} @ ${caseRun.model}`),
 		scenarios: scenarioStats,
 		coverage: {
 			reviewedScenarios: reviewedScenarios.length,
-			withRuns: scenarioStats.filter((s) => s.run > 0).length,
+			withRuns: scenarioStats.filter((stat) => stat.run > 0).length,
 			withoutCase: reviewedScenarios
-				.filter((s) => !withCase.has(s.id))
-				.map((s) => s.id),
+				.filter((scenario) => !withCase.has(scenario.id))
+				.map((scenario) => scenario.id),
 			withoutRun: reviewedScenarios
-				.filter((s) => withCase.has(s.id))
+				.filter((scenario) => withCase.has(scenario.id))
+				.filter((scenario) => selectedScenarios.has(scenario.id))
 				.filter(
-					(s) => !scenarioStats.some((t) => t.scenario === s.id && t.run > 0),
+					(scenario) =>
+						!scenarioStats.some(
+							(stat) => stat.scenario === scenario.id && stat.run > 0,
+						),
 				)
-				.map((s) => s.id),
+				.map((scenario) => scenario.id),
+			notSelected: reviewedScenarios
+				.filter((scenario) => withCase.has(scenario.id))
+				.filter((scenario) => !selectedScenarios.has(scenario.id))
+				.map((scenario) => scenario.id),
 		},
 		disagreements: disagreementsOf(matched),
 		costs: costsOf({ matched, prices, estimate, targetUsageReported }),
 		targetUsageReported,
-		baseline: baselineDiffOf(caseRuns, args.baseline),
+		baseline: baselineDiffOf(caseRuns, parameters.baseline),
 	};
 }

@@ -1,4 +1,4 @@
-# forge report — 2026-09-25T14:53:27.822Z
+# forge report — 2026-09-28T16:54:12.237Z
 
 **Pass rate:** 67.9% (57 of 84 runs, 0 errored) · **failing or errored:** 12 · **flaky:** 3 · **judge disagreements:** 0
 
@@ -56,7 +56,7 @@ Coverage: 14 of 14 reviewed scenarios ran.
 
 | model | role | input | output | real | estimated | error |
 | --- | --- | --- | --- | --- | --- | --- |
-| anthropic/claude-sonnet-4-6 | target | 0 | 0 | — | $0.176310 | — |
-| anthropic/claude-sonnet-5 | judge | 10214 | 5145 | $0.071878 | $0.042200 | +70.3% |
+| anthropic/claude-sonnet-4-6 | target | 0 | 0 | — | $0.335070 | — |
+| anthropic/claude-sonnet-5 | judge | 10214 | 5145 | $0.071878 | $0.046736 | +53.8% |
 
 Target usage: not reported by the shim — target rows show 0 tokens; return tokenUsage from forge_target.py to fill this table

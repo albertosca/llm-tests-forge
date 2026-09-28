@@ -1,5 +1,5 @@
 import { priceFor } from "../llm/prices";
-import type { Feature, Prices, Suite } from "./schemas";
+import type { Case, Feature, Prices, Suite } from "./schemas";
 import type { Selection } from "./select";
 import { plural } from "./text";
 
@@ -64,6 +64,108 @@ export function guessOutputTokens(output: Feature["output"]): number {
 	}
 }
 
+/**
+ * The size a single case's expected value would carry as output when it
+ * stands for the whole answer the target wrote, or `null` when it does
+ * not: a `rubric` expected value grades the target's answer rather than
+ * being one, a case with no `expected` yet has nothing to measure, and a
+ * `label` expected value only stands for the whole output when the
+ * feature's own output is itself a bare label — checked against a `json`
+ * or `text` output, "rejection" names one field of a larger answer, not
+ * the whole thing, so it is left unmeasured rather than undercounting it.
+ */
+function measuredOutputSize(
+	expected: Case["expected"],
+	outputKind: Feature["output"]["kind"],
+): number | null {
+	if (expected === undefined) return null;
+	if (expected.fields !== undefined)
+		return approxTokens(JSON.stringify(expected.fields));
+	if (expected.label !== undefined && outputKind === "label")
+		return approxTokens(expected.label);
+	return null;
+}
+
+interface MeasuredOutputSizes {
+	mean: number;
+	count: number;
+}
+
+/**
+ * One pass over `cases`: the count and the mean (rounded up) of every
+ * measurable expected value's size, together — `estimateSuite` needs both
+ * the count (for its note) and the mean (for the output size), and reading
+ * them from two separate traversals would run `measuredOutputSize` over
+ * every case twice for no reason.
+ */
+function measureOutputSizes(
+	cases: Case[],
+	feature: Feature,
+): MeasuredOutputSizes | null {
+	let total = 0;
+	let count = 0;
+	for (const testCase of cases) {
+		const size = measuredOutputSize(testCase.expected, feature.output.kind);
+		if (size === null) continue;
+		total += size;
+		count += 1;
+	}
+	return count === 0 ? null : { mean: Math.ceil(total / count), count };
+}
+
+/**
+ * The mean output size actually written into the reviewed cases' expected
+ * values that stand for the whole output — a `fields` case as promptfoo
+ * would serialise it back (`JSON.stringify`), a `label` case as the label
+ * text itself but only when `feature.output.kind` is itself `"label"` —
+ * rounded up. `null` when no selected case has one (every case is
+ * rubric-only, every label is checked against a richer output shape, or
+ * none carries an `expected` yet), which tells the caller to fall back to
+ * the kind-based guess. This never compares its own result against that
+ * guess — the caller floors it there, since a `fields` expected value may
+ * name only some of the output's fields and must not undercut the guess.
+ */
+export function measuredOutputTokens(
+	cases: Case[],
+	feature: Feature,
+): number | null {
+	return measureOutputSizes(cases, feature)?.mean ?? null;
+}
+
+interface ChosenOutputSize {
+	outputSize: number;
+	/** Which size won and why, for the estimate's note. */
+	note: string;
+}
+
+/**
+ * The size to charge a single call's output tokens at: the measured mean
+ * when the reviewed cases have one and it is at least the kind-based
+ * guess, the guess otherwise. A low `fields` mean must never pull the
+ * estimate under what the output's own shape already costs, because a
+ * `fields` expected value can name only some of the output's fields. The
+ * note tells the three outcomes apart: the mean won, the guess won over a
+ * lower mean, or nothing was measurable.
+ */
+function chooseOutputSize(
+	measured: MeasuredOutputSizes | null,
+	guessedOutputSize: number,
+): ChosenOutputSize {
+	const guessNote = "output size is a guess from output.kind";
+	if (measured === null)
+		return { outputSize: guessedOutputSize, note: guessNote };
+	const reviewedValues = plural(measured.count, "reviewed expected value");
+	if (measured.mean >= guessedOutputSize)
+		return {
+			outputSize: measured.mean,
+			note: `output size is the mean of ${reviewedValues}`,
+		};
+	return {
+		outputSize: guessedOutputSize,
+		note: `${guessNote}; the ${reviewedValues} measured below it`,
+	};
+}
+
 function dollars(
 	inputTokens: number,
 	outputTokens: number,
@@ -72,21 +174,26 @@ function dollars(
 	return (inputTokens * price.input + outputTokens * price.output) / 1_000_000;
 }
 
-export function estimateSuite(args: {
+export function estimateSuite(parameters: {
 	suite: Suite;
 	selection: Selection;
 	feature: Feature;
 	prices: Prices;
 	promptTokens: number;
 }): Estimate {
-	const { suite, selection, feature, prices, promptTokens } = args;
-	const outGuess = guessOutputTokens(feature.output);
-	const oracleOf = new Map(selection.scenarios.map((s) => [s.id, s.oracle]));
-	const caseInputs = selection.cases.map((c) =>
-		approxTokens(Object.values(c.input).join("\n")),
+	const { suite, selection, feature, prices, promptTokens } = parameters;
+	const { outputSize, note: outputSizeNote } = chooseOutputSize(
+		measureOutputSizes(selection.cases, feature),
+		guessOutputTokens(feature.output),
+	);
+	const scenarioOracleById = new Map(
+		selection.scenarios.map((scenario) => [scenario.id, scenario.oracle]),
+	);
+	const caseInputTokens = selection.cases.map((testCase) =>
+		approxTokens(Object.values(testCase.input).join("\n")),
 	);
 	const rubricCases = selection.cases.filter(
-		(c) => oracleOf.get(c.scenario) === "rubric",
+		(testCase) => scenarioOracleById.get(testCase.scenario) === "rubric",
 	);
 	const lines: EstimateLine[] = [];
 
@@ -94,8 +201,9 @@ export function estimateSuite(args: {
 		const price = priceFor(model, prices);
 		const calls = selection.cases.length * suite.repeat;
 		const inputTokens =
-			caseInputs.reduce((sum, t) => sum + t + promptTokens, 0) * suite.repeat;
-		const outputTokens = calls * outGuess;
+			caseInputTokens.reduce((sum, tokens) => sum + tokens + promptTokens, 0) *
+			suite.repeat;
+		const outputTokens = calls * outputSize;
 		lines.push({
 			model,
 			role: "target",
@@ -114,10 +222,10 @@ export function estimateSuite(args: {
 		const calls = rubricCases.length * perJudgeCalls;
 		const inputTokens =
 			rubricCases.reduce(
-				(sum, c) =>
+				(sum, testCase) =>
 					sum +
-					outGuess +
-					approxTokens(c.expected?.rubric ?? "") +
+					outputSize +
+					approxTokens(testCase.expected?.rubric ?? "") +
 					JUDGE_PROMPT_OVERHEAD,
 				0,
 			) * perJudgeCalls;
@@ -134,17 +242,15 @@ export function estimateSuite(args: {
 			priced: price.priced,
 		});
 	}
-	const notes = [
-		"tokens are estimated as characters / 4; output size is a guess from output.kind",
-	];
+	const notes = [`tokens are estimated as characters / 4; ${outputSizeNote}`];
 	if (promptTokens === 0)
 		notes.push(
 			"application prompt not counted: set feature.prompt_file to include it",
 		);
-	if (lines.some((l) => l.priced && l.approximate))
+	if (lines.some((line) => line.priced && line.approximate))
 		notes.push("~ marks a model priced as the closest listed model");
 	for (const model of new Set(
-		lines.filter((l) => !l.priced).map((l) => l.model),
+		lines.filter((line) => !line.priced).map((line) => line.model),
 	))
 		notes.push(`not priced: ${model} has no row in prices.yaml`);
 	return {
@@ -152,8 +258,8 @@ export function estimateSuite(args: {
 		cases: selection.cases.length,
 		rubricCases: rubricCases.length,
 		totalDollars: lines
-			.filter((l) => l.priced)
-			.reduce((s, l) => s + l.dollars, 0),
+			.filter((line) => line.priced)
+			.reduce((sum, line) => sum + line.dollars, 0),
 		pricesUpdated: prices.updated,
 		notes,
 	};
@@ -162,43 +268,48 @@ export function estimateSuite(args: {
 /** What a line with no price at all prints where a dollar figure would go. */
 const NOT_PRICED = "not priced";
 
-export function renderEstimate(e: Estimate): string {
+export function renderEstimate(estimate: Estimate): string {
 	const out = [
-		`estimate: ${plural(e.cases, "case")}, ${e.rubricCases} with a rubric; prices dated ${e.pricesUpdated}`,
+		`estimate: ${plural(estimate.cases, "case")}, ${estimate.rubricCases} with a rubric; prices dated ${estimate.pricesUpdated}`,
 	];
-	const rendered = e.lines.map((l) => {
-		const marked = l.priced && l.approximate;
-		const name = `${l.model}${marked ? " ~" : ""}`.padEnd(34);
-		const dollarText = l.priced ? `$${l.dollars.toFixed(6)}` : NOT_PRICED;
+	const rendered = estimate.lines.map((line) => {
+		const marked = line.priced && line.approximate;
+		const name = `${line.model}${marked ? " ~" : ""}`.padEnd(34);
+		const dollarText = line.priced ? `$${line.dollars.toFixed(6)}` : NOT_PRICED;
 		// The column the dollar figure starts at, taken from the prefix that
 		// puts it there rather than by searching the finished row for a "$":
 		// a row that says "not priced" carries no "$" at all, and a search
 		// over rows where none does returned -1, which rendered the total as
 		// "  total$0.000000" — the one number a person must not misread.
-		const prefix = `  ${l.role.padEnd(7)} ${name} ${String(l.calls).padStart(4)} calls ${String(l.inputTokens).padStart(7)} in ${String(l.outputTokens).padStart(7)} out  `;
+		const prefix = `  ${line.role.padEnd(7)} ${name} ${String(line.calls).padStart(4)} calls ${String(line.inputTokens).padStart(7)} in ${String(line.outputTokens).padStart(7)} out  `;
 		const row = `${prefix}${dollarText}`;
 		return {
-			row: marked ? `${row}  (priced as ${l.pricedAs})` : row,
+			row: marked ? `${row}  (priced as ${line.pricedAs})` : row,
 			dollarAt: prefix.length,
 		};
 	});
-	out.push(...rendered.map((r) => r.row));
+	out.push(...rendered.map((renderedLine) => renderedLine.row));
 	// The dollar column sits wherever the widest data row starts its figure;
 	// "  total" is 7 characters, so that many fewer spaces are needed.
-	const dollarCol = Math.max(0, ...rendered.map((r) => r.dollarAt));
+	const dollarColumn = Math.max(
+		0,
+		...rendered.map((renderedLine) => renderedLine.dollarAt),
+	);
 	const label = "  total";
-	const unpriced = e.lines.filter((l) => !l.priced).length;
+	const unpriced = estimate.lines.filter((line) => !line.priced).length;
 	// `totalDollars` sums the priced lines, so with none of them priced the
 	// sum is a true zero of nothing at all: printing "$0.000000" would read
 	// as a free run. Either way the count of omitted lines is named, because
 	// the total is the number a person acts on.
 	const figure =
-		unpriced === e.lines.length ? NOT_PRICED : `$${e.totalDollars.toFixed(6)}`;
+		unpriced === estimate.lines.length
+			? NOT_PRICED
+			: `$${estimate.totalDollars.toFixed(6)}`;
 	const omitted =
 		unpriced === 0 ? "" : `  (${plural(unpriced, "line")} not priced)`;
 	out.push(
-		`${label}${" ".repeat(Math.max(0, dollarCol - label.length))}${figure}${omitted}`,
+		`${label}${" ".repeat(Math.max(0, dollarColumn - label.length))}${figure}${omitted}`,
 	);
-	for (const n of e.notes) out.push(`note: ${n}`);
+	for (const note of estimate.notes) out.push(`note: ${note}`);
 	return out.join("\n");
 }

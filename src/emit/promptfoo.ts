@@ -84,11 +84,11 @@ function labelAssert(
 				"a label oracle on a json feature needs output.label_field",
 				{ file: featureFile, id: feature.id },
 			);
-		const f = JSON.stringify(field);
+		const fieldLiteral = JSON.stringify(field);
 		return {
 			type: "javascript",
 			value: asGradingResult(
-				`${TOLERANT_PARSE}\nreturn obj[${f}] === ${want} ? true : ${f} + " was " + JSON.stringify(obj[${f}]) + ", expected " + ${want};`,
+				`${TOLERANT_PARSE}\nreturn obj[${fieldLiteral}] === ${want} ? true : ${fieldLiteral} + " was " + JSON.stringify(obj[${fieldLiteral}]) + ", expected " + ${want};`,
 			),
 		};
 	}
@@ -98,12 +98,75 @@ function labelAssert(
 	);
 }
 
+/**
+ * Generated JavaScript, inlined into the emitted assert. Builds a list of
+ * `differences` by comparing `want` against `obj`: a scalar field that
+ * differs is named directly (one array entry); a list field is handed to
+ * `compareItems`, which keys by a label-like field when every item carries
+ * one and that label is unique on both sides, and falls back to comparing
+ * by position (naming a length mismatch as its own entry) otherwise.
+ *
+ * The verdict never comes from this comparison: a list field passes only
+ * when its JSON equals the expected JSON. Label mode reads only the keys the
+ * expected item names and ignores order, so when it finds no item-level
+ * difference for a list whose JSON differs, `fieldsAssert` pushes a fallback
+ * entry saying so rather than letting the field pass.
+ *
+ * Each difference is pushed as its own array entry rather than pre-joined
+ * with the "; " that later separates entries in the rendered reason: a
+ * field's first entry carries the `field: ` prefix, later entries from the
+ * same field do not. The five-item cap and the join happen once, on this
+ * array, in `fieldsAssert` below — never by joining then re-splitting a
+ * string, which corrupts any difference whose own value contains "; ".
+ */
+const FIELDS_DIFF = [
+	"const differences = [];",
+	"const show = (value) => JSON.stringify(value);",
+	"const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';",
+	"const hasDuplicateLabels = (items) => {",
+	"  const seenLabels = new Set();",
+	"  for (const item of items) {",
+	"    if (!hasStringLabel(item)) continue;",
+	"    if (seenLabels.has(item.label)) return true;",
+	"    seenLabels.add(item.label);",
+	"  }",
+	"  return false;",
+	"};",
+	"const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);",
+	"const compareItems = (name, gotItems, wantItems) => {",
+	"  let isFirstPart = true;",
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: this is generated JS source, not a template string of our own.
+	"  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };",
+	"  if (!compareByLabel(wantItems, gotItems)) {",
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
+	"    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);",
+	"    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)",
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
+	"      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);",
+	"    return;",
+	"  }",
+	"  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));",
+	"  const wantLabels = new Set(wantItems.map((item) => item.label));",
+	"  for (const wantItem of wantItems) {",
+	"    const gotItem = gotByLabel.get(wantItem.label);",
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
+	"    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }",
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
+	"    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);",
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
+	"    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);",
+	"  }",
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
+	"  for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);",
+	"};",
+].join("\n");
+
 function fieldsAssert(fields: Record<string, unknown>): PromptfooAssert {
 	const want = JSON.stringify(fields);
 	return {
 		type: "javascript",
 		value: asGradingResult(
-			`${TOLERANT_PARSE}\nconst want = ${want};\nconst bad = Object.keys(want).filter((k) => JSON.stringify(obj[k]) !== JSON.stringify(want[k]));\nreturn bad.length === 0 ? true : \`fields differ: \${bad.map((k) => \`\${k}=\${JSON.stringify(obj[k])} (expected \${JSON.stringify(want[k])})\`).join(", ")}\`;`,
+			`${TOLERANT_PARSE}\nconst want = ${want};\n${FIELDS_DIFF}\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(\`\${field}: same items, but in a different order or with keys the expected value does not name\`);\n  } else differences.push(\`\${field}=\${show(obj[field])} (expected \${show(want[field])})\`);\n}\nif (differences.length === 0) return true;\nreturn "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + \`; and \${differences.length - 5} more\` : differences.join("; "));`,
 		),
 	};
 }
@@ -145,50 +208,54 @@ function assertsFor(
 					`case ${caseId}: oracle is rubric but expected.rubric is missing`,
 					{ id: caseId },
 				);
-			return suite.judges.map((j) => ({
+			return suite.judges.map((judge) => ({
 				type: "llm-rubric" as const,
 				value: rubric,
-				provider: toPromptfooProvider(j),
+				provider: toPromptfooProvider(judge),
 			}));
 		}
 	}
 }
 
-export function buildPromptfooConfig(args: {
+export function buildPromptfooConfig(options: {
 	feature: Feature;
 	suite: Suite;
 	selection: Selection;
 	featureFile?: string;
 }): PromptfooConfig {
-	const { feature, suite, selection } = args;
-	const featureFile = args.featureFile ?? "feature.yaml";
+	const { feature, suite, selection } = options;
+	const featureFile = options.featureFile ?? "feature.yaml";
 	if (selection.cases.length === 0)
 		throw new ForgeError("no approved case to emit; run `forge review` first", {
 			file: featureFile,
 		});
-	const byId = new Map(selection.scenarios.map((s) => [s.id, s]));
-	const tests: PromptfooTest[] = selection.cases.map((c) => {
-		const scenario = byId.get(c.scenario);
+	const byId = new Map(
+		selection.scenarios.map((scenario) => [scenario.id, scenario]),
+	);
+	const tests: PromptfooTest[] = selection.cases.map((emittedCase) => {
+		const scenario = byId.get(emittedCase.scenario);
 		// selectCases only returns cases of selected scenarios with an expected; both guards are for a hand-built Selection.
 		if (!scenario)
 			throw new ForgeError(
-				`case ${c.id} names scenario "${c.scenario}", which is not selected`,
-				{ id: c.id },
+				`case ${emittedCase.id} names scenario "${emittedCase.scenario}", which is not selected`,
+				{ id: emittedCase.id },
 			);
-		if (!c.expected)
-			throw new ForgeError(`case ${c.id} has no expected`, { id: c.id });
+		if (!emittedCase.expected)
+			throw new ForgeError(`case ${emittedCase.id} has no expected`, {
+				id: emittedCase.id,
+			});
 		return {
-			description: c.id,
+			description: emittedCase.id,
 			metadata: {
 				scenario: scenario.id,
-				case: c.id,
+				case: emittedCase.id,
 				kind: scenario.kind,
 				oracle: scenario.oracle,
 			},
-			vars: c.input,
+			vars: emittedCase.input,
 			assert: assertsFor(
-				c.id,
-				c.expected,
+				emittedCase.id,
+				emittedCase.expected,
 				scenario,
 				feature,
 				suite,
