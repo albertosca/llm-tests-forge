@@ -18,18 +18,19 @@ const table: Prices = {
 };
 
 describe("loadPrices", () => {
-	test("reads the repository's prices.yaml by default, and it validates", async () => {
+	test("the default table parses and prices a known model (that it is embedded in the binary is proved by the binary test)", async () => {
 		const prices = await loadPrices();
 		expect(prices.unit).toBe("usd_per_million_tokens");
 		expect(prices.models["anthropic/claude-haiku-4-5"]).toEqual({
 			input: 1,
 			output: 5,
 		});
-	});
-	test("with no path, reads the table embedded in the build, not a file next to the source", async () => {
-		const prices = await loadPrices();
-		expect(prices.unit).toBe("usd_per_million_tokens");
-		expect(Object.keys(prices.models).length).toBeGreaterThan(0);
+		expect(priceFor("anthropic/claude-haiku-4-5", prices)).toMatchObject({
+			input: 1,
+			output: 5,
+			priced: true,
+			approximate: false,
+		});
 	});
 	test("names the file when it is missing", async () => {
 		const error = await loadPrices("/nowhere/prices.yaml").catch(

@@ -134,12 +134,19 @@ async function stampAfterSuccess(context: CliContext): Promise<void> {
 	}
 }
 
+/** `--help` or `-h` anywhere before a `--` (what follows `--` is the verb's own). */
+function helpRequested(argv: string[]): boolean {
+	const dashes = argv.indexOf("--");
+	const flags = dashes >= 0 ? argv.slice(0, dashes) : argv;
+	return flags.includes("--help") || flags.includes("-h");
+}
+
 export async function run(
 	argv: string[],
 	context: CliContext,
 ): Promise<number> {
 	const [verb, ...rest] = argv;
-	if (verb === "--help" || verb === "-h" || verb === "help") {
+	if (helpRequested(argv) || verb === "help") {
 		context.stdout(USAGE);
 		return 0;
 	}
@@ -279,6 +286,12 @@ export async function main(
 ): Promise<number> {
 	const write = options.stdout ?? console.log;
 	try {
+		// Asking for help is answered before anything is resolved or parsed, so
+		// `status --help` works next to a malformed forge.yaml.
+		if (helpRequested(argv)) {
+			write(USAGE);
+			return 0;
+		}
 		// The verb is what is left first once --suite and its path are taken
 		// out, so `--suite x --help` is answered like `--help`. A first word
 		// that already is one skips the flag parsing, which could refuse it.

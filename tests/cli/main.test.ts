@@ -5589,6 +5589,46 @@ describe("main(): the suite and the project", () => {
 		}
 	});
 
+	test("--help or -h anywhere before -- prints the usage and exits 0 with a malformed forge.yaml, and a positional after -- is left alone", async () => {
+		const root = await projectWith("version: 2\n");
+		for (const argv of [
+			["status", "--help"],
+			["emit", "-h"],
+			["--suite", "x", "--help"],
+			["describe", "some text", "-h"],
+		]) {
+			const lines: string[] = [];
+			expect(
+				await main(argv, {
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(0);
+			expect(lines).toEqual([USAGE]);
+		}
+		const afterDashes: string[] = [];
+		await main(["describe", "--", "--help"], {
+			cwd: root,
+			env: { FORGE_DRAFTER: MODEL },
+			stdin: async () => "",
+			stdout: (line) => afterDashes.push(line),
+		});
+		expect(afterDashes).not.toContain(USAGE);
+	});
+
+	test("--version stays a verb-position flag: after another verb it is not the version", async () => {
+		const lines: string[] = [];
+		await main(["status", "--version"], {
+			cwd: await mkdtemp(join(tmpdir(), "forge-version-")),
+			env: {},
+			stdin: async () => "",
+			stdout: (line) => lines.push(line),
+		});
+		expect(lines).not.toEqual([FORGE_VERSION]);
+	});
+
 	test("guide is answered even when forge.yaml is malformed, and does not stamp or warn", async () => {
 		const root = await projectWith("version: 2\n");
 		const lines: string[] = [];
@@ -5609,10 +5649,11 @@ describe("main(): the suite and the project", () => {
 		);
 		expect(await run(["guide"], context)).toBe(0);
 		const guide = out.join("\n");
-		const firstParagraph = guide
-			.split(/\n\s*\n/)
-			.find((block) => !block.trimStart().startsWith("#"));
-		expect(firstParagraph).toContain("approving is the person's job");
+		const blocks = guide.split(/\n\s*\n/);
+		const firstHeading = blocks.find((block) => block.startsWith("## "));
+		expect(firstHeading).toBe("## The rule");
+		const sectionStart = blocks.indexOf("## The rule");
+		expect(blocks[sectionStart + 1]).toContain("approving is the person's job");
 	});
 
 	test("the guide names every verb in USAGE, so a new verb without a guide entry fails", async () => {
@@ -5651,8 +5692,9 @@ describe("main(): the suite and the project", () => {
 	});
 
 	test("the skill and the marketplace file have the shape the plugin needs", async () => {
+		const repositoryRoot = join(import.meta.dir, "..", "..");
 		const skill = await readFile(
-			"plugin/skills/llm-tests-forge/SKILL.md",
+			join(repositoryRoot, "plugin/skills/llm-tests-forge/SKILL.md"),
 			"utf8",
 		);
 		const frontmatter = parse(/^---\n([\s\S]*?)\n---/.exec(skill)?.[1] ?? "");
@@ -5660,12 +5702,18 @@ describe("main(): the suite and the project", () => {
 		expect(frontmatter.description).toContain("create LLM tests");
 		expect(frontmatter.description).toContain("cria testes");
 		const marketplace = JSON.parse(
-			await readFile(".claude-plugin/marketplace.json", "utf8"),
+			await readFile(
+				join(repositoryRoot, ".claude-plugin/marketplace.json"),
+				"utf8",
+			),
 		);
 		expect(marketplace.plugins).toHaveLength(1);
 		expect(marketplace.plugins[0].source).toBe("./plugin");
 		const manifest = JSON.parse(
-			await readFile("plugin/.claude-plugin/plugin.json", "utf8"),
+			await readFile(
+				join(repositoryRoot, "plugin/.claude-plugin/plugin.json"),
+				"utf8",
+			),
 		);
 		expect(manifest.version).toBe(FORGE_VERSION);
 	});
