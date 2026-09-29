@@ -27,13 +27,13 @@ export async function writeChecksums(directory: string): Promise<string> {
 	return text;
 }
 
-/** One line of `SHA256SUMS` whose file is missing or whose bytes no longer hash to the recorded value. */
+/** A release asset that `SHA256SUMS` cannot vouch for: recorded but missing, recorded with other bytes, or present but not recorded. */
 export interface ChecksumMismatch {
 	name: string;
-	reason: "missing" | "different";
+	reason: "missing" | "different" | "unlisted";
 }
 
-/** Reads `SHA256SUMS` in `directory` and names every file that is missing or differs from its recorded hash. */
+/** Reads `SHA256SUMS` in `directory` and names every asset that is missing, differs from its recorded hash, or is present without a line. A name with a path separator is refused as malformed. */
 export async function verifyChecksums(
 	directory: string,
 ): Promise<ChecksumMismatch[]> {
@@ -46,6 +46,7 @@ export async function verifyChecksums(
 			file: sumsPath,
 		});
 	}
+	const present = new Set(await readdir(directory));
 	const mismatches: ChecksumMismatch[] = [];
 	for (const line of text.split("\n")) {
 		if (line === "") continue;
@@ -54,7 +55,11 @@ export async function verifyChecksums(
 		if (
 			!/^[0-9a-f]{64}$/.test(expected) ||
 			line.slice(64, 66) !== "  " ||
-			name === ""
+			name === "" ||
+			name === "." ||
+			name === ".." ||
+			name.includes("/") ||
+			name.includes("\\")
 		)
 			throw new ForgeError(`malformed line: ${line}`, { file: sumsPath });
 		let actual: string;
@@ -66,6 +71,15 @@ export async function verifyChecksums(
 		}
 		if (actual !== expected) mismatches.push({ name, reason: "different" });
 	}
+	const listed = new Set(
+		text
+			.split("\n")
+			.filter((line) => line !== "")
+			.map((line) => line.slice(66)),
+	);
+	for (const target of RELEASE_TARGETS)
+		if (present.has(target.assetName) && !listed.has(target.assetName))
+			mismatches.push({ name: target.assetName, reason: "unlisted" });
 	return mismatches;
 }
 

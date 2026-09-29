@@ -25,11 +25,12 @@ describe("checksums", () => {
 	test("SHA256SUMS lists every asset present in sha256sum format, sorted by name, and nothing else", async () => {
 		const directory = await directoryWith({
 			"llm-tests-forge-linux-x64": "linux",
-			"llm-tests-forge-darwin-arm64": "darwin",
+			"llm-tests-forge-linux-arm64": "arm",
 			"notes.txt": "not an asset",
 		});
 		const text = await writeChecksums(directory);
-		const expected = `${sha256("darwin")}  llm-tests-forge-darwin-arm64\n${sha256("linux")}  llm-tests-forge-linux-x64\n`;
+		// Target order is linux-x64 then linux-arm64; sorted order is the reverse.
+		const expected = `${sha256("arm")}  llm-tests-forge-linux-arm64\n${sha256("linux")}  llm-tests-forge-linux-x64\n`;
 		expect(text).toBe(expected);
 		expect(await readFile(join(directory, "SHA256SUMS"), "utf8")).toBe(
 			expected,
@@ -74,6 +75,18 @@ describe("checksums", () => {
 		]);
 	});
 
+	test("an asset present in the directory but absent from SHA256SUMS is named as unlisted; a non-asset file is not", async () => {
+		const directory = await directoryWith({
+			"llm-tests-forge-linux-x64": "a",
+			"notes.txt": "x",
+		});
+		await writeChecksums(directory);
+		await writeFile(join(directory, "llm-tests-forge-linux-arm64"), "b");
+		expect(await verifyChecksums(directory)).toEqual([
+			{ name: "llm-tests-forge-linux-arm64", reason: "unlisted" },
+		]);
+	});
+
 	test("a directory without SHA256SUMS is refused, naming the file", async () => {
 		const directory = await directoryWith({});
 		await expect(verifyChecksums(directory)).rejects.toThrow(
@@ -86,6 +99,11 @@ describe("checksums", () => {
 			"not-a-hash  llm-tests-forge-linux-x64",
 			`${sha256("a")} llm-tests-forge-linux-x64`,
 			`${sha256("a")}  `,
+			`${sha256("a")}  ../llm-tests-forge-linux-x64`,
+			`${sha256("a")}  sub/llm-tests-forge-linux-x64`,
+			`${sha256("a")}  sub\\llm-tests-forge-linux-x64`,
+			`${sha256("a")}  ..`,
+			`${sha256("a")}  .`,
 		]) {
 			const directory = await directoryWith({ SHA256SUMS: `${line}\n` });
 			await expect(verifyChecksums(directory)).rejects.toThrow(
