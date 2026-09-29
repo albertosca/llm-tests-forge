@@ -16,7 +16,10 @@
 		"check": "bun run lint && bun run typecheck && bun test",
 		"validate:example": "bunx promptfoo@0.123.0 validate -c examples/moonlighter-classify-email/.forge/promptfooconfig.yaml",
 		"test:live": "FORGE_LIVE=1 bun test tests/live --config=bunfig.live.toml",
-		"test:shims": "FORGE_SHIMS=1 bun test tests/shims --timeout 600000 --config=bunfig.shims.toml"
+		"test:shims": "FORGE_SHIMS=1 bun test tests/shims --timeout 600000 --config=bunfig.shims.toml",
+		"test:packages": "FORGE_PACKAGES=1 bun test tests/packages --timeout 600000 --config=bunfig.packages.toml",
+		"release:build": "bun scripts/release/build-binaries.ts dist",
+		"release:stamp": "bun scripts/release/version.ts stamp"
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "4.0.53",

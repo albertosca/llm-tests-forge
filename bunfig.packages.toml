@@ -1,0 +1,7 @@
+# Used only by `bun run test:packages` (via --config), never by plain `bun
+# test`. `bun test tests/packages` exercises a sliver of `src/`, so the
+# coverage floor in `bunfig.toml` would fail a passing run. Coverage is
+# enforced by the full suite (`bun test` / `bun run check`), which this file
+# never touches.
+[test]
+coverage = false
