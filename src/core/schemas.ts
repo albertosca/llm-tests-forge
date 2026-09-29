@@ -91,6 +91,32 @@ export const TARGET_KINDS = [
 ] as const;
 export type TargetKind = (typeof TARGET_KINDS)[number];
 
+export const LANGUAGES = [
+	"python",
+	"javascript",
+	"typescript",
+	"elixir",
+	"ruby",
+	"rust",
+	"go",
+	"other",
+] as const;
+export type Language = (typeof LANGUAGES)[number];
+
+export const ProjectConfigSchema = z.object({
+	version: z.literal(1),
+	language: z.enum(LANGUAGES),
+	suites: z.array(z.string().min(1)).default([]),
+	defaults: z
+		.object({
+			drafter: z.string().min(1).optional(),
+			target_models: z.array(z.string().min(1)).min(1).optional(),
+			judges: z.array(z.string().min(1)).min(1).optional(),
+		})
+		.default({}),
+});
+export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
+
 const TargetSchema = z
 	.object({
 		// Suites written before the kinds existed say promptfoo-python.
