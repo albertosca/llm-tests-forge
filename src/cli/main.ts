@@ -16,6 +16,7 @@ import { moveCommand } from "./commands/move";
 import { reportCommand } from "./commands/report";
 import { reviewCommand } from "./commands/review";
 import { scenariosCommand } from "./commands/scenarios";
+import { statusCommand } from "./commands/status";
 import { type CliContext, createContext } from "./context";
 
 export const USAGE = `usage: llm-tests-forge <verb> [options]
@@ -32,6 +33,7 @@ export const USAGE = `usage: llm-tests-forge <verb> [options]
   estimate                                            suite + approved cases -> tokens and dollars per model (no call)
   emit [--format promptfoo|jsonl]                    approved cases -> .forge/promptfooconfig.yaml + forge_target.py, or cases.jsonl
   report <results.json> [--baseline report.json]      promptfoo output -> .forge/report.md + report.json
+  status [--json]                                     every registered suite: feature, counts, last run, version warning; --json for agents
   --suite <path>  run on a registered suite from anywhere in the project
   help | --help, version | --version
 drafter: --drafter provider/model, FORGE_DRAFTER, or defaults.drafter in forge.yaml; providers: anthropic, google, openai, ollama, fake/<file>`;
@@ -51,6 +53,7 @@ const COMMANDS: Record<
 	estimate: estimateCommand,
 	emit: emitCommand,
 	report: reportCommand,
+	status: statusCommand,
 };
 
 /**
@@ -146,7 +149,9 @@ export async function run(
 		return 2;
 	}
 	try {
-		await warnAboutSuiteVersion(context);
+		// status reports every suite's version itself, and its --json output
+		// must stay one parseable document.
+		if (verb !== "status") await warnAboutSuiteVersion(context);
 		await command(rest, context);
 		if (STAMPING_VERBS.has(verb ?? "")) await stampAfterSuccess(context);
 		return 0;
