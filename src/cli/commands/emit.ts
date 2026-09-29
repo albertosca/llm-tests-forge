@@ -71,9 +71,13 @@ export async function emitCommand(
 	);
 	// The shim is written into, and run from, `.forge/`; a path here would
 	// let suite.yaml write a file anywhere on the disk.
-	const entry = entryFor(suite.target);
-	const shimKind = isShimKind(suite.target.kind) ? suite.target.kind : null;
-	if (shimKind !== null) {
+	const targetEntry = entryFor(suite.target);
+	const shim =
+		isShimKind(suite.target.kind) && targetEntry !== undefined
+			? { kind: suite.target.kind, entry: targetEntry }
+			: null;
+	if (shim !== null) {
+		const { entry } = shim;
 		if (entry.includes("/") || entry.includes("\\") || entry.includes(".."))
 			throw new ForgeError(
 				"target.entry must be a file name inside .forge, not a path",
@@ -119,13 +123,13 @@ export async function emitCommand(
 	// The command comes before anything is written: an elixir suite with no
 	// mix.exs above it is refused with no half-written .forge/.
 	const locations =
-		shimKind === null
+		shim === null
 			? null
-			: await shimLocations(shimKind, context.forgeDirectory);
+			: await shimLocations(shim.kind, context.forgeDirectory);
 	const command =
-		shimKind === null || locations === null
+		shim === null || locations === null
 			? undefined
-			: targetCommand(shimKind, entry, locations);
+			: targetCommand(shim.kind, shim.entry, locations);
 	const config = buildPromptfooConfig({
 		feature,
 		suite,
@@ -139,12 +143,12 @@ export async function emitCommand(
 	);
 	const httpWarning = httpTargetModelWarning(suite);
 	if (httpWarning !== null) context.stdout(`emit: ${httpWarning}`);
-	if (shimKind === null || locations === null) return;
+	if (shim === null || locations === null) return;
 	// Each file on its own: rust and go share the entry `forge_target`, so a
 	// directory that exists may hold the other language's files, or miss one.
 	const kept: string[] = [];
 	const written: string[] = [];
-	for (const file of shimFiles(feature, shimKind, entry, locations)) {
+	for (const file of shimFiles(feature, shim.kind, shim.entry, locations)) {
 		const path = join(context.forgeDirectory, file.path);
 		if (await exists(path)) {
 			kept.push(path);
@@ -159,7 +163,7 @@ export async function emitCommand(
 		context.stdout(`emit: ${keptPart}`);
 		return;
 	}
-	const wrotePart = `wrote ${written.join(", ")}; ${FILL_IN[shimKind]}`;
+	const wrotePart = `wrote ${written.join(", ")}; ${FILL_IN[shim.kind]}`;
 	context.stdout(
 		`emit: ${keptPart === "" ? wrotePart : `${keptPart}; ${wrotePart}`}`,
 	);

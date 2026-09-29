@@ -152,6 +152,23 @@ describe("shimFiles", () => {
 			"// replace example.com/quoted => ../../../..",
 		);
 	});
+	test("the crate name is read from a single-quoted name and from a [package] header followed by a comment", () => {
+		const nameOf = (manifest: string): string | undefined =>
+			shimFiles(feature, "rust", "forge_target", locations(manifest))[0]
+				?.content;
+		expect(nameOf("[package]\nname = 'my_app'\n")).toContain(
+			'# my_app = { path = "../../../.." }',
+		);
+		expect(nameOf('[package] # app\nname = "my_app"\n')).toContain(
+			'# my_app = { path = "../../../.." }',
+		);
+		expect(nameOf("[package]\t# app\nname = 'my_app'\n")).toContain(
+			'# my_app = { path = "../../../.." }',
+		);
+		expect(nameOf('[workspace] # not it\nname = "not_this"\n')).toContain(
+			"your_crate",
+		);
+	});
 	test("with no manifest, rust and go write placeholders the comment says to fix", () => {
 		const rustFiles = shimFiles(feature, "rust", "forge_target", locations());
 		expect(rustFiles[0]?.content).toContain(

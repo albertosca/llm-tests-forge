@@ -92,17 +92,20 @@ function pathFromShim(
 	);
 }
 
-/** The first `name = "..."` under `[package]`; a workspace's own `name` is not the crate's. */
+/** The first `name = "..."` (or `'...'`) under `[package]`; a workspace's own `name` is not the crate's. */
 function crateName(manifestText: string | null): string {
 	let inPackage = false;
 	for (const line of (manifestText ?? "").split("\n")) {
 		const trimmed = line.trim();
 		if (trimmed.startsWith("[")) {
-			inPackage = trimmed === "[package]";
+			inPackage = /^\[package\]\s*(#.*)?$/.test(trimmed);
 			continue;
 		}
-		const found = inPackage ? /^name\s*=\s*"([^"]+)"/.exec(trimmed) : null;
-		if (found?.[1] !== undefined) return found[1];
+		const found = inPackage
+			? /^name\s*=\s*(?:"([^"]+)"|'([^']+)')/.exec(trimmed)
+			: null;
+		const name = found?.[1] ?? found?.[2];
+		if (name !== undefined) return name;
 	}
 	return UNKNOWN_CRATE;
 }

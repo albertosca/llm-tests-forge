@@ -217,6 +217,14 @@ export function httpTargetModelWarning(suite: Suite): string | null {
 	return `warning: target.kind is http and target.models lists ${target.models.length} models, but ${TARGET_MODEL_PLACEHOLDER} appears nowhere in target.url, target.headers or target.body, so every provider sends the same request`;
 }
 
+/** The entry of a python, javascript or typescript target; a kind without one is a caller's bug. */
+function shimEntry(target: Suite["target"]): string {
+	const entry = entryFor(target);
+	if (entry === undefined)
+		throw new ForgeError(`target.kind ${target.kind} has no shim entry`);
+	return entry;
+}
+
 function providerFor(
 	model: string,
 	suite: Suite,
@@ -227,7 +235,7 @@ function providerFor(
 	switch (target.kind) {
 		case "python":
 			return {
-				id: `file://${entryFor(target)}`,
+				id: `file://${shimEntry(target)}`,
 				label: model,
 				config: target.python
 					? { model, pythonExecutable: target.python }
@@ -236,7 +244,7 @@ function providerFor(
 		case "javascript":
 		case "typescript":
 			return {
-				id: `file://${entryFor(target)}`,
+				id: `file://${shimEntry(target)}`,
 				label: model,
 				config: { model },
 			};
@@ -344,6 +352,16 @@ export function buildPromptfooConfig(options: {
 				file: featureFile,
 			},
 		);
+	if (suite.target.kind === "http") {
+		const colliding = feature.inputs.find(
+			(input) => `{{${input.name}}}` === TARGET_MODEL_PLACEHOLDER,
+		);
+		if (colliding !== undefined)
+			throw new ForgeError(
+				`input "${colliding.name}" collides with the placeholder ${TARGET_MODEL_PLACEHOLDER}, which an http target replaces with each provider's model; rename the input`,
+				{ file: featureFile, id: feature.id },
+			);
+	}
 	const byId = new Map(
 		selection.scenarios.map((scenario) => [scenario.id, scenario]),
 	);
