@@ -50,9 +50,9 @@ func main() {
 	if model == "" {
 		model = "default"
 	}
-	output, err := runApplication(inputs, model)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	output, failure := runApplication(inputs, model)
+	if failure != nil {
+		fmt.Fprintln(os.Stderr, failure)
 		os.Exit(1)
 	}
 	if text, isText := output.(string); isText {

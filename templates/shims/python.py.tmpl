@@ -34,8 +34,8 @@ async def call_api(prompt, options, context):
     model = (options.get("config") or {}).get("model") or "default"
     try:
         result = await run_application(inputs, model)
-    except Exception as e:  # promptfoo shows this as an error row, not a failed assert
-        return {"error": f"{type(e).__name__}: {e}"}
+    except Exception as error:  # promptfoo shows this as an error row, not a failed assert
+        return {"error": f"{type(error).__name__}: {error}"}
     output = result["output"]
     if not isinstance(output, str):
         output = json.dumps(output)
