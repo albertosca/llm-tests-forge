@@ -640,6 +640,13 @@ function baselineDiffOf(
 	return { regressions, fixed, onlyInBaseline };
 }
 
+/** The timestamp promptfoo recorded, or null when it is absent, empty or not a date. */
+function recordedRunTime(timestamp: string | undefined): string | null {
+	if (timestamp === undefined || Number.isNaN(Date.parse(timestamp)))
+		return null;
+	return timestamp;
+}
+
 export function buildReport(parameters: {
 	results: PromptfooResults;
 	resultsPath: string;
@@ -695,7 +702,7 @@ export function buildReport(parameters: {
 	);
 	return {
 		generatedAt: parameters.now.toISOString(),
-		ranAt: results.results.timestamp ?? null,
+		ranAt: recordedRunTime(results.results.timestamp),
 		promptfooVersion: results.metadata?.promptfooVersion ?? null,
 		rows: results.results.results.length,
 		matched: matched.length,

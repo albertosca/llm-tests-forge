@@ -285,15 +285,17 @@ describe("suiteStatus and renderStatusLine", () => {
 		expect(renderStatusLine(garbageStatus)).toEndWith(
 			"last run 67.9% (unknown date)",
 		);
+		// The JSON carries null, never the display sentinel.
+		expect((await lastRunOf(garbage))?.date).toBeNull();
 		const badGenerated = await suiteWithDates("badgenerated", {
 			generatedAt: "not-a-date-at-all",
 		});
-		expect((await lastRunOf(badGenerated))?.date).toBe("(unknown date)");
+		expect((await lastRunOf(badGenerated))?.date).toBeNull();
 		const impossible = await suiteWithDates("impossible", {
 			ranAt: "2026-13-45T00:00:00.000Z",
 			generatedAt: "2026-09-29T08:00:00.000Z",
 		});
-		expect((await lastRunOf(impossible))?.date).toBe("(unknown date)");
+		expect((await lastRunOf(impossible))?.date).toBeNull();
 	});
 
 	test("the guide documents the whole status --json shape", async () => {

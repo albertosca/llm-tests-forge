@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { resolve } from "node:path";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { ForgeError } from "../../src/core/errors";
 import type { Estimate } from "../../src/core/estimate";
 import { readAllCases, readScenarios } from "../../src/core/files";
@@ -1119,6 +1121,52 @@ describe("buildReport", () => {
 	test("readResults keeps results.timestamp from a real promptfoo file", async () => {
 		const parsed = await readResults(FIXTURE);
 		expect(parsed.results.timestamp).toBe("2026-09-15T19:07:12.028Z");
+	});
+
+	/** The real fixture with results.timestamp replaced by `value`, written to a temporary file. */
+	async function resultsWithTimestamp(value: unknown): Promise<string> {
+		const data = JSON.parse(await readFile(FIXTURE, "utf8"));
+		data.results.timestamp = value;
+		const directory = await mkdtemp(join(tmpdir(), "forge-results-"));
+		const file = join(directory, "results.json");
+		await writeFile(file, JSON.stringify(data));
+		return file;
+	}
+
+	/** ranAt of a report built from the parsed file's timestamp over rows that match a case. */
+	const ranAtOf = (parsed: PromptfooResults): string | null =>
+		build([], {
+			results: {
+				results: {
+					timestamp: parsed.results.timestamp,
+					results: [row({ case: "a-01", model: "m" })],
+				},
+			},
+		}).ranAt;
+
+	test("a results.json whose timestamp is null still parses, with ranAt null", async () => {
+		const parsed = await readResults(await resultsWithTimestamp(null));
+		expect(parsed.results.timestamp).toBeUndefined();
+		expect(ranAtOf(parsed)).toBeNull();
+	});
+
+	test("a results.json whose timestamp is a number still parses, with ranAt null", async () => {
+		const parsed = await readResults(await resultsWithTimestamp(1758814080000));
+		expect(parsed.results.timestamp).toBeUndefined();
+		expect(ranAtOf(parsed)).toBeNull();
+	});
+
+	test("an empty results.timestamp does not become ranAt", async () => {
+		const parsed = await readResults(await resultsWithTimestamp(""));
+		expect(ranAtOf(parsed)).toBeNull();
+	});
+
+	test("a results.timestamp that is not a date does not become ranAt", () => {
+		const rows = [row({ case: "a-01", model: "m" })];
+		const report = build([], {
+			results: { results: { timestamp: "last tuesday", results: rows } },
+		});
+		expect(report.ranAt).toBeNull();
 	});
 
 	test("a report.json written before ranAt existed still parses as a baseline, with ranAt null", () => {

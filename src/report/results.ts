@@ -15,8 +15,12 @@ import { readFailure } from "../core/files";
  */
 export const PromptfooResultsSchema = z.object({
 	results: z.object({
-		/** When promptfoo ran (ISO), written by 0.123.0; an older results.json has none. */
-		timestamp: z.string().optional(),
+		/**
+		 * When promptfoo ran (ISO), written by 0.123.0; an older results.json
+		 * has none. Anything but a string (null, a number) reads as absent: a
+		 * field the report only records must never make it refuse the file.
+		 */
+		timestamp: z.string().optional().catch(undefined),
 		results: z.array(
 			z.object({
 				testIdx: z.number(),
