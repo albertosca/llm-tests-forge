@@ -6,7 +6,7 @@ Above all, approving is the person's job. Never set `status: approved`, `edited`
 
 - edit the content of an item that is already `approved` or `edited` (`expected`, `invariants`, a scenario's text) so that it stays approved without the person seeing the change;
 - run `llm-tests-forge describe --force`, which replaces the person's reviewed feature and invariants: ask the person instead;
-- run `llm-tests-forge review --all`, which approves in bulk.
+- run `llm-tests-forge review --all`, which approves in bulk (it is scoped to one scenario and needs `--scenario`, but it is still the person's call).
 
 When the pipeline reaches a review, stop and ask the person to run `llm-tests-forge review` (or `llm-tests-forge review --suite <path>`), then continue when they say it is done.
 
@@ -97,7 +97,7 @@ then `llm-tests-forge report results.json`. promptfoo exits with status 100 when
 - `include`: scenario ids to run; empty means every approved scenario.
 - Kind-specific: `target.python` (interpreter, python), `target.command` (exec), `target.url`, `target.method`, `target.headers`, `target.body`, `target.response` (http), all described above.
 
-How `suite.yaml` comes to exist: `describe` writes a starting one when both `defaults.target_models` and `defaults.judges` are set; otherwise the person writes it, and the error `emit` gives shows an example.
+How `suite.yaml` comes to exist: `describe` writes a starting `suite.yaml` when none exists yet, the project's language is not `other`, and both `defaults.target_models` and `defaults.judges` are set; otherwise the person writes it, and the error `emit` gives shows an example.
 
 ## Models and credentials
 
