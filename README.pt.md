@@ -1,6 +1,6 @@
 🇺🇸 [English](README.md) · 🇧🇷 [Português](README.pt.md)
 
-[![ci](https://github.com/albertosca/llm-test-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-test-forge/actions/workflows/ci.yml) [![lint](https://github.com/albertosca/llm-test-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-test-forge/actions/workflows/lint.yml) [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-test-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-test-forge/actions/workflows/ci.yml)
+[![ci](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![lint](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml) [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-tests-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml)
 
 # llm-tests-forge
 
@@ -14,8 +14,8 @@ Duas suítes prontas, geradas e revisadas contra uma aplicação real: [`example
 
 Requer o [bun](https://bun.sh) 1.4 ou mais recente. Ainda não está publicado em nenhum registro de pacotes, então instale a partir de um clone. Os pacotes por ecossistema vêm com o pipeline de release.
 
-    git clone https://github.com/albertosca/llm-test-forge.git
-    cd llm-test-forge
+    git clone https://github.com/albertosca/llm-tests-forge.git
+    cd llm-tests-forge
     bun install
     bun link      # liga o `llm-tests-forge` ao diretório bin global do bun
 
@@ -165,7 +165,7 @@ Todo shim do tipo exec responde na stdout, então a sua aplicação precisa loga
 
 O `init` adiciona ao `AGENTS.md` um bloco que aponta um agente para `llm-tests-forge status` e `llm-tests-forge guide`. A regra desse manual é a que importa: aprovar é trabalho da pessoa, então um agente nunca marca nada como aprovado editando um arquivo e nunca roda o `review` por você.
 
-Uma skill do Claude Code (`plugin/skills/llm-tests-forge/`) é um ponteiro fino para o mesmo manual. O comando de instalação é `/plugin marketplace add albertosca/llm-tests-forge`, e ele funciona quando o repositório estiver publicado com esse nome: hoje é `albertosca/llm-test-forge`, e será renomeado para `llm-tests-forge`, por isso a URL do clone acima ainda leva o nome antigo. O `claude plugin validate` passa para o marketplace e para o plugin, mas carregar a skill a partir do marketplace não foi verificado.
+Uma skill do Claude Code (`plugin/skills/llm-tests-forge/`) é um ponteiro fino para o mesmo manual. O comando de instalação é `/plugin marketplace add albertosca/llm-tests-forge`, e ele funciona quando o repositório for público. O `claude plugin validate` passa para o marketplace e para o plugin, mas carregar a skill a partir do marketplace não foi verificado.
 
 ### O que commitar dentro de `.forge/`
 

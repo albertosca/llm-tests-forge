@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "llm-test-forge",
+      "name": "llm-tests-forge",
       "dependencies": {
         "@ai-sdk/anthropic": "4.0.53",
         "@ai-sdk/google": "4.0.69",
