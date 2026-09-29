@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
+import { dirname, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { describeFeature } from "../../core/describe";
 import { ForgeError } from "../../core/errors";
@@ -6,7 +7,10 @@ import {
 	forgePaths,
 	readFeatureIfPresent,
 	writeFeature,
+	writeSuite,
 } from "../../core/files";
+import { registerSuite } from "../../core/project";
+import { DEFAULT_ENTRY } from "../../core/target";
 import type { CliContext } from "../context";
 
 /**
@@ -48,9 +52,12 @@ export async function describeCommand(
 	const text =
 		positionals.length > 0 ? positionals.join(" ") : await context.stdin();
 	const promptFile = values["prompt-file"];
-	const promptText = promptFile
-		? await readFile(promptFile, "utf8").catch(() => {
-				throw new ForgeError("file not found", { file: promptFile });
+	// The path is given from where the command runs; the feature keeps it
+	// from the suite directory, which is where estimate and report read it.
+	const promptPath = promptFile ? resolve(context.cwd, promptFile) : undefined;
+	const promptText = promptPath
+		? await readFile(promptPath, "utf8").catch(() => {
+				throw new ForgeError("file not found", { file: promptPath });
 			})
 		: undefined;
 	const feature = await describeFeature({
@@ -59,11 +66,50 @@ export async function describeCommand(
 		model: values.drafter ?? context.drafter,
 		llm: context.llm,
 	});
-	const withFile = promptFile
-		? { ...feature, prompt_file: promptFile }
+	const withFile = promptPath
+		? {
+				...feature,
+				prompt_file: relative(dirname(context.forgeDirectory), promptPath),
+			}
 		: feature;
 	await writeFeature(context.forgeDirectory, withFile);
 	context.stdout(
 		`describe: feature "${withFile.id}" written as pending -> ${forgePaths(context.forgeDirectory).feature}; run \`llm-tests-forge review\` to approve it`,
+	);
+	if (context.project !== null) await registerInProject(context);
+}
+
+/** Adds this suite to forge.yaml, and writes a starting suite.yaml when the defaults allow one. */
+async function registerInProject(context: CliContext): Promise<void> {
+	const project = context.project;
+	if (project === null) return;
+	const registration = registerSuite(project, dirname(context.forgeDirectory));
+	if (registration !== null) {
+		await writeFile(project.file, registration.text);
+		context.stdout(
+			`describe: registered ${registration.entry} in ${project.file}`,
+		);
+	}
+	const { language, defaults } = project.config;
+	const suitePath = forgePaths(context.forgeDirectory).suite;
+	const present = await access(suitePath).then(
+		() => true,
+		() => false,
+	);
+	if (present || language === "other") return;
+	if (defaults.target_models === undefined || defaults.judges === undefined)
+		return;
+	await writeSuite(context.forgeDirectory, {
+		target: {
+			kind: language,
+			entry: DEFAULT_ENTRY[language],
+			models: defaults.target_models,
+		},
+		judges: defaults.judges,
+		repeat: 1,
+		include: [],
+	});
+	context.stdout(
+		`describe: wrote ${suitePath} from forge.yaml's defaults; check it before emit`,
 	);
 }

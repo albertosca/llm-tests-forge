@@ -1,4 +1,7 @@
+import { access } from "node:fs/promises";
 import { ForgeError, UsageError } from "../core/errors";
+import { registeredSuiteNames } from "../core/project";
+import { resolveSuite } from "../core/resolve";
 import { FORGE_VERSION } from "../core/version";
 import { casesCommand } from "./commands/cases";
 import { dedupeCommand } from "./commands/dedupe";
@@ -10,7 +13,7 @@ import { moveCommand } from "./commands/move";
 import { reportCommand } from "./commands/report";
 import { reviewCommand } from "./commands/review";
 import { scenariosCommand } from "./commands/scenarios";
-import type { CliContext } from "./context";
+import { type CliContext, createContext } from "./context";
 
 export const USAGE = `usage: llm-tests-forge <verb> [options]
   describe <text...> [--prompt-file f] [--force] [--drafter m]
@@ -25,6 +28,7 @@ export const USAGE = `usage: llm-tests-forge <verb> [options]
   estimate                                            suite + approved cases -> tokens and dollars per model (no call)
   emit [--format promptfoo|jsonl]                    approved cases -> .forge/promptfooconfig.yaml + forge_target.py, or cases.jsonl
   report <results.json> [--baseline report.json]      promptfoo output -> .forge/report.md + report.json
+  --suite <path>  run on a registered suite from anywhere in the project
   help | --help, version | --version
 drafter: --drafter provider/model or FORGE_DRAFTER; providers: anthropic, google, openai, ollama, fake/<file>`;
 
@@ -128,4 +132,83 @@ export async function run(
 export function drafterFlag(argv: string[]): string | undefined {
 	const index = argv.indexOf("--drafter");
 	return index >= 0 ? argv[index + 1] : undefined;
+}
+
+export interface MainOptions {
+	cwd: string;
+	env: Record<string, string | undefined>;
+	stdin: () => Promise<string>;
+	stdout?: (line: string) => void;
+	onInteractivePass?: () => void;
+}
+
+/** `--suite <path>` and `--suite=<path>` taken out of `argv`, wherever they stand. */
+function takeSuiteFlag(argv: string[]): { rest: string[]; suite?: string } {
+	const rest: string[] = [];
+	let suite: string | undefined;
+	for (let index = 0; index < argv.length; index++) {
+		const argument = argv[index] as string;
+		if (argument === "--suite") {
+			suite = argv[++index];
+			if (suite === undefined)
+				throw new UsageError("--suite needs a path: --suite <path>");
+		} else if (argument.startsWith("--suite=")) {
+			suite = argument.slice("--suite=".length);
+		} else rest.push(argument);
+	}
+	return { rest, suite };
+}
+
+/** Verbs that work where there is no suite yet, or on no suite at all. */
+const VERBS_EXEMPT_FROM_SUITE_GUARD = new Set(["describe"]);
+
+async function refuseVerbWithoutSuite(
+	verb: string | undefined,
+	context: CliContext,
+): Promise<void> {
+	if (context.project === null) return;
+	if (verb === undefined || !(verb in COMMANDS)) return;
+	if (VERBS_EXEMPT_FROM_SUITE_GUARD.has(verb)) return;
+	const present = await access(context.forgeDirectory).then(
+		() => true,
+		() => false,
+	);
+	if (present) return;
+	throw new UsageError(
+		`no suite here: ${context.forgeDirectory} does not exist; registered suites in ${context.project.file}: ${registeredSuiteNames(context.project)}; cd into one or pass --suite <path>`,
+	);
+}
+
+/** The CLI's entry: resolves the suite and the project, then hands the verb to `run`. */
+export async function main(
+	argv: string[],
+	options: MainOptions,
+): Promise<number> {
+	const write = options.stdout ?? console.log;
+	try {
+		const { rest, suite } = takeSuiteFlag(argv);
+		const resolution = await resolveSuite({ cwd: options.cwd, suite });
+		const context = createContext({
+			cwd: options.cwd,
+			drafter: drafterFlag(rest),
+			env: options.env,
+			stdin: options.stdin,
+			onInteractivePass: options.onInteractivePass,
+			forgeDirectory: resolution.forgeDirectory,
+			project: resolution.project,
+		});
+		if (options.stdout) context.stdout = options.stdout;
+		await refuseVerbWithoutSuite(rest[0], context);
+		return await run(rest, context);
+	} catch (error) {
+		if (error instanceof UsageError) {
+			write(`error: ${error.message}`);
+			return 2;
+		}
+		if (error instanceof ForgeError) {
+			write(`error: ${error.message}`);
+			return 1;
+		}
+		throw error;
+	}
 }

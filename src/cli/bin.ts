@@ -1,8 +1,7 @@
 #!/usr/bin/env bun
 import { defaultConfigDirectory, loadProviderKeys } from "../llm/credentials";
-import { createContext } from "./context";
 import { createInterruptibleReader } from "./interruptible-stdin";
-import { drafterFlag, run } from "./main";
+import { main } from "./main";
 
 /**
  * The real stdin reader: reads exactly one line from the process's actual
@@ -37,13 +36,10 @@ const reader = createInterruptibleReader({
 process.on("SIGINT", reader.interrupt);
 
 process.exit(
-	await run(
-		process.argv.slice(2),
-		createContext({
-			cwd: process.cwd(),
-			drafter: drafterFlag(process.argv),
-			stdin: reader.read,
-			onInteractivePass: reader.armEndOfInputOnInterrupt,
-		}),
-	),
+	await main(process.argv.slice(2), {
+		cwd: process.cwd(),
+		env: process.env,
+		stdin: reader.read,
+		onInteractivePass: reader.armEndOfInputOnInterrupt,
+	}),
 );
