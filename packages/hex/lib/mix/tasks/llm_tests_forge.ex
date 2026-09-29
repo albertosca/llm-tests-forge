@@ -16,30 +16,51 @@ defmodule Mix.Tasks.LlmTestsForge do
   answers Ctrl+C with its own break menu (which cannot be switched off from
   inside a running VM) and a second one ends it, leaving the child orphaned.
   The binary's stdin is empty and its stdout is relayed. So
-  `mix llm_tests_forge review` refuses (exit 2) and names the installed binary
-  to run directly, which `mix llm_tests_forge.install` also prints:
+  `mix llm_tests_forge review` refuses (exit 2), with or without `--suite`
+  before it, and names the installed binary to run directly, which
+  `mix llm_tests_forge.install` also prints:
 
       _build/llm-tests-forge review
+
+  `review --scenario <id> --all` asks nothing, so it runs through mix.
   """
 
   use Mix.Task
 
   @impl Mix.Task
-  def run(["review" | _rest]) do
-    IO.puts(
-      :stderr,
-      "review needs the terminal; run #{LlmTestsForge.binary_path()} review"
-    )
-
-    System.halt(2)
-  end
-
   def run(arguments) do
-    binary =LlmTestsForge.ensure_installed!(&IO.puts(:stderr, &1))
+    if interactive_review?(arguments) do
+      IO.puts(
+        :stderr,
+        "review needs the terminal; run #{LlmTestsForge.binary_path()} review"
+      )
+
+      System.halt(2)
+    end
+
+    binary = LlmTestsForge.ensure_installed!(&IO.puts(:stderr, &1))
 
     case LlmTestsForge.run_binary(binary, arguments) do
       0 -> :ok
       status -> System.halt(status)
     end
   end
+
+  @doc """
+  Whether the binary would read `arguments` as the interactive review: the
+  verb left once `--suite <path>` and `--suite=<path>` are taken out (as the
+  binary takes them out) is `review`, without `--all`, which asks nothing.
+  """
+  def interactive_review?(arguments) do
+    case without_suite_flag(arguments) do
+      ["review" | rest] -> "--all" not in rest
+      _other -> false
+    end
+  end
+
+  defp without_suite_flag(["--" | _rest] = arguments), do: arguments
+  defp without_suite_flag(["--suite", _path | rest]), do: without_suite_flag(rest)
+  defp without_suite_flag(["--suite=" <> _path | rest]), do: without_suite_flag(rest)
+  defp without_suite_flag([argument | rest]), do: [argument | without_suite_flag(rest)]
+  defp without_suite_flag([]), do: []
 end

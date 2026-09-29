@@ -250,6 +250,38 @@ describe.skipIf(!packages)("hex package", () => {
 			/^review needs the terminal; run \/.*\/_build\/llm-tests-forge review\n$/,
 		);
 		expect(finished.stderr).toContain(project.replace(/^\/private/, ""));
+		for (const suiteFlag of [["--suite", "evals"], ["--suite=evals"]]) {
+			const afterSuite = await run(
+				["mix", "llm_tests_forge", ...suiteFlag, "review"],
+				project,
+				{ LLM_TESTS_FORGE_BASE_URL: intactUrl },
+			);
+			expect(afterSuite).toEqual(finished);
+		}
+	}, 600_000);
+
+	test("review --all asks nothing, so mix hands it to the binary instead of refusing it", async () => {
+		const { intactUrl } = await built();
+		const project = await consumerProject();
+		const finished = await run(
+			["mix", "llm_tests_forge", "review", "--all", "--scenario", "billing"],
+			project,
+			{ LLM_TESTS_FORGE_BASE_URL: intactUrl },
+		);
+		expect(finished.stderr).not.toContain("review needs the terminal");
+		// The consumer has no suite, so the binary itself answers, with its own status.
+		const direct = await run(
+			[
+				join(project, "_build", "llm-tests-forge"),
+				"review",
+				"--all",
+				"--scenario",
+				"billing",
+			],
+			project,
+		);
+		expect(finished.exitCode).toBe(direct.exitCode);
+		expect(finished.stdout).toBe(direct.stdout);
 	}, 600_000);
 
 	test("the passthrough task exits with the binary's own status, and passes its stdout and stderr through", async () => {
