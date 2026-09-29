@@ -124,9 +124,11 @@
         - Go
         - Ruby
       - label: Êtes-vous disponible immédiatement ?
-        kind: boolean
+        kind: single_select
         required: false
-        options: []
+        options:
+        - Oui
+        - Non
       - label: Téléchargez votre CV
         kind: file
         required: false
@@ -263,9 +265,11 @@
         - Mailchimp
         - SEMrush
       - label: ¿Tienes disponibilidad para viajar?
-        kind: boolean
+        kind: single_select
         required: false
-        options: []
+        options:
+        - Sí
+        - 'No'
       - label: Sube tu currículum
         kind: file
         required: false
@@ -384,9 +388,11 @@
         - Twitter/X
         - Facebook
       - label: Avez-vous déjà travaillé dans le secteur associatif ?
-        kind: boolean
+        kind: single_select
         required: false
-        options: []
+        options:
+        - Oui
+        - Non
       - label: Téléversez votre portfolio
         kind: file
         required: false

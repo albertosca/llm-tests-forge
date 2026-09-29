@@ -93,9 +93,11 @@
           required: false
           options: []
         - label: Haben Sie bereits Erfahrung mit Kubernetes?
-          kind: boolean
+          kind: single_select
           required: false
-          options: []
+          options:
+          - Ja
+          - Nein
         - label: Ich stimme der Verarbeitung meiner Daten gemäß der Datenschutzerklärung zu.
           kind: boolean
           required: false
@@ -208,9 +210,11 @@
           required: false
           options: []
         - label: Sind Sie mit einer Probezeit von sechs Monaten einverstanden?
-          kind: boolean
+          kind: single_select
           required: false
-          options: []
+          options:
+          - Ja
+          - Nein
         - label: Ich habe die Datenschutzhinweise gelesen und akzeptiere diese.
           kind: boolean
           required: false
@@ -309,9 +313,11 @@
           required: false
           options: []
         - label: Verfügen Sie über einen Führerschein der Klasse B?
-          kind: boolean
+          kind: single_select
           required: false
-          options: []
+          options:
+          - Ja
+          - Nein
         - label: Ich bestätige, dass alle Angaben in dieser Bewerbung wahrheitsgemäß sind.
           kind: boolean
           required: false

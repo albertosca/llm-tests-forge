@@ -282,13 +282,17 @@
         required: false
         options: []
       - label: Are you legally authorized to work in the United States?
-        kind: boolean
+        kind: single_select
         required: false
-        options: []
+        options:
+        - 'Yes'
+        - 'No'
       - label: Do you require visa sponsorship now or in the future?
-        kind: boolean
+        kind: single_select
         required: false
-        options: []
+        options:
+        - 'Yes'
+        - 'No'
       - label: Upload your portfolio (PDF or link)
         kind: file
         required: false
