@@ -55,9 +55,11 @@
         required: false
         options: []
       - label: Are you authorized to work in the United States?
-        kind: boolean
+        kind: single_select
         required: false
-        options: []
+        options:
+        - 'Yes'
+        - 'No'
       - label: Preferred Shift
         kind: single_select
         required: false

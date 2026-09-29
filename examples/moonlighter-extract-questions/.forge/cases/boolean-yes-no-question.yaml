@@ -80,9 +80,11 @@
         required: false
         options: []
       - label: Are you legally authorized to work in the United States?
-        kind: boolean
+        kind: single_select
         required: false
-        options: []
+        options:
+        - 'Yes'
+        - 'No'
       - label: Cover Letter
         kind: long_text
         required: false
@@ -180,13 +182,17 @@
         required: false
         options: []
       - label: Are you at least 18 years of age?
-        kind: boolean
+        kind: single_select
         required: false
-        options: []
+        options:
+        - 'Yes'
+        - 'No'
       - label: Do you have a valid driver's license?
-        kind: boolean
+        kind: single_select
         required: false
-        options: []
+        options:
+        - 'Yes'
+        - 'No'
       - label: Which programming languages are you proficient in?
         kind: multi_select
         required: false
@@ -288,9 +294,11 @@
         required: false
         options: []
       - label: Are you willing to work weekends and holidays?
-        kind: boolean
+        kind: single_select
         required: false
-        options: []
+        options:
+        - 'Yes'
+        - 'No'
       - label: Preferred Shift
         kind: single_select
         required: false
