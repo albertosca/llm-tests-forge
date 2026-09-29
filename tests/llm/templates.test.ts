@@ -25,6 +25,14 @@ describe("loadTemplate", () => {
 			cases: "{{input_names}}",
 			dedupe: "{{cases}}",
 			"shims/python": "def call_api",
+			"shims/javascript": "async callApi(prompt, context)",
+			"shims/typescript": "interface RunResult",
+			"shims/elixir": "defmodule ForgeTarget",
+			"shims/ruby": "def run_application(inputs, model)",
+			"shims/rust.Cargo.toml": "[workspace]",
+			"shims/rust.main.rs": "fn run_application",
+			"shims/go.mod": "module forgetarget",
+			"shims/go.main.go": "func runApplication",
 		};
 		for (const [name, signature] of Object.entries(signatures)) {
 			expect(loadTemplate(name).length).toBeGreaterThan(100);

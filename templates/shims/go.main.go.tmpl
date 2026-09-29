@@ -1,0 +1,63 @@
+// promptfoo exec target written by `llm-tests-forge emit`.
+// Feature: {{feature_id}}
+//
+// promptfoo runs the built binary from .forge/, once per test case and per
+// target model, with three arguments: the prompt, the provider options as
+// JSON, and the context as JSON. Fill in runApplication.
+// Standard output is the answer, so log to standard error. A failure (an
+// exception, or exit status 1 with the message on standard error) shows in
+// promptfoo 0.123 as an error row ([ERROR], counted under errors, not under
+// failed), not as a failed assert.
+// This file is written once and never overwritten.
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+)
+
+var inputNames = {{input_names}}
+
+func runApplication(inputs map[string]string, model string) (any, error) {
+	return nil, errors.New("edit forge_target/main.go: call your application here")
+}
+
+func main() {
+	var options struct {
+		Config struct {
+			Model string `json:"model"`
+		} `json:"config"`
+	}
+	var context struct {
+		Vars map[string]any `json:"vars"`
+	}
+	if len(os.Args) > 3 {
+		_ = json.Unmarshal([]byte(os.Args[2]), &options)
+		_ = json.Unmarshal([]byte(os.Args[3]), &context)
+	}
+	inputs := map[string]string{}
+	for _, name := range inputNames {
+		if value, found := context.Vars[name].(string); found {
+			inputs[name] = value
+		} else {
+			inputs[name] = ""
+		}
+	}
+	model := options.Config.Model
+	if model == "" {
+		model = "default"
+	}
+	output, err := runApplication(inputs, model)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if text, isText := output.(string); isText {
+		fmt.Print(text)
+		return
+	}
+	encoded, _ := json.Marshal(output)
+	fmt.Print(string(encoded))
+}

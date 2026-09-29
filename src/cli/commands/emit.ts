@@ -1,5 +1,5 @@
-import { access, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { access, mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { ForgeError, UsageError } from "../../core/errors";
 import {
@@ -10,14 +10,14 @@ import {
 	readSuite,
 } from "../../core/files";
 import { selectCases } from "../../core/select";
-import { entryFor, isShimKind } from "../../core/target";
+import { entryFor, isShimKind, type ShimKind } from "../../core/target";
 import { plural } from "../../core/text";
 import { renderCasesJsonl } from "../../emit/jsonl";
 import {
 	buildPromptfooConfig,
 	renderPromptfooConfig,
 } from "../../emit/promptfoo";
-import { shimSource } from "../../emit/shim";
+import { shimFiles, shimLocations, targetCommand } from "../../emit/shim";
 import type { CliContext } from "../context";
 import { requireApprovedFeature } from "../gates";
 
@@ -33,6 +33,17 @@ function parseFormat(raw: string | undefined): Format {
 		);
 	return found;
 }
+
+/** What the person does next, per kind; rust and go also build once. */
+const FILL_IN: Record<ShimKind, string> = {
+	python: "edit run_application() to call your application",
+	javascript: "edit runApplication() to call your application",
+	typescript: "edit runApplication() to call your application",
+	elixir: "edit run_application/2 to call your application",
+	ruby: "edit run_application to call your application",
+	rust: "edit run_application in src/main.rs to call your application, then run `cargo build --release` in that directory",
+	go: "edit runApplication in main.go to call your application, then run `go build -o forge_target .` in that directory",
+};
 
 async function exists(path: string): Promise<boolean> {
 	return access(path).then(
@@ -56,9 +67,9 @@ export async function emitCommand(
 	const suite = await readSuite(context.forgeDir);
 	// The shim is written into, and run from, `.forge/`; a path here would
 	// let suite.yaml write a file anywhere on the disk.
-	const shimKind = isShimKind(suite.target.kind);
-	if (shimKind) {
-		const entry = entryFor(suite.target);
+	const entry = entryFor(suite.target);
+	const shimKind = isShimKind(suite.target.kind) ? suite.target.kind : null;
+	if (shimKind !== null) {
 		if (entry.includes("/") || entry.includes("\\") || entry.includes(".."))
 			throw new ForgeError(
 				"target.entry must be a file name inside .forge, not a path",
@@ -96,24 +107,35 @@ export async function emitCommand(
 		);
 		return;
 	}
+	// The command comes before anything is written: an elixir suite with no
+	// mix.exs above it is refused with no half-written .forge/.
+	const locations =
+		shimKind === null ? null : await shimLocations(shimKind, context.forgeDir);
+	const command =
+		shimKind === null || locations === null
+			? undefined
+			: targetCommand(shimKind, entry, locations);
 	const config = buildPromptfooConfig({
 		feature,
 		suite,
 		selection,
 		featureFile: paths.feature,
+		command,
 	});
 	await writeFile(paths.promptfooConfig, renderPromptfooConfig(config), "utf8");
 	context.stdout(
 		`emit: wrote ${paths.promptfooConfig} (${plural(selection.cases.length, "case")}, ${plural(selection.scenarios.length, "scenario")}, ${plural(suite.target.models.length, "target model")}, ${plural(suite.judges.length, "judge")})`,
 	);
-	if (!shimKind) return;
-	const shim = join(context.forgeDir, entryFor(suite.target));
+	if (shimKind === null || locations === null) return;
+	const shim = join(context.forgeDir, entry);
 	if (await exists(shim)) {
 		context.stdout(`emit: kept existing ${shim}`);
-	} else {
-		await writeFile(shim, await shimSource(feature), "utf8");
-		context.stdout(
-			`emit: wrote ${shim}; edit run_application() to call your application`,
-		);
+		return;
 	}
+	for (const file of shimFiles(feature, shimKind, entry, locations)) {
+		const path = join(context.forgeDir, file.path);
+		await mkdir(dirname(path), { recursive: true });
+		await writeFile(path, file.content, "utf8");
+	}
+	context.stdout(`emit: wrote ${shim}; ${FILL_IN[shimKind]}`);
 }

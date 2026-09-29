@@ -1,0 +1,43 @@
+// promptfoo exec target written by `llm-tests-forge emit`.
+// Feature: {{feature_id}}
+//
+// promptfoo runs the built binary from .forge/, once per test case and per
+// target model, with three arguments: the prompt, the provider options as
+// JSON, and the context as JSON. Fill in `run_application`.
+// Standard output is the answer, so log to standard error. A failure (an
+// exception, or exit status 1 with the message on standard error) shows in
+// promptfoo 0.123 as an error row ([ERROR], counted under errors, not under
+// failed), not as a failed assert.
+// This file is written once and never overwritten.
+
+use serde_json::{Map, Value};
+
+const INPUTS: &[&str] = {{input_names}};
+
+fn run_application(inputs: &Map<String, Value>, model: &str) -> Result<Value, String> {
+    let _ = (inputs, model);
+    Err("edit forge_target/src/main.rs: call your application here".to_string())
+}
+
+fn main() {
+    let arguments: Vec<String> = std::env::args().collect();
+    let parse = |index: usize| -> Value {
+        arguments.get(index).and_then(|text| serde_json::from_str(text).ok()).unwrap_or(Value::Null)
+    };
+    let options = parse(2);
+    let context = parse(3);
+    let mut inputs = Map::new();
+    for name in INPUTS {
+        let value = context["vars"][*name].clone();
+        inputs.insert((*name).to_string(), if value.is_null() { Value::String(String::new()) } else { value });
+    }
+    let model = options["config"]["model"].as_str().unwrap_or("default").to_string();
+    match run_application(&inputs, &model) {
+        Ok(Value::String(text)) => print!("{text}"),
+        Ok(value) => print!("{value}"),
+        Err(message) => {
+            eprintln!("{message}");
+            std::process::exit(1);
+        }
+    }
+}

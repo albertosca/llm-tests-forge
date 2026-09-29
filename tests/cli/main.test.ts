@@ -3409,6 +3409,109 @@ describe("emit", () => {
 		expect((await stat(shim)).mtime.getTime()).toBe(LONG_AGO.getTime());
 		expect(out).toContain(`emit: kept existing ${shim}`);
 	});
+	test("ruby: writes forge_target.rb, runs it through exec, and keeps it on a second emit", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: { kind: "ruby", models: ["anthropic/claude-haiku-4-5"] },
+		});
+		const shim = join(forgeDirectory, "forge_target.rb");
+		const first = await ctxIn(cwd);
+		expect(await run(["emit"], first.context)).toBe(0);
+		expect(await readFile(shim, "utf8")).toContain('INPUTS = ["email"].freeze');
+		const parsedConfig = parse(
+			await readFile(join(forgeDirectory, "promptfooconfig.yaml"), "utf8"),
+		);
+		expect(parsedConfig.providers[0].id).toBe("exec: ruby forge_target.rb");
+		expect(first.out).toContain(
+			`emit: wrote ${shim}; edit run_application to call your application`,
+		);
+		await writeFile(shim, "# mine\n");
+		const second = await ctxIn(cwd);
+		expect(await run(["emit"], second.context)).toBe(0);
+		expect(await readFile(shim, "utf8")).toBe("# mine\n");
+		expect(second.out).toContain(`emit: kept existing ${shim}`);
+	});
+	test("go: writes go.mod and main.go under forge_target/, pointing at the project's module, and says how to build", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await writeFile(join(cwd, "go.mod"), "module example.com/myapp\n");
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: { kind: "go", models: ["anthropic/claude-haiku-4-5"] },
+		});
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(await readdir(join(forgeDirectory, "forge_target"))).toEqual([
+			"go.mod",
+			"main.go",
+		]);
+		expect(
+			await readFile(join(forgeDirectory, "forge_target", "go.mod"), "utf8"),
+		).toContain("// replace example.com/myapp => ../..");
+		const parsedConfig = parse(
+			await readFile(join(forgeDirectory, "promptfooconfig.yaml"), "utf8"),
+		);
+		expect(parsedConfig.providers[0].id).toBe(
+			"exec: ./forge_target/forge_target",
+		);
+		expect(out.at(-1)).toBe(
+			`emit: wrote ${join(forgeDirectory, "forge_target")}; edit runApplication in main.go to call your application, then run \`go build -o forge_target .\` in that directory`,
+		);
+	});
+	test("elixir runs from the mix project above the suite, and with none is refused before anything is written", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const suiteDirectory = join(cwd, "evals", "classify");
+		const forgeDirectory = await forgeWithApprovedCases(suiteDirectory);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: { kind: "elixir", models: ["anthropic/claude-haiku-4-5"] },
+		});
+		const refused = await ctxIn(suiteDirectory);
+		expect(await run(["emit"], refused.context)).toBe(1);
+		expect(refused.out.at(-1)).toContain(`no mix.exs above ${suiteDirectory}`);
+		await expect(
+			stat(join(forgeDirectory, "promptfooconfig.yaml")),
+		).rejects.toThrow();
+		await writeFile(join(cwd, "mix.exs"), "defmodule App.MixProject do\n");
+		const { context } = await ctxIn(suiteDirectory);
+		expect(await run(["emit"], context)).toBe(0);
+		const parsedConfig = parse(
+			await readFile(join(forgeDirectory, "promptfooconfig.yaml"), "utf8"),
+		);
+		expect(parsedConfig.providers[0].id).toBe(
+			`exec: sh -c 'cd "../../.." && MIX_QUIET=1 mix run "evals/classify/.forge/forge_target.exs" "$@"' forge_target`,
+		);
+		expect(
+			await readFile(join(forgeDirectory, "forge_target.exs"), "utf8"),
+		).toContain('@inputs ["email"]');
+	});
+	test("exec and http reach code the person already runs: no shim is written", async () => {
+		for (const target of [
+			{
+				kind: "exec" as const,
+				command: "./run.sh",
+				models: ["anthropic/claude-haiku-4-5"],
+			},
+			{
+				kind: "http" as const,
+				url: "http://localhost:4000/classify",
+				models: ["anthropic/claude-haiku-4-5"],
+			},
+		]) {
+			const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+			const forgeDirectory = await forgeWithApprovedCases(cwd);
+			await writeSuite(forgeDirectory, { ...SUITE, target });
+			const { context, out } = await ctxIn(cwd);
+			expect(await run(["emit"], context)).toBe(0);
+			const written = await readdir(forgeDirectory);
+			expect(written.filter((name) => name.startsWith("forge_target"))).toEqual(
+				[],
+			);
+			expect(out.join("\n")).not.toContain("forge_target");
+		}
+	});
 	test("refuses on pending items, lists every one, writes nothing, exits 1", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedCases(cwd);
