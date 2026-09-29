@@ -19,7 +19,7 @@ Requires [bun](https://bun.sh) 1.4 or newer. This is not published to any packag
     bun install
     bun link      # links `llm-tests-forge` into bun's global bin directory
 
-`bun link` puts the command in bun's global bin directory, by default `~/.bun/bin`, which must be on your `PATH`; that directory was not verified here.
+`bun link` puts the command in bun's global bin directory, `~/.bun/bin` by default, which must be on your `PATH` (a Homebrew install of bun does not add it).
 
 The forge ships no short alias of its own. If you want one, `alias ltf=llm-tests-forge` in your shell is your choice to make.
 
@@ -165,7 +165,7 @@ Every exec-style shim answers on stdout, so your application must log to stderr.
 
 `init` adds a block to `AGENTS.md` that points an agent at `llm-tests-forge status` and `llm-tests-forge guide`. The rule in that manual is the important one: approving is the person's job, so an agent never marks anything approved by editing a file and never runs `review` for you.
 
-A Claude Code skill (`plugin/skills/llm-tests-forge/`) is a thin pointer to the same manual. The install command is `/plugin marketplace add albertosca/llm-tests-forge`, and it works once the repository is public. `claude plugin validate` passes for the marketplace and the plugin, but loading the skill from the marketplace is not verified.
+A Claude Code skill (`plugin/skills/llm-tests-forge/`) is a thin pointer to the same manual. The install command is `/plugin marketplace add albertosca/llm-tests-forge`, and it works once the repository is public. Until then, `/plugin marketplace add <path to your clone>` installs it from a local checkout.
 
 ### What to commit under `.forge/`
 

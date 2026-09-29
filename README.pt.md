@@ -19,7 +19,7 @@ Requer o [bun](https://bun.sh) 1.4 ou mais recente. Ainda não está publicado e
     bun install
     bun link      # liga o `llm-tests-forge` ao diretório bin global do bun
 
-O `bun link` coloca o comando no diretório bin global do bun, por padrão `~/.bun/bin`, que precisa estar no seu `PATH`; esse diretório não foi verificado aqui.
+O `bun link` coloca o comando no diretório bin global do bun, `~/.bun/bin` por padrão, que precisa estar no seu `PATH` (o bun instalado pelo Homebrew não o acrescenta).
 
 A forja não traz um alias curto próprio. Se quiser um, `alias ltf=llm-tests-forge` no seu shell é escolha sua.
 
@@ -165,7 +165,7 @@ Todo shim do tipo exec responde na stdout, então a sua aplicação precisa loga
 
 O `init` adiciona ao `AGENTS.md` um bloco que aponta um agente para `llm-tests-forge status` e `llm-tests-forge guide`. A regra desse manual é a que importa: aprovar é trabalho da pessoa, então um agente nunca marca nada como aprovado editando um arquivo e nunca roda o `review` por você.
 
-Uma skill do Claude Code (`plugin/skills/llm-tests-forge/`) é um ponteiro fino para o mesmo manual. O comando de instalação é `/plugin marketplace add albertosca/llm-tests-forge`, e ele funciona quando o repositório for público. O `claude plugin validate` passa para o marketplace e para o plugin, mas carregar a skill a partir do marketplace não foi verificado.
+Uma skill do Claude Code (`plugin/skills/llm-tests-forge/`) é um ponteiro fino para o mesmo manual. O comando de instalação é `/plugin marketplace add albertosca/llm-tests-forge`, e ele funciona quando o repositório for público. Até lá, `/plugin marketplace add <caminho do seu clone>` a instala a partir de um checkout local.
 
 ### O que commitar dentro de `.forge/`
 
