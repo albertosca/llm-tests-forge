@@ -897,6 +897,8 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 		);
 		expect(out.at(-1)).toContain("--force");
 		expect(out.at(-1)).toContain(featurePath);
+		// No project, so there is nothing to register it in.
+		expect(out.at(-1)).not.toContain("not registered");
 		expect(await readFile(featurePath, "utf8")).toBe(before);
 		expect((await stat(featurePath)).mtime.getTime()).toBe(LONG_AGO.getTime());
 	});
@@ -911,6 +913,38 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 		).toBe(0);
 		expect(out.at(-1)).toContain("written as pending");
 		expect((await readFeature(join(cwd, ".forge"))).status).toBe("pending");
+	});
+
+	test("in a project, the refusal for a reviewed suite that is not registered says how to register it; a registered one does not", async () => {
+		// A suite copied in before init: reviewed, but not in forge.yaml.
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/kept]\n",
+		);
+		for (const name of ["classify", "kept"])
+			await cp(
+				"examples/moonlighter-extract-questions/.forge",
+				join(root, "evals", name, ".forge"),
+				{ recursive: true },
+			);
+		const describeIn = async (directory: string): Promise<string[]> => {
+			const lines: string[] = [];
+			expect(
+				await main(["describe", "--drafter", MODEL, "anything"], {
+					cwd: directory,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(1);
+			return lines;
+		};
+		const unregistered = await describeIn(join(root, "evals", "classify"));
+		expect(unregistered.join("\n")).toContain(
+			"re-run with --force to replace it. This suite is not registered in forge.yaml: to register it without describing it again, add its path to suites: in forge.yaml (for example `suites: [evals/classify]`, or a `- evals/classify` line under suites:)",
+		);
+		const registered = await describeIn(join(root, "evals", "kept"));
+		expect(registered.join("\n")).toContain("re-run with --force");
+		expect(registered.join("\n")).not.toContain("not registered");
 	});
 
 	test("a still-pending feature is not reviewed work, so re-describing over it is allowed", async () => {
@@ -5382,6 +5416,9 @@ describe("main(): the suite and the project", () => {
 		).toBe(2);
 		expect(unregistered.join("\n")).toContain(
 			'error: suite "evals/zzz" is not registered in',
+		);
+		expect(unregistered.join("\n")).toContain(
+			"registered: evals/a. If it exists, add its path to suites: in forge.yaml (for example `suites: [evals/zzz]`, or a `- evals/zzz` line under suites:)",
 		);
 	});
 

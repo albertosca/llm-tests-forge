@@ -7,6 +7,7 @@ import {
 	type Project,
 	readProject,
 	registeredSuiteNames,
+	registrationHint,
 } from "./project";
 
 export interface Resolution {
@@ -43,7 +44,7 @@ export async function resolveSuite(options: {
 	);
 	if (found === undefined)
 		throw new UsageError(
-			`suite "${options.suite}" is not registered in ${project.file}; registered: ${registeredSuiteNames(project)}`,
+			`suite "${options.suite}" is not registered in ${project.file}; registered: ${registeredSuiteNames(project)}. If it exists, ${registrationHint(options.suite)}`,
 		);
 	return { forgeDirectory: join(found.directory, ".forge"), project };
 }

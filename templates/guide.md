@@ -14,7 +14,7 @@ When the pipeline reaches a review, stop and ask the person to run `llm-tests-fo
 
 llm-tests-forge forges regression suites for LLM features: a person describes what a function does, the forge drafts scenarios and cases with a model, the person reviews every draft, and `emit` turns the approved cases into a promptfoo config. This manual is embedded in the installed binary, so it matches the installed version.
 
-- `forge.yaml` at the project root lists the suites. Each suite is a directory with a `.forge/` inside it.
+- `forge.yaml` at the project root lists the suites. Each suite is a directory with a `.forge/` inside it. `describe` registers a new suite; a suite that already existed (copied in, or made before `init`) is registered by no verb: add its path to `suites:` in `forge.yaml` by hand (for example `suites: [evals/classify]`).
 - `llm-tests-forge status` says what exists: one line per suite with its counts, last run and any version warning. `llm-tests-forge status --json` prints the same for a program.
 - `--suite <path>` (path relative to the project root) runs a verb on a registered suite from anywhere inside the project; otherwise the verb uses the suite of the current directory.
 - No `forge.yaml` yet: `llm-tests-forge init` detects the language, writes it, and adds a block about the forge to `AGENTS.md`.
@@ -86,7 +86,7 @@ then `llm-tests-forge report results.json`. promptfoo exits with status 100 when
 `forge.yaml` (project root):
 
 - `language`: the project's language.
-- `suites`: the suite directories, relative to the project root.
+- `suites`: the suite directories, relative to the project root. `describe` adds a new one; an existing suite is added by hand.
 - `defaults.drafter`: the drafter model, as `provider/model`.
 - `defaults.target_models`: the models the suites' application runs on.
 - `defaults.judges`: the models that judge rubric asserts.

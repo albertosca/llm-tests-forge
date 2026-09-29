@@ -31,7 +31,7 @@ Rode estes comandos de dentro do projeto cuja funcionalidade de LLM você está 
 
     llm-tests-forge init
 
-Detecta a linguagem do projeto, escreve o `forge.yaml` na raiz e adiciona ao `AGENTS.md` um bloco sobre a forja (criando o arquivo se não houver). `--language` sobrescreve a detecção. Num projeto que já tem `forge.yaml`, o `init` o deixa intocado e só atualiza o bloco do `AGENTS.md`, então `--language` não faz nada ali. O `forge.yaml` lista as suítes e guarda os padrões; ele nasce com `suites: []` e os padrões comentados, e o `describe` acrescenta cada suíte nova à lista. Um já preenchido fica assim:
+Detecta a linguagem do projeto, escreve o `forge.yaml` na raiz e adiciona ao `AGENTS.md` um bloco sobre a forja (criando o arquivo se não houver). `--language` sobrescreve a detecção. Num projeto que já tem `forge.yaml`, o `init` o deixa intocado e só atualiza o bloco do `AGENTS.md`, então `--language` não faz nada ali. O `forge.yaml` lista as suítes e guarda os padrões; ele nasce com `suites: []` e os padrões comentados, e o `describe` acrescenta cada suíte nova à lista. Uma suíte que já existia (copiada de outro lugar, ou criada antes do `init`) não é acrescentada por nenhum verbo: escreva o caminho dela em `suites:` você mesmo (por exemplo `suites: [evals/classify]`). Um já preenchido fica assim:
 
     # forge.yaml
     version: 1

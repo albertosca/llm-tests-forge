@@ -108,6 +108,14 @@ export async function readProject(root: string): Promise<Project> {
 	return { root, file, config, text, suites, problems };
 }
 
+/**
+ * How to register a suite that already exists (copied in, or made before
+ * `init`): there is no verb for it, so the messages that meet one say this.
+ */
+export function registrationHint(entry: string): string {
+	return `add its path to suites: in ${PROJECT_FILE} (for example \`suites: [${entry}]\`, or a \`- ${entry}\` line under suites:)`;
+}
+
 /** The registered entries for messages: "evals/a, evals/b", or "none yet". */
 export function registeredSuiteNames(project: Project): string {
 	return project.suites.length === 0

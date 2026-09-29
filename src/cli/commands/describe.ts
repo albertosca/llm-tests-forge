@@ -9,7 +9,11 @@ import {
 	writeFeature,
 	writeSuite,
 } from "../../core/files";
-import { registerSuite } from "../../core/project";
+import {
+	PROJECT_FILE,
+	registerSuite,
+	registrationHint,
+} from "../../core/project";
 import { DEFAULT_ENTRY } from "../../core/target";
 import type { CliContext } from "../context";
 
@@ -29,8 +33,18 @@ async function refuseToOverwriteReviewedFeature(
 	if (force) return;
 	const existing = await readFeatureIfPresent(context.forgeDirectory);
 	if (existing === undefined || existing.status === "pending") return;
+	// A suite made before init (or copied in) is reviewed but unregistered,
+	// and this refusal is where registering it through describe dead-ends.
+	const registration =
+		context.project === null
+			? null
+			: registerSuite(context.project, dirname(context.forgeDirectory));
+	const unregistered =
+		registration === null
+			? ""
+			: `. This suite is not registered in ${PROJECT_FILE}: to register it without describing it again, ${registrationHint(registration.entry)}`;
 	throw new ForgeError(
-		`feature "${existing.id}" is already ${existing.status}; describe would overwrite the reviewed description and its invariants — re-run with --force to replace it`,
+		`feature "${existing.id}" is already ${existing.status}; describe would overwrite the reviewed description and its invariants — re-run with --force to replace it${unregistered}`,
 		{ file: forgePaths(context.forgeDirectory).feature, id: existing.id },
 	);
 }

@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { UsageError } from "../../core/errors";
-import { PROJECT_FILE } from "../../core/project";
+import { PROJECT_FILE, registrationHint } from "../../core/project";
 import {
 	renderStatusLine,
 	type SuiteStatus,
@@ -65,7 +65,7 @@ export async function statusCommand(
 		problems.length === 0
 	) {
 		context.stdout(
-			`no suites registered in ${context.project.file}; run llm-tests-forge describe in a new directory to start one`,
+			`no suites registered in ${context.project.file}; run llm-tests-forge describe in a new directory to start one, or, for a suite that already exists, ${registrationHint("evals/<function>")}`,
 		);
 		return;
 	}

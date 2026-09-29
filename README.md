@@ -31,7 +31,7 @@ Run these from inside the project whose LLM feature you are testing.
 
     llm-tests-forge init
 
-Detects the project's language, writes `forge.yaml` at the project root, and adds a block about the forge to `AGENTS.md` (creating the file if there is none). `--language` overrides the detection. On a project that already has a `forge.yaml`, `init` leaves it untouched and only refreshes the `AGENTS.md` block, so `--language` does nothing there. `forge.yaml` lists the suites and holds the defaults; it starts with `suites: []` and the defaults commented out, and `describe` adds each new suite to the list. A filled-in one looks like this:
+Detects the project's language, writes `forge.yaml` at the project root, and adds a block about the forge to `AGENTS.md` (creating the file if there is none). `--language` overrides the detection. On a project that already has a `forge.yaml`, `init` leaves it untouched and only refreshes the `AGENTS.md` block, so `--language` does nothing there. `forge.yaml` lists the suites and holds the defaults; it starts with `suites: []` and the defaults commented out, and `describe` adds each new suite to the list. A suite that already existed (copied in, or made before `init`) is added by no verb: write its path under `suites:` yourself (for example `suites: [evals/classify]`). A filled-in one looks like this:
 
     # forge.yaml
     version: 1
