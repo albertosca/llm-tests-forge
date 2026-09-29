@@ -158,7 +158,7 @@
       Powered byWorkable
   expected:
     rubric: 'Does the output list, in page order: First name, Last name, Email, Phone, Photo, Resume, Desired Monthly Salary in USD, Country of Residence, the "During this application process I agree to use only my own words…" statement as single_select with options Yes and No, "I have advanced English skills…", "Do you have experience as a contractor?", "How long have your worked with Javascript?", "How long have you worked with React?", "Have you worked with Vue.js?", "Do you have experience with B2B SaaS, multi-tenant platforms, hospitality or travel?", "Do you have experience with React Native?" — with labels copied without their required/optional markers (so "Photo", not "Photo (Optional)"), required true for every field preceded by the "*" line and required false for Photo, and nothing from the EEO footer or the "Autofill application" banner?'
-  status: pending
+  status: approved
   generated_by: import:real-pages.jsonl
 - id: imported-03
   scenario: imported
@@ -187,5 +187,5 @@
       Checkbox: Inform me about upcoming career opportunities at Flywheel Motion
   expected:
     rubric: 'Does the output list, in page order: Your name, Email, LinkedIn URL with required false (labels come without their "(optional)" markers), City, Country as a choice question with the listed countries as options, Your CV (file), Hourly rate range (USD), "How did you hear about us?" as a choice question with its listed options and required false, "Who referred you? (their name)", Website, and the career-opportunities checkbox as boolean — with the task description and the helper sentences under City, Your CV and Hourly rate not listed as questions?'
-  status: pending
+  status: approved
   generated_by: import:real-pages.jsonl

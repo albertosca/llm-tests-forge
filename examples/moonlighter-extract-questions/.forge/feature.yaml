@@ -22,4 +22,4 @@ invariants:
   - questions is the whole list, in page order, each item with label, kind, required and options; an expected value names the complete list.
   - options is empty for kinds other than single_select and multi_select.
 prompt_file: prompt.txt
-status: pending
+status: approved

@@ -102,7 +102,7 @@
           kind: boolean
           required: false
           options: []
-  status: pending
+  status: approved
   generated_by: anthropic/claude-sonnet-5
 - id: portuguese-application-form-02
   scenario: portuguese-application-form
@@ -206,7 +206,7 @@
           kind: boolean
           required: false
           options: []
-  status: pending
+  status: approved
   generated_by: anthropic/claude-sonnet-5
 - id: portuguese-application-form-03
   scenario: portuguese-application-form
@@ -310,7 +310,7 @@
           kind: boolean
           required: false
           options: []
-  status: pending
+  status: approved
   generated_by: anthropic/claude-sonnet-5
 - id: portuguese-application-form-04
   scenario: portuguese-application-form
@@ -407,5 +407,5 @@
           kind: boolean
           required: false
           options: []
-  status: pending
+  status: approved
   generated_by: anthropic/claude-sonnet-5
