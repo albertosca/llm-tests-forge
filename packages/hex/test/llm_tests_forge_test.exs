@@ -10,13 +10,18 @@ defmodule LlmTestsForgeTest do
                "darwin-x64"
 
       assert LlmTestsForge.platform_key({:unix, :linux}, ~c"x86_64-pc-linux-gnu") == "linux-x64"
-      assert LlmTestsForge.platform_key({:unix, :linux}, ~c"aarch64-unknown-linux-gnu") == "linux-arm64"
+
+      assert LlmTestsForge.platform_key({:unix, :linux}, ~c"aarch64-unknown-linux-gnu") ==
+               "linux-arm64"
+
       assert LlmTestsForge.platform_key({:win32, :nt}, ~c"win32") == "win32-x64"
     end
 
     test "keeps an unknown architecture as it is, so the message names it" do
       assert LlmTestsForge.platform_key({:unix, :linux}, ~c"i686-pc-linux-gnu") == "linux-i686"
-      assert LlmTestsForge.platform_key({:unix, :freebsd}, ~c"amd64-portbld-freebsd14.0") == "freebsd-x64"
+
+      assert LlmTestsForge.platform_key({:unix, :freebsd}, ~c"amd64-portbld-freebsd14.0") ==
+               "freebsd-x64"
     end
   end
 

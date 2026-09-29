@@ -9,15 +9,30 @@ from pathlib import Path
 
 REPOSITORY_URL = "https://github.com/albertosca/llm-tests-forge"
 
+# Python's spellings of an architecture, and the name the npm package and
+# every other package give it (darwin-arm64, linux-x64, win32-x64).
+ARCHITECTURE_NAMES = {
+    "x86_64": "x64",
+    "amd64": "x64",
+    "arm64": "arm64",
+    "aarch64": "arm64",
+}
+
 
 def binary_path() -> Path:
     name = "llm-tests-forge.exe" if sys.platform == "win32" else "llm-tests-forge"
     return Path(__file__).parent / "bin" / name
 
 
+def platform_name(system_platform: str = sys.platform, machine: str = "") -> str:
+    """This platform as the npm package names it: <sys.platform>-<architecture>."""
+    architecture = (machine or platform.machine()).lower()
+    return f"{system_platform}-{ARCHITECTURE_NAMES.get(architecture, architecture)}"
+
+
 def missing_binary_message() -> str:
     return (
-        f"llm-tests-forge has no binary for {sys.platform}-{platform.machine().lower()}; "
+        f"llm-tests-forge has no binary for {platform_name()}; "
         f"see {REPOSITORY_URL} for install.sh"
     )
 

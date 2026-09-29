@@ -146,7 +146,14 @@ describe("assembleRelease", () => {
 			`version: "${FORGE_VERSION}"`,
 		);
 		expect((await readdir(join(out, "hex"))).sort()).toEqual(
-			["checksums.exs", "checksums.exs.tmpl", "lib", "mix.exs", "test"].sort(),
+			[
+				".formatter.exs",
+				"checksums.exs",
+				"checksums.exs.tmpl",
+				"lib",
+				"mix.exs",
+				"test",
+			].sort(),
 		);
 		expect(checksumsExs).not.toContain("stale");
 		expect(

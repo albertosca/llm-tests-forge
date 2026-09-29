@@ -12,10 +12,7 @@ import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { buildBinaries } from "../../scripts/release/build-binaries";
-import {
-	RELEASE_TARGETS,
-	type ReleaseTarget,
-} from "../../scripts/release/targets";
+import { RELEASE_TARGETS } from "../../scripts/release/targets";
 import { PYPI_MANIFESTS, stampVersion } from "../../scripts/release/version";
 import { renderWheels } from "../../scripts/release/wheels";
 import { FORGE_VERSION } from "../../src/core/version";
@@ -141,13 +138,6 @@ function withoutForgeWheelVariables(): Record<string, string | undefined> {
 	return environment;
 }
 
-/** Python's spelling of this machine's architecture, as `platform.machine()` lowercased reports it. */
-function pythonMachine(target: ReleaseTarget): string {
-	if (target.npmCpu === "x64")
-		return process.platform === "win32" ? "amd64" : "x86_64";
-	return process.platform === "darwin" ? "arm64" : "aarch64";
-}
-
 describe.skipIf(!packages)("pypi wheels", () => {
 	test("the host wheel installed into a temporary venv runs the binary through the console entry", async () => {
 		const paths = await installedVenv();
@@ -253,6 +243,35 @@ describe.skipIf(!packages)("pypi wheels", () => {
 		expect(missingBinary.stderr).toContain("FORGE_WHEEL_BINARY is not set");
 	}, 600_000);
 
+	test("the unsupported message names the platform the way the npm package does, for every spelling Python reports", async () => {
+		const paths = await installedVenv();
+		const { work } = await builtWheels();
+		// [sys.platform, platform.machine(), the name in the message]
+		const cases: [string, string, string][] = [
+			["darwin", "arm64", "darwin-arm64"],
+			["darwin", "x86_64", "darwin-x64"],
+			["linux", "x86_64", "linux-x64"],
+			["linux", "aarch64", "linux-arm64"],
+			["win32", "AMD64", "win32-x64"],
+			["linux", "i686", "linux-i686"],
+		];
+		for (const [systemPlatform, machine, name] of cases)
+			expect(
+				(
+					await mustRun(
+						[
+							paths.python,
+							"-c",
+							"import sys, llm_tests_forge; print(llm_tests_forge.platform_name(sys.argv[1], sys.argv[2]))",
+							systemPlatform,
+							machine,
+						],
+						work,
+					)
+				).trim(),
+			).toBe(name);
+	}, 600_000);
+
 	test("with the binary removed from the installed package, the entry names the platform and the install script and exits 1", async () => {
 		if (HOST === undefined) throw new Error("this machine is not a target");
 		const paths = await installedVenv();
@@ -269,7 +288,7 @@ describe.skipIf(!packages)("pypi wheels", () => {
 		expect(await run([paths.entry, "--version"], work)).toEqual({
 			exitCode: 1,
 			stdout: "",
-			stderr: `llm-tests-forge has no binary for ${process.platform}-${pythonMachine(HOST)}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`,
+			stderr: `llm-tests-forge has no binary for ${process.platform}-${process.arch}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`,
 		});
 	}, 600_000);
 });

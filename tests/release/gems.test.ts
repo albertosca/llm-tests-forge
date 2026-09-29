@@ -100,6 +100,23 @@ describe("the gem manifest", () => {
 	});
 });
 
+describe("the gem package directory", () => {
+	test("the binaries a gemspec run copies under exe/<platform>/ are ignored by the repository, and the shim is not", () => {
+		const ignored = (path: string) =>
+			Bun.spawnSync(["git", "check-ignore", "--quiet", "--no-index", path], {
+				cwd: REPOSITORY,
+			}).exitCode;
+		for (const target of RELEASE_TARGETS)
+			expect({
+				target: target.gemPlatform,
+				exitCode: ignored(
+					`packages/gem/exe/${target.gemPlatform}/llm-tests-forge`,
+				),
+			}).toEqual({ target: target.gemPlatform, exitCode: 0 });
+		expect(ignored("packages/gem/exe/llm-tests-forge")).toBe(1);
+	});
+});
+
 describe("gems", () => {
 	test("one gem build per target with that target's platform and binary in the variables, gems returned in target order", async () => {
 		const tool = await fakeGemTool();

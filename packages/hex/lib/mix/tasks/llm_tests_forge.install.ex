@@ -27,7 +27,10 @@ defmodule Mix.Tasks.LlmTestsForge.Install do
       Mix.shell().info("#{LlmTestsForge.binary_path()} is already installed")
     else
       path = LlmTestsForge.install!(fn line -> Mix.shell().info(line) end)
-      Mix.shell().info("Run it with `mix llm_tests_forge <arguments>` or directly: #{path} <arguments>")
+
+      Mix.shell().info(
+        "Run it with `mix llm_tests_forge <arguments>` or directly: #{path} <arguments>"
+      )
     end
   end
 end

@@ -160,18 +160,8 @@ async function installedGemDirectory(home: string): Promise<string> {
 	return listing.trim();
 }
 
-/** Ruby's spelling of the platform in the shim's message: `os-cpu` of Gem::Platform.local. */
-async function localPlatformName(directory: string): Promise<string> {
-	const output = await mustRun(
-		[
-			"ruby",
-			"-e",
-			'local = Gem::Platform.local; print "#{local.os}-#{local.cpu}"',
-		],
-		directory,
-	);
-	return output.trim();
-}
+/** This machine as the npm package names it (darwin-arm64, linux-x64, win32-x64): the name every package's message uses. */
+const NPM_PLATFORM_NAME = `${process.platform}-${process.arch}`;
 
 async function rubyOutput(
 	program: string,
@@ -231,7 +221,7 @@ describe.skipIf(!packages)("rubygems gems", () => {
 		expect(await run(["ruby", shim, "--version"], work, environment)).toEqual({
 			exitCode: 1,
 			stdout: "",
-			stderr: `llm-tests-forge has no binary for ${await localPlatformName(work)}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`,
+			stderr: `llm-tests-forge has no binary for ${NPM_PLATFORM_NAME}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`,
 		});
 	}, 600_000);
 
@@ -244,7 +234,7 @@ describe.skipIf(!packages)("rubygems gems", () => {
 		expect(await run([entry, "--version"], work, environment)).toEqual({
 			exitCode: 1,
 			stdout: "",
-			stderr: `llm-tests-forge has no binary for ${await localPlatformName(work)}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`,
+			stderr: `llm-tests-forge has no binary for ${NPM_PLATFORM_NAME}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`,
 		});
 	}, 600_000);
 
@@ -347,6 +337,32 @@ describe.skipIf(!packages)("rubygems gems", () => {
 		);
 		// The layout holds no .exe, so the Windows lookup finds nothing rather than a Unix binary.
 		expect(windows.stdout).toBe("none");
+	}, 600_000);
+
+	test("the unsupported message names the platform the way the npm package does, for every platform RubyGems reports", async () => {
+		const { work } = await builtGems();
+		// [local platform as RubyGems reports it, the name in the message]
+		const cases: [string, string][] = [
+			["arm64-darwin-25", "darwin-arm64"],
+			["x86_64-darwin-23", "darwin-x64"],
+			["x86_64-linux", "linux-x64"],
+			["aarch64-linux", "linux-arm64"],
+			["x64-mingw-ucrt", "win32-x64"],
+			["x86_64-freebsd", "freebsd-x64"],
+			["x86-linux", "linux-x86"],
+		];
+		for (const [local, name] of cases) {
+			const finished = await rubyOutput(
+				`print LlmTestsForge.missing_binary_message(local_platform: Gem::Platform.new(${JSON.stringify(local)}))`,
+				work,
+			);
+			expect({ local, ...finished }).toEqual({
+				local,
+				exitCode: 0,
+				stdout: `llm-tests-forge has no binary for ${name}; see https://github.com/albertosca/llm-tests-forge for install.sh`,
+				stderr: "",
+			});
+		}
 	}, 600_000);
 
 	test("the shim replaces itself with the binary, so the binary's own exit status comes through", async () => {

@@ -576,6 +576,41 @@ describe("the Ruby lint in CI", () => {
 			]),
 		);
 	});
+
+	for (const { script, command, setup } of [
+		{
+			script: "lint:elixir",
+			command: "cd packages/hex && mix format --check-formatted",
+			setup: "erlef/setup-beam@v1",
+		},
+		{
+			script: "lint:python",
+			command: "uvx ruff@0.16.9 format --check packages/pypi",
+			setup: "astral-sh/setup-uv@v6",
+		},
+	])
+		test(`lint.yml has a job that runs ${script} (${command}) after ${setup}`, async () => {
+			const manifest = JSON.parse(
+				await readFile(join(REPOSITORY, "package.json"), "utf8"),
+			);
+			expect(manifest.scripts[script]).toBe(command);
+			const lint = await readWorkflow(LINT_WORKFLOW);
+			const jobs = Object.values(lint.jobs).filter((job) =>
+				job.steps.some((step) => step.run === `bun run ${script}`),
+			);
+			expect(jobs).toHaveLength(1);
+			const steps = jobs[0]?.steps.map((step) => step.uses ?? step.run) ?? [];
+			expect(steps.indexOf(setup)).toBeGreaterThanOrEqual(0);
+			expect(steps.indexOf(setup)).toBeLessThan(
+				steps.indexOf(`bun run ${script}`),
+			);
+		});
+
+	test("the Hex package has a formatter config covering lib, test and mix.exs", async () => {
+		expect(
+			await readFile(join(REPOSITORY, "packages/hex/.formatter.exs"), "utf8"),
+		).toContain('inputs: ["{mix,.formatter}.exs", "{lib,test}/**/*.{ex,exs}"]');
+	});
 });
 
 const actionlint = Bun.which("actionlint");

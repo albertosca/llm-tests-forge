@@ -6,8 +6,21 @@ require "rubygems"
 module LlmTestsForge
   REPOSITORY_URL = "https://github.com/albertosca/llm-tests-forge"
   EXECUTABLES_DIRECTORY = File.expand_path("../exe", __dir__)
+  # RubyGems' spellings of an architecture and an operating system, and the
+  # names the npm package and every other package give them (darwin-arm64,
+  # linux-x64, win32-x64).
+  ARCHITECTURE_NAMES = { "x86_64" => "x64", "x64" => "x64", "amd64" => "x64", "arm64" => "arm64",
+                         "aarch64" => "arm64" }.freeze
+  OPERATING_SYSTEM_NAMES = { "mingw" => "win32", "mswin" => "win32", "mswin64" => "win32" }.freeze
 
   module_function
+
+  # The platform as the npm package names it: <operating system>-<architecture>.
+  def platform_name(local_platform = Gem::Platform.local)
+    operating_system = OPERATING_SYSTEM_NAMES.fetch(local_platform.os, local_platform.os)
+    architecture = ARCHITECTURE_NAMES.fetch(local_platform.cpu, local_platform.cpu)
+    "#{operating_system}-#{architecture}"
+  end
 
   def binary_file_name(windows: Gem.win_platform?)
     windows ? "llm-tests-forge.exe" : "llm-tests-forge"
@@ -29,7 +42,7 @@ module LlmTestsForge
   end
 
   def missing_binary_message(local_platform: Gem::Platform.local)
-    "llm-tests-forge has no binary for #{local_platform.os}-#{local_platform.cpu}; see #{REPOSITORY_URL} for install.sh"
+    "llm-tests-forge has no binary for #{platform_name(local_platform)}; see #{REPOSITORY_URL} for install.sh"
   end
 
   # Runs the binary as a child and returns its exit status. The shim stays

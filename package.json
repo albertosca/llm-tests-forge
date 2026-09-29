@@ -11,6 +11,8 @@
 		"test": "bun test",
 		"lint": "biome check .",
 		"lint:ruby": "cd packages/gem && ruby -wc lib/llm_tests_forge.rb exe/llm-tests-forge llm-tests-forge.gemspec && rubocop",
+		"lint:elixir": "cd packages/hex && mix format --check-formatted",
+		"lint:python": "uvx ruff@0.16.9 format --check packages/pypi",
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit",
 		"build:binary": "bun build --compile src/cli/bin.ts --outfile dist/llm-tests-forge",

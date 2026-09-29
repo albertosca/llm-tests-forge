@@ -19,7 +19,15 @@ defmodule Mix.Tasks.LlmTestsForgeTest do
 
     test "review --all asks nothing, so it is not refused, with or without --suite" do
       refute Task.interactive_review?(["review", "--scenario", "billing", "--all"])
-      refute Task.interactive_review?(["--suite", "evals/extract", "review", "--all", "--scenario", "billing"])
+
+      refute Task.interactive_review?([
+               "--suite",
+               "evals/extract",
+               "review",
+               "--all",
+               "--scenario",
+               "billing"
+             ])
     end
 
     test "other verbs, and a suite path spelled review, are not the review" do
