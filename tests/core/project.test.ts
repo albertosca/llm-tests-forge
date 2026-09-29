@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
@@ -9,17 +9,94 @@ import {
 	readProject,
 	registeredSuiteNames,
 	registerSuite,
+	registrationHint,
 } from "../../src/core/project";
 import { projectWith } from "../helpers/project";
 
+// The null case needs a parent with no forge.yaml anywhere above it; a machine
+// that has one (a forge.yaml in the home directory or /tmp) cannot prove it.
+const sandbox = await mkdtemp(join(tmpdir(), "forge-sandbox-"));
+const machineHasProjectFileAbove = (await findProjectRoot(sandbox)) !== null;
+
 describe("forge.yaml", () => {
-	test("findProjectRoot walks up to the nearest forge.yaml and returns null at the filesystem root", async () => {
-		const root = await mkdtemp(join(tmpdir(), "forge-project-"));
-		await writeFile(join(root, "forge.yaml"), projectFileText("python"));
+	test("findProjectRoot walks up to the nearest forge.yaml", async () => {
+		const parent = await mkdtemp(join(sandbox, "walk-"));
+		const root = join(parent, "root");
 		await mkdir(join(root, "evals", "a", "deep"), { recursive: true });
+		await writeFile(join(root, "forge.yaml"), projectFileText("python"));
 		expect(await findProjectRoot(join(root, "evals", "a", "deep"))).toBe(root);
-		const outside = await mkdtemp(join(tmpdir(), "forge-noproject-"));
-		expect(await findProjectRoot(outside)).toBeNull();
+	});
+	test.skipIf(machineHasProjectFileAbove)(
+		"findProjectRoot returns null from a sibling of a root, under a parent with no forge.yaml above it (skipped when this machine has a forge.yaml above the temporary directory)",
+		async () => {
+			const parent = await mkdtemp(join(sandbox, "sibling-"));
+			await mkdir(join(parent, "root"));
+			await writeFile(
+				join(parent, "root", "forge.yaml"),
+				projectFileText("python"),
+			);
+			await mkdir(join(parent, "sibling", "deep"), { recursive: true });
+			expect(await findProjectRoot(join(parent, "sibling", "deep"))).toBeNull();
+		},
+	);
+	test("the registration hint offers only forms that parse: the flow form on init's own file, the block line on a block list", async () => {
+		const hint = registrationHint("evals/classify");
+		expect(hint).toBe(
+			"add its path to suites: in forge.yaml (for example `suites: [evals/classify]`, or, when suites is already a block list, add a `  - evals/classify` line)",
+		);
+		expect(hint).not.toContain("under suites:");
+		const flowForm = projectFileText("python").replace(
+			"suites: []",
+			"suites: [evals/classify]",
+		);
+		expect(parse(flowForm).suites).toEqual(["evals/classify"]);
+		const blockList = "version: 1\nlanguage: python\nsuites:\n  - evals/a\n";
+		const withLine = `${blockList}  - evals/classify\n`;
+		expect(parse(withLine).suites).toEqual(["evals/a", "evals/classify"]);
+		const project = await readProject(await projectWith(withLine));
+		expect(project.suites.map((suite) => suite.entry)).toEqual([
+			"evals/a",
+			"evals/classify",
+		]);
+	});
+	test("registerSuite keeps init's flow list a flow list, with no blank line", async () => {
+		const project = await readProject(
+			await projectWith(projectFileText("python")),
+		);
+		expect(registerSuite(project, join(project.root, "evals", "b"))?.text).toBe(
+			projectFileText("python").replace("suites: []", "suites: [evals/b]"),
+		);
+	});
+	test("registerSuite keeps a commented flow list a flow list, comments kept", async () => {
+		const project = await readProject(
+			await projectWith(
+				"# mine\nversion: 1\nlanguage: go\nsuites: [evals/a] # mine\n",
+			),
+		);
+		expect(registerSuite(project, join(project.root, "evals", "b"))?.text).toBe(
+			"# mine\nversion: 1\nlanguage: go\nsuites: [evals/a, evals/b] # mine\n",
+		);
+	});
+	test("registerSuite keeps a block list a block list, comments kept", async () => {
+		const project = await readProject(
+			await projectWith(
+				"# mine\nversion: 1\nlanguage: go\nsuites:\n  # the first\n  - evals/a # a\n  - evals/c\n\ndefaults: {}\n",
+			),
+		);
+		expect(registerSuite(project, join(project.root, "evals", "b"))?.text).toBe(
+			"# mine\nversion: 1\nlanguage: go\nsuites:\n  # the first\n  - evals/a # a\n  - evals/c\n  - evals/b\n\ndefaults: {}\n",
+		);
+	});
+	test("registerSuite does not register a symlinked suite directory twice", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: go\nsuites:\n  - evals/real\n",
+		);
+		await mkdir(join(root, "evals", "real"), { recursive: true });
+		await symlink(join(root, "evals", "real"), join(root, "evals", "link"));
+		const project = await readProject(root);
+		expect(registerSuite(project, join(root, "evals", "link"))).toBeNull();
+		const other = registerSuite(project, join(root, "evals", "other"));
+		expect(other?.entry).toBe("evals/other");
 	});
 	test("readProject keeps the good suites and reports each bad entry by name, without throwing", async () => {
 		const root = await projectWith(
