@@ -8,7 +8,7 @@
  */
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { buildBinaries } from "../../scripts/release/build-binaries";
@@ -16,6 +16,7 @@ import {
 	RELEASE_TARGETS,
 	type ReleaseTarget,
 } from "../../scripts/release/targets";
+import { PYPI_MANIFESTS, stampVersion } from "../../scripts/release/version";
 import { renderWheels } from "../../scripts/release/wheels";
 import { FORGE_VERSION } from "../../src/core/version";
 
@@ -182,6 +183,39 @@ describe.skipIf(!packages)("pypi wheels", () => {
 		expect(finished.stderr).toContain(
 			"dependency is incompatible with the current platform",
 		);
+	}, 600_000);
+
+	test("a prerelease version (0.1.0-rc.1) is built by real uv under the PEP 440 name renderWheels predicts", async () => {
+		if (HOST === undefined) throw new Error("this machine is not a target");
+		const work = await mkdtemp(join(tmpdir(), "forge-pypi-prerelease-"));
+		workDirectories.push(work);
+		const root = join(work, "root");
+		await cp(join(REPOSITORY, "packages/pypi"), join(root, "packages/pypi"), {
+			recursive: true,
+		});
+		await writeFile(
+			join(root, "package.json"),
+			'{ "version": "0.1.0-rc.1" }\n',
+		);
+		await stampVersion(root, PYPI_MANIFESTS);
+		const binaries = join(work, "binaries");
+		await mkdir(binaries);
+		await writeFile(join(binaries, HOST.assetName), "a stand-in binary\n");
+		const written = await renderWheels(
+			binaries,
+			join(work, "wheels"),
+			root,
+			"uv",
+			[HOST],
+		);
+		expect(written).toEqual([
+			join(
+				work,
+				"wheels",
+				`llm_tests_forge-0.1.0rc1-py3-none-${HOST.wheelTag}.whl`,
+			),
+		]);
+		expect(await Bun.file(written[0] ?? "").exists()).toBe(true);
 	}, 600_000);
 
 	test("the build refuses to run without the platform variable, then without the binary variable, naming each", async () => {

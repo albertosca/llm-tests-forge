@@ -9,7 +9,7 @@ import { renderFormula } from "./homebrew-formula";
 import { renderNpmPackages } from "./npm-packages";
 import { CHECKSUMS_FILE_NAME, RELEASE_TARGETS } from "./targets";
 import { checkVersions, releaseVersion } from "./version";
-import { renderWheels } from "./wheels";
+import { pep440Version, renderWheels } from "./wheels";
 
 const REPOSITORY_ROOT = resolve(import.meta.dir, "../..");
 
@@ -57,6 +57,8 @@ export async function assembleRelease(
 			`not stamped with ${version} (run release:stamp): ${stale.map(({ path, found }) => `${path} has ${found ?? "no version"}`).join(", ")}`,
 			{ file: join(root, stale[0]?.path ?? "package.json") },
 		);
+	// A version the wheels cannot carry is refused before anything is written.
+	pep440Version(version);
 	for (const target of RELEASE_TARGETS)
 		await chmod(join(binariesDirectory, target.assetName), 0o755);
 	const absoluteOut = resolve(outDirectory);

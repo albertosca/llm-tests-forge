@@ -19,6 +19,7 @@ import {
 	CHECKSUMS_FILE_NAME,
 	RELEASE_TARGETS,
 } from "../../scripts/release/targets";
+import { stampVersion } from "../../scripts/release/version";
 import { wheelFileName } from "../../scripts/release/wheels";
 import { ForgeError, UsageError } from "../../src/core/errors";
 import { FORGE_VERSION } from "../../src/core/version";
@@ -54,8 +55,16 @@ async function rootCopy(version = FORGE_VERSION): Promise<string> {
 	return root;
 }
 
-/** A stand-in for `uv` or `gem` that writes the file the real `--out-dir`/`--output` would name. */
-async function fakeTools(): Promise<{ uvCommand: string; gemCommand: string }> {
+/**
+ * A stand-in for `uv` or `gem` that writes the file the real
+ * `--out-dir`/`--output` would name. `wheelVersion` is the version as uv
+ * spells it in the wheel name: the PEP 440 form, which for a prerelease is
+ * not package.json's (uv writes 0.1.0-rc.1 as 0.1.0rc1, measured by the
+ * package test in tests/packages/pypi.test.ts).
+ */
+async function fakeTools(
+	wheelVersion = FORGE_VERSION,
+): Promise<{ uvCommand: string; gemCommand: string }> {
 	const directory = await mkdtemp(join(tmpdir(), "forge-assemble-tools-"));
 	const uvCommand = join(directory, "uv");
 	await writeFile(
@@ -66,7 +75,7 @@ async function fakeTools(): Promise<{ uvCommand: string; gemCommand: string }> {
 			'  if [ "$1" = "--out-dir" ]; then out_directory="$2"; fi',
 			"  shift",
 			"done",
-			`touch "$out_directory/llm_tests_forge-${FORGE_VERSION}-py3-none-$FORGE_WHEEL_PLATFORM.whl"`,
+			`touch "$out_directory/llm_tests_forge-${wheelVersion}-py3-none-$FORGE_WHEEL_PLATFORM.whl"`,
 			"",
 		].join("\n"),
 	);
@@ -186,6 +195,73 @@ describe("assembleRelease", () => {
 		await expect(
 			assembleRelease(binaries, out, { ...(await fakeTools()) }),
 		).rejects.toThrow(`${missing} (missing)`);
+	});
+
+	test("a prerelease version (0.1.0-rc.1, what a v0.1.0-rc.1 tag requires) goes through every renderer", async () => {
+		const version = "0.1.0-rc.1";
+		const root = await rootCopy(version);
+		await stampVersion(root);
+		const out = await mkdtemp(join(tmpdir(), "forge-assemble-out-"));
+		await assembleRelease(await fakeBinaries(), out, {
+			...(await fakeTools("0.1.0rc1")),
+			root,
+		});
+		expect((await readdir(join(out, "wheels"))).sort()).toEqual(
+			RELEASE_TARGETS.map(
+				(target) => `llm_tests_forge-0.1.0rc1-py3-none-${target.wheelTag}.whl`,
+			).sort(),
+		);
+		expect((await readdir(join(out, "gems"))).sort()).toEqual(
+			RELEASE_TARGETS.map((target) => gemFileName(version, target)).sort(),
+		);
+		const mainManifest = JSON.parse(
+			await readFile(join(out, "npm/main/package.json"), "utf8"),
+		);
+		expect(mainManifest.version).toBe(version);
+		expect(Object.values(mainManifest.optionalDependencies)).toEqual(
+			RELEASE_TARGETS.map(() => version),
+		);
+		for (const target of RELEASE_TARGETS)
+			expect(
+				JSON.parse(
+					await readFile(
+						join(out, "npm", platformDirectoryName(target), "package.json"),
+						"utf8",
+					),
+				).version,
+			).toBe(version);
+		expect(await readFile(join(out, "hex/mix.exs"), "utf8")).toContain(
+			`version: "${version}"`,
+		);
+		expect(await readFile(join(out, "hex/checksums.exs"), "utf8")).toContain(
+			version,
+		);
+		const formula = await readFile(
+			join(out, "homebrew/llm-tests-forge.rb"),
+			"utf8",
+		);
+		expect(formula).toContain(`  version "${version}"\n`);
+		expect(formula).toContain(
+			`https://github.com/albertosca/llm-tests-forge/releases/download/v${version}/llm-tests-forge-darwin-arm64`,
+		);
+	});
+
+	test("refuses a version the wheels cannot carry before writing any package", async () => {
+		const root = await rootCopy("0.1.0-next.1");
+		await stampVersion(root);
+		const out = join(
+			await mkdtemp(join(tmpdir(), "forge-assemble-out-")),
+			"assembled",
+		);
+		await expect(
+			assembleRelease(await fakeBinaries(), out, {
+				...(await fakeTools()),
+				root,
+			}),
+		).rejects.toThrow("version 0.1.0-next.1 has a prerelease label");
+		expect(await Bun.file(join(out, "npm/main/package.json")).exists()).toBe(
+			false,
+		);
 	});
 
 	test("refuses when a manifest is not stamped with package.json's version, naming it", async () => {

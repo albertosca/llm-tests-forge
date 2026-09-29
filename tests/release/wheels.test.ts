@@ -14,13 +14,15 @@ import {
 	checkVersions,
 	MANIFESTS,
 	PYPI_MANIFESTS,
+	stampVersion,
 } from "../../scripts/release/version";
 import {
+	pep440Version,
 	renderWheels,
 	runWheels,
 	wheelFileName,
 } from "../../scripts/release/wheels";
-import { UsageError } from "../../src/core/errors";
+import { ForgeError, UsageError } from "../../src/core/errors";
 import { FORGE_VERSION } from "../../src/core/version";
 
 const REPOSITORY = resolve(import.meta.dir, "../..");
@@ -106,6 +108,37 @@ describe("the pypi manifest", () => {
 	});
 });
 
+describe("pep440Version", () => {
+	test("a release version is unchanged, and each semver prerelease takes the PEP 440 spelling", () => {
+		expect(pep440Version("0.1.0")).toBe("0.1.0");
+		expect(pep440Version("12.30.4")).toBe("12.30.4");
+		expect(pep440Version("0.1.0-rc.1")).toBe("0.1.0rc1");
+		expect(pep440Version("0.1.0-rc1")).toBe("0.1.0rc1");
+		expect(pep440Version("0.2.0-alpha.3")).toBe("0.2.0a3");
+		expect(pep440Version("0.2.0-beta.12")).toBe("0.2.0b12");
+	});
+
+	test("a prerelease label PEP 440 cannot express is refused, naming the version and the label", () => {
+		for (const [version, label] of [
+			["0.1.0-next.1", "next.1"],
+			["0.1.0-rc", "rc"],
+			["0.1.0-rc.1.2", "rc.1.2"],
+			["0.1.0+build.5", "+build.5"],
+		] as const)
+			expect(() => pep440Version(version)).toThrow(
+				new ForgeError(
+					`version ${version} has a prerelease label PEP 440 cannot express (${label}); use -alpha.N, -beta.N or -rc.N`,
+				),
+			);
+	});
+
+	test("a version that is not MAJOR.MINOR.PATCH is refused, naming it", () => {
+		expect(() => pep440Version("1.2")).toThrow(
+			new ForgeError("version 1.2 is not MAJOR.MINOR.PATCH"),
+		);
+	});
+});
+
 describe("wheels", () => {
 	test("one uv build per target with that target's tag and binary in the variables, wheels returned in target order", async () => {
 		const tool = await fakeUvTool();
@@ -135,6 +168,12 @@ describe("wheels", () => {
 		);
 	});
 
+	test("the wheel file name of a prerelease carries the PEP 440 spelling uv writes", () => {
+		expect(wheelFileName("0.1.0-rc.1", FIRST_TARGET)).toBe(
+			"llm_tests_forge-0.1.0rc1-py3-none-macosx_11_0_arm64.whl",
+		);
+	});
+
 	test("a pyproject.toml left at another version refuses the build, naming it and the stamp command", async () => {
 		const root = await rootWithWheelPackage("9.9.9");
 		const tool = await fakeUvTool();
@@ -143,6 +182,16 @@ describe("wheels", () => {
 		).rejects.toThrow(
 			`not stamped with 9.9.9 (run release:stamp): packages/pypi/pyproject.toml has ${FORGE_VERSION}`,
 		);
+		expect(await Bun.file(tool.calls).exists()).toBe(false);
+	});
+
+	test("a version whose prerelease label PEP 440 cannot express is refused before any build runs", async () => {
+		const root = await rootWithWheelPackage("0.1.0-next.1");
+		await stampVersion(root, PYPI_MANIFESTS);
+		const tool = await fakeUvTool();
+		await expect(
+			renderWheels(await fakeBinaries(), join(root, "out"), root, tool.command),
+		).rejects.toThrow("version 0.1.0-next.1 has a prerelease label");
 		expect(await Bun.file(tool.calls).exists()).toBe(false);
 	});
 

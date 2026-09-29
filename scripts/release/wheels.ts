@@ -7,9 +7,38 @@ import { checkVersions, PYPI_MANIFESTS, releaseVersion } from "./version";
 
 const REPOSITORY_ROOT = resolve(import.meta.dir, "../..");
 
+/** The semver prerelease labels a wheel version can carry, and PEP 440's spelling of each. */
+const PEP_440_PRERELEASES: Record<string, string> = {
+	alpha: "a",
+	beta: "b",
+	rc: "rc",
+};
+
+/**
+ * The PEP 440 form of a semver release version, as uv writes it in the
+ * wheel's file name: `0.1.0-rc.1` becomes `0.1.0rc1`, `-alpha.N` becomes
+ * `aN`, `-beta.N` becomes `bN`, and a plain `X.Y.Z` stays as it is. Any
+ * other label is refused naming it, since the wheel would not carry the
+ * version the tag names.
+ */
+export function pep440Version(version: string): string {
+	const parts = /^(\d+\.\d+\.\d+)(.*)$/.exec(version);
+	if (parts === null)
+		throw new ForgeError(`version ${version} is not MAJOR.MINOR.PATCH`);
+	const [, release = "", suffix = ""] = parts;
+	if (suffix === "") return release;
+	const prerelease = /^-(alpha|beta|rc)\.?(\d+)$/.exec(suffix);
+	const label = prerelease?.[1];
+	if (prerelease === null || label === undefined)
+		throw new ForgeError(
+			`version ${version} has a prerelease label PEP 440 cannot express (${suffix.replace(/^-/, "")}); use -alpha.N, -beta.N or -rc.N`,
+		);
+	return `${release}${PEP_440_PRERELEASES[label]}${prerelease[2]}`;
+}
+
 /** The file name `uv build --wheel` gives the wheel of one target. */
 export function wheelFileName(version: string, target: ReleaseTarget): string {
-	return `llm_tests_forge-${version}-py3-none-${target.wheelTag}.whl`;
+	return `llm_tests_forge-${pep440Version(version)}-py3-none-${target.wheelTag}.whl`;
 }
 
 /**
@@ -33,6 +62,8 @@ export async function renderWheels(
 			{ file: join(root, stale[0]?.path ?? "package.json") },
 		);
 	const version = await releaseVersion(root);
+	// A version the wheel cannot carry is refused before anything is built.
+	pep440Version(version);
 	for (const target of targets) {
 		const source = join(binariesDirectory, target.assetName);
 		if (!(await Bun.file(source).exists()))

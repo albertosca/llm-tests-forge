@@ -8,15 +8,16 @@
  */
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { buildBinaries } from "../../scripts/release/build-binaries";
-import { renderGems } from "../../scripts/release/gems";
+import { gemFileName, renderGems } from "../../scripts/release/gems";
 import {
 	RELEASE_TARGETS,
 	type ReleaseTarget,
 } from "../../scripts/release/targets";
+import { GEM_MANIFESTS, stampVersion } from "../../scripts/release/version";
 import { FORGE_VERSION } from "../../src/core/version";
 
 const packages = process.env.FORGE_PACKAGES === "1";
@@ -245,6 +246,41 @@ describe.skipIf(!packages)("rubygems gems", () => {
 			stdout: "",
 			stderr: `llm-tests-forge has no binary for ${await localPlatformName(work)}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`,
 		});
+	}, 600_000);
+
+	test("a prerelease version (0.1.0-rc.1) is built by real gem into a gem RubyGems reads as 0.1.0.pre.rc.1", async () => {
+		if (HOST === undefined) throw new Error("this machine is not a target");
+		const work = await mkdtemp(join(tmpdir(), "forge-gem-prerelease-"));
+		workDirectories.push(work);
+		const root = join(work, "root");
+		await cp(join(REPOSITORY, "packages/gem"), join(root, "packages/gem"), {
+			recursive: true,
+		});
+		await writeFile(
+			join(root, "package.json"),
+			'{ "version": "0.1.0-rc.1" }\n',
+		);
+		await stampVersion(root, GEM_MANIFESTS);
+		const binaries = join(work, "binaries");
+		await mkdir(binaries);
+		await writeFile(join(binaries, HOST.assetName), "a stand-in binary\n");
+		const [gem] = await renderGems(binaries, join(work, "gems"), root, "gem", [
+			HOST,
+		]);
+		expect(gem).toBe(join(work, "gems", gemFileName("0.1.0-rc.1", HOST)));
+		expect(
+			(
+				await mustRun(
+					[
+						"ruby",
+						"-e",
+						'require "rubygems/package"; print Gem::Package.new(ARGV.fetch(0)).spec.version',
+						gem ?? "",
+					],
+					work,
+				)
+			).trim(),
+		).toBe("0.1.0.pre.rc.1");
 	}, 600_000);
 
 	test("the gemspec refuses to build without the platform variable, then without the binary variable, naming each", async () => {
