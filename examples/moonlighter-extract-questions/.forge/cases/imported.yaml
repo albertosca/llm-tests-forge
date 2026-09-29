@@ -80,7 +80,9 @@
       Privacy PolicySecurityVulnerability Disclosure
 
       O menu 1Password está disponível. Pressione a seta para baixo para selecionar.
-  status: pending
+  expected:
+    rubric: "Does the output list, in page order: Name, Email, Location, Resume (file), \"How did you hear about ElevenLabs?\" as single_select with its eight options copied verbatim (I'm a user … Other (please specify)), \"If other, please specify below\", \"Link to your Github profile\", \"Link to your LinkedIn profile\", and the four open questions (Why ElevenLabs, and why now?; What's the most impactful thing you've built?…; How did you know it worked?…; Have you used ElevenLabs…?) — with Name present as its own field, every required false (the page shows no marker), and nothing taken from the 1Password line or the footer? Listing the \"Autofill from resume\" upload is acceptable either way."
+  status: approved
   generated_by: import:real-pages.jsonl
 - id: imported-02
   scenario: imported
@@ -154,7 +156,9 @@
       Help
       Actividade
       Powered byWorkable
-  status: pending
+  expected:
+    rubric: 'Does the output list, in page order: First name, Last name, Email, Phone, Photo, Resume, Desired Monthly Salary in USD, Country of Residence, the "During this application process I agree to use only my own words…" statement as single_select with options Yes and No, "I have advanced English skills…", "Do you have experience as a contractor?", "How long have your worked with Javascript?", "How long have you worked with React?", "Have you worked with Vue.js?", "Do you have experience with B2B SaaS, multi-tenant platforms, hospitality or travel?", "Do you have experience with React Native?" — with required true for every field preceded by the "*" line, required false for Photo (Optional), and nothing from the EEO footer or the "Autofill application" banner?'
+  status: approved
   generated_by: import:real-pages.jsonl
 - id: imported-03
   scenario: imported
@@ -181,5 +185,7 @@
       Who referred you? (their name)
       Website
       Checkbox: Inform me about upcoming career opportunities at Flywheel Motion
-  status: pending
+  expected:
+    rubric: 'Does the output list, in page order: Your name, Email, LinkedIn URL (optional) with required false, City, Country as a choice question with the listed countries as options, Your CV (file), Hourly rate range (USD), "How did you hear about us? (optional)" as a choice question with its listed options and required false, "Who referred you? (their name)", Website, and the career-opportunities checkbox as boolean — with the task description and the helper sentences under City, Your CV and Hourly rate not listed as questions?'
+  status: approved
   generated_by: import:real-pages.jsonl
