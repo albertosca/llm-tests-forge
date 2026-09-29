@@ -25,41 +25,59 @@ function listLineNumbers(numbers: number[]): string {
 	return `${numbers.slice(0, -1).join(", ")} and ${last}`;
 }
 
-/** A code fence opener or closer: three or more backticks or tildes at the start of a line. */
+interface Fence {
+	character: string;
+	length: number;
+}
+
+/** A code fence opener or closer: three or more backticks or tildes, indented at most three spaces (four is indented code). */
 function fenceOf(
 	line: string,
 ): { character: string; length: number; rest: string } | null {
-	const match = /^(`{3,}|~{3,})(.*)$/.exec(line.trimStart());
+	const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line.replace(/\r$/, ""));
 	const run = match?.[1];
 	if (match === null || run === undefined) return null;
 	return { character: run.charAt(0), length: run.length, rest: match[2] ?? "" };
+}
+
+/** The fence state after `line`: opened, closed, or unchanged. */
+function nextFence(fence: Fence | null, line: string): Fence | null {
+	const found = fenceOf(line);
+	if (found === null) return fence;
+	if (fence === null)
+		return { character: found.character, length: found.length };
+	const closes =
+		found.character === fence.character &&
+		found.length >= fence.length &&
+		found.rest.trim() === "";
+	return closes ? null : fence;
+}
+
+/** True when a fence opens and never closes: CommonMark would call the rest of the file code, but a person never meant that. */
+function endsInsideFence(lines: string[]): boolean {
+	let fence: Fence | null = null;
+	for (const line of lines) fence = nextFence(fence, line);
+	return fence !== null;
 }
 
 /**
  * The complete start/end pairs in `lines`, in order. A marker out of place
  * (an end with nothing open, a start left open) is refused by line number:
  * guessing which half was meant would rewrite text the person wrote. A
- * marker inside a fenced code block is quoted text, not the block.
+ * marker inside a closed fenced code block is quoted text, not the block; a
+ * fence still open at the end of the file is not a fence, so nothing is
+ * skipped.
  */
 function findBlocks(file: string, lines: string[]): MarkedBlock[] {
 	const blocks: MarkedBlock[] = [];
 	let openAt: number | null = null;
-	let fence: { character: string; length: number } | null = null;
+	let fence: Fence | null = null;
+	const honorFences = !endsInsideFence(lines);
 	for (const [index, line] of lines.entries()) {
-		const found = fenceOf(line);
-		if (fence !== null) {
-			if (
-				found !== null &&
-				found.character === fence.character &&
-				found.length >= fence.length &&
-				found.rest.trim() === ""
-			)
-				fence = null;
-			continue;
-		}
-		if (found !== null) {
-			fence = { character: found.character, length: found.length };
-			continue;
+		if (honorFences) {
+			const before = fence;
+			fence = nextFence(fence, line);
+			if (before !== null || fence !== null) continue;
 		}
 		const marker = line.trim();
 		if (marker === AGENTS_START) {
@@ -98,7 +116,8 @@ export function planAgentsBlock(
 	const lines = existing.split("\n");
 	const blocks = findBlocks(file, lines);
 	if (blocks.length === 0) {
-		const ending = existing.includes("\r\n") ? "\r\n" : "\n";
+		const lastBreak = existing.lastIndexOf("\n");
+		const ending = existing.charAt(lastBreak - 1) === "\r" ? "\r\n" : "\n";
 		const kept = existing.replace(/(\r?\n)+$/, "");
 		return {
 			text: `${kept}${ending}${ending}${block.split("\n").join(ending)}${ending}`,

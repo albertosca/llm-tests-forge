@@ -85,13 +85,41 @@ describe("upsertAgentsBlock", () => {
 		}
 	});
 	test("a fence closes only with the same character and at least as many of them", () => {
-		const stillOpen = `\`\`\`\`\n~~~\n\`\`\`\n${AGENTS_END}\n`;
+		const stillOpen = `\`\`\`\`\n~~~\n\`\`\`\n${AGENTS_END}\n\`\`\`\`\n`;
 		expect(upsertAgentsBlock("AGENTS.md", stillOpen)).toBe(
 			`${stillOpen}\n${block}\n`,
 		);
 		const closedThenReal = `~~~ text\n${AGENTS_END}\n~~~\n${AGENTS_END}\n`;
 		expect(() => upsertAgentsBlock("AGENTS.md", closedThenReal)).toThrow(
 			"AGENTS.md line 4 closes an llm-tests-forge block that was never opened",
+		);
+	});
+	test("a fence still open at the end of the file is not a fence: the real pair after it is replaced, and a second run keeps one block", () => {
+		const pair = `${AGENTS_START}\nold\n${AGENTS_END}\n`;
+		for (const fence of ["```", "~~~"]) {
+			const existing = `# t\n${fence}\ncode\n${pair}`;
+			const first = planAgentsBlock("AGENTS.md", existing);
+			expect(first.replaced).toBe(true);
+			expect(first.text).toBe(`# t\n${fence}\ncode\n${block}\n`);
+			const second = planAgentsBlock("AGENTS.md", first.text);
+			expect(second.text).toBe(first.text);
+			expect(second.text.split(AGENTS_START).length - 1).toBe(1);
+		}
+	});
+	test("a fence indented four spaces is indented code, not a fence: it does not hide the pair", () => {
+		const existing = `# t\n    \`\`\`\n${AGENTS_START}\nold\n${AGENTS_END}\n`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`# t\n    \`\`\`\n${block}\n`);
+		const threeSpaces = `   \`\`\`\n${AGENTS_START}\n${AGENTS_END}\n   \`\`\`\n`;
+		expect(planAgentsBlock("AGENTS.md", threeSpaces).replaced).toBe(false);
+	});
+	test("appending takes the line ending of the last line, not of any line", () => {
+		expect(upsertAgentsBlock("AGENTS.md", "a\nb\r\nc\n")).toBe(
+			`a\nb\r\nc\n\n${block}\n`,
+		);
+		expect(upsertAgentsBlock("AGENTS.md", "a\r\nb\nc\r\n")).toBe(
+			`a\r\nb\nc\r\n\r\n${block.split("\n").join("\r\n")}\r\n`,
 		);
 	});
 	test("planAgentsBlock says replaced only when a real pair was found", () => {

@@ -207,11 +207,30 @@ describe("init through main()", () => {
 		const directory = await directoryWith(["go.mod"]);
 		await writeFile(join(directory, "AGENTS.md"), "# Agents\n");
 		await chmod(join(directory, "AGENTS.md"), 0o444);
-		const { status, lines } = await runInit(directory);
-		expect(status).toBe(1);
-		expect(lines[0]).toContain("AGENTS.md");
-		expect(await exists(join(directory, "forge.yaml"))).toBe(false);
-		await chmod(join(directory, "AGENTS.md"), 0o644);
+		try {
+			const { status, lines } = await runInit(directory);
+			expect(status).toBe(1);
+			expect(lines[0]).toContain("AGENTS.md");
+			expect(await exists(join(directory, "forge.yaml"))).toBe(false);
+		} finally {
+			await chmod(join(directory, "AGENTS.md"), 0o644);
+		}
+	});
+
+	test("init with an unclosed fence before a real pair, run twice, keeps exactly one block", async () => {
+		const directory = await directoryWith(["go.mod"]);
+		await writeFile(
+			join(directory, "AGENTS.md"),
+			`# t\n\`\`\`\ncode\n${AGENTS_START}\nold\n${AGENTS_END}\n`,
+		);
+		const first = await runInit(directory);
+		expect(first.lines[1]).toBe(
+			"init: updated the llm-tests-forge block in AGENTS.md",
+		);
+		await runInit(directory);
+		expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
+			`# t\n\`\`\`\ncode\n${agentsBlock()}\n`,
+		);
 	});
 
 	test("a directory named like a manifest is not a manifest", async () => {
