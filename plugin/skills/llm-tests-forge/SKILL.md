@@ -1,6 +1,6 @@
 ---
 name: llm-tests-forge
-description: Use when the person wants tests, evals or a regression suite for an LLM feature, prompt or function in this project, or asks what LLM tests exist — "create LLM tests for this function", "add an eval suite", "test this prompt", "what evals do we have", "cria testes pra essa função", "testa esse prompt", "monta a suíte de evals". Works through the llm-tests-forge command.
+description: Use when the person wants tests, evals or a regression suite for an LLM feature, an LLM prompt, or a function that calls an LLM in this project, or asks what LLM evals exist — "create LLM tests for this function", "add an LLM eval suite for this feature", "test this LLM prompt", "what LLM evals do we have", "cria testes de LLM pra essa função", "testa esse prompt de LLM", "monta a suíte de evals do LLM". Not for ordinary unit tests of code that does not call an LLM, nor for questions about promptfoo itself. Works through the llm-tests-forge command.
 ---
 
 # llm-tests-forge

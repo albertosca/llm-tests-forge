@@ -40,7 +40,7 @@ export const USAGE = `usage: llm-tests-forge <verb> [options]
   help | --help, version | --version
 drafter: --drafter provider/model, FORGE_DRAFTER, or defaults.drafter in forge.yaml; providers: anthropic, google, openai, ollama, fake/<file>`;
 
-const COMMANDS: Record<
+export const COMMANDS: Record<
 	string,
 	(commandArguments: string[], context: CliContext) => Promise<void>
 > = {

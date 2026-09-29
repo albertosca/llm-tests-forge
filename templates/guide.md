@@ -2,7 +2,13 @@
 
 ## The rule
 
-Above all, approving is the person's job. Never set `status: approved`, `edited` or `rejected` by editing a YAML file under `.forge/`, and never drive `llm-tests-forge review` on the person's behalf. When the pipeline reaches a review, stop and ask the person to run `llm-tests-forge review` (or `llm-tests-forge review --suite <path>`), then continue when they say it is done.
+Above all, approving is the person's job. Never set `status: approved`, `edited` or `rejected` by editing a YAML file under `.forge/`, and never drive `llm-tests-forge review` on the person's behalf. Also never:
+
+- edit the content of an item that is already `approved` or `edited` (`expected`, `invariants`, a scenario's text) so that it stays approved without the person seeing the change;
+- run `llm-tests-forge describe --force`, which replaces the person's reviewed feature and invariants: ask the person instead;
+- run `llm-tests-forge review --all`, which approves in bulk.
+
+When the pipeline reaches a review, stop and ask the person to run `llm-tests-forge review` (or `llm-tests-forge review --suite <path>`), then continue when they say it is done.
 
 ## Where things are
 
@@ -19,7 +25,7 @@ llm-tests-forge forges regression suites for LLM features: a person describes wh
 
 ## The pipeline
 
-describe, review, scenarios, review, cases, review, dedupe (optional), emit, fill the shim, run promptfoo, report.
+describe, review, scenarios, review, cases, dedupe (optional), review, emit, fill the shim, run promptfoo, report. `dedupe` comes before the last review because it only touches pending cases (it skips approved and edited ones): it groups pending duplicates for the person to review.
 
 - These call the drafter and cost money: `describe`, `scenarios`, `cases`, `dedupe`.
 - These cost nothing: `review`, `estimate`, `emit`, `report`.
@@ -27,17 +33,17 @@ describe, review, scenarios, review, cases, review, dedupe (optional), emit, fil
 
 ## Filling the shim
 
-`emit` writes the file below once and never overwrites it. Fill in the one function named.
+`emit` writes the file below once and never overwrites it. Every shim lives in `.forge/<entry>` (the default names below; `target.entry` in `suite.yaml` renames it). Fill in the one function named.
 
 - **python:** `forge_target.py`, fill `run_application`. `target.python` in `suite.yaml` sets the interpreter promptfoo runs, which must be able to import the project's code.
 - **javascript:** `forge_target.mjs`, fill `runApplication`.
 - **typescript:** `forge_target.ts`, which promptfoo loads directly; fill `runApplication`.
 - **elixir:** `forge_target.exs`, fill `run_application/2`. It runs through `mix run` from the mix project and needs Elixir 1.18 or newer for JSON. Run `mix compile` before the first run.
 - **ruby:** `forge_target.rb`, fill `run_application`.
-- **rust:** the `forge_target/` crate (`Cargo.toml` and `src/main.rs`). Uncomment the dependency on the project's crate, fill `run_application`, and build once with `cargo build --release` inside `forge_target/`.
-- **go:** the `forge_target/` module (`go.mod` and `main.go`). Uncomment the `require` and `replace` lines, fill `runApplication`, and build once with `GOWORK=off go build -o forge_target .` inside `forge_target/`.
-- **exec:** nothing is written. `suite.yaml` names the program in `target.command`.
-- **http:** nothing is written. `suite.yaml` has `target.url`, and optionally `method`, `headers`, `body` (with `{{input}}`) and `response` (an expression over `json`, with no `=>`).
+- **rust:** the `forge_target/` crate (`Cargo.toml` and `src/main.rs`). Uncomment the dependency on the project's crate, fill `run_application`, and build once with `cargo build --release` inside `.forge/forge_target/`.
+- **go:** the `forge_target/` module (`go.mod` and `main.go`). Uncomment the `require` and `replace` lines, fill `runApplication`, and build once with `GOWORK=off go build -o forge_target .` inside `.forge/forge_target/`.
+- **exec:** nothing is written. `suite.yaml` names the program in `target.command`, which runs from `.forge/`, so a relative command is relative to `.forge/`.
+- **http:** nothing is written. `suite.yaml` has `target.url`, and optionally `method`, `headers`, `body` (each of the feature's inputs is available as `{{<input name>}}`; the default body is one key per input) and `response` (an expression over `json`, with no `=>`).
 
 Every exec-style shim answers on stdout, so the application must log to stderr. Compile the project (`mix compile`, `cargo build`, `go build`) before the first run: promptfoo runs cases concurrently, and a first compile racing itself is not verified safe. A shim that fails (a non-zero exit status, or an error it returns) shows as an error row in promptfoo, not as a failed assert.
 
@@ -51,7 +57,7 @@ then `llm-tests-forge report results.json`. promptfoo exits with status 100 when
 
 ## Adding to an existing suite
 
-`llm-tests-forge scenarios --more <n>` drafts more scenarios, `llm-tests-forge cases --scenario <id>` drafts cases for one scenario, and `llm-tests-forge import <file.jsonl>` brings in real inputs. Then ask the person to review.
+`llm-tests-forge scenarios --more <n>` drafts more scenarios, `llm-tests-forge cases --scenario <id>` drafts cases for one scenario, and `llm-tests-forge import <file.jsonl>` brings in real inputs. Ask the person to review the new scenarios before running `cases`, which refuses a pending scenario; review the new cases before `emit`.
 
 ## Every verb
 
@@ -68,8 +74,31 @@ then `llm-tests-forge report results.json`. promptfoo exits with status 100 when
 - `llm-tests-forge report`: promptfoo's `results.json` becomes `.forge/report.md` and `report.json`.
 - `llm-tests-forge status`: every registered suite, with `--json` for agents.
 - `llm-tests-forge guide`: print this manual.
-- `llm-tests-forge help`: the usage summary; `llm-tests-forge version` prints the version.
+- `llm-tests-forge help`: the usage summary.
+- `llm-tests-forge version`: print the installed version.
 
-## Keys and models
+## Keys
+
+`forge.yaml` (project root):
+
+- `language`: the project's language.
+- `suites`: the suite directories, relative to the project root.
+- `defaults.drafter`: the drafter model, as `provider/model`.
+- `defaults.target_models`: the models the suites' application runs on.
+- `defaults.judges`: the models that judge rubric asserts.
+
+`.forge/suite.yaml` (one per suite):
+
+- `target.kind`: one of python, javascript, typescript, elixir, ruby, rust, go, exec, http.
+- `target.entry`: the shim's file or directory inside `.forge/`, when not the default.
+- `target.models`: the models to run the application on.
+- `judges`: the judge models.
+- `repeat`: how many times each case runs.
+- `include`: scenario ids to run; empty means every approved scenario.
+- Kind-specific: `target.python` (interpreter, python), `target.command` (exec), `target.url`, `target.method`, `target.headers`, `target.body`, `target.response` (http), all described above.
+
+How `suite.yaml` comes to exist: `describe` writes a starting one when both `defaults.target_models` and `defaults.judges` are set; otherwise the person writes it, and the error `emit` gives shows an example.
+
+## Models and credentials
 
 The drafter is `--drafter provider/model`, else `FORGE_DRAFTER`, else `defaults.drafter` in `forge.yaml`. Providers are anthropic, google, openai, ollama. Keys come from the environment (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`) first, and `~/.config/<provider>/api.env` is the fallback. Never print a key.

@@ -16,7 +16,7 @@ import { join, resolve } from "node:path";
 import { parse } from "yaml";
 import type { CliContext } from "../../src/cli/context";
 import { createContext } from "../../src/cli/context";
-import { drafterFlag, main, run, USAGE } from "../../src/cli/main";
+import { COMMANDS, drafterFlag, main, run, USAGE } from "../../src/cli/main";
 import {
 	readCases,
 	readFeature,
@@ -5520,8 +5520,28 @@ describe("main(): the suite and the project", () => {
 			.filter((verb): verb is string => verb !== undefined);
 		expect(verbs).toContain("status");
 		expect(verbs).toContain("guide");
-		for (const verb of verbs)
-			expect(guide).toContain(`llm-tests-forge ${verb}`);
+		expect([...verbs].filter((verb) => verb !== "help").sort()).toEqual(
+			Object.keys(COMMANDS).sort(),
+		);
+		const everyVerb = guide.split("## Every verb")[1]?.split("\n## ")[0] ?? "";
+		for (const verb of [...verbs, "version"])
+			expect(everyVerb).toContain(`- \`llm-tests-forge ${verb}\`:`);
+	});
+
+	test("guide prints the manual first and neither warns about nor stamps an old suite", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-guide-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = join(forgeDirectory, "suite.yaml");
+		await writeFile(
+			path,
+			`forge_version: 0.0.1\n${await readFile(path, "utf8")}`,
+		);
+		const before = await readFile(path, "utf8");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["guide"], context)).toBe(0);
+		expect(out).toHaveLength(1);
+		expect(out[0]?.startsWith("# llm-tests-forge")).toBe(true);
+		expect(await readFile(path, "utf8")).toBe(before);
 	});
 
 	test("the skill and the marketplace file have the shape the plugin needs", async () => {

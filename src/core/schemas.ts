@@ -134,7 +134,7 @@ const TargetSchema = z
 		url: z.string().min(1).optional(),
 		method: z.string().min(1).optional(),
 		headers: z.record(z.string(), z.string()).optional(),
-		/** The request body for kind http; `{{input}}` is rendered. Absent → one key per feature input. */
+		/** The request body for kind http; each feature input is available as `{{<input name>}}`. Absent → one key per feature input. */
 		body: z.unknown().optional(),
 		/** An expression over `json` naming the part of the http response that is the output. */
 		response: z.string().min(1).optional(),
