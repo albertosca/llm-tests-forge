@@ -67,19 +67,18 @@ export function compareVersions(
 		if (difference > 0) return "newer";
 	}
 	if (stamped.core[2] !== current.core[2]) return "patch";
-	// Same major.minor.patch: only the prerelease can differ. A stamp below the
-	// installed one (a beta under its release) is the same release line, so it
-	// is silent; a stamp above it (the release under a beta) says to upgrade.
+	// Same major.minor.patch: only the prerelease can differ, and that is never
+	// more than a patch-level difference, so it never warns (the spec warns on
+	// major or minor alone). The never-lowered rule is `isHigherVersion`'s.
 	const difference = comparePrerelease(stamped.prerelease, current.prerelease);
-	if (difference === 0) return "same";
-	return difference < 0 ? "patch" : "newer";
+	return difference === 0 ? "same" : "patch";
 }
 
 /**
  * True when `candidate` is a higher version than `existing` (patch and
  * prerelease included, unlike `compareVersions`; a release is above its
- * prereleases). Anything that is not that
- * shape counts as lowest, so a garbled stamp is always replaceable.
+ * prereleases). Anything that is not that shape counts as lowest, so a
+ * garbled stamp is always replaceable.
  */
 export function isHigherVersion(candidate: string, existing: string): boolean {
 	const higher = parseVersion(candidate);

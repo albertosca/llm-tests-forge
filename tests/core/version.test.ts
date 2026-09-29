@@ -24,10 +24,10 @@ describe("compareVersions", () => {
 	});
 	test("a prerelease is below its release: a difference in the same release line, never older or newer by minor", () => {
 		expect(compareVersions("0.1.0-beta.1", "0.1.0")).toBe("patch");
-		expect(compareVersions("0.1.0", "0.1.0-beta.1")).toBe("newer");
+		expect(compareVersions("0.1.0", "0.1.0-beta.1")).toBe("patch");
 		expect(compareVersions("0.1.0-beta.1", "0.1.0-beta.1")).toBe("same");
 		expect(compareVersions("0.1.0-beta.1", "0.1.0-beta.2")).toBe("patch");
-		expect(compareVersions("0.1.0-beta.2", "0.1.0-beta.1")).toBe("newer");
+		expect(compareVersions("0.1.0-beta.2", "0.1.0-beta.1")).toBe("patch");
 	});
 	test("a prerelease still orders by major and minor against other releases", () => {
 		expect(compareVersions("0.1.0-beta.1", "0.0.9")).toBe("newer");
@@ -77,10 +77,16 @@ describe("versionWarning", () => {
 			"warning: this suite was written by llm-tests-forge 0.5.0, newer than the installed 0.4.1; upgrade llm-tests-forge before changing it",
 		);
 	});
-	test("a prerelease stamp under its release is silent; a release stamp under its prerelease says to upgrade", () => {
+	test("a difference in the prerelease or the patch never warns, whichever way it goes (the spec warns on major or minor alone)", () => {
+		expect(versionWarning("0.1.1", "0.1.0")).toBeNull();
+		expect(versionWarning("0.1.1-beta.1", "0.1.0")).toBeNull();
+		expect(versionWarning("0.1.0", "0.1.0-beta.1")).toBeNull();
+		expect(versionWarning("0.1.0-beta.2", "0.1.0-beta.1")).toBeNull();
 		expect(versionWarning("0.1.0-beta.1", "0.1.0")).toBeNull();
-		expect(versionWarning("0.1.0", "0.1.0-beta.1")).toBe(
-			"warning: this suite was written by llm-tests-forge 0.1.0, newer than the installed 0.1.0-beta.1; upgrade llm-tests-forge before changing it",
+	});
+	test("a minor difference still warns when the stamp is a prerelease", () => {
+		expect(versionWarning("0.2.0-beta.1", "0.1.0")).toBe(
+			"warning: this suite was written by llm-tests-forge 0.2.0-beta.1, newer than the installed 0.1.0; upgrade llm-tests-forge before changing it",
 		);
 	});
 	test("an empty stamp is absent: no warning", () => {
