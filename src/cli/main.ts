@@ -32,7 +32,7 @@ export const USAGE = `usage: llm-tests-forge <verb> [options]
   move --scenario <old> <new> | move --case <id> --to <scenario>
                                                      rename a scenario or move a case between scenarios, rewriting ids
   estimate                                            suite + approved cases -> tokens and dollars per model (no call)
-  emit [--format promptfoo|jsonl]                    approved cases -> .forge/promptfooconfig.yaml + forge_target.py, or cases.jsonl
+  emit [--format promptfoo|jsonl]                    approved cases -> .forge/promptfooconfig.yaml + the target kind's shim, or cases.jsonl
   report <results.json> [--baseline report.json]      promptfoo output -> .forge/report.md + report.json
   status [--json]                                     every registered suite: feature, counts, last run, version warning; --json for agents
   guide                                               print the manual for an agent operating the forge in a project
@@ -278,10 +278,15 @@ export async function main(
 ): Promise<number> {
 	const write = options.stdout ?? console.log;
 	try {
-		const information = argv[0] !== undefined && INFORMATION_VERBS.has(argv[0]);
-		const { rest, suite } = information
+		// The verb is what is left first once --suite and its path are taken
+		// out, so `--suite x --help` is answered like `--help`. A first word
+		// that already is one skips the flag parsing, which could refuse it.
+		const informationFirst =
+			argv[0] !== undefined && INFORMATION_VERBS.has(argv[0]);
+		const { rest, suite } = informationFirst
 			? { rest: argv, suite: undefined }
 			: takeSuiteFlag(argv);
+		const information = rest[0] !== undefined && INFORMATION_VERBS.has(rest[0]);
 		// `init` reads no forge.yaml through the resolution: it creates one, and
 		// a broken one must not stop it from updating AGENTS.md.
 		const initializing = rest[0] === "init";

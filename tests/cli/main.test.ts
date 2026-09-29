@@ -221,6 +221,15 @@ describe("forge CLI end to end (fake provider)", () => {
 		expect(out.join("\n")).toContain("Unknown option '--model'");
 	});
 
+	test("USAGE's emit line names the target kind's shim, not python's file", () => {
+		const emitLine = USAGE.split("\n").find((line) =>
+			line.startsWith("  emit "),
+		);
+		expect(emitLine).toEndWith(
+			"approved cases -> .forge/promptfooconfig.yaml + the target kind's shim, or cases.jsonl",
+		);
+	});
+
 	test("every message that names a command says llm-tests-forge", async () => {
 		expect(USAGE).toStartWith("usage: llm-tests-forge <verb>");
 		expect(USAGE).not.toMatch(
@@ -5528,6 +5537,27 @@ describe("main(): the suite and the project", () => {
 			const lines: string[] = [];
 			expect(
 				await main([word], {
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(0);
+			expect(lines.join("\n")).toContain(expected);
+		}
+	});
+
+	test("help, version and guide after --suite are still answered when forge.yaml is malformed", async () => {
+		const root = await projectWith("version: 2\n");
+		for (const [argv, expected] of [
+			[["--suite", "evals/x", "--help"], "usage: llm-tests-forge"],
+			[["--suite=evals/x", "help"], "usage: llm-tests-forge"],
+			[["--suite", "evals/x", "version"], FORGE_VERSION],
+			[["--suite", "evals/x", "guide"], "approving is the person's job"],
+		] as const) {
+			const lines: string[] = [];
+			expect(
+				await main([...argv], {
 					cwd: root,
 					env: {},
 					stdin: async () => "",
