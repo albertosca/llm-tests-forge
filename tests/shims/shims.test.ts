@@ -12,6 +12,7 @@ import {
 	mkdtemp,
 	readFile,
 	realpath,
+	rm,
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -174,101 +175,150 @@ async function expectOnePassingHello(suiteDirectory: string): Promise<void> {
 	expect(rows[0]?.success).toBe(true);
 }
 
-/** A temporary project with its suite at evals/shout/, emitted. */
-async function emittedProject(
-	target: Suite["target"],
-	application: Record<string, string>,
-): Promise<{ project: string; suite: string; forge: string }> {
-	const project = await realpath(await mkdtemp(join(tmpdir(), "forge-shim-")));
-	const suite = join(project, "evals", "shout");
-	await writeFiles(project, application);
-	await forgeSuite(suite, target);
-	await mustRun(suite, [
-		process.execPath,
-		join(REPOSITORY, "src/cli/bin.ts"),
-		"emit",
-	]);
-	return { project, suite, forge: join(suite, ".forge") };
+interface Project {
+	project: string;
+	suite: string;
+	forge: string;
 }
 
-const MODELS = ["fake/none"];
+/**
+ * A temporary project with its suite at evals/shout/, emitted, handed to
+ * `body` and removed afterwards, pass or fail (with its Cargo target/).
+ */
+async function withProject(
+	target: Suite["target"],
+	application: Record<string, string>,
+	body: (project: Project) => Promise<void>,
+): Promise<void> {
+	const project = await realpath(await mkdtemp(join(tmpdir(), "forge-shim-")));
+	try {
+		const suite = join(project, "evals", "shout");
+		await writeFiles(project, application);
+		await forgeSuite(suite, target);
+		await mustRun(suite, [
+			process.execPath,
+			join(REPOSITORY, "src/cli/bin.ts"),
+			"emit",
+		]);
+		await body({ project, suite, forge: join(suite, ".forge") });
+	} finally {
+		await rm(project, { recursive: true, force: true });
+	}
+}
+
+/**
+ * The model the suite names. Each filled-in shim answers HELLO only when
+ * this model reached it, and "model was <what arrived>" otherwise, so every
+ * passing kind also proves the model travels from suite.yaml to the shim.
+ */
+const MODEL = "fake/model-probe";
+const MODELS = [MODEL];
+
+const ELIXIR_PROJECT = {
+	"mix.exs":
+		'defmodule App.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :app, version: "0.1.0", deps: []]\nend\n',
+	"lib/app.ex":
+		"defmodule App do\n  def shout(text), do: String.upcase(text)\nend\n",
+};
+const ELIXIR_CALL = `if _model == "${MODEL}", do: App.shout(Map.fetch!(_inputs, "text")), else: "model was " <> _model`;
 
 describe.skipIf(!shims)("every target kind against promptfoo 0.123.0", () => {
 	test("python", async () => {
-		const { project, suite, forge } = await emittedProject(
+		await withProject(
 			{ kind: "python", models: MODELS },
 			{ "app.py": "def shout(text):\n    return text.upper()\n" },
+			async ({ project, suite, forge }) => {
+				await fillStub(
+					join(forge, "forge_target.py"),
+					`import sys; sys.path.insert(0, ${JSON.stringify(project)}); from app import shout; return {"output": shout(inputs["text"]) if model == "${MODEL}" else "model was " + model}`,
+				);
+				await expectOnePassingHello(suite);
+			},
 		);
-		await fillStub(
-			join(forge, "forge_target.py"),
-			`import sys; sys.path.insert(0, ${JSON.stringify(project)}); from app import shout; return {"output": shout(inputs["text"])}`,
-		);
-		await expectOnePassingHello(suite);
 	});
 
 	test("javascript", async () => {
-		const { suite, forge } = await emittedProject(
+		await withProject(
 			{ kind: "javascript", models: MODELS },
 			{
 				"app.mjs":
 					"export function shout(text) {\n\treturn text.toUpperCase();\n}\n",
 			},
+			async ({ suite, forge }) => {
+				await fillStub(
+					join(forge, "forge_target.mjs"),
+					`const { shout } = await import("../../../app.mjs"); return { output: model === "${MODEL}" ? shout(inputs.text) : "model was " + model };`,
+				);
+				await expectOnePassingHello(suite);
+			},
 		);
-		await fillStub(
-			join(forge, "forge_target.mjs"),
-			'const { shout } = await import("../../../app.mjs"); return { output: shout(inputs.text) };',
-		);
-		await expectOnePassingHello(suite);
 	});
 
 	test("typescript", async () => {
-		const { suite, forge } = await emittedProject(
+		await withProject(
 			{ kind: "typescript", models: MODELS },
 			{
 				"app.ts":
 					"export function shout(text: string): string {\n\treturn text.toUpperCase();\n}\n",
 			},
+			async ({ suite, forge }) => {
+				await fillStub(
+					join(forge, "forge_target.ts"),
+					`const { shout } = await import("../../../app.ts"); return { output: model === "${MODEL}" ? shout(inputs.text ?? "") : "model was " + model };`,
+				);
+				await expectOnePassingHello(suite);
+			},
 		);
-		await fillStub(
-			join(forge, "forge_target.ts"),
-			'const { shout } = await import("../../../app.ts"); return { output: shout(inputs.text ?? "") };',
-		);
-		await expectOnePassingHello(suite);
 	});
 
 	test("elixir", async () => {
-		const { suite, forge } = await emittedProject(
+		// Not compiled beforehand, as a project just edited is not: the first
+		// case compiles it, and its output must not reach the assert.
+		await withProject(
+			{ kind: "elixir", models: MODELS },
+			ELIXIR_PROJECT,
+			async ({ suite, forge }) => {
+				await fillStub(join(forge, "forge_target.exs"), ELIXIR_CALL);
+				await expectOnePassingHello(suite);
+			},
+		);
+	});
+
+	test("elixir, with an application that logs as it starts and as it answers", async () => {
+		// Logger's default handler writes to standard output under mix run.
+		await withProject(
 			{ kind: "elixir", models: MODELS },
 			{
 				"mix.exs":
-					'defmodule App.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :app, version: "0.1.0", deps: []]\nend\n',
+					'defmodule App.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :app, version: "0.1.0", deps: []]\n  def application, do: [mod: {App.Application, []}, extra_applications: [:logger]]\nend\n',
+				"lib/application.ex":
+					'defmodule App.Application do\n  use Application\n  require Logger\n\n  def start(_type, _args) do\n    Logger.warning("start-up log line")\n    Supervisor.start_link([], strategy: :one_for_one)\n  end\nend\n',
 				"lib/app.ex":
-					"defmodule App do\n  def shout(text), do: String.upcase(text)\nend\n",
+					'defmodule App do\n  require Logger\n\n  def shout(text) do\n    Logger.warning("app log line")\n    String.upcase(text)\n  end\nend\n',
+			},
+			async ({ suite, forge }) => {
+				await fillStub(join(forge, "forge_target.exs"), ELIXIR_CALL);
+				await expectOnePassingHello(suite);
 			},
 		);
-		// Not compiled beforehand, as a project just edited is not: the first
-		// case compiles it, and its output must not reach the assert.
-		await fillStub(
-			join(forge, "forge_target.exs"),
-			'App.shout(Map.fetch!(_inputs, "text"))',
-		);
-		await expectOnePassingHello(suite);
 	});
 
 	test("ruby", async () => {
-		const { suite, forge } = await emittedProject(
+		await withProject(
 			{ kind: "ruby", models: MODELS },
 			{ "app.rb": "def shout(text)\n  text.upcase\nend\n" },
+			async ({ suite, forge }) => {
+				await fillStub(
+					join(forge, "forge_target.rb"),
+					`require_relative "../../../app"; model == "${MODEL}" ? shout(inputs["text"]) : "model was " + model`,
+				);
+				await expectOnePassingHello(suite);
+			},
 		);
-		await fillStub(
-			join(forge, "forge_target.rb"),
-			'require_relative "../../../app"; shout(inputs["text"])',
-		);
-		await expectOnePassingHello(suite);
 	});
 
 	test("rust", async () => {
-		const { suite, forge } = await emittedProject(
+		await withProject(
 			{ kind: "rust", models: MODELS },
 			{
 				"Cargo.toml":
@@ -276,47 +326,61 @@ describe.skipIf(!shims)("every target kind against promptfoo 0.123.0", () => {
 				"src/lib.rs":
 					"pub fn shout(text: &str) -> String {\n    text.to_uppercase()\n}\n",
 			},
+			async ({ suite, forge }) => {
+				const crate = join(forge, "forge_target");
+				await replaceIn(
+					join(crate, "Cargo.toml"),
+					'# my_app = { path = "../../../.." }',
+					'my_app = { path = "../../../.." }',
+				);
+				await fillStub(
+					join(crate, "src", "main.rs"),
+					`if model == "${MODEL}" { Ok(Value::String(my_app::shout(inputs["text"].as_str().unwrap_or("")))) } else { Ok(Value::String(format!("model was {model}"))) }`,
+				);
+				await mustRun(crate, ["cargo", "build", "--release", "--quiet"]);
+				await expectOnePassingHello(suite);
+			},
 		);
-		const crate = join(forge, "forge_target");
-		await replaceIn(
-			join(crate, "Cargo.toml"),
-			'# my_app = { path = "../../../.." }',
-			'my_app = { path = "../../../.." }',
-		);
-		await fillStub(
-			join(crate, "src", "main.rs"),
-			'Ok(Value::String(my_app::shout(inputs["text"].as_str().unwrap_or(""))))',
-		);
-		await mustRun(crate, ["cargo", "build", "--release", "--quiet"]);
-		await expectOnePassingHello(suite);
 	});
 
-	test("go", async () => {
-		const { suite, forge } = await emittedProject(
+	test("go, under a go.work at the project root", async () => {
+		await withProject(
 			{ kind: "go", models: MODELS },
 			{
 				"go.mod": "module example.com/myapp\n\ngo 1.22\n",
+				"go.work": "go 1.22\n\nuse .\n",
 				"shout.go":
 					'package myapp\n\nimport "strings"\n\nfunc Shout(text string) string {\n\treturn strings.ToUpper(text)\n}\n',
 			},
+			async ({ suite, forge }) => {
+				const module = join(forge, "forge_target");
+				await replaceIn(
+					join(module, "go.mod"),
+					"// require example.com/myapp v0.0.0\n// replace example.com/myapp => ../../../..",
+					"require example.com/myapp v0.0.0\nreplace example.com/myapp => ../../../..",
+				);
+				await replaceIn(
+					join(module, "main.go"),
+					'\t"errors"\n',
+					'\t"example.com/myapp"\n',
+				);
+				await fillStub(
+					join(module, "main.go"),
+					`if model != "${MODEL}" { return "model was " + model, nil }; return myapp.Shout(inputs["text"]), nil`,
+				);
+				// The build command emit prints and the templates name.
+				await mustRun(module, [
+					"env",
+					"GOWORK=off",
+					"go",
+					"build",
+					"-o",
+					"forge_target",
+					".",
+				]);
+				await expectOnePassingHello(suite);
+			},
 		);
-		const module = join(forge, "forge_target");
-		await replaceIn(
-			join(module, "go.mod"),
-			"// require example.com/myapp v0.0.0\n// replace example.com/myapp => ../../../..",
-			"require example.com/myapp v0.0.0\nreplace example.com/myapp => ../../../..",
-		);
-		await replaceIn(
-			join(module, "main.go"),
-			'\t"errors"\n',
-			'\t"example.com/myapp"\n',
-		);
-		await fillStub(
-			join(module, "main.go"),
-			'return myapp.Shout(inputs["text"]), nil',
-		);
-		await mustRun(module, ["go", "build", "-o", "forge_target", "."]);
-		await expectOnePassingHello(suite);
 	});
 
 	test("http", async () => {
@@ -335,7 +399,7 @@ describe.skipIf(!shims)("every target kind against promptfoo 0.123.0", () => {
 			},
 		});
 		try {
-			const { suite } = await emittedProject(
+			await withProject(
 				{
 					kind: "http",
 					url: `http://127.0.0.1:${server.port}/shout`,
@@ -343,8 +407,10 @@ describe.skipIf(!shims)("every target kind against promptfoo 0.123.0", () => {
 					models: MODELS,
 				},
 				{},
+				async ({ suite }) => {
+					await expectOnePassingHello(suite);
+				},
 			);
-			await expectOnePassingHello(suite);
 		} finally {
 			server.stop(true);
 		}

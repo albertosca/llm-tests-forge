@@ -3457,8 +3457,71 @@ describe("emit", () => {
 			"exec: ./forge_target/forge_target",
 		);
 		expect(out.at(-1)).toBe(
-			`emit: wrote ${join(forgeDirectory, "forge_target")}; edit runApplication in main.go to call your application, then run \`go build -o forge_target .\` in that directory`,
+			`emit: wrote ${join(forgeDirectory, "forge_target", "go.mod")}, ${join(forgeDirectory, "forge_target", "main.go")}; edit runApplication in main.go to call your application, then run \`GOWORK=off go build -o forge_target .\` in that directory`,
 		);
+	});
+	test("each shim file is kept or written on its own: a go suite switched to rust gets the rust files, a deleted main.go comes back, an untouched shim is all kept", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const shimDirectory = join(forgeDirectory, "forge_target");
+		const goSuite = {
+			...SUITE,
+			target: { kind: "go" as const, models: ["anthropic/claude-haiku-4-5"] },
+		};
+		await writeSuite(forgeDirectory, goSuite);
+		expect(await run(["emit"], (await ctxIn(cwd)).context)).toBe(0);
+		await writeFile(join(shimDirectory, "go.mod"), "// mine\n");
+		const untouched = await ctxIn(cwd);
+		expect(await run(["emit"], untouched.context)).toBe(0);
+		expect(untouched.out.at(-1)).toBe(
+			`emit: kept existing ${join(shimDirectory, "go.mod")}, ${join(shimDirectory, "main.go")}`,
+		);
+		await unlink(join(shimDirectory, "main.go"));
+		const repaired = await ctxIn(cwd);
+		expect(await run(["emit"], repaired.context)).toBe(0);
+		expect(await readFile(join(shimDirectory, "go.mod"), "utf8")).toBe(
+			"// mine\n",
+		);
+		expect(await readFile(join(shimDirectory, "main.go"), "utf8")).toContain(
+			"func runApplication",
+		);
+		expect(repaired.out.at(-1)).toBe(
+			`emit: kept existing ${join(shimDirectory, "go.mod")}; wrote ${join(shimDirectory, "main.go")}; edit runApplication in main.go to call your application, then run \`GOWORK=off go build -o forge_target .\` in that directory`,
+		);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: { kind: "rust", models: ["anthropic/claude-haiku-4-5"] },
+		});
+		const switched = await ctxIn(cwd);
+		expect(await run(["emit"], switched.context)).toBe(0);
+		expect(await readFile(join(shimDirectory, "Cargo.toml"), "utf8")).toContain(
+			"[workspace]",
+		);
+		expect(
+			await readFile(join(shimDirectory, "src", "main.rs"), "utf8"),
+		).toContain("fn run_application");
+		expect(switched.out.at(-1)).toContain(
+			`emit: wrote ${join(shimDirectory, "Cargo.toml")}, ${join(shimDirectory, "src", "main.rs")}; `,
+		);
+	});
+	test("a target.entry holding whitespace is refused before anything is written: promptfoo splits an exec command on it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: {
+				kind: "ruby",
+				entry: "my target.rb",
+				models: ["anthropic/claude-haiku-4-5"],
+			},
+		});
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(1);
+		expect(out.at(-1)).toContain("target.entry must not contain whitespace");
+		expect(out.at(-1)).toContain(join(forgeDirectory, "suite.yaml"));
+		await expect(
+			stat(join(forgeDirectory, "promptfooconfig.yaml")),
+		).rejects.toThrow();
 	});
 	test("elixir runs from the mix project above the suite, and with none is refused before anything is written", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -3481,7 +3544,7 @@ describe("emit", () => {
 			await readFile(join(forgeDirectory, "promptfooconfig.yaml"), "utf8"),
 		);
 		expect(parsedConfig.providers[0].id).toBe(
-			`exec: sh -c 'cd "../../.." && MIX_QUIET=1 mix run "evals/classify/.forge/forge_target.exs" "$@"' forge_target`,
+			`exec: sh -c 'cd "../../.." && MIX_QUIET=1 ELIXIR_ERL_OPTIONS="$ELIXIR_ERL_OPTIONS -logger default_handler [{config,#{type=>standard_error}}]" mix run "evals/classify/.forge/forge_target.exs" "$@"' forge_target`,
 		);
 		expect(
 			await readFile(join(forgeDirectory, "forge_target.exs"), "utf8"),

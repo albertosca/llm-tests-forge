@@ -3,7 +3,8 @@
 //
 // promptfoo runs the built binary from .forge/, once per test case and per
 // target model, with three arguments: the prompt, the provider options as
-// JSON, and the context as JSON. Fill in runApplication.
+// JSON, and the context as JSON. Fill in runApplication, then build it with
+// `GOWORK=off go build -o forge_target .` inside this directory.
 // Standard output is the answer, so log to standard error. A failure (an
 // exception, or exit status 1 with the message on standard error) shows in
 // promptfoo 0.123 as an error row ([ERROR], counted under errors, not under

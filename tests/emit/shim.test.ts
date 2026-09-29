@@ -207,7 +207,7 @@ describe("targetCommand", () => {
 		expect(
 			targetCommand("elixir", "forge_target.exs", locations("defmodule")),
 		).toBe(
-			`sh -c 'cd "../../.." && MIX_QUIET=1 mix run "evals/a/.forge/forge_target.exs" "$@"' forge_target`,
+			`sh -c 'cd "../../.." && MIX_QUIET=1 ELIXIR_ERL_OPTIONS="$ELIXIR_ERL_OPTIONS -logger default_handler [{config,#{type=>standard_error}}]" mix run "evals/a/.forge/forge_target.exs" "$@"' forge_target`,
 		);
 	});
 	test("elixir with no mix.exs above the suite is refused by name", () => {

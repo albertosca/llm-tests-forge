@@ -42,7 +42,7 @@ const FILL_IN: Record<ShimKind, string> = {
 	elixir: "edit run_application/2 to call your application",
 	ruby: "edit run_application to call your application",
 	rust: "edit run_application in src/main.rs to call your application, then run `cargo build --release` in that directory",
-	go: "edit runApplication in main.go to call your application, then run `go build -o forge_target .` in that directory",
+	go: "edit runApplication in main.go to call your application, then run `GOWORK=off go build -o forge_target .` in that directory",
 };
 
 async function exists(path: string): Promise<boolean> {
@@ -73,6 +73,11 @@ export async function emitCommand(
 		if (entry.includes("/") || entry.includes("\\") || entry.includes(".."))
 			throw new ForgeError(
 				"target.entry must be a file name inside .forge, not a path",
+				{ file: paths.suite },
+			);
+		if (/\s/.test(entry))
+			throw new ForgeError(
+				"target.entry must not contain whitespace: promptfoo splits an exec command on it",
 				{ file: paths.suite },
 			);
 	}
@@ -127,15 +132,27 @@ export async function emitCommand(
 		`emit: wrote ${paths.promptfooConfig} (${plural(selection.cases.length, "case")}, ${plural(selection.scenarios.length, "scenario")}, ${plural(suite.target.models.length, "target model")}, ${plural(suite.judges.length, "judge")})`,
 	);
 	if (shimKind === null || locations === null) return;
-	const shim = join(context.forgeDir, entry);
-	if (await exists(shim)) {
-		context.stdout(`emit: kept existing ${shim}`);
-		return;
-	}
+	// Each file on its own: rust and go share the entry `forge_target`, so a
+	// directory that exists may hold the other language's files, or miss one.
+	const kept: string[] = [];
+	const written: string[] = [];
 	for (const file of shimFiles(feature, shimKind, entry, locations)) {
 		const path = join(context.forgeDir, file.path);
+		if (await exists(path)) {
+			kept.push(path);
+			continue;
+		}
 		await mkdir(dirname(path), { recursive: true });
 		await writeFile(path, file.content, "utf8");
+		written.push(path);
 	}
-	context.stdout(`emit: wrote ${shim}; ${FILL_IN[shimKind]}`);
+	const keptPart = kept.length > 0 ? `kept existing ${kept.join(", ")}` : "";
+	if (written.length === 0) {
+		context.stdout(`emit: ${keptPart}`);
+		return;
+	}
+	const wrotePart = `wrote ${written.join(", ")}; ${FILL_IN[shimKind]}`;
+	context.stdout(
+		`emit: ${keptPart === "" ? wrotePart : `${keptPart}; ${wrotePart}`}`,
+	);
 }

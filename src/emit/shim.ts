@@ -177,6 +177,13 @@ export function shimFiles(
 	}
 }
 
+/**
+ * Sets the Logger application's `default_handler` before the application
+ * starts; a value the person already exports stays in front of it.
+ */
+const ELIXIR_LOGS_TO_STDERR =
+	'ELIXIR_ERL_OPTIONS="$ELIXIR_ERL_OPTIONS -logger default_handler [{config,#{type=>standard_error}}]"';
+
 /** Characters the double-quoted paths inside `sh -c '...'` cannot carry as they are. */
 const UNQUOTABLE = /['"`$\\]/;
 
@@ -184,9 +191,12 @@ const UNQUOTABLE = /['"`$\\]/;
  * The exec command promptfoo runs, from `.forge/` (the config's directory).
  * python, javascript and typescript load natively and need none. elixir
  * runs through `mix run`, which only finds the project from its root;
- * MIX_QUIET=1 keeps the "Compiling 1 file" lines of a project not yet
- * compiled out of standard output, where promptfoo reads the answer
- * (measured: without it the first case failed with them in its output).
+ * both settings keep text out of standard output, where promptfoo reads
+ * the answer. MIX_QUIET=1 silences the "Compiling 1 file" lines of a project
+ * not yet compiled, and ELIXIR_LOGS_TO_STDERR sends Logger's default handler,
+ * which writes to standard output, to standard error from the start, so the
+ * application's start-up logs are covered too (measured on Elixir 1.20:
+ * without them the first case failed with those lines in its output).
  */
 export function targetCommand(
 	kind: ShimKind,
@@ -220,5 +230,5 @@ export function targetCommand(
 			`the path from the mix project to ${entry} cannot be quoted in the exec command; rename the directories holding a quote, $, \` or \\`,
 			{ file: forgeDirectory },
 		);
-	return `sh -c 'cd "${toProject}" && MIX_QUIET=1 mix run "${toShim}" "$@"' forge_target`;
+	return `sh -c 'cd "${toProject}" && MIX_QUIET=1 ${ELIXIR_LOGS_TO_STDERR} mix run "${toShim}" "$@"' forge_target`;
 }
