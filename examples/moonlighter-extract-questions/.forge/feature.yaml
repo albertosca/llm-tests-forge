@@ -13,7 +13,7 @@ invariants:
   - List every question the form asks the candidate.
   - Ignore navigation, marketing copy, the job description itself, cookie notices and anything that is not a field the candidate must fill in.
   - Return JSON and nothing else.
-  - Copy each label exactly as it appears. Do not rephrase it.
+  - Copy each label exactly as it appears, without its required or optional marker ("*", "(required)", "(obrigatório)", "(optional)", "(opcional)"). Do not rephrase it.
   - Give options only for select questions, copied verbatim.
   - Decide required only from a visible marker next to the field (an asterisk, "required", "obrigatório", "(optional)" for the opposite); if you cannot tell, use false.
   - A Yes/No question is a single_select whose options are the two answers as the page shows them; boolean is only for a single checkbox the candidate ticks, such as a consent statement.
@@ -22,4 +22,4 @@ invariants:
   - questions is the whole list, in page order, each item with label, kind, required and options; an expected value names the complete list.
   - options is empty for kinds other than single_select and multi_select.
 prompt_file: prompt.txt
-status: approved
+status: pending

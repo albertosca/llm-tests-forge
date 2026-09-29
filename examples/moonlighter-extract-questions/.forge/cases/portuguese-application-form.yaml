@@ -64,15 +64,15 @@
   expected:
     fields:
       questions:
-        - label: Nome completo *
+        - label: Nome completo
           kind: text
           required: true
           options: []
-        - label: E-mail *
+        - label: E-mail
           kind: text
           required: true
           options: []
-        - label: Telefone (opcional)
+        - label: Telefone
           kind: text
           required: false
           options: []
@@ -80,17 +80,17 @@
           kind: text
           required: false
           options: []
-        - label: Você possui experiência prévia em suporte técnico? *
+        - label: Você possui experiência prévia em suporte técnico?
           kind: single_select
           required: true
           options:
             - Sim
             - Não
-        - label: Pretensão salarial (R$) (opcional)
+        - label: Pretensão salarial (R$)
           kind: text
           required: false
           options: []
-        - label: Currículo *
+        - label: Currículo
           kind: file
           required: true
           options: []
@@ -102,7 +102,7 @@
           kind: boolean
           required: false
           options: []
-  status: approved
+  status: pending
   generated_by: anthropic/claude-sonnet-5
 - id: portuguese-application-form-02
   scenario: portuguese-application-form
@@ -164,11 +164,11 @@
   expected:
     fields:
       questions:
-        - label: Nome completo (obrigatório)
+        - label: Nome completo
           kind: text
           required: true
           options: []
-        - label: E-mail (obrigatório)
+        - label: E-mail
           kind: text
           required: true
           options: []
@@ -176,7 +176,7 @@
           kind: text
           required: false
           options: []
-        - label: Você já trabalhou em RH anteriormente? (obrigatório)
+        - label: Você já trabalhou em RH anteriormente?
           kind: single_select
           required: true
           options:
@@ -190,11 +190,11 @@
             - Inglês
             - Espanhol
             - Outro
-        - label: LinkedIn (opcional)
+        - label: LinkedIn
           kind: text
           required: false
           options: []
-        - label: Currículo (obrigatório)
+        - label: Currículo
           kind: file
           required: true
           options: []
@@ -206,7 +206,7 @@
           kind: boolean
           required: false
           options: []
-  status: approved
+  status: pending
   generated_by: anthropic/claude-sonnet-5
 - id: portuguese-application-form-03
   scenario: portuguese-application-form
@@ -268,19 +268,19 @@
   expected:
     fields:
       questions:
-        - label: Nome completo *
+        - label: Nome completo
           kind: text
           required: true
           options: []
-        - label: E-mail *
+        - label: E-mail
           kind: text
           required: true
           options: []
-        - label: Telefone *
+        - label: Telefone
           kind: text
           required: true
           options: []
-        - label: Nível de escolaridade *
+        - label: Nível de escolaridade
           kind: single_select
           required: true
           options:
@@ -288,21 +288,21 @@
             - Ensino Médio
             - Ensino Superior
             - Pós-graduação
-        - label: Você tem disponibilidade para viagens? *
+        - label: Você tem disponibilidade para viagens?
           kind: single_select
           required: true
           options:
             - Sim
             - Não
-        - label: Pretensão salarial (R$) *
+        - label: Pretensão salarial (R$)
           kind: text
           required: true
           options: []
-        - label: Currículo *
+        - label: Currículo
           kind: file
           required: true
           options: []
-        - label: Fale sobre sua experiência profissional (opcional)
+        - label: Fale sobre sua experiência profissional
           kind: long_text
           required: false
           options: []
@@ -310,7 +310,7 @@
           kind: boolean
           required: false
           options: []
-  status: approved
+  status: pending
   generated_by: anthropic/claude-sonnet-5
 - id: portuguese-application-form-04
   scenario: portuguese-application-form
@@ -369,19 +369,19 @@
   expected:
     fields:
       questions:
-        - label: Nome completo *
+        - label: Nome completo
           kind: text
           required: true
           options: []
-        - label: E-mail *
+        - label: E-mail
           kind: text
           required: true
           options: []
-        - label: Telefone (obrigatório)
+        - label: Telefone
           kind: text
           required: true
           options: []
-        - label: CNH categoria (opcional)
+        - label: CNH categoria
           kind: text
           required: false
           options: []
@@ -395,11 +395,11 @@
           options:
             - Sim
             - Não
-        - label: Currículo *
+        - label: Currículo
           kind: file
           required: true
           options: []
-        - label: Observações adicionais (opcional)
+        - label: Observações adicionais
           kind: long_text
           required: false
           options: []
@@ -407,5 +407,5 @@
           kind: boolean
           required: false
           options: []
-  status: approved
+  status: pending
   generated_by: anthropic/claude-sonnet-5

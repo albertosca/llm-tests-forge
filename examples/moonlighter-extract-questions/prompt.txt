@@ -18,7 +18,8 @@ Return JSON and nothing else:
 ]}}
 
 Rules:
-- Copy each label exactly as it appears. Do not rephrase it.
+- Copy each label exactly as it appears, without its required or optional marker
+  ("*", "(required)", "(obrigatório)", "(optional)", "(opcional)"). Do not rephrase it.
 - Give options only for select questions, copied verbatim.
 - A Yes/No question is a single_select whose options are the two answers as the
   page shows them ("Yes"/"No", "Sim"/"Não", "Oui"/"Non"...). boolean is only for a
