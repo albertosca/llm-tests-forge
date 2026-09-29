@@ -1,0 +1,3 @@
+# The release smoke test compares a binary's outputs on this fixture with the
+# committed ones on every platform, Windows included: no line-ending conversion.
+examples/moonlighter-extract-questions/** -text

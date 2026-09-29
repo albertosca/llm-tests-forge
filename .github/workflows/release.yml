@@ -1,0 +1,355 @@
+name: release
+# Runs on a version tag: checks, builds the five binaries, smoke-tests each on
+# its native runner, creates the GitHub Release, then publishes to each
+# registry whose token is set. A tag holding a hyphen (v0.2.0-rc.1) makes a
+# draft release and publishes nowhere: a draft has no public download URLs,
+# which the Hex task, the Homebrew formula and install.sh point at.
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun scripts/release/version.ts check
+      - name: Check that the tag is v plus package.json's version
+        run: |
+          package_version="$(bun -p 'require("./package.json").version')"
+          if [ "$GITHUB_REF_NAME" != "v$package_version" ]; then
+            echo "::error::the tag $GITHUB_REF_NAME is not v$package_version (package.json's version)"
+            exit 1
+          fi
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - run: gem install rubocop -v 1.91.0
+      - run: bun run lint:ruby
+
+  build:
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run release:build
+      - run: bun scripts/release/checksums.ts dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: |
+            dist/llm-tests-forge-*
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+  smoke:
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            asset: llm-tests-forge-darwin-arm64
+          - runner: macos-15-intel
+            asset: llm-tests-forge-darwin-x64
+          - runner: ubuntu-24.04
+            asset: llm-tests-forge-linux-x64
+          - runner: ubuntu-24.04-arm
+            asset: llm-tests-forge-linux-arm64
+          - runner: windows-2025
+            asset: llm-tests-forge-windows-x64.exe
+    env:
+      ASSET: ${{ matrix.asset }}
+      FIXTURE: examples/moonlighter-extract-questions
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # .gitattributes checks the fixture out byte for byte, so the Windows
+      # runner reads the same line endings the committed outputs were made from.
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: binaries
+      - name: Verify SHA256SUMS
+        run: |
+          cd binaries
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum -c SHA256SUMS
+          else
+            shasum -a 256 -c SHA256SUMS
+          fi
+      - name: Make the binaries executable
+        run: chmod +x binaries/llm-tests-forge-*
+      - name: Run --version and --help
+        run: |
+          binary="$(pwd)/binaries/$ASSET"
+          reported="$("$binary" --version | tr -d '\r')"
+          if [ "$reported" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "::error::$ASSET --version printed '$reported', not ${GITHUB_REF_NAME#v}"
+            exit 1
+          fi
+          "$binary" --help > /dev/null
+      - name: Run estimate, emit and report on the fixture suite
+        run: |
+          binary="$(pwd)/binaries/$ASSET"
+          rm -rf smoke-work
+          mkdir smoke-work
+          cp -R "$FIXTURE" smoke-work/fixture
+          # The outputs are removed first, so a binary that writes nothing
+          # cannot pass the comparison on the committed copies.
+          rm smoke-work/fixture/.forge/promptfooconfig.yaml smoke-work/fixture/.forge/report.json smoke-work/fixture/.forge/report.md
+          cd smoke-work/fixture
+          "$binary" estimate
+          "$binary" emit
+          "$binary" report results.json
+      - name: Compare with the committed outputs
+        run: |
+          expected="$FIXTURE/.forge"
+          actual="smoke-work/fixture/.forge"
+          diff --strip-trailing-cr "$expected/promptfooconfig.yaml" "$actual/promptfooconfig.yaml"
+          # The report differs only in when it was generated and when the run was recorded.
+          without_timestamps() {
+            sed -e '/^  "generatedAt": /d' -e '/^  "ranAt": /d' -e '/^# llm-tests-forge report /d' "$1"
+          }
+          for name in report.json report.md; do
+            diff --strip-trailing-cr <(without_timestamps "$expected/$name") <(without_timestamps "$actual/$name")
+          done
+
+  assemble:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - uses: astral-sh/setup-uv@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: binaries
+      - run: bun scripts/release/assemble.ts binaries assembled
+      # A tar keeps the npm binaries' exec bit, which an artifact drops.
+      - run: tar -cf packages.tar assembled
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: packages.tar
+          if-no-files-found: error
+
+  release:
+    needs: [smoke, assemble]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: binaries
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          draft_flags=()
+          case "$GITHUB_REF_NAME" in
+          *-*) draft_flags=(--draft --prerelease) ;;
+          esac
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --verify-tag --generate-notes "${draft_flags[@]}" \
+            binaries/llm-tests-forge-darwin-arm64 \
+            binaries/llm-tests-forge-darwin-x64 \
+            binaries/llm-tests-forge-linux-x64 \
+            binaries/llm-tests-forge-linux-arm64 \
+            binaries/llm-tests-forge-windows-x64.exe \
+            binaries/SHA256SUMS \
+            install.sh
+
+  publish-npm:
+    needs: [release, assemble]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - if: env.NPM_TOKEN == ''
+        run: echo "::notice::npm token not set; not published"
+      - if: contains(github.ref_name, '-')
+        run: echo "::notice::npm not published for a prerelease tag"
+      - if: env.NPM_TOKEN != '' && !contains(github.ref_name, '-')
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+      - name: Unpack the packages
+        if: env.NPM_TOKEN != '' && !contains(github.ref_name, '-')
+        run: tar -xf packages.tar
+      - if: env.NPM_TOKEN != '' && !contains(github.ref_name, '-')
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      - name: Publish the platform packages, then the main package
+        if: env.NPM_TOKEN != '' && !contains(github.ref_name, '-')
+        env:
+          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
+        run: |
+          for directory in assembled/npm/*/; do
+            if [ "$directory" != "assembled/npm/main/" ]; then
+              npm publish --access public "$directory"
+            fi
+          done
+          npm publish --access public assembled/npm/main
+
+  publish-pypi:
+    needs: [release, assemble]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+    steps:
+      - if: env.PYPI_TOKEN == ''
+        run: echo "::notice::PyPI token not set; not published"
+      - if: contains(github.ref_name, '-')
+        run: echo "::notice::PyPI not published for a prerelease tag"
+      - if: env.PYPI_TOKEN != '' && !contains(github.ref_name, '-')
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+      - name: Unpack the packages
+        if: env.PYPI_TOKEN != '' && !contains(github.ref_name, '-')
+        run: tar -xf packages.tar
+      - if: env.PYPI_TOKEN != '' && !contains(github.ref_name, '-')
+        uses: astral-sh/setup-uv@v6
+      - name: Publish the wheels
+        if: env.PYPI_TOKEN != '' && !contains(github.ref_name, '-')
+        run: uv publish --token "$PYPI_TOKEN" assembled/wheels/*.whl
+
+  publish-hex:
+    needs: [release, assemble]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+    steps:
+      - if: env.HEX_API_KEY == ''
+        run: echo "::notice::Hex token not set; not published"
+      - if: contains(github.ref_name, '-')
+        run: echo "::notice::Hex not published for a prerelease tag"
+      - if: env.HEX_API_KEY != '' && !contains(github.ref_name, '-')
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+      - name: Unpack the packages
+        if: env.HEX_API_KEY != '' && !contains(github.ref_name, '-')
+        run: tar -xf packages.tar
+      - if: env.HEX_API_KEY != '' && !contains(github.ref_name, '-')
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18"
+      - name: Publish the Hex package
+        if: env.HEX_API_KEY != '' && !contains(github.ref_name, '-')
+        working-directory: assembled/hex
+        run: |
+          mix local.hex --force
+          mix hex.publish package --yes
+
+  publish-gem:
+    needs: [release, assemble]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      GEM_HOST_API_KEY: ${{ secrets.GEM_HOST_API_KEY }}
+    steps:
+      - if: env.GEM_HOST_API_KEY == ''
+        run: echo "::notice::RubyGems token not set; not published"
+      - if: contains(github.ref_name, '-')
+        run: echo "::notice::RubyGems not published for a prerelease tag"
+      - if: env.GEM_HOST_API_KEY != '' && !contains(github.ref_name, '-')
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+      - name: Unpack the packages
+        if: env.GEM_HOST_API_KEY != '' && !contains(github.ref_name, '-')
+        run: tar -xf packages.tar
+      - if: env.GEM_HOST_API_KEY != '' && !contains(github.ref_name, '-')
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - name: Push the gems
+        if: env.GEM_HOST_API_KEY != '' && !contains(github.ref_name, '-')
+        run: |
+          for gem_file in assembled/gems/*.gem; do
+            gem push "$gem_file"
+          done
+
+  publish-homebrew:
+    needs: [release, assemble]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - if: env.HOMEBREW_TAP_TOKEN == ''
+        run: echo "::notice::Homebrew token not set; not published"
+      - if: contains(github.ref_name, '-')
+        run: echo "::notice::Homebrew not published for a prerelease tag"
+      - if: env.HOMEBREW_TAP_TOKEN != '' && !contains(github.ref_name, '-')
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+      - name: Unpack the packages
+        if: env.HOMEBREW_TAP_TOKEN != '' && !contains(github.ref_name, '-')
+        run: tar -xf packages.tar
+      - if: env.HOMEBREW_TAP_TOKEN != '' && !contains(github.ref_name, '-')
+        uses: actions/checkout@v4
+        with:
+          repository: albertosca/homebrew-tap
+          token: ${{ env.HOMEBREW_TAP_TOKEN }}
+          path: tap
+      - name: Commit the formula to the tap
+        if: env.HOMEBREW_TAP_TOKEN != '' && !contains(github.ref_name, '-')
+        run: |
+          mkdir -p tap/Formula
+          cp assembled/homebrew/llm-tests-forge.rb tap/Formula/llm-tests-forge.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/llm-tests-forge.rb
+          if git diff --cached --quiet; then
+            echo "the formula for $GITHUB_REF_NAME is already in the tap"
+          else
+            git commit -m "llm-tests-forge ${GITHUB_REF_NAME#v}"
+            git push
+          fi
