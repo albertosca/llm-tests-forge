@@ -1,0 +1,8 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# RubyGems requires a gem's executables to be Ruby scripts; this one only
+# locates the binary of the running platform and runs it.
+require_relative "../lib/llm_tests_forge"
+
+LlmTestsForge.run(ARGV)

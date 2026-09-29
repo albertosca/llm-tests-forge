@@ -10,6 +10,7 @@
 	"scripts": {
 		"test": "bun test",
 		"lint": "biome check .",
+		"lint:ruby": "cd packages/gem && ruby -wc lib/llm_tests_forge.rb exe/llm-tests-forge llm-tests-forge.gemspec && rubocop",
 		"format": "biome format --write .",
 		"typecheck": "tsc --noEmit",
 		"build:binary": "bun build --compile src/cli/bin.ts --outfile dist/llm-tests-forge",

@@ -1,0 +1,20 @@
+AllCops:
+  NewCops: disable
+  SuggestExtensions: false
+  TargetRubyVersion: 3.0
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Layout/LineLength:
+  Max: 120
+
+Style/CaseEquality:
+  Enabled: false
+
+Naming/MethodParameterName:
+  MinNameLength: 3
+
+# Full names, never the abbreviation the default cop asks for.
+Naming/RescuedExceptionsVariableName:
+  Enabled: false

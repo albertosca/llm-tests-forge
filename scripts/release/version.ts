@@ -64,6 +64,15 @@ export const HEX_MANIFESTS: readonly Manifest[] = [
 	},
 ];
 
+/** The gem's manifest: the `specification.version = "…"` line of the gemspec (the only line that starts that way). */
+export const GEM_MANIFESTS: readonly Manifest[] = [
+	{
+		path: "packages/gem/llm-tests-forge.gemspec",
+		format: "text",
+		pattern: /^(\s*specification\.version = ")([^"]*)(")/m,
+	},
+];
+
 /**
  * Every package manifest, relative to the repository root. Each packaging
  * task adds its own files here as it creates them.
@@ -77,6 +86,7 @@ export const MANIFESTS: readonly Manifest[] = [
 	...NPM_MANIFESTS,
 	...PYPI_MANIFESTS,
 	...HEX_MANIFESTS,
+	...GEM_MANIFESTS,
 ];
 
 const REPOSITORY_ROOT = resolve(import.meta.dir, "../..");
