@@ -24,6 +24,7 @@ describe("loadTemplate", () => {
 			scenarios: "{{coverage}}",
 			cases: "{{input_names}}",
 			dedupe: "{{cases}}",
+			guide: "approving is the person's job",
 			"shims/python": "def call_api",
 			"shims/javascript": "async callApi(prompt, context)",
 			"shims/typescript": "interface RunResult",

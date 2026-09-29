@@ -10,6 +10,7 @@ import { dedupeCommand } from "./commands/dedupe";
 import { describeCommand } from "./commands/describe";
 import { emitCommand } from "./commands/emit";
 import { estimateCommand } from "./commands/estimate";
+import { guideCommand } from "./commands/guide";
 import { importCommand } from "./commands/import";
 import { initCommand } from "./commands/init";
 import { moveCommand } from "./commands/move";
@@ -34,6 +35,7 @@ export const USAGE = `usage: llm-tests-forge <verb> [options]
   emit [--format promptfoo|jsonl]                    approved cases -> .forge/promptfooconfig.yaml + forge_target.py, or cases.jsonl
   report <results.json> [--baseline report.json]      promptfoo output -> .forge/report.md + report.json
   status [--json]                                     every registered suite: feature, counts, last run, version warning; --json for agents
+  guide                                               print the manual for an agent operating the forge in a project
   --suite <path>  run on a registered suite from anywhere in the project
   help | --help, version | --version
 drafter: --drafter provider/model, FORGE_DRAFTER, or defaults.drafter in forge.yaml; providers: anthropic, google, openai, ollama, fake/<file>`;
@@ -54,6 +56,7 @@ const COMMANDS: Record<
 	emit: emitCommand,
 	report: reportCommand,
 	status: statusCommand,
+	guide: guideCommand,
 };
 
 /**
@@ -150,8 +153,9 @@ export async function run(
 	}
 	try {
 		// status reports every suite's version itself, and its --json output
-		// must stay one parseable document.
-		if (verb !== "status") await warnAboutSuiteVersion(context);
+		// must stay one parseable document; guide prints a manual and reads no suite.
+		if (verb !== "status" && verb !== "guide")
+			await warnAboutSuiteVersion(context);
 		await command(rest, context);
 		if (STAMPING_VERBS.has(verb ?? "")) await stampAfterSuccess(context);
 		return 0;
@@ -247,6 +251,7 @@ const INFORMATION_VERBS = new Set([
 	"--version",
 	"-V",
 	"version",
+	"guide",
 ]);
 
 async function refuseVerbWithoutSuite(

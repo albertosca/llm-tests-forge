@@ -5483,6 +5483,67 @@ describe("main(): the suite and the project", () => {
 		}
 	});
 
+	test("guide is answered even when forge.yaml is malformed, and does not stamp or warn", async () => {
+		const root = await projectWith("version: 2\n");
+		const lines: string[] = [];
+		expect(
+			await main(["guide"], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(0);
+		expect(lines.join("\n")).toContain("approving is the person's job");
+	});
+
+	test("guide exits 0 and opens with the rule that approving is the person's job", async () => {
+		const { context, out } = await ctxIn(
+			await mkdtemp(join(tmpdir(), "forge-guide-")),
+		);
+		expect(await run(["guide"], context)).toBe(0);
+		const guide = out.join("\n");
+		const firstParagraph = guide
+			.split(/\n\s*\n/)
+			.find((block) => !block.trimStart().startsWith("#"));
+		expect(firstParagraph).toContain("approving is the person's job");
+	});
+
+	test("the guide names every verb in USAGE, so a new verb without a guide entry fails", async () => {
+		const { context, out } = await ctxIn(
+			await mkdtemp(join(tmpdir(), "forge-guide-")),
+		);
+		await run(["guide"], context);
+		const guide = out.join("\n");
+		const verbs = USAGE.split("\n")
+			.map((line) => /^ {2}([a-z]+)\b/.exec(line)?.[1])
+			.filter((verb): verb is string => verb !== undefined);
+		expect(verbs).toContain("status");
+		expect(verbs).toContain("guide");
+		for (const verb of verbs)
+			expect(guide).toContain(`llm-tests-forge ${verb}`);
+	});
+
+	test("the skill and the marketplace file have the shape the plugin needs", async () => {
+		const skill = await readFile(
+			"plugin/skills/llm-tests-forge/SKILL.md",
+			"utf8",
+		);
+		const frontmatter = parse(/^---\n([\s\S]*?)\n---/.exec(skill)?.[1] ?? "");
+		expect(frontmatter.name).toBe("llm-tests-forge");
+		expect(frontmatter.description).toContain("create LLM tests");
+		expect(frontmatter.description).toContain("cria testes");
+		const marketplace = JSON.parse(
+			await readFile(".claude-plugin/marketplace.json", "utf8"),
+		);
+		expect(marketplace.plugins).toHaveLength(1);
+		expect(marketplace.plugins[0].source).toBe("./plugin");
+		const manifest = JSON.parse(
+			await readFile("plugin/.claude-plugin/plugin.json", "utf8"),
+		);
+		expect(manifest.version).toBe(FORGE_VERSION);
+	});
+
 	test("--suite is refused when it has no usable path, is repeated, or names a backslash path; what follows -- is left alone", async () => {
 		const root = await projectWith(
 			"version: 1\nlanguage: python\nsuites: [evals/a]\n",

@@ -1,0 +1,11 @@
+{
+	"name": "llm-tests-forge",
+	"owner": { "name": "albertosca" },
+	"plugins": [
+		{
+			"name": "llm-tests-forge",
+			"source": "./plugin",
+			"description": "Operate llm-tests-forge from Claude Code"
+		}
+	]
+}

@@ -1,0 +1,5 @@
+{
+	"name": "llm-tests-forge",
+	"description": "Teaches Claude Code to operate llm-tests-forge in a project",
+	"version": "0.1.0"
+}

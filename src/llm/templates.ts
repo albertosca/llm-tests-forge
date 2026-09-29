@@ -3,6 +3,7 @@ import dedupeTemplate from "../../templates/dedupe.md" with { type: "text" };
 import describeTemplate from "../../templates/describe.md" with {
 	type: "text",
 };
+import guideTemplate from "../../templates/guide.md" with { type: "text" };
 import scenariosTemplate from "../../templates/scenarios.md" with {
 	type: "text",
 };
@@ -40,6 +41,7 @@ const TEMPLATES: Record<string, string> = {
 	cases: casesTemplate,
 	dedupe: dedupeTemplate,
 	describe: describeTemplate,
+	guide: guideTemplate,
 	scenarios: scenariosTemplate,
 	"shims/python": pythonShim,
 	"shims/javascript": javascriptShim,
