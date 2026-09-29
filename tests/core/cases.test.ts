@@ -23,7 +23,8 @@ async function llmFor(verb: string): Promise<{ llm: Llm; model: string }> {
 		forgeDirectory: join(await mkdtemp(join(tmpdir(), "forge-")), ".forge"),
 	});
 	const llm: Llm = {
-		generate: <T>(args: GenerateArgs<T>) => base.generate<T>({ ...args, verb }),
+		generate: <T>(request: GenerateArgs<T>) =>
+			base.generate<T>({ ...request, verb }),
 	};
 	return { model: `fake/${FIXTURE}`, llm };
 }
@@ -104,52 +105,55 @@ describe("casesOutputSchema", () => {
 	test("the JSON Schema the model sees requires each feature input by name -- the property z.record left out", async () => {
 		const schema = casesOutputSchema(await feature(), scenario);
 		const jsonSchema = toJSONSchema(schema);
-		const casesProp = jsonSchema.properties?.cases;
-		if (!casesProp || typeof casesProp === "boolean")
+		const casesProperty = jsonSchema.properties?.cases;
+		if (!casesProperty || typeof casesProperty === "boolean")
 			throw new Error("expected cases to be an object schema");
-		const itemsProp = casesProp.items;
+		const itemsProperty = casesProperty.items;
 		if (
-			!itemsProp ||
-			typeof itemsProp === "boolean" ||
-			Array.isArray(itemsProp)
+			!itemsProperty ||
+			typeof itemsProperty === "boolean" ||
+			Array.isArray(itemsProperty)
 		)
 			throw new Error("expected cases.items to be an object schema");
-		const inputProp = itemsProp.properties?.input;
-		if (!inputProp || typeof inputProp === "boolean")
+		const inputProperty = itemsProperty.properties?.input;
+		if (!inputProperty || typeof inputProperty === "boolean")
 			throw new Error(
 				"expected cases.items.properties.input to be an object schema",
 			);
-		expect(inputProp.properties?.email).toBeDefined();
-		expect(inputProp.required).toContain("email");
+		expect(inputProperty.properties?.email).toBeDefined();
+		expect(inputProperty.required).toContain("email");
 	});
 
 	test("the JSON Schema the model sees asks for expected.fields as JSON text -- an object schema came back {} or was refused", async () => {
-		const f = {
+		const jsonFeature = {
 			...(await feature()),
 			output: { kind: "json" as const, fields: ["questions"] },
 		};
-		const schema = casesOutputSchema(f, { ...scenario, oracle: "fields" });
+		const schema = casesOutputSchema(jsonFeature, {
+			...scenario,
+			oracle: "fields",
+		});
 		const jsonSchema = toJSONSchema(schema);
-		const casesProp = jsonSchema.properties?.cases;
-		if (!casesProp || typeof casesProp === "boolean")
+		const casesProperty = jsonSchema.properties?.cases;
+		if (!casesProperty || typeof casesProperty === "boolean")
 			throw new Error("expected cases to be an object schema");
-		const itemsProp = casesProp.items;
+		const itemsProperty = casesProperty.items;
 		if (
-			!itemsProp ||
-			typeof itemsProp === "boolean" ||
-			Array.isArray(itemsProp)
+			!itemsProperty ||
+			typeof itemsProperty === "boolean" ||
+			Array.isArray(itemsProperty)
 		)
 			throw new Error("expected cases.items to be an object schema");
-		const expectedProp = itemsProp.properties?.expected;
-		if (!expectedProp || typeof expectedProp === "boolean")
+		const expectedProperty = itemsProperty.properties?.expected;
+		if (!expectedProperty || typeof expectedProperty === "boolean")
 			throw new Error(
 				"expected cases.items.properties.expected to be an object schema",
 			);
-		const fieldsProp = expectedProp.properties?.fields;
-		if (!fieldsProp || typeof fieldsProp === "boolean")
+		const fieldsProperty = expectedProperty.properties?.fields;
+		if (!fieldsProperty || typeof fieldsProperty === "boolean")
 			throw new Error("expected expected.properties.fields to be a schema");
-		expect(fieldsProp.type).toBe("string");
-		expect(fieldsProp.description).toContain(
+		expect(fieldsProperty.type).toBe("string");
+		expect(fieldsProperty.description).toContain(
 			"JSON object serialised as a string",
 		);
 	});
@@ -166,7 +170,7 @@ describe("generateCases", () => {
 			model,
 			llm,
 		});
-		expect(out.map((c) => c.id)).toEqual([
+		expect(out.map((generated) => generated.id)).toEqual([
 			"polite-rejection-01",
 			"polite-rejection-02",
 		]);
@@ -194,7 +198,7 @@ describe("generateCases", () => {
 			llm,
 		});
 		expect(out[0]).toEqual(kept);
-		expect(out.slice(1).map((c) => c.id)).toEqual([
+		expect(out.slice(1).map((generated) => generated.id)).toEqual([
 			"polite-rejection-02",
 			"polite-rejection-03",
 		]);
@@ -223,51 +227,51 @@ describe("generateCases", () => {
 		// response. This replaces the old expectation that such a case was
 		// merely dropped and its sibling kept.
 		const { llm, model } = await llmFor("bad-keys");
-		const err = await generateCases({
+		const failure = await generateCases({
 			feature: await feature(),
 			scenario,
 			existing: [],
 			n: 2,
 			model,
 			llm,
-		}).catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toContain(
+		}).catch((thrown: unknown) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as ForgeError).message).toContain(
 			"model output did not match the bad-keys schema",
 		);
-		expect((err as ForgeError).details.rawPath).toBeDefined();
+		expect((failure as ForgeError).details.rawPath).toBeDefined();
 	});
 
 	test("throws a distinct message when the model returns no candidates at all, not '(0 dropped: )'", async () => {
 		const { llm, model } = await llmFor("empty-cases");
-		const err = await generateCases({
+		const failure = await generateCases({
 			feature: await feature(),
 			scenario,
 			existing: [],
 			n: 2,
 			model,
 			llm,
-		}).catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toContain(
+		}).catch((thrown: unknown) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as ForgeError).message).toContain(
 			"no usable case generated for scenario: the model returned no candidates",
 		);
-		expect((err as ForgeError).message).not.toContain("dropped");
+		expect((failure as ForgeError).message).not.toContain("dropped");
 	});
 
 	test("throws when every generated case is invalid", async () => {
 		const { llm, model } = await llmFor("all-bad");
-		const err = await generateCases({
+		const failure = await generateCases({
 			feature: await feature(),
 			scenario,
 			existing: [],
 			n: 2,
 			model,
 			llm,
-		}).catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toContain("2 dropped");
-		expect((err as ForgeError).details.id).toBe("polite-rejection");
+		}).catch((thrown: unknown) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as ForgeError).message).toContain("2 dropped");
+		expect((failure as ForgeError).details.id).toBe("polite-rejection");
 	});
 
 	test("throws when every generated case is invalid, even with reviewed cases already present", async () => {
@@ -286,17 +290,17 @@ describe("generateCases", () => {
 			status: "approved",
 			generated_by: "human",
 		};
-		const err = await generateCases({
+		const failure = await generateCases({
 			feature: await feature(),
 			scenario,
 			existing: [existing],
 			n: 2,
 			model,
 			llm,
-		}).catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toContain("2 dropped");
-		expect((err as ForgeError).details.id).toBe("polite-rejection");
+		}).catch((thrown: unknown) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as ForgeError).message).toContain("2 dropped");
+		expect((failure as ForgeError).details.id).toBe("polite-rejection");
 	});
 
 	test("drops exact duplicates of existing inputs", async () => {
@@ -379,16 +383,16 @@ describe("generateCases", () => {
 				};
 			},
 		};
-		const err = await generateCases({
+		const failure = await generateCases({
 			feature: await feature(),
 			scenario: { ...scenario, status: "pending" },
 			existing: [],
 			n: 1,
 			model: "anthropic/x",
 			llm: spy,
-		}).catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).details.id).toBe("polite-rejection");
+		}).catch((thrown: unknown) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as ForgeError).details.id).toBe("polite-rejection");
 		expect(calls).toBe(0);
 	});
 
@@ -402,16 +406,16 @@ describe("generateCases", () => {
 			],
 		] as const) {
 			const { llm, model } = await llmFor(fixture);
-			const err = await generateCases({
+			const failure = await generateCases({
 				feature: await feature(),
 				scenario: { ...scenario, oracle: "fields" },
 				existing: [],
 				n: 1,
 				model,
 				llm,
-			}).catch((e: unknown) => e);
-			expect(err).toBeInstanceOf(ForgeError);
-			expect((err as ForgeError).message).toContain(reason);
+			}).catch((thrown: unknown) => thrown);
+			expect(failure).toBeInstanceOf(ForgeError);
+			expect((failure as ForgeError).message).toContain(reason);
 		}
 	});
 

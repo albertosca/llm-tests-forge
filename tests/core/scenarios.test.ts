@@ -17,7 +17,8 @@ async function llmFor(verb: string): Promise<{ llm: Llm; model: string }> {
 		forgeDirectory: join(await mkdtemp(join(tmpdir(), "forge-")), ".forge"),
 	});
 	const llm: Llm = {
-		generate: <T>(args: GenerateArgs<T>) => base.generate<T>({ ...args, verb }),
+		generate: <T>(request: GenerateArgs<T>) =>
+			base.generate<T>({ ...request, verb }),
 	};
 	return { model: `fake/${FIXTURE}`, llm };
 }
@@ -38,24 +39,24 @@ describe("enumerateScenarios", () => {
 			llm,
 		});
 		expect(out).toHaveLength(6);
-		expect(new Set(out.map((s) => s.kind)).size).toBe(6);
-		expect(out.every((s) => s.status === "pending")).toBe(true);
+		expect(new Set(out.map((scenario) => scenario.kind)).size).toBe(6);
+		expect(out.every((scenario) => scenario.status === "pending")).toBe(true);
 	});
 
 	test("names the missing kinds when coverage fails", async () => {
 		const { llm, model } = await llmFor("missing-kinds");
-		const err = await enumerateScenarios({
+		const failure = await enumerateScenarios({
 			feature: await feature(),
 			existing: [],
 			model,
 			llm,
-		}).catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toContain("edge");
-		expect((err as ForgeError).message).toContain("language");
+		}).catch((thrown: unknown) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as ForgeError).message).toContain("edge");
+		expect((failure as ForgeError).message).toContain("language");
 		// Every failure names the item it is about; here that is the feature.
-		expect((err as ForgeError).details.id).toBe("classify-email");
-		expect((err as ForgeError).message).toContain("(id: classify-email)");
+		expect((failure as ForgeError).details.id).toBe("classify-email");
+		expect((failure as ForgeError).message).toContain("(id: classify-email)");
 	});
 
 	test("--kinds restricts coverage to the listed kinds", async () => {
@@ -72,14 +73,14 @@ describe("enumerateScenarios", () => {
 
 	test("zero scenarios is an error naming the feature, never a silent empty file", async () => {
 		const { llm, model } = await llmFor("empty");
-		const err = await enumerateScenarios({
+		const failure = await enumerateScenarios({
 			feature: await feature(),
 			existing: [],
 			model,
 			llm,
-		}).catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toBe(
+		}).catch((thrown: unknown) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as ForgeError).message).toBe(
 			"the model returned zero scenarios (id: classify-email)",
 		);
 	});

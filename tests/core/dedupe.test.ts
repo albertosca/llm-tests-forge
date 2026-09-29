@@ -7,7 +7,7 @@ import type { Case } from "../../src/core/schemas";
 import { createLlm, type Llm } from "../../src/llm/generate";
 
 const MODEL = "fake/tests/fixtures/dedupe-response.json";
-const c = (id: string, status: Case["status"] = "pending"): Case => ({
+const makeCase = (id: string, status: Case["status"] = "pending"): Case => ({
 	id,
 	scenario: "s",
 	input: { email: id },
@@ -25,16 +25,16 @@ async function llm(): Promise<Llm> {
 describe("dedupeCases", () => {
 	test("marks valid pairs, ignores unknown ids and self pairs, never marks reviewed cases, but a pending case may point at one", async () => {
 		const cases = [
-			c("s-01"),
-			c("s-02"),
-			c("s-03"),
-			c("s-04"),
-			c("s-05", "approved"),
-			c("s-06"),
-			c("s-07", "edited"),
+			makeCase("s-01"),
+			makeCase("s-02"),
+			makeCase("s-03"),
+			makeCase("s-04"),
+			makeCase("s-05", "approved"),
+			makeCase("s-06"),
+			makeCase("s-07", "edited"),
 		];
 		const out = await dedupeCases({ cases, model: MODEL, llm: await llm() });
-		expect(out.map((x) => x.duplicate_of)).toEqual([
+		expect(out.map((deduped) => deduped.duplicate_of)).toEqual([
 			undefined,
 			undefined,
 			"s-01",
@@ -49,7 +49,7 @@ describe("dedupeCases", () => {
 			// case (edited, not just approved) is never marked as a duplicate.
 			undefined,
 		]);
-		expect(out.map((x) => x.id)).toEqual([
+		expect(out.map((deduped) => deduped.id)).toEqual([
 			"s-01",
 			"s-02",
 			"s-03",
@@ -76,11 +76,11 @@ describe("dedupeCases", () => {
 			},
 		};
 		const out = await dedupeCases({
-			cases: [c("s-01")],
+			cases: [makeCase("s-01")],
 			model: "anthropic/x",
 			llm: spy,
 		});
 		expect(calls).toBe(0);
-		expect(out).toEqual([c("s-01")]);
+		expect(out).toEqual([makeCase("s-01")]);
 	});
 });
