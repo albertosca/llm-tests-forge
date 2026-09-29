@@ -1,5 +1,5 @@
 import { access, readFile, writeFile } from "node:fs/promises";
-import { dirname, relative, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { describeFeature } from "../../core/describe";
 import { ForgeError } from "../../core/errors";
@@ -69,7 +69,10 @@ export async function describeCommand(
 	const withFile = promptPath
 		? {
 				...feature,
-				prompt_file: relative(dirname(context.forgeDirectory), promptPath),
+				// An absolute path stays as given; a relative one is rebased.
+				prompt_file: isAbsolute(promptFile ?? "")
+					? promptPath
+					: relative(dirname(context.forgeDirectory), promptPath),
 			}
 		: feature;
 	await writeFeature(context.forgeDirectory, withFile);

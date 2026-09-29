@@ -1,6 +1,8 @@
-import { join, posix } from "node:path";
+import { join } from "node:path";
 import { UsageError } from "./errors";
 import {
+	backslashProblem,
+	comparableEntry,
 	findProjectRoot,
 	type Project,
 	readProject,
@@ -10,14 +12,6 @@ import {
 export interface Resolution {
 	forgeDirectory: string;
 	project: Project | null;
-}
-
-/** The form two suite paths are compared in: normalized, without a trailing slash. */
-function comparablePath(path: string): string {
-	const normalized = posix.normalize(path.split("\\").join("/"));
-	return normalized.length > 1 && normalized.endsWith("/")
-		? normalized.slice(0, -1)
-		: normalized;
 }
 
 /**
@@ -40,10 +34,12 @@ export async function resolveSuite(options: {
 		throw new UsageError(
 			`--suite needs a forge.yaml; none found above ${options.cwd}`,
 		);
+	if (options.suite.includes("\\"))
+		throw new UsageError(backslashProblem(options.suite));
 	const project = await readProject(root);
-	const wanted = comparablePath(options.suite);
+	const wanted = comparableEntry(options.suite);
 	const found = project.suites.find(
-		(suite) => comparablePath(suite.entry) === wanted,
+		(suite) => comparableEntry(suite.entry) === wanted,
 	);
 	if (found === undefined)
 		throw new UsageError(

@@ -59,17 +59,21 @@ export async function findProjectRoot(
 }
 
 /** The form two entries are compared in: normalized, without a trailing slash. */
-function comparableEntry(entry: string): string {
+export function comparableEntry(entry: string): string {
 	const normalized = posix.normalize(entry);
 	return normalized.length > 1 && normalized.endsWith("/")
 		? normalized.slice(0, -1)
 		: normalized;
 }
 
+/** The message for a suite path written with a backslash, in forge.yaml or on --suite. */
+export function backslashProblem(entry: string): string {
+	return `suite "${entry}" uses a backslash; write paths with forward slashes`;
+}
+
 /** Why `entry` cannot be a suite of this project, or null when it can. */
 function entryProblem(entry: string, seen: Set<string>): string | null {
-	if (entry.includes("\\"))
-		return `suite "${entry}" uses a backslash; write paths with forward slashes`;
+	if (entry.includes("\\")) return backslashProblem(entry);
 	if (isAbsolute(entry) || posix.isAbsolute(entry))
 		return `suite "${entry}" is an absolute path; list it relative to forge.yaml`;
 	const comparable = comparableEntry(entry);
@@ -120,9 +124,9 @@ export function registerSuite(
 	project: Project,
 	suiteDirectory: string,
 ): { text: string; entry: string } | null {
-	const entry = relative(project.root, resolve(suiteDirectory))
-		.split(sep)
-		.join("/");
+	// The project root itself relates to itself as "", which is no entry.
+	const entry =
+		relative(project.root, resolve(suiteDirectory)).split(sep).join("/") || ".";
 	if (isAbsolute(entry) || entry === ".." || entry.startsWith("../"))
 		throw new ForgeError(
 			`${suiteDirectory} is outside the project at ${project.root}; a suite must live inside it`,

@@ -30,7 +30,7 @@ export const USAGE = `usage: llm-tests-forge <verb> [options]
   report <results.json> [--baseline report.json]      promptfoo output -> .forge/report.md + report.json
   --suite <path>  run on a registered suite from anywhere in the project
   help | --help, version | --version
-drafter: --drafter provider/model or FORGE_DRAFTER; providers: anthropic, google, openai, ollama, fake/<file>`;
+drafter: --drafter provider/model, FORGE_DRAFTER, or defaults.drafter in forge.yaml; providers: anthropic, google, openai, ollama, fake/<file>`;
 
 const COMMANDS: Record<
 	string,
@@ -92,7 +92,8 @@ export async function run(
 		context.stdout(FORGE_VERSION);
 		return 0;
 	}
-	const command = verb ? COMMANDS[verb] : undefined;
+	const command =
+		verb && Object.hasOwn(COMMANDS, verb) ? COMMANDS[verb] : undefined;
 	if (!command) {
 		context.stdout(USAGE);
 		return 2;
@@ -142,32 +143,64 @@ export interface MainOptions {
 	onInteractivePass?: () => void;
 }
 
-/** `--suite <path>` and `--suite=<path>` taken out of `argv`, wherever they stand. */
+/**
+ * `--suite <path>` and `--suite=<path>` taken out of `argv`, wherever they
+ * stand before a `--` (what follows `--` belongs to the verb untouched).
+ */
 function takeSuiteFlag(argv: string[]): { rest: string[]; suite?: string } {
+	const queue = [...argv];
 	const rest: string[] = [];
 	let suite: string | undefined;
-	for (let index = 0; index < argv.length; index++) {
-		const argument = argv[index] as string;
-		if (argument === "--suite") {
-			suite = argv[++index];
-			if (suite === undefined)
-				throw new UsageError("--suite needs a path: --suite <path>");
-		} else if (argument.startsWith("--suite=")) {
-			suite = argument.slice("--suite=".length);
-		} else rest.push(argument);
+	for (
+		let argument = queue.shift();
+		argument !== undefined;
+		argument = queue.shift()
+	) {
+		if (argument === "--") {
+			rest.push(argument, ...queue);
+			break;
+		}
+		const inline = argument.startsWith("--suite=");
+		if (argument !== "--suite" && !inline) {
+			rest.push(argument);
+			continue;
+		}
+		const value = inline ? argument.slice("--suite=".length) : queue.shift();
+		if (value === undefined || value === "" || value.startsWith("--"))
+			throw new UsageError("--suite needs a path: --suite <path>");
+		if (suite !== undefined)
+			throw new UsageError("--suite was given more than once; pass one path");
+		suite = value;
 	}
 	return { rest, suite };
 }
 
 /** Verbs that work where there is no suite yet, or on no suite at all. */
-const VERBS_EXEMPT_FROM_SUITE_GUARD = new Set(["describe"]);
+const VERBS_EXEMPT_FROM_SUITE_GUARD = new Set([
+	"describe",
+	"init",
+	"status",
+	"guide",
+	"help",
+	"version",
+]);
+
+/** Answered before any forge.yaml is read, so a broken one never hides them. */
+const INFORMATION_VERBS = new Set([
+	"--help",
+	"-h",
+	"help",
+	"--version",
+	"-V",
+	"version",
+]);
 
 async function refuseVerbWithoutSuite(
 	verb: string | undefined,
 	context: CliContext,
 ): Promise<void> {
 	if (context.project === null) return;
-	if (verb === undefined || !(verb in COMMANDS)) return;
+	if (verb === undefined || !Object.hasOwn(COMMANDS, verb)) return;
 	if (VERBS_EXEMPT_FROM_SUITE_GUARD.has(verb)) return;
 	const present = await access(context.forgeDirectory).then(
 		() => true,
@@ -186,8 +219,13 @@ export async function main(
 ): Promise<number> {
 	const write = options.stdout ?? console.log;
 	try {
-		const { rest, suite } = takeSuiteFlag(argv);
-		const resolution = await resolveSuite({ cwd: options.cwd, suite });
+		const information = argv[0] !== undefined && INFORMATION_VERBS.has(argv[0]);
+		const { rest, suite } = information
+			? { rest: argv, suite: undefined }
+			: takeSuiteFlag(argv);
+		const resolution = information
+			? { forgeDirectory: undefined, project: null }
+			: await resolveSuite({ cwd: options.cwd, suite });
 		const context = createContext({
 			cwd: options.cwd,
 			drafter: drafterFlag(rest),

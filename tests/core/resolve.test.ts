@@ -47,6 +47,29 @@ describe("resolveSuite", () => {
 		);
 	});
 
+	test("the project root is a suite named '.', however it is spelled", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: ['.']\n",
+		);
+		for (const spelling of [".", "./", "./."]) {
+			expect(
+				(await resolveSuite({ cwd: join(root, "deep"), suite: spelling }))
+					.forgeDirectory,
+			).toBe(join(root, ".forge"));
+		}
+	});
+
+	test("--suite refuses a backslash path with the message forge.yaml's entries get", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		await expect(
+			resolveSuite({ cwd: root, suite: "evals\\a" }),
+		).rejects.toThrow(
+			'suite "evals\\a" uses a backslash; write paths with forward slashes',
+		);
+	});
+
 	test("--suite with no forge.yaml above is a usage error", async () => {
 		const outside = await mkdtemp(join(tmpdir(), "forge-outside-"));
 		await expect(

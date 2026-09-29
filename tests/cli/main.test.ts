@@ -5388,14 +5388,225 @@ describe("main(): the suite and the project", () => {
 	});
 
 	test("a programming error is not flattened into an error line", async () => {
+		const outside = await mkdtemp(join(tmpdir(), "forge-outside-"));
 		await expect(
-			main(["estimate"], {
-				cwd: undefined as unknown as string,
-				env: {},
-				stdin: async () => "",
+			main(["describe"], {
+				cwd: outside,
+				env: { FORGE_DRAFTER: MODEL },
+				stdin: async () => {
+					throw new TypeError("a bug, not a message");
+				},
 				stdout: () => {},
 			}),
 		).rejects.toBeInstanceOf(TypeError);
+	});
+
+	test("a verb run outside any project is not refused by the suite guard", async () => {
+		const outside = await mkdtemp(join(tmpdir(), "forge-outside-"));
+		const lines: string[] = [];
+		await main(["estimate"], {
+			cwd: outside,
+			env: {},
+			stdin: async () => "",
+			stdout: (line) => lines.push(line),
+		});
+		expect(lines.join("\n")).not.toContain("no suite here");
+		expect(lines.join("\n")).toContain("feature.yaml");
+	});
+
+	test("inside a project with no .forge, a word that is not a verb gets the usage, not the suite guard", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		for (const word of ["frobnicate", "toString"]) {
+			const lines: string[] = [];
+			expect(
+				await main([word], {
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(2);
+			expect(lines.join("\n")).toContain("usage: llm-tests-forge");
+			expect(lines.join("\n")).not.toContain("no suite here");
+		}
+	});
+
+	test("inside a project with no .forge, no verb at all gets the usage, not the suite guard", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		const lines: string[] = [];
+		expect(
+			await main([], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(2);
+		expect(lines.join("\n")).toContain("usage: llm-tests-forge");
+		expect(lines.join("\n")).not.toContain("no suite here");
+	});
+
+	test("help and version are answered even when forge.yaml is malformed, in a project with no .forge", async () => {
+		const root = await projectWith("version: 2\n");
+		for (const [word, expected] of [
+			["--help", "usage: llm-tests-forge"],
+			["help", "usage: llm-tests-forge"],
+			["--version", FORGE_VERSION],
+			["version", FORGE_VERSION],
+		] as const) {
+			const lines: string[] = [];
+			expect(
+				await main([word], {
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(0);
+			expect(lines.join("\n")).toContain(expected);
+		}
+	});
+
+	test("--suite is refused when it has no usable path, is repeated, or names a backslash path; what follows -- is left alone", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		const attempts: [string[], number, string][] = [
+			[
+				["estimate", "--suite="],
+				2,
+				"error: --suite needs a path: --suite <path>",
+			],
+			[
+				["estimate", "--suite", "--drafter", "x"],
+				2,
+				"error: --suite needs a path: --suite <path>",
+			],
+			[
+				["estimate", "--suite", "evals/a", "--suite=evals/a"],
+				2,
+				"error: --suite was given more than once; pass one path",
+			],
+			[
+				["estimate", "--suite", "evals\\a"],
+				2,
+				'error: suite "evals\\a" uses a backslash; write paths with forward slashes',
+			],
+		];
+		for (const [argv, exitCode, expected] of attempts) {
+			const lines: string[] = [];
+			expect(
+				await main(argv, {
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(exitCode);
+			expect(lines).toEqual([expected]);
+		}
+		const afterDashes: string[] = [];
+		await main(["describe", "--", "--suite", "evals/a"], {
+			cwd: root,
+			env: { FORGE_DRAFTER: MODEL },
+			stdin: async () => "",
+			stdout: (line) => afterDashes.push(line),
+		});
+		expect(afterDashes.join("\n")).not.toContain("--suite needs");
+		expect(afterDashes.join("\n")).not.toContain("not registered");
+	});
+
+	test("describe at the project root registers it as '.', once, and every verb still works afterwards", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: []\n",
+		);
+		const first: string[] = [];
+		expect(
+			await main(["describe", "classify hiring emails", "--drafter", MODEL], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => first.push(line),
+			}),
+		).toBe(0);
+		expect(
+			parse(await readFile(join(root, "forge.yaml"), "utf8")).suites,
+		).toEqual(["."]);
+		expect(first.join("\n")).toContain(
+			`describe: registered . in ${join(root, "forge.yaml")}`,
+		);
+		const project = await readProject(root);
+		expect(project.problems).toEqual([]);
+		expect(project.suites.map((suite) => suite.directory)).toEqual([root]);
+		const estimate: string[] = [];
+		expect(
+			await main(["estimate"], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => estimate.push(line),
+			}),
+		).toBe(1);
+		expect(estimate.join("\n")).not.toContain("forge.yaml");
+		const second: string[] = [];
+		expect(
+			await main(
+				["describe", "classify hiring emails", "--force", "--drafter", MODEL],
+				{
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => second.push(line),
+				},
+			),
+		).toBe(0);
+		expect(second.join("\n")).not.toContain("registered");
+		expect(
+			parse(await readFile(join(root, "forge.yaml"), "utf8")).suites,
+		).toEqual(["."]);
+	});
+
+	test("describe keeps an absolute --prompt-file absolute and rebases './prompt.txt' from inside the suite", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		const suiteDirectory = join(root, "evals", "a");
+		await mkdir(suiteDirectory, { recursive: true });
+		await writeFile(join(suiteDirectory, "prompt.txt"), "Classify the email.");
+		const outsideFile = join(root, "elsewhere.txt");
+		await writeFile(outsideFile, "Classify.");
+		const spellings: [string, string][] = [
+			[outsideFile, outsideFile],
+			["./prompt.txt", "prompt.txt"],
+		];
+		for (const [given, stored] of spellings) {
+			expect(
+				await main(
+					[
+						"describe",
+						"classify hiring emails",
+						"--force",
+						"--prompt-file",
+						given,
+						"--drafter",
+						MODEL,
+					],
+					{
+						cwd: suiteDirectory,
+						env: {},
+						stdin: async () => "",
+						stdout: () => {},
+					},
+				),
+			).toBe(0);
+			expect(
+				(await readFeature(join(suiteDirectory, ".forge"))).prompt_file,
+			).toBe(stored);
+		}
 	});
 
 	test("the drafter falls back to defaults.drafter in forge.yaml, after --drafter and FORGE_DRAFTER", async () => {
@@ -5458,6 +5669,7 @@ describe("main(): the suite and the project", () => {
 		});
 		expect(suite.judges).toEqual(["google/gemini-3.5-flash"]);
 		expect(suite.repeat).toBe(1);
+		expect(suite.include).toEqual([]);
 	});
 
 	test("describe leaves an existing suite.yaml and an already registered suite alone", async () => {
@@ -5534,7 +5746,8 @@ describe("main(): the suite and the project", () => {
 		).toBe(0);
 		const feature = await readFeature(join(root, "evals", "a", ".forge"));
 		expect(feature.prompt_file).toBe(join("..", "..", "prompts", "p.txt"));
-		expect(resolve(root, "evals", "a", feature.prompt_file as string)).toBe(
+		const stored = feature.prompt_file ?? "";
+		expect(resolve(root, "evals", "a", stored)).toBe(
 			join(root, "prompts", "p.txt"),
 		);
 	});
