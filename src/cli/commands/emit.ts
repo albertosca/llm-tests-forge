@@ -65,7 +65,10 @@ export async function emitCommand(
 	const paths = forgePaths(context.forgeDirectory);
 	const feature = await readFeature(context.forgeDirectory);
 	requireApprovedFeature(feature, paths.feature);
-	const suite = await readSuite(context.forgeDirectory);
+	const suite = await readSuite(
+		context.forgeDirectory,
+		context.project?.config.language,
+	);
 	// The shim is written into, and run from, `.forge/`; a path here would
 	// let suite.yaml write a file anywhere on the disk.
 	const entry = entryFor(suite.target);

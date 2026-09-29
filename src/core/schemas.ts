@@ -107,13 +107,15 @@ export const ProjectConfigSchema = z.object({
 	version: z.literal(1),
 	language: z.enum(LANGUAGES),
 	suites: z.preprocess((value) => value ?? [], z.array(z.string().min(1))),
-	defaults: z
-		.object({
+	// A `defaults:` with every key commented out is null, read as {} like `suites`.
+	defaults: z.preprocess(
+		(value) => value ?? {},
+		z.object({
 			drafter: z.string().min(1).optional(),
 			target_models: z.array(z.string().min(1)).min(1).optional(),
 			judges: z.array(z.string().min(1)).min(1).optional(),
-		})
-		.default({}),
+		}),
+	),
 });
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
 

@@ -100,7 +100,7 @@ Reads one `{"input-name": "value"}` JSON object per line from real production lo
 
     llm-tests-forge review
 
-Reviews everything still pending: cases (confirming or fixing the expected output), and any imported case (setting its expected output for the first time). Two things review will not change for you: a scenario's `id` and a case's `scenario`, because both name the file the cases live in (`.forge/cases/<scenario>.yaml`) — the refusal names the `llm-tests-forge move` call that does it. And editing a scenario's `oracle` re-opens the approved cases of that scenario whose expected the new oracle no longer accepts: each one then needs `edit` to be given an expected in the new shape, not `approve`. One Ctrl+C during a review saves what was decided so far, if it arrives before the save finishes; a second one aborts without writing.
+Reviews everything still pending: cases (confirming or fixing the expected output), and any imported case (setting its expected output for the first time). Two things review will not change for you: a scenario's `id` and a case's `scenario`, because both name the file the cases live in (`.forge/cases/<scenario>.yaml`) — the refusal names the `llm-tests-forge move` call that does it. And editing a scenario's `oracle` re-opens the approved cases of that scenario whose expected the new oracle no longer accepts: each one then needs `edit` to be given an expected in the new shape, not `approve`. One Ctrl+C during a review saves what was decided so far; a second one aborts without writing, if it arrives before the save finishes.
 
     llm-tests-forge move --scenario <old> <new>
     llm-tests-forge move --case <id> --to <scenario>

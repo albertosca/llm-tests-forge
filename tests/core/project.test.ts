@@ -135,12 +135,32 @@ describe("forge.yaml", () => {
 			),
 		).toBe("evals/a, evals/b");
 	});
-	test("projectFileText parses back to the language with no suites", () => {
-		expect(parse(projectFileText("elixir"))).toEqual({
+	test("projectFileText reads back as the language with no suites and empty defaults", async () => {
+		const root = await projectWith(projectFileText("elixir"));
+		const project = await readProject(root);
+		expect(project.config).toEqual({
 			version: 1,
 			language: "elixir",
 			suites: [],
 			defaults: {},
 		});
+	});
+	test("uncommenting any one default in projectFileText, or all of them, still reads", async () => {
+		const text = projectFileText("python");
+		const expected: Record<string, unknown> = {
+			drafter: "google/gemini-3.5-flash",
+			target_models: ["anthropic/claude-haiku-4-5"],
+			judges: ["google/gemini-3.5-flash"],
+		};
+		for (const [name, value] of Object.entries(expected)) {
+			expect(text).toContain(`\n  # ${name}: `);
+			const uncommented = text.replace(`  # ${name}: `, `  ${name}: `);
+			const project = await readProject(await projectWith(uncommented));
+			expect(project.config.defaults).toEqual({ [name]: value });
+		}
+		const all = text.replaceAll("  # ", "  ");
+		expect((await readProject(await projectWith(all))).config.defaults).toEqual(
+			expected,
+		);
 	});
 });

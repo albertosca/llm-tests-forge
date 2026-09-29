@@ -17,11 +17,13 @@ import {
 	CaseSchema,
 	type Feature,
 	FeatureSchema,
+	type Language,
 	type Scenario,
 	ScenarioSchema,
 	type Suite,
 	SuiteSchema,
 } from "./schemas";
+import { DEFAULT_ENTRY } from "./target";
 import { isHigherVersion } from "./version";
 
 export interface ForgePaths {
@@ -319,20 +321,54 @@ export async function readCaseFile(
 	return { cases: await readCases(forgeDirectory, scenarioId), fingerprint };
 }
 
-export const SUITE_EXAMPLE = `target:
-  kind: python                    # python | javascript | typescript | elixir | ruby | rust | go | exec | http
-  entry: forge_target.py          # optional: the shim emit writes next to this file
-  python: .venv/bin/python        # optional: interpreter that can import your application
-  models: [anthropic/claude-haiku-4-5]
-judges: [google/gemini-3.5-flash]
-repeat: 2
-include: []                        # scenario ids; empty means every approved scenario`;
+/** A YAML line with its comment starting at column 34, as the example lines up. */
+const withComment = (text: string, comment: string): string =>
+	`${text.padEnd(34)}# ${comment}`;
 
-export async function readSuite(forgeDirectory: string): Promise<Suite> {
+/**
+ * The suite.yaml the "not found" error shows, in the project's language
+ * when there is one (python otherwise, and for `other`): the kinds comment
+ * lists the rest either way.
+ */
+export function suiteExample(language: Language | undefined): string {
+	const kind =
+		language === undefined || language === "other" ? "python" : language;
+	return [
+		"target:",
+		withComment(
+			`  kind: ${kind}`,
+			"python | javascript | typescript | elixir | ruby | rust | go | exec | http",
+		),
+		withComment(
+			`  entry: ${DEFAULT_ENTRY[kind]}`,
+			"optional: the shim emit writes next to this file",
+		),
+		...(kind === "python"
+			? [
+					withComment(
+						"  python: .venv/bin/python",
+						"optional: interpreter that can import your application",
+					),
+				]
+			: []),
+		"  models: [anthropic/claude-haiku-4-5]",
+		"judges: [google/gemini-3.5-flash]",
+		"repeat: 2",
+		withComment(
+			"include: []",
+			"scenario ids; empty means every approved scenario",
+		),
+	].join("\n");
+}
+
+export async function readSuite(
+	forgeDirectory: string,
+	language?: Language,
+): Promise<Suite> {
 	const path = forgePaths(forgeDirectory).suite;
 	if (!(await exists(path)))
 		throw new ForgeError(
-			`suite.yaml not found; write one like:\n${SUITE_EXAMPLE}`,
+			`suite.yaml not found; write one like:\n${suiteExample(language)}`,
 			{
 				file: path,
 			},

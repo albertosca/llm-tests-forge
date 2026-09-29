@@ -50,7 +50,10 @@ export async function estimateCommand(
 	const paths = forgePaths(context.forgeDirectory);
 	const feature = await readFeature(context.forgeDirectory);
 	requireApprovedFeature(feature, paths.feature);
-	const suite = await readSuite(context.forgeDirectory);
+	const suite = await readSuite(
+		context.forgeDirectory,
+		context.project?.config.language,
+	);
 	const selection = selectCases({
 		suite,
 		scenarios: await readScenarios(context.forgeDirectory),

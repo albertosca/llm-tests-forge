@@ -50,9 +50,10 @@ export function createContext(options: CreateContextOptions): CliContext {
 	const environment = options.env ?? process.env;
 	const forgeDirectory = options.forgeDirectory ?? join(options.cwd, ".forge");
 	const project = options.project ?? null;
+	// An empty FORGE_DRAFTER="" is unset, not a choice: it must not hide defaults.drafter.
 	const drafter =
 		options.drafter ??
-		environment.FORGE_DRAFTER ??
+		(environment.FORGE_DRAFTER || undefined) ??
 		project?.config.defaults.drafter;
 	return {
 		cwd: options.cwd,

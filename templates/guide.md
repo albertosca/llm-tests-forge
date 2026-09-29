@@ -105,4 +105,4 @@ How `suite.yaml` comes to exist: `describe` writes a starting `suite.yaml` when 
 
 ## Models and credentials
 
-The drafter is `--drafter provider/model`, else `FORGE_DRAFTER`, else `defaults.drafter` in `forge.yaml`. Providers are anthropic, google, openai, ollama. Keys come from the environment (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`) first, and `~/.config/<provider>/api.env` is the fallback. Never print a key.
+The drafter is `--drafter provider/model`, else `FORGE_DRAFTER`, else `defaults.drafter` in `forge.yaml`. Providers are anthropic, google, openai, ollama. Keys come from the environment (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`) first, and `~/.config/<provider>/api.env` is the fallback. That fallback file is read by the forge only: promptfoo, which calls the rubric judges, sees only the keys in its environment, so a judge's key must be exported before running promptfoo. Never print a key.

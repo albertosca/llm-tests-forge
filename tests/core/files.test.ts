@@ -9,6 +9,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parse } from "yaml";
 import { ForgeError } from "../../src/core/errors";
 import {
 	caseFileFingerprint,
@@ -23,13 +24,14 @@ import {
 	readSuite,
 	readYamlFile,
 	stampSuite,
+	suiteExample,
 	writeCases,
 	writeFeature,
 	writeScenarios,
 	writeSuite,
 } from "../../src/core/files";
 import type { Case, Scenario } from "../../src/core/schemas";
-import { SuiteSchema } from "../../src/core/schemas";
+import { LANGUAGES, SuiteSchema } from "../../src/core/schemas";
 
 async function tmpForge(): Promise<string> {
 	const directory = await mkdtemp(join(tmpdir(), "forge-"));
@@ -225,6 +227,36 @@ describe("suite.yaml", () => {
 		expect((caught as Error).message).toContain(join(directory, "suite.yaml"));
 		expect((caught as Error).message).toContain("target:");
 		expect((caught as Error).message).toContain("judges:");
+	});
+	test("readSuite's example uses the project's language when it is given one", async () => {
+		const directory = join(
+			await mkdtemp(join(tmpdir(), "forge-files-")),
+			".forge",
+		);
+		const caught = await readSuite(directory, "ruby").catch(
+			(error: Error) => error,
+		);
+		expect((caught as Error).message).toContain(suiteExample("ruby"));
+	});
+	test("suiteExample: the language's kind and default entry, python for none or other, and every example parses as a suite", () => {
+		expect(suiteExample("elixir").split("\n").slice(0, 3)).toEqual([
+			"target:",
+			"  kind: elixir                    # python | javascript | typescript | elixir | ruby | rust | go | exec | http",
+			"  entry: forge_target.exs         # optional: the shim emit writes next to this file",
+		]);
+		expect(suiteExample("elixir")).not.toContain("python: .venv/bin/python");
+		for (const language of [undefined, "other"] as const) {
+			expect(suiteExample(language)).toContain("  kind: python ");
+			expect(suiteExample(language)).toContain(
+				"  python: .venv/bin/python        # optional: interpreter that can import your application",
+			);
+		}
+		for (const language of LANGUAGES) {
+			const parsed = SuiteSchema.parse(parse(suiteExample(language)));
+			expect(parsed.target.kind).toBe(
+				language === "other" ? "python" : language,
+			);
+		}
 	});
 });
 

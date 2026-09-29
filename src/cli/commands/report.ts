@@ -62,7 +62,10 @@ export async function reportCommand(
 	const paths = forgePaths(context.forgeDirectory);
 	const feature = await readFeature(context.forgeDirectory);
 	requireApprovedFeature(feature, paths.feature);
-	const suite = await readSuite(context.forgeDirectory);
+	const suite = await readSuite(
+		context.forgeDirectory,
+		context.project?.config.language,
+	);
 	const scenarios = await readScenarios(context.forgeDirectory);
 	const casesByScenario = await readAllCases(context.forgeDirectory);
 	const prices = await loadPrices();

@@ -171,10 +171,11 @@ export function projectFileText(language: Language): string {
 		"version: 1",
 		`language: ${language}`,
 		"suites: []",
-		"defaults: {}",
-		"#  drafter: google/gemini-3.5-flash",
-		"#  target_models: [anthropic/claude-haiku-4-5]",
-		"#  judges: [google/gemini-3.5-flash]",
+		// An empty `defaults:` reads as {}; deleting a "# " below gives a valid key.
+		"defaults:",
+		"  # drafter: google/gemini-3.5-flash",
+		"  # target_models: [anthropic/claude-haiku-4-5]",
+		"  # judges: [google/gemini-3.5-flash]",
 		"",
 	].join("\n");
 }

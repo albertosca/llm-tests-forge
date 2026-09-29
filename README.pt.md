@@ -100,7 +100,7 @@ Lê um objeto JSON `{"input-name": "value"}` por linha a partir de logs reais de
 
     llm-tests-forge review
 
-Revisa tudo que ainda está pendente: casos (confirmando ou corrigindo a saída esperada) e qualquer caso importado (definindo sua saída esperada pela primeira vez). Duas coisas a revisão não muda para você: o `id` de um cenário e o campo `scenario` de um caso, porque os dois nomeiam o arquivo onde os casos moram (`.forge/cases/<scenario>.yaml`) — a recusa diz qual chamada de `llm-tests-forge move` faz isso. E editar o `oracle` de um cenário reabre os casos aprovados daquele cenário cujo esperado o novo oráculo não aceita mais: cada um precisa então de `edit` para ganhar um esperado no novo formato, não de `approve`. Um Ctrl+C durante a revisão salva o que já foi decidido, se chegar antes de o salvamento terminar; um segundo aborta sem escrever nada.
+Revisa tudo que ainda está pendente: casos (confirmando ou corrigindo a saída esperada) e qualquer caso importado (definindo sua saída esperada pela primeira vez). Duas coisas a revisão não muda para você: o `id` de um cenário e o campo `scenario` de um caso, porque os dois nomeiam o arquivo onde os casos moram (`.forge/cases/<scenario>.yaml`) — a recusa diz qual chamada de `llm-tests-forge move` faz isso. E editar o `oracle` de um cenário reabre os casos aprovados daquele cenário cujo esperado o novo oráculo não aceita mais: cada um precisa então de `edit` para ganhar um esperado no novo formato, não de `approve`. Um Ctrl+C durante a revisão salva o que já foi decidido; um segundo aborta sem escrever nada, se chegar antes de o salvamento terminar.
 
     llm-tests-forge move --scenario <antigo> <novo>
     llm-tests-forge move --case <id> --to <cenário>

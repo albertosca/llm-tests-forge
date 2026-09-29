@@ -3380,6 +3380,26 @@ describe("estimate", () => {
 		expect(out.join("\n")).toContain("suite.yaml not found");
 		expect(out.join("\n")).toContain("judges:");
 	});
+	test("in a project, the missing suite.yaml's example uses the project's language", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: ruby\nsuites: [evals/a]\n",
+		);
+		const suiteDirectory = join(root, "evals", "a");
+		await writeFeature(join(suiteDirectory, ".forge"), FEATURE);
+		for (const verb of ["emit", "estimate"]) {
+			const lines: string[] = [];
+			expect(
+				await main([verb], {
+					cwd: suiteDirectory,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(1);
+			expect(lines.join("\n")).toContain("  kind: ruby ");
+			expect(lines.join("\n")).toContain("  entry: forge_target.rb ");
+		}
+	});
 	test("an unknown flag is a usage error (exit 2)", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		await forgeWithApprovedCases(cwd);
@@ -5804,6 +5824,15 @@ describe("main(): the suite and the project", () => {
 				stdin: async () => "",
 			}).drafter,
 		).toBe("fake/env");
+		// An empty FORGE_DRAFTER is unset, so defaults.drafter still applies.
+		expect(
+			createContext({
+				cwd: root,
+				project,
+				env: { FORGE_DRAFTER: "" },
+				stdin: async () => "",
+			}).drafter,
+		).toBe("fake/from-project");
 		expect(
 			createContext({
 				cwd: root,
