@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { ForgeError, UsageError } from "../../src/core/errors";
 import { runMain } from "./entry";
+import { RELEASE_TARGETS } from "./targets";
 
 /**
  * One file that carries the release version. `pattern` finds the version in
@@ -18,6 +19,34 @@ export interface Manifest {
 const JSON_VERSION = /^(\s*"version"\s*:\s*")([^"]*)(")/m;
 
 /**
+ * The npm packages' manifests: the main package's own version, each of its
+ * optionalDependencies on a platform package (one line each, so a stale one
+ * is named), and the platform package template.
+ */
+export const NPM_MANIFESTS: readonly Manifest[] = [
+	{
+		path: "packages/npm/main/package.json",
+		format: "json",
+		pattern: JSON_VERSION,
+	},
+	...RELEASE_TARGETS.map(
+		(target): Manifest => ({
+			path: "packages/npm/main/package.json",
+			format: "text",
+			pattern: new RegExp(
+				`^(\\s*"@llm-tests-forge/${target.npmOs}-${target.npmCpu}"\\s*:\\s*")([^"]*)(")`,
+				"m",
+			),
+		}),
+	),
+	{
+		path: "packages/npm/platform/package.json.tmpl",
+		format: "json",
+		pattern: JSON_VERSION,
+	},
+];
+
+/**
  * Every package manifest, relative to the repository root. Each packaging
  * task adds its own files here as it creates them.
  */
@@ -27,6 +56,7 @@ export const MANIFESTS: readonly Manifest[] = [
 		format: "json",
 		pattern: JSON_VERSION,
 	},
+	...NPM_MANIFESTS,
 ];
 
 const REPOSITORY_ROOT = resolve(import.meta.dir, "../..");

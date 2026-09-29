@@ -1,0 +1,25 @@
+{
+	"name": "llm-tests-forge",
+	"version": "0.1.0",
+	"description": "Forge reviewed regression suites for your LLM features and emit them for promptfoo",
+	"license": "MIT",
+	"type": "commonjs",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/albertosca/llm-tests-forge.git"
+	},
+	"bin": {
+		"llm-tests-forge": "bin/llm-tests-forge.js"
+	},
+	"files": [
+		"bin/llm-tests-forge.js",
+		"bin/platform.js"
+	],
+	"optionalDependencies": {
+		"@llm-tests-forge/darwin-arm64": "0.1.0",
+		"@llm-tests-forge/darwin-x64": "0.1.0",
+		"@llm-tests-forge/linux-x64": "0.1.0",
+		"@llm-tests-forge/linux-arm64": "0.1.0",
+		"@llm-tests-forge/win32-x64": "0.1.0"
+	}
+}
