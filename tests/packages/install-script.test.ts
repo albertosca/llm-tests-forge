@@ -7,7 +7,15 @@
  * It needs `sh` and `curl` on the PATH.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmod, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	readdir,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { buildBinaries } from "../../scripts/release/build-binaries";
@@ -210,22 +218,79 @@ describe.skipIf(!packages || HOST === undefined)("install.sh", () => {
 		}
 	}, 600_000);
 
-	test("a Linux ARM machine maps to the linux-arm64 asset (a fake uname; the download is refused because only the host asset is served)", async () => {
-		const { work, intactUrl } = await built();
+	test("a Linux ARM machine maps to the linux-arm64 asset (a fake uname, and a server holding nothing, so the download is refused on every host)", async () => {
+		const { work } = await built();
+		const emptyUrl = serve(await mkdtemp(join(work, "served-empty-")), false);
 		const target = await mkdtemp(join(work, "target-"));
 		const fake = await fakeUname(work, "Linux", "aarch64");
 		const finished = await runScript(["--dir", join(target, "bin")], {
-			LLM_TESTS_FORGE_BASE_URL: intactUrl,
+			LLM_TESTS_FORGE_BASE_URL: emptyUrl,
 			PATH: `${fake}:${process.env.PATH ?? ""}`,
 		});
-		if (HOST?.assetName === "llm-tests-forge-linux-arm64") return;
 		expect(finished.exitCode).toBe(1);
 		expect(finished.stdout).toContain(
-			`${intactUrl}/llm-tests-forge-linux-arm64`,
+			`${emptyUrl}/llm-tests-forge-linux-arm64`,
 		);
 		expect(finished.stderr).toContain(
-			`cannot download ${intactUrl}/llm-tests-forge-linux-arm64`,
+			`cannot download ${emptyUrl}/llm-tests-forge-linux-arm64`,
 		);
+		expect(await readdir(target)).toEqual([]);
+	}, 600_000);
+
+	test("a directory where the binary goes is refused naming it, and nothing is moved into it", async () => {
+		const { work, intactUrl } = await built();
+		const installDirectory = join(await mkdtemp(join(work, "target-")), "bin");
+		const occupied = join(installDirectory, "llm-tests-forge");
+		await mkdir(occupied, { recursive: true });
+		const finished = await runScript(["--dir", installDirectory], {
+			LLM_TESTS_FORGE_BASE_URL: intactUrl,
+		});
+		expect(finished.exitCode).toBe(1);
+		expect(finished.stderr).toContain(
+			`${occupied} is a directory; remove it or choose another --dir; nothing was installed`,
+		);
+		expect(finished.stdout).not.toContain("Installed");
+		expect(await readdir(occupied)).toEqual([]);
+		expect(await readdir(installDirectory)).toEqual(["llm-tests-forge"]);
+	}, 600_000);
+
+	test("a SHA256SUMS line in binary mode (hash *name, as sha256sum -b writes it) is accepted", async () => {
+		const { work } = await built();
+		if (HOST === undefined) throw new Error("this machine is not a target");
+		const served = await mkdtemp(join(work, "served-"));
+		const content = "a stand-in binary\n";
+		await writeFile(join(served, HOST.assetName), content);
+		const hash = new Bun.CryptoHasher("sha256").update(content).digest("hex");
+		await writeFile(join(served, "SHA256SUMS"), `${hash} *${HOST.assetName}\n`);
+		const installDirectory = join(await mkdtemp(join(work, "target-")), "bin");
+		const finished = await runScript(["--dir", installDirectory], {
+			LLM_TESTS_FORGE_BASE_URL: serve(served, false),
+		});
+		expect(finished.stderr).toBe("");
+		expect(finished.exitCode).toBe(0);
+		expect(
+			await Bun.file(join(installDirectory, "llm-tests-forge")).text(),
+		).toBe(content);
+	}, 600_000);
+
+	test("a TERM that arrives while the binary is being put in place removes the temporary copy and stops the script", async () => {
+		const { work, intactUrl } = await built();
+		const installDirectory = join(await mkdtemp(join(work, "target-")), "bin");
+		// A fake mv first on the PATH: it signals the script that ran it and moves nothing,
+		// so the copy beside the target is exactly what an interrupted install leaves.
+		const fakeMoveDirectory = await mkdtemp(join(work, "fake-mv-"));
+		await writeFile(
+			join(fakeMoveDirectory, "mv"),
+			'#!/bin/sh\nkill -TERM "$PPID"\nexit 0\n',
+		);
+		await chmod(join(fakeMoveDirectory, "mv"), 0o755);
+		const finished = await runScript(["--dir", installDirectory], {
+			LLM_TESTS_FORGE_BASE_URL: intactUrl,
+			PATH: `${fakeMoveDirectory}:${process.env.PATH ?? ""}`,
+		});
+		expect(finished.exitCode).toBe(143);
+		expect(finished.stdout).not.toContain("Installed");
+		expect(await readdir(installDirectory)).toEqual([]);
 	}, 600_000);
 
 	test("--version picks the release path, an unknown option is a usage error (exit 2), and --dir without a value too", async () => {

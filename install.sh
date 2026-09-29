@@ -94,7 +94,16 @@ sha256_of() {
 }
 
 work_directory="$(mktemp -d)"
-trap 'rm -rf "$work_directory"' EXIT INT TERM
+temporary_path=""
+cleanup() {
+	rm -rf "$work_directory"
+	if [ -n "$temporary_path" ]; then rm -f "$temporary_path"; fi
+}
+# A trap on INT or TERM alone would run and then let the script carry on, so
+# each one exits (128 plus the signal), and the EXIT trap cleans up after it.
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 printf 'Downloading %s/%s\n' "$base_url" "$asset_name"
 download "$base_url/$asset_name" "$work_directory/$asset_name" ||
@@ -102,8 +111,9 @@ download "$base_url/$asset_name" "$work_directory/$asset_name" ||
 download "$base_url/SHA256SUMS" "$work_directory/SHA256SUMS" ||
 	fail "cannot download $base_url/SHA256SUMS"
 
-# The line for this asset, by its exact name: an empty match is an error, never a pass.
-expected_hash="$(awk -v name="$asset_name" '$2 == name { print $1 }' "$work_directory/SHA256SUMS")"
+# The line for this asset, by its exact name (or `*name`, the binary-mode form
+# sha256sum -b writes): an empty match is an error, never a pass.
+expected_hash="$(awk -v name="$asset_name" '$2 == name || $2 == "*" name { print $1 }' "$work_directory/SHA256SUMS")"
 [ -n "$expected_hash" ] || fail "SHA256SUMS does not list $asset_name"
 actual_hash="$(sha256_of "$work_directory/$asset_name")"
 if [ "$actual_hash" != "$expected_hash" ]; then
@@ -112,10 +122,16 @@ fi
 
 mkdir -p "$install_directory"
 target_path="$install_directory/$BINARY_NAME"
+# mv onto a directory would move the binary inside it and report success.
+if [ -d "$target_path" ]; then
+	fail "$target_path is a directory; remove it or choose another --dir; nothing was installed"
+fi
 # Copy beside the target and rename over it, so a failed copy never leaves a half-written binary there.
-cp "$work_directory/$asset_name" "$target_path.tmp.$$"
-chmod 755 "$target_path.tmp.$$"
-mv -f "$target_path.tmp.$$" "$target_path"
+temporary_path="$target_path.tmp.$$"
+cp "$work_directory/$asset_name" "$temporary_path"
+chmod 755 "$temporary_path"
+mv -f "$temporary_path" "$target_path"
+temporary_path=""
 
 printf 'Installed %s\n' "$target_path"
 case ":${PATH:-}:" in
