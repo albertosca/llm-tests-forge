@@ -132,15 +132,32 @@ defmodule LlmTestsForge do
     partial = path <> ".download"
     File.write!(partial, body)
     File.chmod!(partial, 0o755)
+    # The sidecar is removed before the binary changes and written after, so
+    # an interrupted install reads as "not installed", never as a match.
+    File.rm(version_path())
     File.rename!(partial, path)
+    File.write!(version_path(), actual)
     log.("Installed #{path} (#{asset}, sha256 #{actual})")
     path
   end
 
-  @doc "The installed binary's path, installing it first when it is missing."
+  @doc "Where the installed binary's sidecar lives: it holds the SHA256 the binary was verified against."
+  def version_path, do: binary_path() <> ".version"
+
+  @doc """
+  Whether the binary at `binary_path/0` is the one this package version ships:
+  it exists and its sidecar holds the SHA256 that `checksums.exs` lists for the
+  host asset. A binary left by another package version (or by no install of
+  this package) is not installed.
+  """
+  def installed? do
+    File.regular?(binary_path()) and
+      File.read(version_path()) == {:ok, expected_checksum!(host_asset!())}
+  end
+
+  @doc "The installed binary's path, installing it first when it is missing or belongs to another version."
   def ensure_installed!(log \\ &IO.puts/1) do
-    path = binary_path()
-    if File.regular?(path), do: path, else: install!(log)
+    if installed?(), do: binary_path(), else: install!(log)
   end
 
   defp expected_checksum!(asset) do
@@ -172,6 +189,13 @@ defmodule LlmTestsForge do
   end
 
   defp tls_options("https://" <> _rest) do
+    unless function_exported?(:public_key, :cacerts_get, 0) do
+      Mix.raise(
+        "downloading over HTTPS needs OTP 25 or newer (:public_key.cacerts_get/0 is missing); " <>
+          "install the binary from #{@repository_url} instead"
+      )
+    end
+
     [
       ssl: [
         verify: :verify_peer,

@@ -15,9 +15,9 @@ defmodule Mix.Tasks.LlmTestsForge do
   controlling terminal and never receives the terminal's Ctrl+C, while the VM
   answers Ctrl+C with its own break menu (which cannot be switched off from
   inside a running VM) and a second one ends it, leaving the child orphaned.
-  The binary's stdin is empty and its stdout is relayed. Run the interactive
-  review on the installed binary directly, which
-  `mix llm_tests_forge.install` prints:
+  The binary's stdin is empty and its stdout is relayed. So
+  `mix llm_tests_forge review` refuses (exit 2) and names the installed binary
+  to run directly, which `mix llm_tests_forge.install` also prints:
 
       _build/llm-tests-forge review
   """
@@ -25,8 +25,17 @@ defmodule Mix.Tasks.LlmTestsForge do
   use Mix.Task
 
   @impl Mix.Task
+  def run(["review" | _rest]) do
+    IO.puts(
+      :stderr,
+      "review needs the terminal; run #{LlmTestsForge.binary_path()} review"
+    )
+
+    System.halt(2)
+  end
+
   def run(arguments) do
-    binary = LlmTestsForge.ensure_installed!(&IO.puts(:stderr, &1))
+    binary =LlmTestsForge.ensure_installed!(&IO.puts(:stderr, &1))
 
     case LlmTestsForge.run_binary(binary, arguments) do
       0 -> :ok

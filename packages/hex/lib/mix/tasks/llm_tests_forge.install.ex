@@ -23,7 +23,7 @@ defmodule Mix.Tasks.LlmTestsForge.Install do
   def run(arguments) do
     {switches, _positional} = OptionParser.parse!(arguments, strict: [if_missing: :boolean])
 
-    if switches[:if_missing] && File.regular?(LlmTestsForge.binary_path()) do
+    if switches[:if_missing] && LlmTestsForge.installed?() do
       Mix.shell().info("#{LlmTestsForge.binary_path()} is already installed")
     else
       path = LlmTestsForge.install!(fn line -> Mix.shell().info(line) end)

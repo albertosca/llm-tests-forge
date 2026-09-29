@@ -5,7 +5,7 @@ defmodule LlmTestsForge.MixProject do
     [
       app: :llm_tests_forge,
       version: "0.1.0",
-      elixir: "~> 1.19",
+      elixir: "~> 1.14",
       description:
         "Mix tasks that install and run the llm-tests-forge binary from its GitHub Release, checking its SHA256",
       source_url: "https://github.com/albertosca/llm-tests-forge",

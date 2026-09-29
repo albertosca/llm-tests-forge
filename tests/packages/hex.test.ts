@@ -197,6 +197,61 @@ describe.skipIf(!packages)("hex package", () => {
 		expect(skipped.stdout).toContain("is already installed");
 	}, 600_000);
 
+	test("a binary left by another package version is reinstalled, and one whose sidecar matches is kept", async () => {
+		const { intactUrl } = await built();
+		const project = await consumerProject();
+		const environment = { LLM_TESTS_FORGE_BASE_URL: intactUrl };
+		await mustRun(["mix", "llm_tests_forge.install"], project, environment);
+		const installedPath = join(project, "_build", "llm-tests-forge");
+		const sidecarPath = `${installedPath}.version`;
+		const marker = '#!/bin/sh\necho "stand-in"\n';
+		const plant = async (sidecar: string | undefined) => {
+			await writeFile(installedPath, marker, { mode: 0o755 });
+			if (sidecar === undefined) await rm(sidecarPath, { force: true });
+			else await writeFile(sidecarPath, sidecar);
+		};
+		// Matching sidecar (the one the install wrote): the stand-in is kept.
+		const matching = await Bun.file(sidecarPath).text();
+		await plant(matching);
+		expect(
+			await run(["mix", "llm_tests_forge", "--version"], project, environment),
+		).toEqual({ exitCode: 0, stdout: "stand-in\n", stderr: "" });
+		// A sidecar from another version, and no sidecar at all: reinstalled.
+		for (const stale of ["0".repeat(64), undefined]) {
+			await plant(stale);
+			const reinstalled = await run(
+				["mix", "llm_tests_forge", "--version"],
+				project,
+				environment,
+			);
+			expect(reinstalled.stdout).toBe(`${FORGE_VERSION}\n`);
+			expect(reinstalled.stderr).toContain("Installed ");
+			expect(await Bun.file(sidecarPath).text()).toBe(matching);
+		}
+		// --if-missing treats a stale binary as missing too.
+		await plant("0".repeat(64));
+		const refreshed = await run(
+			["mix", "llm_tests_forge.install", "--if-missing"],
+			project,
+			environment,
+		);
+		expect(refreshed.stdout).toContain("Installed ");
+	}, 600_000);
+
+	test("review is refused through mix with exit 2, naming the installed binary to run directly", async () => {
+		const { intactUrl } = await built();
+		const project = await consumerProject();
+		const finished = await run(["mix", "llm_tests_forge", "review"], project, {
+			LLM_TESTS_FORGE_BASE_URL: intactUrl,
+		});
+		expect(finished.exitCode).toBe(2);
+		expect(finished.stdout).toBe("");
+		expect(finished.stderr).toMatch(
+			/^review needs the terminal; run \/.*\/_build\/llm-tests-forge review\n$/,
+		);
+		expect(finished.stderr).toContain(project.replace(/^\/private/, ""));
+	}, 600_000);
+
 	test("the passthrough task exits with the binary's own status, and passes its stdout and stderr through", async () => {
 		const { intactUrl } = await built();
 		const project = await consumerProject();
