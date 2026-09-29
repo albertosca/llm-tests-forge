@@ -5,5 +5,10 @@
 # never touches.
 [test]
 coverage = false
-# Private TMPDIR for the run, removed at exit; see tests/support/preload-temporary-root.ts.
-preload = ["./tests/support/preload-temporary-root.ts"]
+# Private TMPDIR for the run, removed at exit (see
+# tests/support/preload-temporary-root.ts), then npm's and uv's caches moved
+# under it (see tests/support/preload-package-caches.ts).
+preload = [
+  "./tests/support/preload-temporary-root.ts",
+  "./tests/support/preload-package-caches.ts",
+]
