@@ -6,6 +6,7 @@ import { SuiteSchema } from "../../src/core/schemas";
 import type { Selection } from "../../src/core/select";
 import {
 	buildPromptfooConfig,
+	httpTargetModelWarning,
 	renderPromptfooConfig,
 	TOLERANT_PARSE,
 } from "../../src/emit/promptfoo";
@@ -185,6 +186,82 @@ describe("buildPromptfooConfig", () => {
 			headers: { "X-Key": "1" },
 			body: { text: "{{email}}" },
 		});
+	});
+	test("an http target gets each provider's model wherever {{target_model}} appears: url, a header, a nested body string", () => {
+		const providers = buildPromptfooConfig({
+			feature: jsonFeature,
+			suite: SuiteSchema.parse({
+				...suite,
+				target: {
+					kind: "http",
+					models: ["anthropic/claude-haiku-4-5", "google/gemini-3.5-flash"],
+					url: "http://127.0.0.1:1/x?model={{target_model}}",
+					headers: { "X-Model": "{{target_model}}", "X-Key": "1" },
+					body: {
+						text: "{{email}}",
+						options: { models: ["use {{target_model}} here"], retries: 2 },
+					},
+				},
+			}),
+			selection,
+		}).providers;
+		expect(providers.map((provider) => provider.config)).toMatchObject([
+			{
+				url: "http://127.0.0.1:1/x?model=anthropic/claude-haiku-4-5",
+				headers: { "X-Model": "anthropic/claude-haiku-4-5", "X-Key": "1" },
+				body: {
+					text: "{{email}}",
+					options: {
+						models: ["use anthropic/claude-haiku-4-5 here"],
+						retries: 2,
+					},
+				},
+			},
+			{
+				url: "http://127.0.0.1:1/x?model=google/gemini-3.5-flash",
+				headers: { "X-Model": "google/gemini-3.5-flash", "X-Key": "1" },
+				body: {
+					text: "{{email}}",
+					options: { models: ["use google/gemini-3.5-flash here"], retries: 2 },
+				},
+			},
+		]);
+	});
+	test("httpTargetModelWarning: several http models with no {{target_model}} anywhere warn; one model, the placeholder, or another kind do not", () => {
+		const httpSuite = (target: Record<string, unknown>): Suite =>
+			SuiteSchema.parse({
+				...suite,
+				target: { kind: "http", url: "http://127.0.0.1:1/x", ...target },
+			});
+		expect(httpTargetModelWarning(httpSuite({ models: ["m/a", "m/b"] }))).toBe(
+			"warning: target.kind is http and target.models lists 2 models, but {{target_model}} appears nowhere in target.url, target.headers or target.body, so every provider sends the same request",
+		);
+		expect(httpTargetModelWarning(httpSuite({ models: ["m/a"] }))).toBeNull();
+		expect(
+			httpTargetModelWarning(
+				httpSuite({
+					models: ["m/a", "m/b"],
+					body: { nested: ["{{target_model}}"] },
+				}),
+			),
+		).toBeNull();
+		expect(
+			httpTargetModelWarning(
+				httpSuite({
+					models: ["m/a", "m/b"],
+					headers: { "X-Model": "{{target_model}}" },
+				}),
+			),
+		).toBeNull();
+		expect(
+			httpTargetModelWarning(
+				httpSuite({
+					models: ["m/a", "m/b"],
+					url: "http://127.0.0.1:1/{{target_model}}",
+				}),
+			),
+		).toBeNull();
+		expect(httpTargetModelWarning(suite)).toBeNull();
 	});
 	test("providers: one file:// provider per target model, labelled by the model, with the python path", () => {
 		const config = buildPromptfooConfig({

@@ -3610,7 +3610,25 @@ describe("emit", () => {
 				[],
 			);
 			expect(out.join("\n")).not.toContain("forge_target");
+			expect(out.join("\n")).not.toContain("warning");
 		}
+	});
+	test("an http suite with two target models and no {{target_model}} is emitted with one warning line", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: {
+				kind: "http",
+				url: "http://localhost:4000/classify",
+				models: ["anthropic/claude-haiku-4-5", "google/gemini-3.5-flash"],
+			},
+		});
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(out.filter((line) => line.includes("warning"))).toEqual([
+			"emit: warning: target.kind is http and target.models lists 2 models, but {{target_model}} appears nowhere in target.url, target.headers or target.body, so every provider sends the same request",
+		]);
 	});
 	test("refuses on pending items, lists every one, writes nothing, exits 1", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));

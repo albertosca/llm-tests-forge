@@ -15,6 +15,7 @@ import { plural } from "../../core/text";
 import { renderCasesJsonl } from "../../emit/jsonl";
 import {
 	buildPromptfooConfig,
+	httpTargetModelWarning,
 	renderPromptfooConfig,
 } from "../../emit/promptfoo";
 import { shimFiles, shimLocations, targetCommand } from "../../emit/shim";
@@ -133,6 +134,8 @@ export async function emitCommand(
 	context.stdout(
 		`emit: wrote ${paths.promptfooConfig} (${plural(selection.cases.length, "case")}, ${plural(selection.scenarios.length, "scenario")}, ${plural(suite.target.models.length, "target model")}, ${plural(suite.judges.length, "judge")})`,
 	);
+	const httpWarning = httpTargetModelWarning(suite);
+	if (httpWarning !== null) context.stdout(`emit: ${httpWarning}`);
 	if (shimKind === null || locations === null) return;
 	// Each file on its own: rust and go share the entry `forge_target`, so a
 	// directory that exists may hold the other language's files, or miss one.

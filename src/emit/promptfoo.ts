@@ -172,6 +172,51 @@ function fieldsAssert(fields: Record<string, unknown>): PromptfooAssert {
 	};
 }
 
+/**
+ * Where an http suite puts the model a provider stands for. promptfoo sends
+ * every provider of kind http the same request, so without this two target
+ * models would be two identical runs. The forge substitutes it itself,
+ * before writing the config, rather than leaving it for promptfoo to render:
+ * it is not a var of any test.
+ */
+export const TARGET_MODEL_PLACEHOLDER = "{{target_model}}";
+
+/** `value` with `replace` applied to every string inside it, recursively; keys are left alone. */
+function mapStrings(
+	value: unknown,
+	replace: (text: string) => string,
+): unknown {
+	if (typeof value === "string") return replace(value);
+	if (Array.isArray(value))
+		return value.map((item) => mapStrings(item, replace));
+	if (typeof value === "object" && value !== null)
+		return Object.fromEntries(
+			Object.entries(value).map(([key, item]) => [
+				key,
+				mapStrings(item, replace),
+			]),
+		);
+	return value;
+}
+
+/**
+ * The warning emit prints when an http suite lists several target models
+ * but `{{target_model}}` appears in none of url, headers or body: its
+ * providers would all send the same request. Null when there is nothing
+ * to warn about.
+ */
+export function httpTargetModelWarning(suite: Suite): string | null {
+	const target = suite.target;
+	if (target.kind !== "http" || target.models.length < 2) return null;
+	let found = false;
+	mapStrings([target.url, target.headers, target.body], (text) => {
+		found = found || text.includes(TARGET_MODEL_PLACEHOLDER);
+		return text;
+	});
+	if (found) return null;
+	return `warning: target.kind is http and target.models lists ${target.models.length} models, but ${TARGET_MODEL_PLACEHOLDER} appears nowhere in target.url, target.headers or target.body, so every provider sends the same request`;
+}
+
 function providerFor(
 	model: string,
 	suite: Suite,
@@ -197,22 +242,33 @@ function providerFor(
 			};
 		case "exec":
 			return { id: `exec: ${target.command}`, label: model, config: { model } };
-		case "http":
+		case "http": {
+			const substitute = (text: string): string =>
+				text.replaceAll(TARGET_MODEL_PLACEHOLDER, model);
 			return {
 				id: "http",
 				label: model,
 				config: {
-					url: target.url,
+					url: target.url === undefined ? undefined : substitute(target.url),
 					method: target.method ?? "POST",
-					headers: target.headers ?? { "Content-Type": "application/json" },
-					body:
+					headers: mapStrings(
+						target.headers ?? { "Content-Type": "application/json" },
+						substitute,
+					),
+					body: mapStrings(
 						target.body ??
-						Object.fromEntries(
-							feature.inputs.map((input) => [input.name, `{{${input.name}}}`]),
-						),
+							Object.fromEntries(
+								feature.inputs.map((input) => [
+									input.name,
+									`{{${input.name}}}`,
+								]),
+							),
+						substitute,
+					),
 					transformResponse: httpTransform(target.response),
 				},
 			};
+		}
 		case "elixir":
 		case "ruby":
 		case "rust":
