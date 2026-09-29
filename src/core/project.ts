@@ -8,7 +8,8 @@ import {
 	resolve,
 	sep,
 } from "node:path";
-import { isSeq, parseDocument } from "yaml";
+import { isNode, isSeq, parseDocument } from "yaml";
+import { ForgeError } from "./errors";
 import { parseYamlText, readText } from "./files";
 import {
 	type Language,
@@ -122,6 +123,11 @@ export function registerSuite(
 	const entry = relative(project.root, resolve(suiteDirectory))
 		.split(sep)
 		.join("/");
+	if (isAbsolute(entry) || entry === ".." || entry.startsWith("../"))
+		throw new ForgeError(
+			`${suiteDirectory} is outside the project at ${project.root}; a suite must live inside it`,
+			{ file: project.file },
+		);
 	const comparable = comparableEntry(entry);
 	if (
 		project.suites.some((suite) => comparableEntry(suite.entry) === comparable)
@@ -129,9 +135,17 @@ export function registerSuite(
 		return null;
 	const document = parseDocument(project.text);
 	const suites = document.get("suites", true);
-	if (isSeq(suites) && suites.items.length > 0)
-		document.addIn(["suites"], entry);
-	else document.set("suites", document.createNode([entry]));
+	if (isSeq(suites)) {
+		suites.flow = false;
+		suites.items.push(document.createNode(entry));
+	} else {
+		const replacement = document.createNode([entry]);
+		if (isNode(suites)) {
+			replacement.comment = suites.comment;
+			replacement.commentBefore = suites.commentBefore;
+		}
+		document.set("suites", replacement);
+	}
 	return {
 		text: document.toString({ flowCollectionPadding: false, lineWidth: 0 }),
 		entry,

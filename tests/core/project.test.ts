@@ -79,6 +79,46 @@ describe("forge.yaml", () => {
 			parse(registerSuite(empty, join(empty.root, "x"))?.text ?? "").suites,
 		).toEqual(["x"]);
 	});
+	test("registerSuite treats ./evals/a/ and evals/a/ as the already-registered evals/a", async () => {
+		for (const written of ["./evals/a/", "evals/a/"]) {
+			const project = await readProject(
+				await projectWith(
+					`version: 1\nlanguage: go\nsuites:\n  - ${written}\n`,
+				),
+			);
+			expect(
+				registerSuite(project, join(project.root, "evals", "a")),
+			).toBeNull();
+		}
+	});
+	test("registerSuite refuses a directory outside the project, naming forge.yaml", async () => {
+		const project = await readProject(
+			await projectWith("version: 1\nlanguage: go\n"),
+		);
+		const outside = join(project.root, "..", "elsewhere");
+		expect(() => registerSuite(project, outside)).toThrow(
+			`${outside} is outside the project at ${project.root}; a suite must live inside it`,
+		);
+		expect(() => registerSuite(project, outside)).toThrow(project.file);
+	});
+	test("a bare suites: (with or without a comment) reads as an empty list and registerSuite then adds the list", async () => {
+		for (const line of ["suites:", "suites: # c"]) {
+			const project = await readProject(
+				await projectWith(`version: 1\nlanguage: go\n${line}\n`),
+			);
+			expect(project.suites).toEqual([]);
+			const text = registerSuite(project, join(project.root, "x"))?.text ?? "";
+			expect(parse(text).suites).toEqual(["x"]);
+		}
+	});
+	test("registerSuite keeps the trailing comment on suites: [] # keep", async () => {
+		const project = await readProject(
+			await projectWith("version: 1\nlanguage: go\nsuites: [] # keep\n"),
+		);
+		const text = registerSuite(project, join(project.root, "x"))?.text ?? "";
+		expect(text).toContain("# keep");
+		expect(parse(text).suites).toEqual(["x"]);
+	});
 	test("registeredSuiteNames lists the entries, or says none yet", async () => {
 		expect(
 			registeredSuiteNames(

@@ -106,7 +106,7 @@ export type Language = (typeof LANGUAGES)[number];
 export const ProjectConfigSchema = z.object({
 	version: z.literal(1),
 	language: z.enum(LANGUAGES),
-	suites: z.array(z.string().min(1)).default([]),
+	suites: z.preprocess((value) => value ?? [], z.array(z.string().min(1))),
 	defaults: z
 		.object({
 			drafter: z.string().min(1).optional(),
