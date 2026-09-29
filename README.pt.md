@@ -18,12 +18,12 @@ Escolha o que combina com o seu projeto:
 
     npm i -D llm-tests-forge                # JavaScript / TypeScript
     uv add --dev llm-tests-forge            # Python
-    brew install albertosca/tap/llm-tests-forge   # qualquer projeto; o caminho para Rust e Go
-    curl -fsSL https://github.com/albertosca/llm-tests-forge/releases/latest/download/install.sh | sh   # qualquer projeto; o caminho para Rust e Go
+    brew install albertosca/tap/llm-tests-forge   # qualquer projeto
+    curl -fsSL https://github.com/albertosca/llm-tests-forge/releases/latest/download/install.sh | sh   # qualquer projeto
 
 Para Elixir, adicione a dependência ao `mix.exs` e depois baixe o binário:
 
-    {:llm_tests_forge, "~> 0.1"}
+    {:llm_tests_forge, "~> 0.1", only: :dev, runtime: false}
     mix deps.get
     mix llm_tests_forge.install
 
@@ -31,7 +31,7 @@ Para Ruby, adicione esta linha ao `Gemfile` e rode `bundle install`:
 
     gem "llm-tests-forge", group: :development
 
-Projetos Rust e Go não têm pacote próprio: use o Homebrew ou o script. O `install.sh` coloca o binário em `~/.local/bin` por padrão e confere o SHA256 antes; `--dir <bin-directory>` escolhe outro diretório e `--version vX.Y.Z` fixa uma versão. No Elixir, um `review` interativo roda como `_build/llm-tests-forge review`, porque `mix llm_tests_forge review` recusa (sai com código 2).
+Projetos Rust e Go não têm pacote próprio: use o Homebrew ou o script. O `install.sh` coloca o binário em `~/.local/bin` por padrão e confere o SHA256 antes; `--dir <bin-directory>` escolhe outro diretório e `--version vX.Y.Z` fixa uma versão; pelo pipe, passe-os depois de `sh -s --`. No Elixir, um `review` interativo roda como `_build/llm-tests-forge review`, porque `mix llm_tests_forge review` recusa (sai com código 2).
 
 A partir de um clone, que funciona hoje, requer o [bun](https://bun.sh) 1.4 ou mais recente:
 
