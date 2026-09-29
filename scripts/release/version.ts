@@ -122,7 +122,7 @@ export async function stampVersion(
 			});
 		if (stamped === text) continue;
 		await writeFile(join(root, manifest.path), stamped);
-		changed.push(manifest.path);
+		if (!changed.includes(manifest.path)) changed.push(manifest.path);
 	}
 	return changed;
 }
@@ -160,7 +160,7 @@ export async function runVersion(
 	if (command === "stamp") {
 		const changed = await stampVersion(root, manifests);
 		print(
-			`stamped ${await releaseVersion(root)} into ${changed.length} of ${manifests.length} manifests`,
+			`stamped ${await releaseVersion(root)} into ${changed.length} of ${new Set(manifests.map((manifest) => manifest.path)).size} manifests`,
 		);
 		return 0;
 	}

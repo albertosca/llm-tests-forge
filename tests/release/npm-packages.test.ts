@@ -93,6 +93,7 @@ describe("npm-packages", () => {
 			await readFile(join(out, "main/package.json"), "utf8"),
 		);
 		expect(main.version).toBe(FORGE_VERSION);
+		expect(main.engines).toEqual({ node: ">=16.9" });
 		expect(main.optionalDependencies).toEqual(
 			Object.fromEntries(
 				RELEASE_TARGETS.map((target) => [

@@ -194,6 +194,28 @@ describe("version command", () => {
 		expect(await runVersion(["check"], () => {}, root, manifests)).toBe(0);
 	});
 
+	test("stamp counts distinct files: two entries on one file are one manifest, listed once", async () => {
+		const root = await treeWith({
+			"mix.exs": '  @version "0.0.1"\n  @dependency_version "0.0.1"\n',
+		});
+		const twoEntries: Manifest[] = [
+			TEXT_MANIFEST,
+			{
+				path: "mix.exs",
+				format: "text",
+				pattern: /^(\s*@dependency_version ")([^"]*)(")/m,
+			},
+		];
+		expect(await stampVersion(root, twoEntries)).toEqual(["mix.exs"]);
+		await writeFile(
+			join(root, "mix.exs"),
+			'  @version "0.0.1"\n  @dependency_version "0.0.1"\n',
+		);
+		const printed: string[] = [];
+		await runVersion(["stamp"], (line) => printed.push(line), root, twoEntries);
+		expect(printed).toEqual(["stamped 1.2.3 into 1 of 1 manifests"]);
+	});
+
 	test("anything but exactly stamp or check is a usage error", async () => {
 		for (const argumentsList of [[], ["bump"], ["check", "extra"]])
 			await expect(runVersion(argumentsList, () => {})).rejects.toBeInstanceOf(

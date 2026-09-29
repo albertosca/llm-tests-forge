@@ -8,6 +8,9 @@
 		"type": "git",
 		"url": "git+https://github.com/albertosca/llm-tests-forge.git"
 	},
+	"engines": {
+		"node": ">=16.9"
+	},
 	"bin": {
 		"llm-tests-forge": "bin/llm-tests-forge.js"
 	},
