@@ -17,7 +17,9 @@ Requires [bun](https://bun.sh) 1.4 or newer. This is not published to any packag
     git clone https://github.com/albertosca/llm-test-forge.git
     cd llm-test-forge
     bun install
-    bun link      # exposes `llm-tests-forge` on your PATH
+    bun link      # links `llm-tests-forge` into bun's global bin directory
+
+`bun link` puts the command in bun's global bin directory, by default `~/.bun/bin`, which must be on your `PATH`; that directory was not verified here.
 
 The forge ships no short alias of its own. If you want one, `alias ltf=llm-tests-forge` in your shell is your choice to make.
 
@@ -29,9 +31,10 @@ Run these from inside the project whose LLM feature you are testing.
 
     llm-tests-forge init
 
-Detects the project's language, writes `forge.yaml` at the project root, and adds a block about the forge to `AGENTS.md` (creating the file if there is none). `--language` overrides the detection. `forge.yaml` lists the suites and holds the defaults; it starts with `suites: []` and the defaults commented out, and `describe` adds each new suite to the list. A filled-in one looks like this:
+Detects the project's language, writes `forge.yaml` at the project root, and adds a block about the forge to `AGENTS.md` (creating the file if there is none). `--language` overrides the detection. On a project that already has a `forge.yaml`, `init` leaves it untouched and only refreshes the `AGENTS.md` block, so `--language` does nothing there. `forge.yaml` lists the suites and holds the defaults; it starts with `suites: []` and the defaults commented out, and `describe` adds each new suite to the list. A filled-in one looks like this:
 
     # forge.yaml
+    version: 1
     language: python
     suites: [evals/classify_response]
     defaults:
@@ -67,9 +70,9 @@ Create the suite directory, `cd` into it, and run these in order.
 
     mkdir -p evals/classify_response && cd evals/classify_response
     export FORGE_DRAFTER=google/gemini-3.5-flash
-    llm-tests-forge describe "The bot classifies hiring emails into rejection, acknowledgement, interview, screening, offer, info_request or unrelated" --prompt-file src/prompt.txt
+    llm-tests-forge describe "The bot classifies hiring emails into rejection, acknowledgement, interview, screening, offer, info_request or unrelated" --prompt-file ../../src/prompt.txt
 
-Writes `.forge/feature.yaml` as a pending, structured description of the feature (purpose, inputs, output shape, invariants). `--prompt-file` is optional; pass it when the function has a real system prompt worth copying rules from (the path is relative to where you run the command). Running `describe` again over a feature you have already reviewed is refused, because it would overwrite the invariants you wrote by hand; pass `--force` when replacing it is what you want. When no `suite.yaml` exists yet, the project's language is not `other`, and `forge.yaml` sets both `defaults.target_models` and `defaults.judges`, `describe` also writes a starting `suite.yaml`.
+Writes `.forge/feature.yaml` as a pending, structured description of the feature (purpose, inputs, output shape, invariants). `--prompt-file` is optional; pass it when the function has a real system prompt worth copying rules from (the path is relative to where you run the command, hence `../../` from `evals/classify_response`). Running `describe` again over a feature you have already reviewed is refused, because it would overwrite the invariants you wrote by hand; pass `--force` when replacing it is what you want. When no `suite.yaml` exists yet, the project's language is not `other`, and `forge.yaml` sets both `defaults.target_models` and `defaults.judges`, `describe` also writes a starting `suite.yaml`.
 
     llm-tests-forge review
 
@@ -91,7 +94,7 @@ Generates 5 pending cases per approved scenario in `.forge/cases/<scenario-id>.y
 
 Flags likely-duplicate cases within each scenario (`duplicate_of`) without removing them. It only touches pending cases, so it comes before the review of the cases.
 
-    llm-tests-forge import logs/real-inputs.jsonl
+    llm-tests-forge import ../../logs/real-inputs.jsonl
 
 Reads one `{"input-name": "value"}` JSON object per line from real production logs and adds them as pending cases in the `imported` scenario, without an expected output — you supply that during review.
 
@@ -158,7 +161,7 @@ Every exec-style shim answers on stdout, so your application must log to stderr.
 
 `init` adds a block to `AGENTS.md` that points an agent at `llm-tests-forge status` and `llm-tests-forge guide`. The rule in that manual is the important one: approving is the person's job, so an agent never marks anything approved by editing a file and never runs `review` for you.
 
-A Claude Code skill (`plugin/skills/llm-tests-forge/`) is a thin pointer to the same manual. The install command is `/plugin marketplace add albertosca/llm-tests-forge`, and it works once the repository is published under that name. `claude plugin validate` passes for the marketplace and the plugin, but loading the skill from the marketplace is not verified.
+A Claude Code skill (`plugin/skills/llm-tests-forge/`) is a thin pointer to the same manual. The install command is `/plugin marketplace add albertosca/llm-tests-forge`, and it works once the repository is published under that name: it is `albertosca/llm-test-forge` today, and it will be renamed to `llm-tests-forge`, which is why the clone URL above still carries the old name. `claude plugin validate` passes for the marketplace and the plugin, but loading the skill from the marketplace is not verified.
 
 ### What to commit under `.forge/`
 

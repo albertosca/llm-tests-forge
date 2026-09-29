@@ -17,7 +17,9 @@ Requer o [bun](https://bun.sh) 1.4 ou mais recente. Ainda não está publicado e
     git clone https://github.com/albertosca/llm-test-forge.git
     cd llm-test-forge
     bun install
-    bun link      # expõe o `llm-tests-forge` no seu PATH
+    bun link      # liga o `llm-tests-forge` ao diretório bin global do bun
+
+O `bun link` coloca o comando no diretório bin global do bun, por padrão `~/.bun/bin`, que precisa estar no seu `PATH`; esse diretório não foi verificado aqui.
 
 A forja não traz um alias curto próprio. Se quiser um, `alias ltf=llm-tests-forge` no seu shell é escolha sua.
 
@@ -29,9 +31,10 @@ Rode estes comandos de dentro do projeto cuja funcionalidade de LLM você está 
 
     llm-tests-forge init
 
-Detecta a linguagem do projeto, escreve o `forge.yaml` na raiz e adiciona ao `AGENTS.md` um bloco sobre a forja (criando o arquivo se não houver). `--language` sobrescreve a detecção. O `forge.yaml` lista as suítes e guarda os padrões; ele nasce com `suites: []` e os padrões comentados, e o `describe` acrescenta cada suíte nova à lista. Um já preenchido fica assim:
+Detecta a linguagem do projeto, escreve o `forge.yaml` na raiz e adiciona ao `AGENTS.md` um bloco sobre a forja (criando o arquivo se não houver). `--language` sobrescreve a detecção. Num projeto que já tem `forge.yaml`, o `init` o deixa intocado e só atualiza o bloco do `AGENTS.md`, então `--language` não faz nada ali. O `forge.yaml` lista as suítes e guarda os padrões; ele nasce com `suites: []` e os padrões comentados, e o `describe` acrescenta cada suíte nova à lista. Um já preenchido fica assim:
 
     # forge.yaml
+    version: 1
     language: python
     suites: [evals/classify_response]
     defaults:
@@ -67,9 +70,9 @@ Crie o diretório da suíte, entre nele e rode estes comandos nesta ordem.
 
     mkdir -p evals/classify_response && cd evals/classify_response
     export FORGE_DRAFTER=google/gemini-3.5-flash
-    llm-tests-forge describe "The bot classifies hiring emails into rejection, acknowledgement, interview, screening, offer, info_request or unrelated" --prompt-file src/prompt.txt
+    llm-tests-forge describe "The bot classifies hiring emails into rejection, acknowledgement, interview, screening, offer, info_request or unrelated" --prompt-file ../../src/prompt.txt
 
-Escreve `.forge/feature.yaml` como uma descrição estruturada e pendente da funcionalidade (propósito, entradas, formato da saída, invariantes). `--prompt-file` é opcional; passe-o quando a função tiver um system prompt real que valha a pena copiar regras dele (o caminho é relativo a onde você roda o comando). Rodar `describe` de novo por cima de uma funcionalidade que você já revisou é recusado, porque sobrescreveria as invariantes que você escreveu à mão; passe `--force` quando substituir for exatamente o que você quer. Quando ainda não existe `suite.yaml`, a linguagem do projeto não é `other` e o `forge.yaml` define `defaults.target_models` e `defaults.judges`, o `describe` também escreve um `suite.yaml` inicial.
+Escreve `.forge/feature.yaml` como uma descrição estruturada e pendente da funcionalidade (propósito, entradas, formato da saída, invariantes). `--prompt-file` é opcional; passe-o quando a função tiver um system prompt real que valha a pena copiar regras dele (o caminho é relativo a onde você roda o comando, daí o `../../` a partir de `evals/classify_response`). Rodar `describe` de novo por cima de uma funcionalidade que você já revisou é recusado, porque sobrescreveria as invariantes que você escreveu à mão; passe `--force` quando substituir for exatamente o que você quer. Quando ainda não existe `suite.yaml`, a linguagem do projeto não é `other` e o `forge.yaml` define `defaults.target_models` e `defaults.judges`, o `describe` também escreve um `suite.yaml` inicial.
 
     llm-tests-forge review
 
@@ -91,7 +94,7 @@ Gera 5 casos pendentes por cenário aprovado em `.forge/cases/<scenario-id>.yaml
 
 Marca casos provavelmente duplicados dentro de cada cenário (`duplicate_of`), sem removê-los. Ele só mexe em casos pendentes, por isso vem antes da revisão dos casos.
 
-    llm-tests-forge import logs/real-inputs.jsonl
+    llm-tests-forge import ../../logs/real-inputs.jsonl
 
 Lê um objeto JSON `{"input-name": "value"}` por linha a partir de logs reais de produção e os adiciona como casos pendentes no cenário `imported`, sem saída esperada — você fornece isso durante a revisão.
 
@@ -158,7 +161,7 @@ Todo shim do tipo exec responde na stdout, então a sua aplicação precisa loga
 
 O `init` adiciona ao `AGENTS.md` um bloco que aponta um agente para `llm-tests-forge status` e `llm-tests-forge guide`. A regra desse manual é a que importa: aprovar é trabalho da pessoa, então um agente nunca marca nada como aprovado editando um arquivo e nunca roda o `review` por você.
 
-Uma skill do Claude Code (`plugin/skills/llm-tests-forge/`) é um ponteiro fino para o mesmo manual. O comando de instalação é `/plugin marketplace add albertosca/llm-tests-forge`, e ele funciona quando o repositório estiver publicado com esse nome. O `claude plugin validate` passa para o marketplace e para o plugin, mas carregar a skill a partir do marketplace não foi verificado.
+Uma skill do Claude Code (`plugin/skills/llm-tests-forge/`) é um ponteiro fino para o mesmo manual. O comando de instalação é `/plugin marketplace add albertosca/llm-tests-forge`, e ele funciona quando o repositório estiver publicado com esse nome: hoje é `albertosca/llm-test-forge`, e será renomeado para `llm-tests-forge`, por isso a URL do clone acima ainda leva o nome antigo. O `claude plugin validate` passa para o marketplace e para o plugin, mas carregar a skill a partir do marketplace não foi verificado.
 
 ### O que commitar dentro de `.forge/`
 
