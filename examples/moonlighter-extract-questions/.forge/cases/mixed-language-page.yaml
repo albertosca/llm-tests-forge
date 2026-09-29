@@ -195,7 +195,7 @@
             - Ja
             - Nein
         - label: Bevorzugte Arbeitszeiten
-          kind: multi_select
+          kind: single_select
           required: false
           options:
             - Vollzeit
@@ -219,7 +219,7 @@
           kind: boolean
           required: false
           options: []
-  status: approved
+  status: pending
   generated_by: anthropic/claude-sonnet-5
 - id: mixed-language-page-03
   scenario: mixed-language-page
