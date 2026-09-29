@@ -55,6 +55,15 @@ export const PYPI_MANIFESTS: readonly Manifest[] = [
 	},
 ];
 
+/** The Hex package's manifest: the `version: "…"` line in `project/0` (the only line of mix.exs that starts that way). */
+export const HEX_MANIFESTS: readonly Manifest[] = [
+	{
+		path: "packages/hex/mix.exs",
+		format: "text",
+		pattern: /^(\s*version: ")([^"]*)(")/m,
+	},
+];
+
 /**
  * Every package manifest, relative to the repository root. Each packaging
  * task adds its own files here as it creates them.
@@ -67,6 +76,7 @@ export const MANIFESTS: readonly Manifest[] = [
 	},
 	...NPM_MANIFESTS,
 	...PYPI_MANIFESTS,
+	...HEX_MANIFESTS,
 ];
 
 const REPOSITORY_ROOT = resolve(import.meta.dir, "../..");

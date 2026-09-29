@@ -10,3 +10,9 @@ dist/
 
 # Planning docs live in the private repo albertosca/private-project-docs (llm-tests-forge/), symlinked here.
 /docs/superpowers
+
+# Rendered at release time from SHA256SUMS (scripts/release/hex-checksums.ts)
+/packages/hex/checksums.exs
+/packages/hex/_build/
+/packages/hex/deps/
+/packages/hex/erl_crash.dump
