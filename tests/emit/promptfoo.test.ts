@@ -227,6 +227,35 @@ describe("buildPromptfooConfig", () => {
 			},
 		]);
 	});
+	test("an http suite whose feature has an input named target_model is refused, naming the input and the placeholder", () => {
+		const collidingFeature: Feature = {
+			...labelFeature,
+			inputs: [
+				{ name: "email", kind: "text" },
+				{ name: "target_model", kind: "text" },
+			],
+		};
+		const httpSuite = SuiteSchema.parse({
+			...suite,
+			target: { kind: "http", models: ["m/x"], url: "http://127.0.0.1:1/x" },
+		});
+		expect(() =>
+			buildPromptfooConfig({
+				feature: collidingFeature,
+				suite: httpSuite,
+				selection,
+			}),
+		).toThrow(
+			'input "target_model" collides with the placeholder {{target_model}}',
+		);
+		expect(() =>
+			buildPromptfooConfig({
+				feature: collidingFeature,
+				suite,
+				selection,
+			}),
+		).not.toThrow();
+	});
 	test("httpTargetModelWarning: several http models with no {{target_model}} anywhere warn; one model, the placeholder, or another kind do not", () => {
 		const httpSuite = (target: Record<string, unknown>): Suite =>
 			SuiteSchema.parse({

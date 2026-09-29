@@ -31,7 +31,7 @@ async function exampleDate(directory: string): Promise<string> {
 	const report = JSON.parse(
 		await readFile(join(directory, ".forge", "report.json"), "utf8"),
 	);
-	return report.generatedAt.slice(0, 10);
+	return report.ranAt.slice(0, 10);
 }
 
 async function projectWithTwoSuites(): Promise<string> {
@@ -125,7 +125,7 @@ describe("status through main()", () => {
 		const human = await runStatus(root);
 		expect(human.code).toBe(0);
 		expect(human.lines).toEqual([
-			`no suites registered in ${join(root, "forge.yaml")}; run llm-tests-forge describe in a new directory to start one, or, for a suite that already exists, add its path to suites: in forge.yaml (for example \`suites: [evals/<function>]\`, or a \`- evals/<function>\` line under suites:)`,
+			`no suites registered in ${join(root, "forge.yaml")}; run llm-tests-forge describe in a new directory to start one, or, for a suite that already exists, add its path to suites: in forge.yaml (for example \`suites: [evals/<function>]\`, or, when suites is already a block list, add a \`- evals/<function>\` line with the same indentation as the existing entries)`,
 		]);
 		const machine = await runStatus(root, ["status", "--json"]);
 		expect(machine.code).toBe(0);

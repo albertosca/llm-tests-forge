@@ -17,6 +17,7 @@ import { parse } from "yaml";
 import type { CliContext } from "../../src/cli/context";
 import { createContext } from "../../src/cli/context";
 import { COMMANDS, drafterFlag, main, run, USAGE } from "../../src/cli/main";
+import { ForgeError } from "../../src/core/errors";
 import {
 	readCases,
 	readFeature,
@@ -949,7 +950,7 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 		};
 		const unregistered = await describeIn(join(root, "evals", "classify"));
 		expect(unregistered.join("\n")).toContain(
-			"re-run with --force to replace it. This suite is not registered in forge.yaml: to register it without describing it again, add its path to suites: in forge.yaml (for example `suites: [evals/classify]`, or a `- evals/classify` line under suites:)",
+			"re-run with --force to replace it. This suite is not registered in forge.yaml: to register it without describing it again, add its path to suites: in forge.yaml (for example `suites: [evals/classify]`, or, when suites is already a block list, add a `- evals/classify` line with the same indentation as the existing entries)",
 		);
 		const registered = await describeIn(join(root, "evals", "kept"));
 		expect(registered.join("\n")).toContain("re-run with --force");
@@ -4060,7 +4061,7 @@ describe("report", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["report", RESULTS], context)).toBe(1);
 		expect(out.at(-1)).toContain(RESULTS);
-		expect(out.at(-1)).toContain("forge emitted");
+		expect(out.at(-1)).toContain("a config llm-tests-forge emitted");
 		expect(out.at(-1)).toContain(
 			'first metadata.case seen: "ack-optional-quiz-01", 4 rows',
 		);
@@ -4312,7 +4313,7 @@ include: [other] # kept too
 		// Only the stamp line is new: any other rewrite (writeSuite drops the
 		// comments and turns flow lists into blocks) changes this text.
 		expect(await readFile(suiteFile, "utf8")).toBe(
-			`${seeded}forge_version: ${FORGE_VERSION}\n`,
+			`forge_version: ${FORGE_VERSION}\n${seeded}`,
 		);
 		// No cases file existed, so none is invented: an empty
 		// `cases/soft-no.yaml` would read to every later verb as a scenario
@@ -4522,6 +4523,7 @@ include: [keep, polite-rejection, keep]   # only these for now
 		// normalises spacing, so the pin is on the lines, not on the bytes.
 		const after = await readFile(suiteFile, "utf8");
 		expect(after.split("\n")).toEqual([
+			`forge_version: ${FORGE_VERSION}`,
 			"target:",
 			"  kind: python",
 			"  entry: forge_target.py",
@@ -4530,7 +4532,6 @@ include: [keep, polite-rejection, keep]   # only these for now
 			"judges: [google/gemini-3.5-flash]",
 			"repeat: 2",
 			"include: [keep, soft-no, keep] # only these for now",
-			`forge_version: ${FORGE_VERSION}`,
 			"",
 		]);
 		expect((await readSuite(forgeDirectory)).include).toEqual([
@@ -5465,7 +5466,7 @@ describe("main(): the suite and the project", () => {
 			'error: suite "evals/zzz" is not registered in',
 		);
 		expect(unregistered.join("\n")).toContain(
-			"registered: evals/a. If it exists, add its path to suites: in forge.yaml (for example `suites: [evals/zzz]`, or a `- evals/zzz` line under suites:)",
+			"registered: evals/a. If it exists, add its path to suites: in forge.yaml (for example `suites: [evals/zzz]`, or, when suites is already a block list, add a `- evals/zzz` line with the same indentation as the existing entries)",
 		);
 	});
 
@@ -5588,6 +5589,75 @@ describe("main(): the suite and the project", () => {
 		}
 	});
 
+	test("--help or -h anywhere before -- prints the usage and exits 0 with a malformed forge.yaml, and a positional after -- is left alone", async () => {
+		const root = await projectWith("version: 2\n");
+		for (const argv of [
+			["status", "--help"],
+			["emit", "-h"],
+			["--suite", "x", "--help"],
+			["describe", "some text", "-h"],
+		]) {
+			const lines: string[] = [];
+			expect(
+				await main(argv, {
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(0);
+			expect(lines).toEqual([USAGE]);
+		}
+	});
+
+	test("describe -- --help and describe -- -h run describe with the flag as the text, in a valid project", async () => {
+		for (const word of ["--help", "-h"]) {
+			const root = await projectWith(
+				"version: 1\nlanguage: python\nsuites: []\n",
+			);
+			const lines: string[] = [];
+			expect(
+				await main(["describe", "--", word], {
+					cwd: root,
+					env: { FORGE_DRAFTER: MODEL },
+					// The text is a positional: stdin is only read when there is none.
+					stdin: async () => {
+						throw new Error("describe read stdin instead of taking the text");
+					},
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(0);
+			expect(lines).not.toContain(USAGE);
+			expect(lines.join("\n")).toContain(
+				'describe: feature "classify-email" written as pending',
+			);
+			expect(
+				(await readFile(join(root, ".forge", "feature.yaml"), "utf8")).length,
+			).toBeGreaterThan(0);
+		}
+	});
+
+	test("the usage and the guide say that a describe text of -h or --help goes after --", async () => {
+		expect(USAGE).toContain("a text that is -h or --help goes after --");
+		expect(await readFile("templates/guide.md", "utf8")).toContain(
+			"so a text that is one of them goes after `--`",
+		);
+	});
+
+	test("--version stays a verb-position flag: after another verb it is an unknown option, exit 2, not the version", async () => {
+		const lines: string[] = [];
+		expect(
+			await main(["status", "--version"], {
+				cwd: await mkdtemp(join(tmpdir(), "forge-version-")),
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(2);
+		expect(lines.join("\n")).toContain("error: Unknown option '--version'");
+		expect(lines).not.toContain(FORGE_VERSION);
+	});
+
 	test("guide is answered even when forge.yaml is malformed, and does not stamp or warn", async () => {
 		const root = await projectWith("version: 2\n");
 		const lines: string[] = [];
@@ -5608,10 +5678,11 @@ describe("main(): the suite and the project", () => {
 		);
 		expect(await run(["guide"], context)).toBe(0);
 		const guide = out.join("\n");
-		const firstParagraph = guide
-			.split(/\n\s*\n/)
-			.find((block) => !block.trimStart().startsWith("#"));
-		expect(firstParagraph).toContain("approving is the person's job");
+		const blocks = guide.split(/\n\s*\n/);
+		const firstHeading = blocks.find((block) => block.startsWith("## "));
+		expect(firstHeading).toBe("## The rule");
+		const sectionStart = blocks.indexOf("## The rule");
+		expect(blocks[sectionStart + 1]).toContain("approving is the person's job");
 	});
 
 	test("the guide names every verb in USAGE, so a new verb without a guide entry fails", async () => {
@@ -5650,8 +5721,9 @@ describe("main(): the suite and the project", () => {
 	});
 
 	test("the skill and the marketplace file have the shape the plugin needs", async () => {
+		const repositoryRoot = join(import.meta.dir, "..", "..");
 		const skill = await readFile(
-			"plugin/skills/llm-tests-forge/SKILL.md",
+			join(repositoryRoot, "plugin/skills/llm-tests-forge/SKILL.md"),
 			"utf8",
 		);
 		const frontmatter = parse(/^---\n([\s\S]*?)\n---/.exec(skill)?.[1] ?? "");
@@ -5659,12 +5731,18 @@ describe("main(): the suite and the project", () => {
 		expect(frontmatter.description).toContain("create LLM tests");
 		expect(frontmatter.description).toContain("cria testes");
 		const marketplace = JSON.parse(
-			await readFile(".claude-plugin/marketplace.json", "utf8"),
+			await readFile(
+				join(repositoryRoot, ".claude-plugin/marketplace.json"),
+				"utf8",
+			),
 		);
 		expect(marketplace.plugins).toHaveLength(1);
 		expect(marketplace.plugins[0].source).toBe("./plugin");
 		const manifest = JSON.parse(
-			await readFile("plugin/.claude-plugin/plugin.json", "utf8"),
+			await readFile(
+				join(repositoryRoot, "plugin/.claude-plugin/plugin.json"),
+				"utf8",
+			),
 		);
 		expect(manifest.version).toBe(FORGE_VERSION);
 	});
@@ -5898,7 +5976,7 @@ describe("main(): the suite and the project", () => {
 		).toBe(0);
 		expect(
 			await readFile(join(suiteDirectory, ".forge", "suite.yaml"), "utf8"),
-		).toBe(`${existing}forge_version: ${FORGE_VERSION}\n`);
+		).toBe(`forge_version: ${FORGE_VERSION}\n${existing}`);
 		expect(lines.join("\n")).not.toContain("registered evals/new");
 		expect(lines.join("\n")).not.toContain("from forge.yaml's defaults");
 	});
@@ -6013,6 +6091,37 @@ describe("the version stamp and the version warning", () => {
 		expect(await run(["emit"], context)).toBe(0);
 		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
 		expect((await readSuite(forgeDirectory)).forge_version).toBe(FORGE_VERSION);
+	});
+	test("an empty forge_version gets no warning, and a writing verb stamps it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		await stampWith(forgeDirectory, '""');
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
+		expect((await readSuite(forgeDirectory)).forge_version).toBe(FORGE_VERSION);
+	});
+	test("the warning's read swallows a ForgeError: the verb reports it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const { context, out } = await ctxIn(cwd);
+		context.readSuiteIfPresent = async () => {
+			throw new ForgeError("cannot read suite", { file: "suite.yaml" });
+		};
+		expect(await run(["estimate"], context)).toBe(0);
+		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
+		expect((await readSuite(forgeDirectory)).forge_version).toBeUndefined();
+	});
+	test("a programming error in the warning's read propagates instead of being swallowed", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeWithApprovedCases(cwd);
+		const { context } = await ctxIn(cwd);
+		context.readSuiteIfPresent = async () => {
+			throw new TypeError("suite reader is broken");
+		};
+		await expect(run(["estimate"], context)).rejects.toThrow(
+			"suite reader is broken",
+		);
 	});
 	test("a verb that fails does not stamp", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));

@@ -20,8 +20,18 @@ describe("compareVersions", () => {
 		expect(compareVersions("0.4.0", "0.4.1")).toBe("patch");
 		expect(compareVersions("0.3.9", "0.4.1")).toBe("older");
 		expect(compareVersions("1.0.0", "0.9.0")).toBe("newer");
-		expect(compareVersions("0.4.1-beta.1", "0.4.1")).toBe("same");
 		expect(compareVersions("not-a-version", "0.4.1")).toBe("older");
+	});
+	test("a prerelease is below its release: a difference in the same release line, never older or newer by minor", () => {
+		expect(compareVersions("0.1.0-beta.1", "0.1.0")).toBe("patch");
+		expect(compareVersions("0.1.0", "0.1.0-beta.1")).toBe("patch");
+		expect(compareVersions("0.1.0-beta.1", "0.1.0-beta.1")).toBe("same");
+		expect(compareVersions("0.1.0-beta.1", "0.1.0-beta.2")).toBe("patch");
+		expect(compareVersions("0.1.0-beta.2", "0.1.0-beta.1")).toBe("patch");
+	});
+	test("a prerelease still orders by major and minor against other releases", () => {
+		expect(compareVersions("0.1.0-beta.1", "0.0.9")).toBe("newer");
+		expect(compareVersions("0.0.9", "0.1.0-beta.1")).toBe("older");
 	});
 	test("a newer patch in the stamp is a patch difference, and a newer minor is newer", () => {
 		expect(compareVersions("0.4.2", "0.4.1")).toBe("patch");
@@ -37,6 +47,18 @@ describe("isHigherVersion", () => {
 		expect(isHigherVersion("0.4.1", "0.4.2")).toBe(false);
 		expect(isHigherVersion("0.4.1", "0.4.1")).toBe(false);
 		expect(isHigherVersion("0.4.1-beta.1", "0.4.1")).toBe(false);
+	});
+	test("a release is higher than its prerelease and a prerelease is not; prereleases order by identifier", () => {
+		expect(isHigherVersion("0.1.0", "0.1.0-beta.1")).toBe(true);
+		expect(isHigherVersion("0.1.0-beta.1", "0.1.0")).toBe(false);
+		expect(isHigherVersion("0.1.0-beta.1", "0.0.9")).toBe(true);
+		expect(isHigherVersion("0.1.0-beta.2", "0.1.0-beta.1")).toBe(true);
+		expect(isHigherVersion("0.1.0-beta.10", "0.1.0-beta.9")).toBe(true);
+		expect(isHigherVersion("0.1.0-beta.1", "0.1.0-alpha.1")).toBe(true);
+		expect(isHigherVersion("0.1.0-beta.1", "0.1.0-beta.1")).toBe(false);
+		expect(isHigherVersion("0.1.0-beta.1", "0.1.0-beta")).toBe(true);
+		expect(isHigherVersion("0.1.0-alpha", "0.1.0-1")).toBe(true);
+		expect(isHigherVersion("0.1.0-1", "0.1.0-alpha")).toBe(false);
 	});
 	test("an unreadable existing stamp is replaceable and an unreadable candidate never wins", () => {
 		expect(isHigherVersion("0.1.0", "garbage")).toBe(true);
@@ -54,5 +76,20 @@ describe("versionWarning", () => {
 		expect(versionWarning("0.5.0", "0.4.1")).toBe(
 			"warning: this suite was written by llm-tests-forge 0.5.0, newer than the installed 0.4.1; upgrade llm-tests-forge before changing it",
 		);
+	});
+	test("a difference in the prerelease or the patch never warns, whichever way it goes (the spec warns on major or minor alone)", () => {
+		expect(versionWarning("0.1.1", "0.1.0")).toBeNull();
+		expect(versionWarning("0.1.1-beta.1", "0.1.0")).toBeNull();
+		expect(versionWarning("0.1.0", "0.1.0-beta.1")).toBeNull();
+		expect(versionWarning("0.1.0-beta.2", "0.1.0-beta.1")).toBeNull();
+		expect(versionWarning("0.1.0-beta.1", "0.1.0")).toBeNull();
+	});
+	test("a minor difference still warns when the stamp is a prerelease", () => {
+		expect(versionWarning("0.2.0-beta.1", "0.1.0")).toBe(
+			"warning: this suite was written by llm-tests-forge 0.2.0-beta.1, newer than the installed 0.1.0; upgrade llm-tests-forge before changing it",
+		);
+	});
+	test("an empty stamp is absent: no warning", () => {
+		expect(versionWarning("", "0.4.1")).toBeNull();
 	});
 });

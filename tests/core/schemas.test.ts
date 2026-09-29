@@ -178,6 +178,52 @@ describe("SuiteSchema.target.kind", () => {
 			}),
 		).toThrow("target.url must start with http:// or https://");
 	});
+	test("the url scheme is matched without regard to case", () => {
+		const parsed = SuiteSchema.parse({
+			target: { kind: "http", models: ["m/x"], url: "HTTP://localhost:1/x" },
+			judges: ["google/gemini-3.5-flash"],
+		});
+		expect(parsed.target.url).toBe("HTTP://localhost:1/x");
+		expect(
+			SuiteSchema.parse({
+				target: { kind: "http", models: ["m/x"], url: "Https://localhost:1/x" },
+				judges: ["google/gemini-3.5-flash"],
+			}).target.url,
+		).toBe("Https://localhost:1/x");
+	});
+	test("a response that is empty after trimming is refused", () => {
+		for (const response of ["", "   ", "\n\t"])
+			expect(() =>
+				SuiteSchema.parse({
+					target: {
+						kind: "http",
+						models: ["m/x"],
+						url: "http://localhost:1/x",
+						response,
+					},
+					judges: ["google/gemini-3.5-flash"],
+				}),
+			).toThrow("target.response is empty");
+	});
+	test("a null body is refused; an absent body is not", () => {
+		const target = {
+			kind: "http",
+			models: ["m/x"],
+			url: "http://localhost:1/x",
+		};
+		expect(() =>
+			SuiteSchema.parse({
+				target: { ...target, body: null },
+				judges: ["google/gemini-3.5-flash"],
+			}),
+		).toThrow(
+			"target.body is null; remove the key to send one field per input",
+		);
+		expect(
+			SuiteSchema.parse({ target, judges: ["google/gemini-3.5-flash"] }).target
+				.body,
+		).toBeUndefined();
+	});
 });
 
 describe("SuiteSchema.target.python", () => {

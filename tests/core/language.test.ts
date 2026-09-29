@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { detectLanguage } from "../../src/core/language";
@@ -38,6 +38,10 @@ describe("detectLanguage", () => {
 			manifest: "go.mod",
 		});
 		expect(await detectLanguage(await directoryWith([]))).toBeNull();
+		const directoryNamedLikeManifests = await directoryWith([]);
+		for (const name of ["mix.exs", "Gemfile", "package.json"])
+			await mkdir(join(directoryNamedLikeManifests, name));
+		expect(await detectLanguage(directoryNamedLikeManifests)).toBeNull();
 	});
 
 	test("each python manifest is found, and the order among the others holds", async () => {

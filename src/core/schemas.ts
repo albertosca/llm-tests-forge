@@ -139,7 +139,7 @@ const TargetSchema = z
 		/** The request body for kind http; each feature input is available as `{{<input name>}}`. Absent → one key per feature input. */
 		body: z.unknown().optional(),
 		/** An expression over `json` naming the part of the http response that is the output. */
-		response: z.string().min(1).optional(),
+		response: z.string().optional(),
 	})
 	.superRefine((target, context) => {
 		if (target.kind === "exec" && target.command === undefined)
@@ -154,11 +154,24 @@ const TargetSchema = z
 				path: ["url"],
 				message: "target.url is required when target.kind is http",
 			});
-		if (target.url !== undefined && !/^https?:\/\//.test(target.url))
+		if (target.url !== undefined && !/^https?:\/\//i.test(target.url))
 			context.addIssue({
 				code: "custom",
 				path: ["url"],
 				message: "target.url must start with http:// or https://",
+			});
+		if (target.body === null)
+			context.addIssue({
+				code: "custom",
+				path: ["body"],
+				message:
+					"target.body is null; remove the key to send one field per input",
+			});
+		if (target.response !== undefined && target.response.trim() === "")
+			context.addIssue({
+				code: "custom",
+				path: ["response"],
+				message: "target.response is empty",
 			});
 		if (target.response?.includes("=>"))
 			context.addIssue({

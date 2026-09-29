@@ -1,3 +1,4 @@
+import { ForgeError } from "./errors";
 import type { Suite, TargetKind } from "./schemas";
 
 export type Target = Suite["target"];
@@ -28,9 +29,13 @@ export const DEFAULT_ENTRY: Record<ShimKind, string> = {
 	go: "forge_target",
 };
 
-export function entryFor(target: Target): string {
-	if (target.entry !== undefined) return target.entry;
-	return isShimKind(target.kind) ? DEFAULT_ENTRY[target.kind] : "";
+/**
+ * The shim's file inside `.forge/`; undefined for exec and http, which have
+ * none, so no caller can join a path with an empty entry.
+ */
+export function entryFor(target: Target): string | undefined {
+	if (!isShimKind(target.kind)) return undefined;
+	return target.entry ?? DEFAULT_ENTRY[target.kind];
 }
 
 /**
@@ -41,5 +46,9 @@ export function entryFor(target: Target): string {
  */
 export function httpTransform(response: string | undefined): string {
 	const expression = response ?? "json";
+	if (expression.includes("=>"))
+		throw new ForgeError(
+			"target.response must be an expression over json, not a function: promptfoo calls any text holding => as a function",
+		);
 	return `typeof (${expression}) === "string" ? (${expression}) : JSON.stringify(${expression})`;
 }

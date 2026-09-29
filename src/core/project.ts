@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { access } from "node:fs/promises";
 import {
 	dirname,
@@ -113,7 +114,7 @@ export async function readProject(root: string): Promise<Project> {
  * `init`): there is no verb for it, so the messages that meet one say this.
  */
 export function registrationHint(entry: string): string {
-	return `add its path to suites: in ${PROJECT_FILE} (for example \`suites: [${entry}]\`, or a \`- ${entry}\` line under suites:)`;
+	return `add its path to suites: in ${PROJECT_FILE} (for example \`suites: [${entry}]\`, or, when suites is already a block list, add a \`- ${entry}\` line with the same indentation as the existing entries)`;
 }
 
 /** The registered entries for messages: "evals/a, evals/b", or "none yet". */
@@ -123,10 +124,32 @@ export function registeredSuiteNames(project: Project): string {
 		: project.suites.map((suite) => suite.entry).join(", ");
 }
 
+/** The real path of `path` (symlinks followed), or null when it does not exist. */
+function realPathOrNull(path: string): string | null {
+	try {
+		return realpathSync(path);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Whether a listed suite is the very directory `directory` (both exist and
+ * resolve to the same real path), so a symlink to a suite is not registered
+ * as a second suite.
+ */
+function listsSameDirectory(project: Project, directory: string): boolean {
+	const target = realPathOrNull(directory);
+	if (target === null) return false;
+	return project.suites.some(
+		(suite) => realPathOrNull(suite.directory) === target,
+	);
+}
+
 /**
  * The forge.yaml text with `suiteDirectory` added to `suites`, or null when
  * it is already listed. Edited through the document so every comment
- * survives; spacing is the printer's, as with `rewriteSuiteInclude`. Pure.
+ * survives; spacing is the printer's, as with `rewriteSuiteInclude`. It reads the filesystem only to compare real paths.
  */
 export function registerSuite(
 	project: Project,
@@ -145,10 +168,10 @@ export function registerSuite(
 		project.suites.some((suite) => comparableEntry(suite.entry) === comparable)
 	)
 		return null;
+	if (listsSameDirectory(project, resolve(suiteDirectory))) return null;
 	const document = parseDocument(project.text);
 	const suites = document.get("suites", true);
 	if (isSeq(suites)) {
-		suites.flow = false;
 		suites.items.push(document.createNode(entry));
 	} else {
 		const replacement = document.createNode([entry]);

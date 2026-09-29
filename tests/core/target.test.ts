@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { ForgeError } from "../../src/core/errors";
 import { entryFor, httpTransform } from "../../src/core/target";
 
 describe("entryFor", () => {
@@ -22,10 +23,21 @@ describe("entryFor", () => {
 		expect(entryFor({ kind: "rust", models: ["m/x"] })).toBe("forge_target");
 		expect(entryFor({ kind: "go", models: ["m/x"] })).toBe("forge_target");
 	});
-	test("a kind without a shim has no entry", () => {
-		expect(entryFor({ kind: "exec", models: ["m/x"], command: "./run" })).toBe(
-			"",
-		);
+	test("exec and http have no entry, even when the suite names one", () => {
+		expect(
+			entryFor({ kind: "exec", models: ["m/x"], command: "./run" }),
+		).toBeUndefined();
+		expect(
+			entryFor({ kind: "http", models: ["m/x"], url: "http://x" }),
+		).toBeUndefined();
+		expect(
+			entryFor({
+				kind: "http",
+				models: ["m/x"],
+				url: "http://x",
+				entry: "ignored.py",
+			}),
+		).toBeUndefined();
 	});
 });
 
@@ -36,6 +48,12 @@ describe("httpTransform", () => {
 		);
 		expect(httpTransform("json.result")).toBe(
 			'typeof (json.result) === "string" ? (json.result) : JSON.stringify(json.result)',
+		);
+	});
+	test("an expression holding => is refused, as promptfoo would call it as a function", () => {
+		expect(() => httpTransform("(json) => json.a")).toThrow(ForgeError);
+		expect(() => httpTransform("json.items.map(x=>x)")).toThrow(
+			"target.response must be an expression over json",
 		);
 	});
 });

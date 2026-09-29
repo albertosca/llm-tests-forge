@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { resolve } from "node:path";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { ForgeError } from "../../src/core/errors";
 import type { Estimate } from "../../src/core/estimate";
 import { readAllCases, readScenarios } from "../../src/core/files";
@@ -585,7 +587,9 @@ describe("buildReport", () => {
 			caught = error;
 		}
 		expect(caught).toBeInstanceOf(ForgeError);
-		expect((caught as ForgeError).message).toContain("forge emitted");
+		expect((caught as ForgeError).message).toContain(
+			"a config llm-tests-forge emitted",
+		);
 		expect((caught as ForgeError).details.file).toBe("r.json");
 	});
 
@@ -1098,6 +1102,95 @@ describe("buildReport", () => {
 			},
 		});
 		expect(bare.promptfooVersion).toBeNull();
+	});
+
+	test("ranAt is the time promptfoo recorded in results.json, and null when an older results.json has none", () => {
+		const rows = [row({ case: "a-01", model: "m" })];
+		const withTimestamp = build([], {
+			results: {
+				results: { timestamp: "2026-09-25T14:48:00.200Z", results: rows },
+			},
+		});
+		expect(withTimestamp.ranAt).toBe("2026-09-25T14:48:00.200Z");
+		expect(withTimestamp.generatedAt).toBe(NOW.toISOString());
+
+		const withoutTimestamp = build(rows);
+		expect(withoutTimestamp.ranAt).toBeNull();
+	});
+
+	test("readResults keeps results.timestamp from a real promptfoo file", async () => {
+		const parsed = await readResults(FIXTURE);
+		expect(parsed.results.timestamp).toBe("2026-09-15T19:07:12.028Z");
+	});
+
+	/** The real fixture with results.timestamp replaced by `value`, written to a temporary file. */
+	async function resultsWithTimestamp(value: unknown): Promise<string> {
+		const data = JSON.parse(await readFile(FIXTURE, "utf8"));
+		data.results.timestamp = value;
+		const directory = await mkdtemp(join(tmpdir(), "forge-results-"));
+		const file = join(directory, "results.json");
+		await writeFile(file, JSON.stringify(data));
+		return file;
+	}
+
+	/** ranAt of a report built from the parsed file's timestamp over rows that match a case. */
+	const ranAtOf = (parsed: PromptfooResults): string | null =>
+		build([], {
+			results: {
+				results: {
+					timestamp: parsed.results.timestamp,
+					results: [row({ case: "a-01", model: "m" })],
+				},
+			},
+		}).ranAt;
+
+	test("a results.json whose timestamp is null still parses, with ranAt null", async () => {
+		const parsed = await readResults(await resultsWithTimestamp(null));
+		expect(parsed.results.timestamp).toBeUndefined();
+		expect(ranAtOf(parsed)).toBeNull();
+	});
+
+	test("a results.json whose timestamp is a number still parses, with ranAt null", async () => {
+		const parsed = await readResults(await resultsWithTimestamp(1758814080000));
+		expect(parsed.results.timestamp).toBeUndefined();
+		expect(ranAtOf(parsed)).toBeNull();
+	});
+
+	test("an empty results.timestamp does not become ranAt", async () => {
+		const parsed = await readResults(await resultsWithTimestamp(""));
+		expect(ranAtOf(parsed)).toBeNull();
+	});
+
+	test("a results.timestamp that is not a date does not become ranAt", () => {
+		const rows = [row({ case: "a-01", model: "m" })];
+		const report = build([], {
+			results: { results: { timestamp: "last tuesday", results: rows } },
+		});
+		expect(report.ranAt).toBeNull();
+	});
+
+	test("a results.timestamp Date.parse takes but that is not ISO does not become ranAt: status could not show it", () => {
+		const rows = [row({ case: "a-01", model: "m" })];
+		const report = build([], {
+			results: { results: { timestamp: "Tue Sep 16 2026", results: rows } },
+		});
+		expect(report.ranAt).toBeNull();
+	});
+
+	test("a hand-edited report.json whose ranAt is not a string still parses, with ranAt null", () => {
+		const report = build([row({ case: "a-01", model: "m" })]);
+		for (const edited of [5, true, {}, ["2026-09-25"]]) {
+			const parsed = ReportSchema.parse({ ...report, ranAt: edited });
+			expect(parsed.ranAt).toBeNull();
+			expect(parsed.rows).toBe(report.rows);
+		}
+	});
+
+	test("a report.json written before ranAt existed still parses as a baseline, with ranAt null", () => {
+		const report = build([row({ case: "a-01", model: "m" })]);
+		const { ranAt, ...old } = report;
+		expect(ranAt).toBeNull();
+		expect(ReportSchema.parse(old).ranAt).toBeNull();
 
 		const empty = build([], {
 			results: {
@@ -1201,7 +1294,7 @@ describe("buildReport", () => {
 			caught = error;
 		}
 		expect((caught as ForgeError).message).toBe(
-			'no result matches a case in .forge/cases (first metadata.case seen: "ghost-01", 2 rows); was this results.json produced from a config forge emitted? (file: r.json)',
+			'no result matches a case in .forge/cases (first metadata.case seen: "ghost-01", 2 rows); was this results.json produced from a config llm-tests-forge emitted? (file: r.json)',
 		);
 	});
 
@@ -1216,7 +1309,7 @@ describe("buildReport", () => {
 			caught = error;
 		}
 		expect((caught as ForgeError).message).toBe(
-			"no result matches a case in .forge/cases (first metadata.case seen: none, 2 rows); was this results.json produced from a config forge emitted? (file: r.json)",
+			"no result matches a case in .forge/cases (first metadata.case seen: none, 2 rows); was this results.json produced from a config llm-tests-forge emitted? (file: r.json)",
 		);
 	});
 	test("a case that passes one run and errors another is partly-errored, not flaky", () => {

@@ -9,7 +9,7 @@ import {
 	readSuiteIfPresent,
 	readYamlFile,
 } from "./files";
-import { ReportSchema } from "./report";
+import { isoDay, ReportSchema } from "./report";
 import type { Case, Feature, Scenario } from "./schemas";
 import { versionWarning } from "./version";
 
@@ -29,7 +29,7 @@ export type SuiteStatus =
 			featureStatus: Feature["status"] | null;
 			scenarios: { approved: number; pending: number; rejected: number };
 			cases: { approved: number; pending: number };
-			lastRun: { passRate: number; date: string } | null;
+			lastRun: { passRate: number; date: string | null } | null;
 			warning: string | null;
 	  };
 
@@ -44,6 +44,9 @@ async function exists(path: string): Promise<boolean> {
 
 const isReviewed = (item: { status: Scenario["status"] }): boolean =>
 	item.status === "approved" || item.status === "edited";
+
+/** Display text only: the JSON carries null for an unknown date. */
+const UNKNOWN_DATE = "unknown date";
 
 async function readOk(
 	entry: string,
@@ -77,7 +80,10 @@ async function readOk(
 		lastRun:
 			report === null
 				? null
-				: { passRate: report.passRate, date: report.generatedAt.slice(0, 10) },
+				: {
+						passRate: report.passRate,
+						date: isoDay(report.ranAt ?? report.generatedAt),
+					},
 		warning: versionWarning(present?.suite.forge_version, installed),
 	};
 }
@@ -123,7 +129,7 @@ export function renderStatusLine(status: SuiteStatus): string {
 	const run =
 		status.lastRun === null
 			? "no run yet"
-			: `last run ${percent(status.lastRun.passRate)} (${status.lastRun.date})`;
+			: `last run ${percent(status.lastRun.passRate)} (${status.lastRun.date ?? UNKNOWN_DATE})`;
 	const feature =
 		status.featureStatus === "pending"
 			? `${status.feature} (feature pending)`

@@ -8,7 +8,17 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { isScalar, isSeq, parse, parseDocument, stringify } from "yaml";
+import {
+	isMap,
+	isScalar,
+	isSeq,
+	Pair,
+	parse,
+	parseDocument,
+	Scalar,
+	stringify,
+	type YAMLMap,
+} from "yaml";
 import type { core, ZodType } from "zod";
 import { z } from "zod";
 import { ForgeError } from "./errors";
@@ -456,7 +466,25 @@ export async function stampSuite(
 	const stamp = keepExisting ? existing : version;
 	const legacyKind = document.getIn(["target", "kind"]) === "promptfoo-python";
 	if (existing === stamp && !legacyKind) return false;
-	document.set("forge_version", stamp);
+	const contents = document.contents;
+	// A stamp added for the first time goes first, where a reader sees it;
+	// an existing one is replaced where it stands.
+	if (document.has("forge_version") || !isMap(contents)) {
+		document.set("forge_version", stamp);
+		const node = document.get("forge_version", true);
+		// An empty stamp was written `""`: the new one is a plain scalar.
+		if (isScalar(node)) node.type = "PLAIN";
+	} else {
+		const entries: YAMLMap<unknown, unknown> = contents;
+		const stampKey = new Scalar("forge_version");
+		const firstKey = entries.items[0]?.key;
+		// A header comment stays at the top of the file, above the stamp.
+		if (isScalar(firstKey) && firstKey.commentBefore) {
+			stampKey.commentBefore = firstKey.commentBefore;
+			firstKey.commentBefore = undefined;
+		}
+		entries.items.unshift(new Pair(stampKey, new Scalar(stamp)));
+	}
 	if (legacyKind) document.setIn(["target", "kind"], "python");
 	await writeFile(
 		forgePaths(forgeDirectory).suite,

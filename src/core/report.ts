@@ -136,6 +136,8 @@ const CoverageSchema = z.preprocess(
  */
 export const ReportSchema = z.object({
 	generatedAt: z.string(),
+	/** When promptfoo ran, from results.json; null for a results.json or a report.json that predates it, and for a hand-edited value that is not a string (one bad date must not refuse the whole report). */
+	ranAt: z.string().nullable().default(null).catch(null),
 	promptfooVersion: z.string().nullable(),
 	rows: z.number(),
 	matched: z.number(),
@@ -337,7 +339,7 @@ function matchRows(
 			.find((id) => typeof id === "string");
 		const observed = seen === undefined ? "none" : `"${seen}"`;
 		throw new ForgeError(
-			`no result matches a case in .forge/cases (first metadata.case seen: ${observed}, ${results.results.results.length} rows); was this results.json produced from a config forge emitted?`,
+			`no result matches a case in .forge/cases (first metadata.case seen: ${observed}, ${results.results.results.length} rows); was this results.json produced from a config llm-tests-forge emitted?`,
 			{ file: resultsPath },
 		);
 	}
@@ -638,6 +640,23 @@ function baselineDiffOf(
 	return { regressions, fixed, onlyInBaseline };
 }
 
+/**
+ * The calendar day of an ISO timestamp, or null when the value is not one:
+ * `Date.parse` alone takes "Tue Sep 16 2026" and cutting the first ten
+ * characters of anything else would show garbage as if it were a date.
+ */
+export function isoDay(timestamp: string): string | null {
+	const day = /^(\d{4}-\d{2}-\d{2})(?:T|$)/.exec(timestamp)?.[1];
+	if (day === undefined || Number.isNaN(Date.parse(timestamp))) return null;
+	return day;
+}
+
+/** The timestamp promptfoo recorded, or null when it is absent, empty or not an ISO date: the same test `status` reads it by. */
+function recordedRunTime(timestamp: string | undefined): string | null {
+	if (timestamp === undefined || isoDay(timestamp) === null) return null;
+	return timestamp;
+}
+
 export function buildReport(parameters: {
 	results: PromptfooResults;
 	resultsPath: string;
@@ -693,6 +712,7 @@ export function buildReport(parameters: {
 	);
 	return {
 		generatedAt: parameters.now.toISOString(),
+		ranAt: recordedRunTime(results.results.timestamp),
 		promptfooVersion: results.metadata?.promptfooVersion ?? null,
 		rows: results.results.results.length,
 		matched: matched.length,

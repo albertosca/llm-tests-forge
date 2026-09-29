@@ -23,7 +23,7 @@ import { type CliContext, createContext } from "./context";
 export const USAGE = `usage: llm-tests-forge <verb> [options]
   init [--language l]                                 detect the language -> forge.yaml + the llm-tests-forge block in AGENTS.md
   describe <text...> [--prompt-file f] [--force] [--drafter m]
-                                                     free text (or stdin) -> .forge/feature.yaml (pending)
+                                                     free text (or stdin) -> .forge/feature.yaml (pending); a text that is -h or --help goes after --
   scenarios [--kinds a,b] [--more n] [--drafter m]    feature -> .forge/scenarios.yaml
   cases [--n 5] [--scenario id] [--drafter m]         approved scenarios -> .forge/cases/<id>.yaml
   dedupe [--scenario id] [--drafter m]                mark likely duplicates (duplicate_of)
@@ -105,13 +105,15 @@ const STAMPING_VERBS = new Set([
 
 /**
  * Prints the version warning for the suite about to be used. A suite.yaml
- * that is absent or does not parse is left alone here: the verb reports its
- * own error for it.
+ * that is absent or does not parse (a ForgeError) is left alone here: the
+ * verb reports its own error for it. Anything else is a bug and propagates.
  */
 async function warnAboutSuiteVersion(context: CliContext): Promise<void> {
-	const present = await readSuiteIfPresent(context.forgeDirectory).catch(
-		() => null,
-	);
+	const read = context.readSuiteIfPresent ?? readSuiteIfPresent;
+	const present = await read(context.forgeDirectory).catch((error: unknown) => {
+		if (error instanceof ForgeError) return null;
+		throw error;
+	});
 	const warning = versionWarning(present?.suite.forge_version, FORGE_VERSION);
 	if (warning !== null) context.stdout(warning);
 }
@@ -132,12 +134,19 @@ async function stampAfterSuccess(context: CliContext): Promise<void> {
 	}
 }
 
+/** `--help` or `-h` anywhere before a `--` (what follows `--` is the verb's own). */
+function helpRequested(argv: string[]): boolean {
+	const dashes = argv.indexOf("--");
+	const flags = dashes >= 0 ? argv.slice(0, dashes) : argv;
+	return flags.includes("--help") || flags.includes("-h");
+}
+
 export async function run(
 	argv: string[],
 	context: CliContext,
 ): Promise<number> {
 	const [verb, ...rest] = argv;
-	if (verb === "--help" || verb === "-h" || verb === "help") {
+	if (helpRequested(argv) || verb === "help") {
 		context.stdout(USAGE);
 		return 0;
 	}
@@ -236,7 +245,6 @@ function takeSuiteFlag(argv: string[]): { rest: string[]; suite?: string } {
 /** Verbs that work where there is no suite yet, or on no suite at all. */
 const VERBS_EXEMPT_FROM_SUITE_GUARD = new Set([
 	"describe",
-	"init",
 	"status",
 	"guide",
 	"help",
@@ -245,8 +253,6 @@ const VERBS_EXEMPT_FROM_SUITE_GUARD = new Set([
 
 /** Answered before any forge.yaml is read, so a broken one never hides them. */
 const INFORMATION_VERBS = new Set([
-	"--help",
-	"-h",
 	"help",
 	"--version",
 	"-V",
@@ -278,6 +284,12 @@ export async function main(
 ): Promise<number> {
 	const write = options.stdout ?? console.log;
 	try {
+		// Asking for help is answered before anything is resolved or parsed, so
+		// `status --help` works next to a malformed forge.yaml.
+		if (helpRequested(argv)) {
+			write(USAGE);
+			return 0;
+		}
 		// The verb is what is left first once --suite and its path are taken
 		// out, so `--suite x --help` is answered like `--help`. A first word
 		// that already is one skips the flag parsing, which could refuse it.
