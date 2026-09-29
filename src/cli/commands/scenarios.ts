@@ -37,11 +37,11 @@ export async function scenariosCommand(
 			drafter: { type: "string" },
 		},
 	});
-	const feature = await readFeature(context.forgeDir);
-	requireApprovedFeature(feature, forgePaths(context.forgeDir).feature);
+	const feature = await readFeature(context.forgeDirectory);
+	requireApprovedFeature(feature, forgePaths(context.forgeDirectory).feature);
 	const kinds = parseKindsFlag(values.kinds);
 	const more = parsePositiveIntFlag("--more", values.more);
-	const existing = await readScenarios(context.forgeDir);
+	const existing = await readScenarios(context.forgeDirectory);
 	const all = await enumerateScenarios({
 		feature,
 		existing,
@@ -50,8 +50,8 @@ export async function scenariosCommand(
 		model: values.drafter ?? context.drafter,
 		llm: context.llm,
 	});
-	await writeScenarios(context.forgeDir, all);
+	await writeScenarios(context.forgeDirectory, all);
 	context.stdout(
-		`scenarios: ${all.length - existing.length} new pending (${all.length} total) -> ${forgePaths(context.forgeDir).scenarios}`,
+		`scenarios: ${all.length - existing.length} new pending (${all.length} total) -> ${forgePaths(context.forgeDirectory).scenarios}`,
 	);
 }

@@ -18,7 +18,7 @@ const c = (id: string, status: Case["status"] = "pending"): Case => ({
 
 async function llm(): Promise<Llm> {
 	return createLlm({
-		forgeDir: join(await mkdtemp(join(tmpdir(), "forge-")), ".forge"),
+		forgeDirectory: join(await mkdtemp(join(tmpdir(), "forge-")), ".forge"),
 	});
 }
 

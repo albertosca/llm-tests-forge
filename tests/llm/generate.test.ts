@@ -33,7 +33,7 @@ describe("createLlm.generate", () => {
 	test("returns the validated object and usage, and appends to usage.jsonl", async () => {
 		const dir = await tmpForge();
 		const llm = createLlm({
-			forgeDir: dir,
+			forgeDirectory: dir,
 			resolve: () => mock('{"answer": 42}'),
 			now: () => new Date("2026-09-14T10:00:00Z"),
 		});
@@ -58,7 +58,7 @@ describe("createLlm.generate", () => {
 	test("saves raw text under failures/ and throws ForgeError with the path when output does not validate", async () => {
 		const dir = await tmpForge();
 		const llm = createLlm({
-			forgeDir: dir,
+			forgeDirectory: dir,
 			resolve: () => mock('{"answer": "not a number"}'),
 			now: () => new Date("2026-09-14T10:00:00Z"),
 		});
@@ -78,7 +78,7 @@ describe("createLlm.generate", () => {
 
 	test("fake provider picks the response by verb, in sequence for arrays", async () => {
 		const dir = await tmpForge();
-		const llm = createLlm({ forgeDir: dir });
+		const llm = createLlm({ forgeDirectory: dir });
 		expect(
 			(await llm.generate({ schema, prompt: "p", model: FAKE, verb: "probe" }))
 				.object,
@@ -106,8 +106,8 @@ describe("createLlm.generate", () => {
 	});
 
 	test("each createLlm starts a sequence at its first entry, and a second instance does not inherit the first one's cursor", async () => {
-		const first = createLlm({ forgeDir: await tmpForge() });
-		const second = createLlm({ forgeDir: await tmpForge() });
+		const first = createLlm({ forgeDirectory: await tmpForge() });
+		const second = createLlm({ forgeDirectory: await tmpForge() });
 		const next = async (llm: ReturnType<typeof createLlm>) =>
 			(
 				await llm.generate({
@@ -127,7 +127,7 @@ describe("createLlm.generate", () => {
 
 	test("fake provider with a fenced response still fails loudly (generateObject does not strip fences)", async () => {
 		const dir = await tmpForge();
-		const llm = createLlm({ forgeDir: dir });
+		const llm = createLlm({ forgeDirectory: dir });
 		const err = await llm
 			.generate({ schema, prompt: "p", model: FAKE, verb: "broken" })
 			.catch((e: unknown) => e);
@@ -144,7 +144,7 @@ describe("createLlm.generate", () => {
 
 	test("fake provider with an unknown verb throws ForgeError", async () => {
 		const dir = await tmpForge();
-		const llm = createLlm({ forgeDir: dir });
+		const llm = createLlm({ forgeDirectory: dir });
 		const err = await llm
 			.generate({ schema, prompt: "p", model: FAKE, verb: "nope" })
 			.catch((e: unknown) => e);
@@ -158,7 +158,7 @@ describe("createLlm.generate", () => {
 
 	test("fake provider names the file when the responses file has invalid JSON", async () => {
 		const dir = await tmpForge();
-		const llm = createLlm({ forgeDir: dir });
+		const llm = createLlm({ forgeDirectory: dir });
 		const malformed = "fake/tests/fixtures/fake-responses-malformed.txt";
 		const err = await llm
 			.generate({ schema, prompt: "p", model: malformed, verb: "probe" })
@@ -172,7 +172,7 @@ describe("createLlm.generate", () => {
 
 	test("fake provider names the verb when a sequence entry is an empty array", async () => {
 		const dir = await tmpForge();
-		const llm = createLlm({ forgeDir: dir });
+		const llm = createLlm({ forgeDirectory: dir });
 		const err = await llm
 			.generate({ schema, prompt: "p", model: FAKE, verb: "empty" })
 			.catch((e: unknown) => e);
@@ -185,7 +185,7 @@ describe("createLlm.generate", () => {
 
 	test("fake provider rejects an entry that is neither a string nor an array of strings", async () => {
 		const dir = await tmpForge();
-		const llm = createLlm({ forgeDir: dir });
+		const llm = createLlm({ forgeDirectory: dir });
 		const err = await llm
 			.generate({ schema, prompt: "p", model: FAKE, verb: "wrong_type" })
 			.catch((e: unknown) => e);
@@ -200,7 +200,7 @@ describe("createLlm.generate", () => {
 
 	test("fake provider names the file when the responses file is missing", async () => {
 		const dir = await tmpForge();
-		const llm = createLlm({ forgeDir: dir });
+		const llm = createLlm({ forgeDirectory: dir });
 		const missing = "fake/tests/fixtures/does-not-exist.json";
 		const err = await llm
 			.generate({ schema, prompt: "p", model: missing, verb: "probe" })
@@ -219,7 +219,7 @@ describe("createLlm.generate", () => {
 				throw new Error("network failure");
 			},
 		});
-		const llm = createLlm({ forgeDir: dir, resolve: () => failingModel });
+		const llm = createLlm({ forgeDirectory: dir, resolve: () => failingModel });
 		const err = await llm
 			.generate({ schema, prompt: "p", model: "anthropic/x", verb: "probe" })
 			.catch((e: unknown) => e);

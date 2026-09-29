@@ -20,7 +20,7 @@ const scenario: Scenario = {
 
 async function llmFor(verb: string): Promise<{ llm: Llm; model: string }> {
 	const base = createLlm({
-		forgeDir: join(await mkdtemp(join(tmpdir(), "forge-")), ".forge"),
+		forgeDirectory: join(await mkdtemp(join(tmpdir(), "forge-")), ".forge"),
 	});
 	const llm: Llm = {
 		generate: <T>(args: GenerateArgs<T>) => base.generate<T>({ ...args, verb }),

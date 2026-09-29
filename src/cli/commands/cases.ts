@@ -25,9 +25,9 @@ export async function casesCommand(
 		},
 	});
 	const count = parsePositiveIntFlag("--n", values.n) ?? 5;
-	const feature = await readFeature(context.forgeDir);
-	requireApprovedFeature(feature, forgePaths(context.forgeDir).feature);
-	const scenarios = await readScenarios(context.forgeDir);
+	const feature = await readFeature(context.forgeDirectory);
+	requireApprovedFeature(feature, forgePaths(context.forgeDirectory).feature);
+	const scenarios = await readScenarios(context.forgeDirectory);
 	const targets = values.scenario
 		? scenarios.filter((scenario) => scenario.id === values.scenario)
 		: scenarios.filter(
@@ -42,7 +42,7 @@ export async function casesCommand(
 			{ id: values.scenario },
 		);
 	for (const scenario of targets) {
-		const existing = await readCases(context.forgeDir, scenario.id);
+		const existing = await readCases(context.forgeDirectory, scenario.id);
 		const all = await generateCases({
 			feature,
 			scenario,
@@ -51,7 +51,7 @@ export async function casesCommand(
 			model: values.drafter ?? context.drafter,
 			llm: context.llm,
 		});
-		await writeCases(context.forgeDir, scenario.id, all);
+		await writeCases(context.forgeDirectory, scenario.id, all);
 		context.stdout(
 			`cases: ${scenario.id}: ${all.length - existing.length} new pending (${all.length} total)`,
 		);

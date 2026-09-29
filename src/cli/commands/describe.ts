@@ -23,11 +23,11 @@ async function refuseToOverwriteReviewedFeature(
 	force: boolean,
 ): Promise<void> {
 	if (force) return;
-	const existing = await readFeatureIfPresent(context.forgeDir);
+	const existing = await readFeatureIfPresent(context.forgeDirectory);
 	if (existing === undefined || existing.status === "pending") return;
 	throw new ForgeError(
 		`feature "${existing.id}" is already ${existing.status}; describe would overwrite the reviewed description and its invariants — re-run with --force to replace it`,
-		{ file: forgePaths(context.forgeDir).feature, id: existing.id },
+		{ file: forgePaths(context.forgeDirectory).feature, id: existing.id },
 	);
 }
 
@@ -62,8 +62,8 @@ export async function describeCommand(
 	const withFile = promptFile
 		? { ...feature, prompt_file: promptFile }
 		: feature;
-	await writeFeature(context.forgeDir, withFile);
+	await writeFeature(context.forgeDirectory, withFile);
 	context.stdout(
-		`describe: feature "${withFile.id}" written as pending -> ${forgePaths(context.forgeDir).feature}; run \`llm-tests-forge review\` to approve it`,
+		`describe: feature "${withFile.id}" written as pending -> ${forgePaths(context.forgeDirectory).feature}; run \`llm-tests-forge review\` to approve it`,
 	);
 }

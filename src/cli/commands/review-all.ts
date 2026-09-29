@@ -11,7 +11,7 @@ export interface ReviewAllArgs {
 	/** The scenario's cases file as the caller read it — read once, before the twin-id warning, for both paths. */
 	cases: Case[];
 	feature: Feature;
-	forgeDir: string;
+	forgeDirectory: string;
 	stdout: (line: string) => void;
 }
 
@@ -23,13 +23,7 @@ export interface ReviewAllArgs {
  * pending and named, and so is one with no `expected` at all.
  */
 export async function reviewAllCommand(request: ReviewAllArgs): Promise<void> {
-	const {
-		scenario,
-		cases,
-		feature,
-		forgeDir: forgeDirectory,
-		stdout,
-	} = request;
+	const { scenario, cases, feature, forgeDirectory, stdout } = request;
 	const id = scenario.id;
 	// The file is named for the scenario its cases belong to, and that is
 	// the scenario whose oracle `--all` approves them against. A

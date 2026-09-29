@@ -14,7 +14,7 @@ async function llmFor(verb: string): Promise<{ llm: Llm; model: string }> {
 	// The fake provider picks by verb; enumerateScenarios always uses verb "scenarios",
 	// so route through a tiny adapter that rewrites the verb to the fixture key we want.
 	const base = createLlm({
-		forgeDir: join(await mkdtemp(join(tmpdir(), "forge-")), ".forge"),
+		forgeDirectory: join(await mkdtemp(join(tmpdir(), "forge-")), ".forge"),
 	});
 	const llm: Llm = {
 		generate: <T>(args: GenerateArgs<T>) => base.generate<T>({ ...args, verb }),

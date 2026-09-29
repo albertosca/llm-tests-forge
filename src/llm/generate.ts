@@ -24,7 +24,7 @@ export interface Llm {
 }
 
 export interface CreateLlmOptions {
-	forgeDir: string;
+	forgeDirectory: string;
 	resolve?: (spec: string) => ResolvedModel;
 	now?: () => Date;
 }
@@ -95,7 +95,7 @@ async function fakeModel(
 }
 
 export function createLlm(opts: CreateLlmOptions): Llm {
-	const paths = forgePaths(opts.forgeDir);
+	const paths = forgePaths(opts.forgeDirectory);
 	const now = opts.now ?? (() => new Date());
 	const resolve = opts.resolve ?? resolveModel;
 	/** This instance's position in each fake response sequence. */

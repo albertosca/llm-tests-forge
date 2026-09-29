@@ -16,7 +16,7 @@ const FIXTURE_PATH = join(
 
 async function llm(): Promise<Llm> {
 	return createLlm({
-		forgeDir: join(await mkdtemp(join(tmpdir(), "forge-")), ".forge"),
+		forgeDirectory: join(await mkdtemp(join(tmpdir(), "forge-")), ".forge"),
 	});
 }
 

@@ -3,7 +3,7 @@ import { UsageError } from "../core/errors";
 import { createLlm, type Llm } from "../llm/generate";
 
 export interface CliContext {
-	forgeDir: string;
+	forgeDirectory: string;
 	llm: Llm;
 	readonly drafter: string;
 	stdout: (line: string) => void;
@@ -42,8 +42,8 @@ export function createContext(options: CreateContextOptions): CliContext {
 	const forgeDirectory = join(options.cwd, ".forge");
 	const drafter = options.drafter ?? environment.FORGE_DRAFTER;
 	return {
-		forgeDir: forgeDirectory,
-		llm: createLlm({ forgeDir: forgeDirectory }),
+		forgeDirectory,
+		llm: createLlm({ forgeDirectory }),
 		get drafter(): string {
 			if (!drafter)
 				throw new UsageError(

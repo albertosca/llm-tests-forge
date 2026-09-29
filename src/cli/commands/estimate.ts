@@ -47,14 +47,14 @@ export async function estimateCommand(
 	context: CliContext,
 ): Promise<void> {
 	parseArgs({ args: commandArguments, options: {} });
-	const paths = forgePaths(context.forgeDir);
-	const feature = await readFeature(context.forgeDir);
+	const paths = forgePaths(context.forgeDirectory);
+	const feature = await readFeature(context.forgeDirectory);
 	requireApprovedFeature(feature, paths.feature);
-	const suite = await readSuite(context.forgeDir);
+	const suite = await readSuite(context.forgeDirectory);
 	const selection = selectCases({
 		suite,
-		scenarios: await readScenarios(context.forgeDir),
-		casesByScenario: await readAllCases(context.forgeDir),
+		scenarios: await readScenarios(context.forgeDirectory),
+		casesByScenario: await readAllCases(context.forgeDirectory),
 		paths,
 		feature,
 	});
@@ -70,7 +70,10 @@ export async function estimateCommand(
 		selection,
 		feature,
 		prices: await loadPrices(),
-		promptTokens: await promptTokensFor(context.forgeDir, feature.prompt_file),
+		promptTokens: await promptTokensFor(
+			context.forgeDirectory,
+			feature.prompt_file,
+		),
 	});
 	context.stdout(renderEstimate(estimate));
 	if (selection.blockers.length > 0) {

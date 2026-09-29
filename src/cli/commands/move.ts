@@ -124,13 +124,13 @@ async function moveScenario(
 	context: CliContext,
 ): Promise<void> {
 	requireBareId(destination);
-	const paths = forgePaths(context.forgeDir);
-	const scenarios = await readScenarios(context.forgeDir);
+	const paths = forgePaths(context.forgeDirectory);
+	const scenarios = await readScenarios(context.forgeDirectory);
 	// `readCases` answers `[]` for a file that is not there, and a scenario
 	// reviewed before `cases` ran for it has none: the rename then must not
 	// invent an empty `cases/<new>.yaml`, which every later verb would read
 	// as a scenario that already has cases.
-	const files = await listCaseScenarios(context.forgeDir);
+	const files = await listCaseScenarios(context.forgeDirectory);
 	// The source file is found by the same rule as everything else on
 	// disk. A file whose name differs from the id only by case was read
 	// (the read resolves case-insensitively on macOS) and then left where
@@ -143,8 +143,8 @@ async function moveScenario(
 			{ file: join(paths.casesDir, `${sourceFile}.yaml`), id: from },
 		);
 	const hasFile = sourceFile !== undefined;
-	const cases = hasFile ? await readCases(context.forgeDir, from) : [];
-	const read = await readSuiteIfPresent(context.forgeDir);
+	const cases = hasFile ? await readCases(context.forgeDirectory, from) : [];
+	const read = await readSuiteIfPresent(context.forgeDirectory);
 	const suite = read === null ? null : read.suite;
 	const result = renameScenario({
 		from,
@@ -194,11 +194,11 @@ async function moveScenario(
 	const keepFile = cases.length > 0;
 	const written: string[] = [];
 	if (keepFile) {
-		await writeCases(context.forgeDir, destination, result.cases);
+		await writeCases(context.forgeDirectory, destination, result.cases);
 		written.push(`cases/${destination}.yaml`);
 	}
 	await attempt(
-		writeScenarios(context.forgeDir, result.scenarios),
+		writeScenarios(context.forgeDirectory, result.scenarios),
 		keepFile
 			? `cases/${destination}.yaml is already written; delete it by hand and run the move again`
 			: "nothing else is written; run the move again",
@@ -234,10 +234,10 @@ async function moveOneCase(
 	toId: string,
 	context: CliContext,
 ): Promise<void> {
-	const paths = forgePaths(context.forgeDir);
-	const feature = await readFeature(context.forgeDir);
+	const paths = forgePaths(context.forgeDirectory);
+	const feature = await readFeature(context.forgeDirectory);
 	requireApprovedFeature(feature, paths.feature);
-	const scenarios = await readScenarios(context.forgeDir);
+	const scenarios = await readScenarios(context.forgeDirectory);
 	const destinationScenario = scenarios.find(
 		(scenario) => scenario.id === toId,
 	);
@@ -246,7 +246,7 @@ async function moveOneCase(
 	// The case's file is whichever one holds it, not the one its `scenario`
 	// field names: the field being wrong is exactly what `review --all`
 	// sends people here to fix.
-	const all = await readAllCases(context.forgeDir);
+	const all = await readAllCases(context.forgeDirectory);
 	// The destination's file is looked up by the scenario's id. A file whose
 	// name differs from that id only by case is a different key here and
 	// the same file on the default macOS filesystem: the lookup would miss,
@@ -279,14 +279,14 @@ async function moveOneCase(
 		toCases: all.get(toId) ?? [],
 		feature,
 	});
-	await writeCases(context.forgeDir, toId, result.toCases);
+	await writeCases(context.forgeDirectory, toId, result.toCases);
 	// The last case leaving takes the file with it: a `cases/<id>.yaml`
 	// holding `[]` reads to `dedupe` as a scenario to refuse and to `review
 	// --all` as one with nothing to approve, and no verb ever removes it.
 	// A scenario with no file is the ordinary state before `cases` runs.
 	if (result.fromCases.length > 0)
 		await attempt(
-			writeCases(context.forgeDir, fromId, result.fromCases),
+			writeCases(context.forgeDirectory, fromId, result.fromCases),
 			`${result.moved.id} is already written into cases/${toId}.yaml; remove ${caseId} from cases/${fromId}.yaml by hand`,
 		);
 	else

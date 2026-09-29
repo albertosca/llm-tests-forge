@@ -23,7 +23,7 @@ export async function dedupeCommand(
 		},
 	});
 	if (values.scenario) {
-		const scenarios = await readScenarios(context.forgeDir);
+		const scenarios = await readScenarios(context.forgeDirectory);
 		if (!scenarios.some((scenario) => scenario.id === values.scenario))
 			throw new ForgeError(`scenario "${values.scenario}" not found`, {
 				id: values.scenario,
@@ -31,12 +31,12 @@ export async function dedupeCommand(
 	}
 	const ids = values.scenario
 		? [values.scenario]
-		: await listCaseScenarios(context.forgeDir);
+		: await listCaseScenarios(context.forgeDirectory);
 	if (ids.length === 0)
 		throw new ForgeError(
 			"no cases to dedupe; run `llm-tests-forge cases` first",
 			{
-				file: forgePaths(context.forgeDir).casesDir,
+				file: forgePaths(context.forgeDirectory).casesDir,
 			},
 		);
 	// Every file is read and checked before the first one is written. This
@@ -46,7 +46,7 @@ export async function dedupeCommand(
 	// pipeline promises.
 	const casesById = new Map<string, Case[]>();
 	for (const id of ids) {
-		const cases = await readCases(context.forgeDir, id);
+		const cases = await readCases(context.forgeDirectory, id);
 		// A known scenario with no cases yet is the second entrance to the
 		// phantom file: dedupeCases returns early below two cases, and the
 		// unconditional write below then created
@@ -65,7 +65,7 @@ export async function dedupeCommand(
 			model: values.drafter ?? context.drafter,
 			llm: context.llm,
 		});
-		await writeCases(context.forgeDir, id, marked);
+		await writeCases(context.forgeDirectory, id, marked);
 		const count = marked.filter(
 			(kase) => kase.duplicate_of !== undefined,
 		).length;

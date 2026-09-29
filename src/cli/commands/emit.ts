@@ -61,10 +61,10 @@ export async function emitCommand(
 		options: { format: { type: "string" } },
 	});
 	const format = parseFormat(values.format);
-	const paths = forgePaths(context.forgeDir);
-	const feature = await readFeature(context.forgeDir);
+	const paths = forgePaths(context.forgeDirectory);
+	const feature = await readFeature(context.forgeDirectory);
 	requireApprovedFeature(feature, paths.feature);
-	const suite = await readSuite(context.forgeDir);
+	const suite = await readSuite(context.forgeDirectory);
 	// The shim is written into, and run from, `.forge/`; a path here would
 	// let suite.yaml write a file anywhere on the disk.
 	const entry = entryFor(suite.target);
@@ -83,8 +83,8 @@ export async function emitCommand(
 	}
 	const selection = selectCases({
 		suite,
-		scenarios: await readScenarios(context.forgeDir),
-		casesByScenario: await readAllCases(context.forgeDir),
+		scenarios: await readScenarios(context.forgeDirectory),
+		casesByScenario: await readAllCases(context.forgeDirectory),
 		paths,
 		feature,
 	});
@@ -115,7 +115,9 @@ export async function emitCommand(
 	// The command comes before anything is written: an elixir suite with no
 	// mix.exs above it is refused with no half-written .forge/.
 	const locations =
-		shimKind === null ? null : await shimLocations(shimKind, context.forgeDir);
+		shimKind === null
+			? null
+			: await shimLocations(shimKind, context.forgeDirectory);
 	const command =
 		shimKind === null || locations === null
 			? undefined
@@ -137,7 +139,7 @@ export async function emitCommand(
 	const kept: string[] = [];
 	const written: string[] = [];
 	for (const file of shimFiles(feature, shimKind, entry, locations)) {
-		const path = join(context.forgeDir, file.path);
+		const path = join(context.forgeDirectory, file.path);
 		if (await exists(path)) {
 			kept.push(path);
 			continue;
