@@ -238,7 +238,6 @@ function takeSuiteFlag(argv: string[]): { rest: string[]; suite?: string } {
 /** Verbs that work where there is no suite yet, or on no suite at all. */
 const VERBS_EXEMPT_FROM_SUITE_GUARD = new Set([
 	"describe",
-	"init",
 	"status",
 	"guide",
 	"help",

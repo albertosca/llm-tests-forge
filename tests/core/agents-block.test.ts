@@ -3,6 +3,7 @@ import {
 	AGENTS_END,
 	AGENTS_START,
 	agentsBlock,
+	planAgentsBlock,
 	upsertAgentsBlock,
 } from "../../src/core/agents-block";
 
@@ -69,6 +70,50 @@ describe("upsertAgentsBlock", () => {
 		expect(() => upsertAgentsBlock("AGENTS.md", pair.repeat(3))).toThrow(
 			"AGENTS.md has 3 llm-tests-forge blocks (lines 1, 3 and 5); keep one and run init again",
 		);
+	});
+	test("markers inside a ``` or ~~~ fence are neither replaced nor counted as doubled", () => {
+		const quotedPair = `${AGENTS_START}\nquoted\n${AGENTS_END}\n`;
+		for (const fence of ["```", "~~~"]) {
+			const quoted = `${fence}\n${quotedPair}${fence}\n`;
+			expect(upsertAgentsBlock("AGENTS.md", quoted)).toBe(
+				`${quoted}\n${block}\n`,
+			);
+			const withReal = `${quoted}${AGENTS_START}\nold\n${AGENTS_END}\nEnd.\n`;
+			expect(upsertAgentsBlock("AGENTS.md", withReal)).toBe(
+				`${quoted}${block}\nEnd.\n`,
+			);
+		}
+	});
+	test("a fence closes only with the same character and at least as many of them", () => {
+		const stillOpen = `\`\`\`\`\n~~~\n\`\`\`\n${AGENTS_END}\n`;
+		expect(upsertAgentsBlock("AGENTS.md", stillOpen)).toBe(
+			`${stillOpen}\n${block}\n`,
+		);
+		const closedThenReal = `~~~ text\n${AGENTS_END}\n~~~\n${AGENTS_END}\n`;
+		expect(() => upsertAgentsBlock("AGENTS.md", closedThenReal)).toThrow(
+			"AGENTS.md line 4 closes an llm-tests-forge block that was never opened",
+		);
+	});
+	test("planAgentsBlock says replaced only when a real pair was found", () => {
+		expect(planAgentsBlock("AGENTS.md", null).replaced).toBe(false);
+		expect(
+			planAgentsBlock("AGENTS.md", `see ${AGENTS_START} here\n`).replaced,
+		).toBe(false);
+		expect(
+			planAgentsBlock("AGENTS.md", `${AGENTS_START}\n${AGENTS_END}\n`).replaced,
+		).toBe(true);
+	});
+	test("CRLF: the replaced block and its neighbours keep CRLF byte for byte, and a last line without a newline stays without", () => {
+		const crlfBlock = block.split("\n").join("\r\n");
+		expect(
+			upsertAgentsBlock(
+				"AGENTS.md",
+				`a\r\n${AGENTS_START}\r\nold\r\n${AGENTS_END}\r\nb\r\n`,
+			),
+		).toBe(`a\r\n${crlfBlock}\r\nb\r\n`);
+		expect(
+			upsertAgentsBlock("AGENTS.md", `a\r\n${AGENTS_START}\r\n${AGENTS_END}`),
+		).toBe(`a\r\n${crlfBlock}`);
 	});
 	test("the block says the project uses llm-tests-forge and points at status and guide", () => {
 		expect(block).toStartWith(AGENTS_START);

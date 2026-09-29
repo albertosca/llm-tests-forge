@@ -1,10 +1,21 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	readFile,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { main } from "../../src/cli/main";
-import { AGENTS_END, AGENTS_START } from "../../src/core/agents-block";
+import {
+	AGENTS_END,
+	AGENTS_START,
+	agentsBlock,
+} from "../../src/core/agents-block";
 import { projectWith } from "../helpers/project";
 
 async function directoryWith(files: string[]): Promise<string> {
@@ -110,10 +121,104 @@ describe("init through main()", () => {
 		const { status, lines } = await runInit(directory, ["--language", "go"]);
 		expect(status).toBe(0);
 		expect(lines).toEqual([
-			"init: forge.yaml exists, left untouched",
+			"init: forge.yaml exists, left untouched; --language go ignored",
 			"init: updated the llm-tests-forge block in AGENTS.md",
 		]);
 		expect(await readFile(join(directory, "forge.yaml"), "utf8")).toBe(before);
+	});
+
+	test("init without --language on an existing project does not mention the flag", async () => {
+		const directory = await directoryWith(["Cargo.toml"]);
+		await runInit(directory);
+		const { lines } = await runInit(directory);
+		expect(lines[0]).toBe("init: forge.yaml exists, left untouched");
+	});
+
+	test("init runs inside a project that has no .forge directory", async () => {
+		const root = await projectWith("version: 1\nlanguage: go\nsuites: []\n");
+		const { status, lines } = await runInit(root);
+		expect(status).toBe(0);
+		expect(lines[0]).toBe("init: forge.yaml exists, left untouched");
+		expect(await exists(join(root, ".forge"))).toBe(false);
+	});
+
+	test("an AGENTS.md with CRLF endings keeps CRLF in the text it appends", async () => {
+		const directory = await directoryWith(["go.mod"]);
+		await writeFile(
+			join(directory, "AGENTS.md"),
+			"# Agents\r\n\r\nBe nice.\r\n",
+		);
+		await runInit(directory);
+		const written = await readFile(join(directory, "AGENTS.md"), "utf8");
+		expect(written).toBe(
+			`# Agents\r\n\r\nBe nice.\r\n\r\n${agentsBlock().split("\n").join("\r\n")}\r\n`,
+		);
+		expect(written.replaceAll("\r\n", "")).not.toContain("\n");
+	});
+
+	test("an AGENTS.md with CRLF endings keeps CRLF in the block it replaces and around it", async () => {
+		const directory = await directoryWith(["go.mod"]);
+		await writeFile(
+			join(directory, "AGENTS.md"),
+			`# Agents\r\n${AGENTS_START}\r\nold\r\n${AGENTS_END}\r\nAfter.\r\n`,
+		);
+		const { lines } = await runInit(directory);
+		expect(lines[1]).toBe(
+			"init: updated the llm-tests-forge block in AGENTS.md",
+		);
+		expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
+			`# Agents\r\n${agentsBlock().split("\n").join("\r\n")}\r\nAfter.\r\n`,
+		);
+	});
+
+	test("markers quoted inside a fenced block are not the block: text is appended and 'wrote' is said", async () => {
+		const directory = await directoryWith(["go.mod"]);
+		const quoted = `# Agents\n\`\`\`\n${AGENTS_START}\nold\n${AGENTS_END}\n\`\`\`\n`;
+		await writeFile(join(directory, "AGENTS.md"), quoted);
+		const { status, lines } = await runInit(directory);
+		expect(status).toBe(0);
+		expect(lines[1]).toBe("init: wrote the llm-tests-forge block in AGENTS.md");
+		expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
+			`${quoted}\n${agentsBlock()}\n`,
+		);
+	});
+
+	test("an inline mention of the start marker says 'wrote', not 'updated'", async () => {
+		const directory = await directoryWith(["go.mod"]);
+		await writeFile(
+			join(directory, "AGENTS.md"),
+			`Do not delete ${AGENTS_START} by hand.\n`,
+		);
+		const { lines } = await runInit(directory);
+		expect(lines[1]).toBe("init: wrote the llm-tests-forge block in AGENTS.md");
+	});
+
+	test("init writes AGENTS.md before forge.yaml: a failed AGENTS.md write leaves no forge.yaml", async () => {
+		const directory = await directoryWith(["go.mod"]);
+		await mkdir(join(directory, "AGENTS.md"));
+		const { status, lines } = await runInit(directory);
+		expect(status).toBe(1);
+		expect(lines[0]).toContain("AGENTS.md");
+		expect(await exists(join(directory, "forge.yaml"))).toBe(false);
+	});
+
+	test("a read-only AGENTS.md fails the write and leaves no forge.yaml behind", async () => {
+		if (process.getuid?.() === 0) return;
+		const directory = await directoryWith(["go.mod"]);
+		await writeFile(join(directory, "AGENTS.md"), "# Agents\n");
+		await chmod(join(directory, "AGENTS.md"), 0o444);
+		const { status, lines } = await runInit(directory);
+		expect(status).toBe(1);
+		expect(lines[0]).toContain("AGENTS.md");
+		expect(await exists(join(directory, "forge.yaml"))).toBe(false);
+		await chmod(join(directory, "AGENTS.md"), 0o644);
+	});
+
+	test("a directory named like a manifest is not a manifest", async () => {
+		const directory = await directoryWith([]);
+		await mkdir(join(directory, "Gemfile"));
+		const { lines } = await runInit(directory);
+		expect(lines[0]).toContain("language: other");
 	});
 
 	test("an AGENTS.md with text but no block gets the block appended and keeps the text", async () => {

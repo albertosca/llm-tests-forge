@@ -1,4 +1,4 @@
-import { access } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Language } from "./schemas";
 
@@ -17,8 +17,8 @@ const MANIFESTS: { manifest: string; language: Language }[] = [
 ];
 
 async function fileExists(path: string): Promise<boolean> {
-	return access(path).then(
-		() => true,
+	return stat(path).then(
+		(found) => found.isFile(),
 		() => false,
 	);
 }

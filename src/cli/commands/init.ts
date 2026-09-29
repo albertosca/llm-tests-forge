@@ -1,7 +1,7 @@
 import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { AGENTS_START, upsertAgentsBlock } from "../../core/agents-block";
+import { planAgentsBlock } from "../../core/agents-block";
 import { UsageError } from "../../core/errors";
 import { readText, writeText } from "../../core/files";
 import { detectLanguage } from "../../core/language";
@@ -75,23 +75,29 @@ export async function initCommand(
 	// Everything that can refuse is computed before anything is written.
 	const existingProject = await readIfPresent(projectPath);
 	const existingAgents = await readIfPresent(agentsPath);
-	const agentsText = upsertAgentsBlock(AGENTS_FILE, existingAgents);
+	const planned = planAgentsBlock(AGENTS_FILE, existingAgents);
 	const chosen =
 		existingProject === null ? await chooseLanguage(root, override) : null;
 
-	if (chosen === null) {
-		context.stdout(`init: ${PROJECT_FILE} exists, left untouched`);
-	} else {
+	// AGENTS.md first: if it cannot be written, no forge.yaml is left behind
+	// and a rerun starts clean.
+	await writeText(agentsPath, planned.text);
+	if (chosen !== null)
 		await writeText(projectPath, projectFileText(chosen.language));
+
+	if (chosen === null) {
+		context.stdout(
+			override === undefined
+				? `init: ${PROJECT_FILE} exists, left untouched`
+				: `init: ${PROJECT_FILE} exists, left untouched; --language ${override} ignored`,
+		);
+	} else {
 		context.stdout(
 			`init: wrote ${PROJECT_FILE} (language: ${chosen.language}, ${chosen.origin})`,
 		);
 	}
-
-	await writeText(agentsPath, agentsText);
-	const hadBlock = existingAgents?.includes(AGENTS_START) === true;
 	context.stdout(
-		`init: ${hadBlock ? "updated" : "wrote"} the llm-tests-forge block in ${AGENTS_FILE}`,
+		`init: ${planned.replaced ? "updated" : "wrote"} the llm-tests-forge block in ${AGENTS_FILE}`,
 	);
 
 	const claude = await readIfPresent(join(root, CLAUDE_FILE));
