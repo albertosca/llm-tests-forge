@@ -105,13 +105,15 @@ const STAMPING_VERBS = new Set([
 
 /**
  * Prints the version warning for the suite about to be used. A suite.yaml
- * that is absent or does not parse is left alone here: the verb reports its
- * own error for it.
+ * that is absent or does not parse (a ForgeError) is left alone here: the
+ * verb reports its own error for it. Anything else is a bug and propagates.
  */
 async function warnAboutSuiteVersion(context: CliContext): Promise<void> {
-	const present = await readSuiteIfPresent(context.forgeDirectory).catch(
-		() => null,
-	);
+	const read = context.readSuiteIfPresent ?? readSuiteIfPresent;
+	const present = await read(context.forgeDirectory).catch((error: unknown) => {
+		if (error instanceof ForgeError) return null;
+		throw error;
+	});
 	const warning = versionWarning(present?.suite.forge_version, FORGE_VERSION);
 	if (warning !== null) context.stdout(warning);
 }

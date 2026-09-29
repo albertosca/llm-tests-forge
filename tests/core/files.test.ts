@@ -520,6 +520,42 @@ judges: [google/gemini-3.5-flash]
 		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(true);
 		expect((await readSuite(forgeDirectory)).target.kind).toBe("python");
 	});
+	test("a suite stamped 0.1.0-beta.1 is promoted to 0.1.0", async () => {
+		const { forgeDirectory } = await suiteWith(
+			`forge_version: 0.1.0-beta.1\n${LEGACY}`,
+		);
+		expect(await stampSuite(forgeDirectory, "0.1.0")).toBe(true);
+		expect((await readSuite(forgeDirectory)).forge_version).toBe("0.1.0");
+	});
+	test("a suite stamped 0.1.0 keeps it under installed 0.1.0-beta.1", async () => {
+		const text = `forge_version: 0.1.0\n${LEGACY.replace("promptfoo-python", "python")}`;
+		const { forgeDirectory, path } = await suiteWith(text);
+		expect(await stampSuite(forgeDirectory, "0.1.0-beta.1")).toBe(false);
+		expect(await readFile(path, "utf8")).toBe(text);
+	});
+	test("an empty forge_version is stamped in place by the next write", async () => {
+		const { forgeDirectory, path } = await suiteWith(
+			`judges: [google/gemini-3.5-flash]\nforge_version: ""\ntarget:\n  kind: python\n  entry: forge_target.py\n  models: [anthropic/claude-haiku-4-5]\n`,
+		);
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(true);
+		expect(await readFile(path, "utf8")).toBe(
+			`judges: [google/gemini-3.5-flash]\nforge_version: 0.4.1\ntarget:\n  kind: python\n  entry: forge_target.py\n  models: [anthropic/claude-haiku-4-5]\n`,
+		);
+	});
+	test("a forge_version added for the first time goes first in the file, and a later stamp keeps its place", async () => {
+		const { forgeDirectory, path } = await suiteWith(
+			`# my suite\ntarget:\n  kind: python\n  entry: forge_target.py\n  models: [anthropic/claude-haiku-4-5]\njudges: [google/gemini-3.5-flash]\n`,
+		);
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(true);
+		const stamped = await readFile(path, "utf8");
+		expect(stamped).toBe(
+			`# my suite\nforge_version: 0.4.1\ntarget:\n  kind: python\n  entry: forge_target.py\n  models: [anthropic/claude-haiku-4-5]\njudges: [google/gemini-3.5-flash]\n`,
+		);
+		expect(await stampSuite(forgeDirectory, "0.4.2")).toBe(true);
+		expect(await readFile(path, "utf8")).toBe(
+			stamped.replace("forge_version: 0.4.1", "forge_version: 0.4.2"),
+		);
+	});
 	test("without a suite.yaml it returns false and creates no file", async () => {
 		const forgeDirectory = await tmpForge();
 		await mkdir(forgeDirectory, { recursive: true });

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { UsageError } from "../core/errors";
+import type { readSuiteIfPresent } from "../core/files";
 import type { Project } from "../core/project";
 import { createLlm, type Llm } from "../llm/generate";
 
@@ -24,6 +25,11 @@ export interface CliContext {
 	 * `armEndOfInputOnInterrupt`.
 	 */
 	onInteractivePass?: () => void;
+	/**
+	 * How the version warning reads suite.yaml; absent -> the real reader.
+	 * A seam for tests, to prove which failures the warning swallows.
+	 */
+	readSuiteIfPresent?: typeof readSuiteIfPresent;
 }
 
 export interface CreateContextOptions {

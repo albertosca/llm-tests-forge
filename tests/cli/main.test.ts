@@ -17,6 +17,7 @@ import { parse } from "yaml";
 import type { CliContext } from "../../src/cli/context";
 import { createContext } from "../../src/cli/context";
 import { COMMANDS, drafterFlag, main, run, USAGE } from "../../src/cli/main";
+import { ForgeError } from "../../src/core/errors";
 import {
 	readCases,
 	readFeature,
@@ -4312,7 +4313,7 @@ include: [other] # kept too
 		// Only the stamp line is new: any other rewrite (writeSuite drops the
 		// comments and turns flow lists into blocks) changes this text.
 		expect(await readFile(suiteFile, "utf8")).toBe(
-			`${seeded}forge_version: ${FORGE_VERSION}\n`,
+			`forge_version: ${FORGE_VERSION}\n${seeded}`,
 		);
 		// No cases file existed, so none is invented: an empty
 		// `cases/soft-no.yaml` would read to every later verb as a scenario
@@ -4522,6 +4523,7 @@ include: [keep, polite-rejection, keep]   # only these for now
 		// normalises spacing, so the pin is on the lines, not on the bytes.
 		const after = await readFile(suiteFile, "utf8");
 		expect(after.split("\n")).toEqual([
+			`forge_version: ${FORGE_VERSION}`,
 			"target:",
 			"  kind: python",
 			"  entry: forge_target.py",
@@ -4530,7 +4532,6 @@ include: [keep, polite-rejection, keep]   # only these for now
 			"judges: [google/gemini-3.5-flash]",
 			"repeat: 2",
 			"include: [keep, soft-no, keep] # only these for now",
-			`forge_version: ${FORGE_VERSION}`,
 			"",
 		]);
 		expect((await readSuite(forgeDirectory)).include).toEqual([
@@ -5898,7 +5899,7 @@ describe("main(): the suite and the project", () => {
 		).toBe(0);
 		expect(
 			await readFile(join(suiteDirectory, ".forge", "suite.yaml"), "utf8"),
-		).toBe(`${existing}forge_version: ${FORGE_VERSION}\n`);
+		).toBe(`forge_version: ${FORGE_VERSION}\n${existing}`);
 		expect(lines.join("\n")).not.toContain("registered evals/new");
 		expect(lines.join("\n")).not.toContain("from forge.yaml's defaults");
 	});
@@ -6013,6 +6014,37 @@ describe("the version stamp and the version warning", () => {
 		expect(await run(["emit"], context)).toBe(0);
 		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
 		expect((await readSuite(forgeDirectory)).forge_version).toBe(FORGE_VERSION);
+	});
+	test("an empty forge_version gets no warning, and a writing verb stamps it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		await stampWith(forgeDirectory, '""');
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
+		expect((await readSuite(forgeDirectory)).forge_version).toBe(FORGE_VERSION);
+	});
+	test("the warning's read swallows a ForgeError: the verb reports it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const { context, out } = await ctxIn(cwd);
+		context.readSuiteIfPresent = async () => {
+			throw new ForgeError("cannot read suite", { file: "suite.yaml" });
+		};
+		expect(await run(["estimate"], context)).toBe(0);
+		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
+		expect((await readSuite(forgeDirectory)).forge_version).toBeUndefined();
+	});
+	test("a programming error in the warning's read propagates instead of being swallowed", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeWithApprovedCases(cwd);
+		const { context } = await ctxIn(cwd);
+		context.readSuiteIfPresent = async () => {
+			throw new TypeError("suite reader is broken");
+		};
+		await expect(run(["estimate"], context)).rejects.toThrow(
+			"suite reader is broken",
+		);
 	});
 	test("a verb that fails does not stamp", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
