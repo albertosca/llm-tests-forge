@@ -5,3 +5,5 @@
 # `bun run check`), which this file never touches.
 [test]
 coverage = false
+# Private TMPDIR for the run, removed at exit; see tests/support/preload-temporary-root.ts.
+preload = ["./tests/support/preload-temporary-root.ts"]

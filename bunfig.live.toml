@@ -8,4 +8,4 @@
 coverage = false
 # Reads provider keys from ~/.config/<provider>/api.env when the shell does
 # not export them; see tests/live/preload.ts.
-preload = ["./tests/live/preload.ts"]
+preload = ["./tests/support/preload-temporary-root.ts", "./tests/live/preload.ts"]

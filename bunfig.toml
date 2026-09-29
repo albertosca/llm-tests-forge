@@ -5,3 +5,6 @@ coverageThreshold = { lines = 1.0, functions = 1.0 }
 # process.exit(...) bootstrap. No branching or logic lives there for a
 # test to assert against — see src/cli/bin.ts's own doc comment.
 coveragePathIgnorePatterns = ["src/cli/bin.ts"]
+# Gives the whole run one private TMPDIR and removes it at exit, so no test
+# leaves forge-* directories behind; see tests/support/preload-temporary-root.ts.
+preload = ["./tests/support/preload-temporary-root.ts"]
