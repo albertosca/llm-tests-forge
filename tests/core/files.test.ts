@@ -454,6 +454,12 @@ judges: [google/gemini-3.5-flash]
 		await stampSuite(forgeDirectory, "0.4.1");
 		expect((await readSuite(forgeDirectory)).forge_version).toBe("0.4.2");
 	});
+	test("a higher stamp on a suite with nothing to normalise writes nothing and returns false", async () => {
+		const text = `forge_version: 0.5.0\n${LEGACY.replace("promptfoo-python", "python")}`;
+		const { forgeDirectory, path } = await suiteWith(text);
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(false);
+		expect(await readFile(path, "utf8")).toBe(text);
+	});
 	test("raises an older stamp", async () => {
 		const { forgeDirectory } = await suiteWith(
 			`forge_version: 0.3.0\n${LEGACY}`,

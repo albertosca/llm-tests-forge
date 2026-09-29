@@ -1,4 +1,5 @@
 import { access } from "node:fs/promises";
+import { join } from "node:path";
 import { ForgeError, UsageError } from "../core/errors";
 import { readSuiteIfPresent, stampSuite } from "../core/files";
 import { registeredSuiteNames } from "../core/project";
@@ -106,6 +107,22 @@ async function warnAboutSuiteVersion(context: CliContext): Promise<void> {
 	if (warning !== null) context.stdout(warning);
 }
 
+/**
+ * Stamps suite.yaml once a verb has succeeded. A suite.yaml the stamp cannot
+ * read (the verb never needed it) is reported and left as it was: the verb's
+ * own exit status stands.
+ */
+async function stampAfterSuccess(context: CliContext): Promise<void> {
+	try {
+		await stampSuite(context.forgeDirectory, FORGE_VERSION);
+	} catch (error) {
+		if (!(error instanceof ForgeError)) throw error;
+		context.stdout(
+			`warning: could not stamp ${join(context.forgeDirectory, "suite.yaml")}: ${error.message}`,
+		);
+	}
+}
+
 export async function run(
 	argv: string[],
 	context: CliContext,
@@ -128,8 +145,7 @@ export async function run(
 	try {
 		await warnAboutSuiteVersion(context);
 		await command(rest, context);
-		if (STAMPING_VERBS.has(verb ?? ""))
-			await stampSuite(context.forgeDirectory, FORGE_VERSION);
+		if (STAMPING_VERBS.has(verb ?? "")) await stampAfterSuccess(context);
 		return 0;
 	} catch (error) {
 		if (error instanceof UsageError) {

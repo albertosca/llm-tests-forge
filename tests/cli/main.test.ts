@@ -4210,7 +4210,16 @@ describe("llm-tests-forge move --scenario <old> <new>", () => {
 	test("a suite that does not name the scenario is not rewritten, and a scenario with no cases file gets none", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
-		await writeSuite(forgeDirectory, SUITE);
+		const suiteFile = join(forgeDirectory, "suite.yaml");
+		const seeded = `target:
+  kind: python
+  entry: forge_target.py
+  models: [anthropic/claude-haiku-4-5] # kept
+judges: [google/gemini-3.5-flash]
+repeat: 2
+include: [other] # kept too
+`;
+		await writeFile(suiteFile, seeded);
 
 		const { context, out } = await ctxIn(cwd);
 		expect(
@@ -4219,11 +4228,11 @@ describe("llm-tests-forge move --scenario <old> <new>", () => {
 		expect(out).toEqual([
 			"move: scenario polite-rejection → soft-no; 0 case(s) renumbered",
 		]);
-		// Only the version stamp is new: no include entry named the scenario.
-		expect(await readSuite(forgeDirectory)).toEqual({
-			...SUITE,
-			forge_version: FORGE_VERSION,
-		});
+		// Only the stamp line is new: any other rewrite (writeSuite drops the
+		// comments and turns flow lists into blocks) changes this text.
+		expect(await readFile(suiteFile, "utf8")).toBe(
+			`${seeded}forge_version: ${FORGE_VERSION}\n`,
+		);
 		// No cases file existed, so none is invented: an empty
 		// `cases/soft-no.yaml` would read to every later verb as a scenario
 		// that already has cases.
@@ -5829,6 +5838,23 @@ describe("the version stamp and the version warning", () => {
 		expect(await run(["emit"], context)).toBe(1);
 		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
 		expect(out.at(-1)).toContain(path);
+	});
+	test("a verb that never reads suite.yaml still succeeds when the stamp cannot: one warning, exit 0, the file left as it was", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await mkdir(forgeDirectory, { recursive: true });
+		const path = join(forgeDirectory, "suite.yaml");
+		const malformed = "target: [unclosed\n";
+		await writeFile(path, malformed);
+		const { context, out } = await ctxIn(cwd);
+		expect(
+			await run(["describe", "The bot classifies hiring emails"], context),
+		).toBe(0);
+		expect((await readFeature(forgeDirectory)).status).toBe("pending");
+		const warnings = out.filter((line) => line.startsWith("warning:"));
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0]).toStartWith(`warning: could not stamp ${path}: `);
+		expect(await readFile(path, "utf8")).toBe(malformed);
 	});
 	test("a legacy kind: promptfoo-python is rewritten as python by a writing verb", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
