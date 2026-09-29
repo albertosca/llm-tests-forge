@@ -12,7 +12,28 @@ Duas suítes prontas, geradas e revisadas contra uma aplicação real: [`example
 
 ## Instalação
 
-Requer o [bun](https://bun.sh) 1.4 ou mais recente. Ainda não está publicado em nenhum registro de pacotes, então instale a partir de um clone. Os pacotes por ecossistema vêm com o pipeline de release.
+Cada canal abaixo instala o mesmo binário pré-compilado `llm-tests-forge`, então a forja em si não precisa de bun. Nenhum deles está publicado ainda, então hoje o único caminho que funciona é compilar a partir de um clone, mais abaixo.
+
+Escolha o que combina com o seu projeto:
+
+    npm i -D llm-tests-forge                # JavaScript / TypeScript
+    uv add --dev llm-tests-forge            # Python
+    brew install albertosca/tap/llm-tests-forge   # qualquer projeto; o caminho para Rust e Go
+    curl -fsSL https://github.com/albertosca/llm-tests-forge/releases/latest/download/install.sh | sh   # qualquer projeto; o caminho para Rust e Go
+
+Para Elixir, adicione a dependência ao `mix.exs` e depois baixe o binário:
+
+    {:llm_tests_forge, "~> 0.1"}
+    mix deps.get
+    mix llm_tests_forge.install
+
+Para Ruby, adicione esta linha ao `Gemfile` e rode `bundle install`:
+
+    gem "llm-tests-forge", group: :development
+
+Projetos Rust e Go não têm pacote próprio: use o Homebrew ou o script. O `install.sh` coloca o binário em `~/.local/bin` por padrão e confere o SHA256 antes; `--dir <bin-directory>` escolhe outro diretório e `--version vX.Y.Z` fixa uma versão. No Elixir, um `review` interativo roda como `_build/llm-tests-forge review`, porque `mix llm_tests_forge review` recusa (sai com código 2).
+
+A partir de um clone, que funciona hoje, requer o [bun](https://bun.sh) 1.4 ou mais recente:
 
     git clone https://github.com/albertosca/llm-tests-forge.git
     cd llm-tests-forge

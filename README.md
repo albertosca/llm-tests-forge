@@ -12,7 +12,28 @@ Two finished suites, generated and reviewed against a real application: [`exampl
 
 ## Install
 
-Requires [bun](https://bun.sh) 1.4 or newer. This is not published to any package registry yet, so install it from a clone. Packages per ecosystem come with the release pipeline.
+Each channel below installs the same prebuilt `llm-tests-forge` binary, so the forge itself needs no bun. None of them is published yet, so today the only path that works is building from a clone, further down.
+
+Pick the one that matches your project:
+
+    npm i -D llm-tests-forge                # JavaScript / TypeScript
+    uv add --dev llm-tests-forge            # Python
+    brew install albertosca/tap/llm-tests-forge   # any project; the way for Rust and Go
+    curl -fsSL https://github.com/albertosca/llm-tests-forge/releases/latest/download/install.sh | sh   # any project; the way for Rust and Go
+
+For Elixir, add the dependency to `mix.exs`, then fetch the binary:
+
+    {:llm_tests_forge, "~> 0.1"}
+    mix deps.get
+    mix llm_tests_forge.install
+
+For Ruby, add this line to your `Gemfile` and run `bundle install`:
+
+    gem "llm-tests-forge", group: :development
+
+Rust and Go projects have no package of their own: use Homebrew or the script. `install.sh` puts the binary in `~/.local/bin` by default and verifies its SHA256 first; `--dir <bin-directory>` chooses another directory and `--version vX.Y.Z` pins a release. Under Elixir, an interactive `review` runs as `_build/llm-tests-forge review`, because `mix llm_tests_forge review` refuses (it exits 2).
+
+From a clone, which works today, requires [bun](https://bun.sh) 1.4 or newer:
 
     git clone https://github.com/albertosca/llm-tests-forge.git
     cd llm-tests-forge
