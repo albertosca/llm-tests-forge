@@ -2,7 +2,7 @@
 
 The target is [moonlighter](https://github.com/albertosca/moonlighter), a job-application tracker. Its `classify_response` (`packages/email/moonlighter/tracking/classification.py`) takes one email a candidate received and returns a JSON object with `type`, `stage`, `new_stage`, `company`, `job_title` and `summary`, where `type` is one of seven labels. The rule this suite exists to protect is the one that is easiest to get wrong: an automated "we have received your application" is `acknowledgement`, never `screening` and never `interview` — the process has not started. `prompt.txt` in this directory is that function's prompt, copied verbatim, with the untrusted-email block and the stage list replaced by placeholders.
 
-Everything under `.forge/` here was produced by `llm-tests-forge` and reviewed by hand, then run against the real application. `results.json` is promptfoo's own record of that run and is never hand-edited; `.forge/report.*` are `llm-tests-forge report` read back from it, so their `generatedAt` (`2026-09-16T16:44:08.804Z`, promptfoo 0.123.0) is the clock of the last re-render, not of the run. `.forge/usage.jsonl` is deliberately **not** committed — it is gitignored repository-wide, because it logs every model call the forge itself made on one person's machine.
+Everything under `.forge/` here was produced by the `llm-tests-forge` commands below and reviewed by hand, then run against the real application. `results.json` is promptfoo's own record of that run and is never hand-edited; `.forge/report.*` are `llm-tests-forge report` read back from it, so their `generatedAt` (`2026-09-29T01:43:25.293Z`, promptfoo 0.123.0) is the clock of the last re-render, not of the run. `.forge/usage.jsonl` is deliberately **not** committed — it is gitignored repository-wide, because it logs every model call the forge itself made on one person's machine.
 
 ## Models used, and why Google is absent
 
@@ -20,7 +20,7 @@ The judge is deliberately not the model under test.
 
 ## The commands, in order
 
-Everything runs from this directory, with `FORGE_DRAFTER` set and the provider's key in the environment. The table above is the truth about which verb ran on which model: `describe` ran with `FORGE_DRAFTER=google/gemini-3.6-flash` and `scenarios` with `anthropic/claude-haiku-4-5`, before the rest settled on:
+`bun ../../src/cli/bin.ts` is this checkout's `llm-tests-forge` (with the tool installed, type `llm-tests-forge` instead). This directory has no `forge.yaml`: it is a stand-alone suite, which the verbs still run on from inside it. Everything runs from this directory, with `FORGE_DRAFTER` set and the provider's key in the environment. The table above is the truth about which verb ran on which model: `describe` ran with `FORGE_DRAFTER=google/gemini-3.6-flash` and `scenarios` with `anthropic/claude-haiku-4-5`, before the rest settled on:
 
     export FORGE_DRAFTER=anthropic/claude-sonnet-5
 
