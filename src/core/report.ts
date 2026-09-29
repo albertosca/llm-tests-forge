@@ -136,6 +136,8 @@ const CoverageSchema = z.preprocess(
  */
 export const ReportSchema = z.object({
 	generatedAt: z.string(),
+	/** When promptfoo ran, from results.json; null for a results.json or a report.json that predates it. */
+	ranAt: z.string().nullable().default(null),
 	promptfooVersion: z.string().nullable(),
 	rows: z.number(),
 	matched: z.number(),
@@ -337,7 +339,7 @@ function matchRows(
 			.find((id) => typeof id === "string");
 		const observed = seen === undefined ? "none" : `"${seen}"`;
 		throw new ForgeError(
-			`no result matches a case in .forge/cases (first metadata.case seen: ${observed}, ${results.results.results.length} rows); was this results.json produced from a config forge emitted?`,
+			`no result matches a case in .forge/cases (first metadata.case seen: ${observed}, ${results.results.results.length} rows); was this results.json produced from a config llm-tests-forge emitted?`,
 			{ file: resultsPath },
 		);
 	}
@@ -693,6 +695,7 @@ export function buildReport(parameters: {
 	);
 	return {
 		generatedAt: parameters.now.toISOString(),
+		ranAt: results.results.timestamp ?? null,
 		promptfooVersion: results.metadata?.promptfooVersion ?? null,
 		rows: results.results.results.length,
 		matched: matched.length,

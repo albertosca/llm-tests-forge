@@ -4060,7 +4060,7 @@ describe("report", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["report", RESULTS], context)).toBe(1);
 		expect(out.at(-1)).toContain(RESULTS);
-		expect(out.at(-1)).toContain("forge emitted");
+		expect(out.at(-1)).toContain("a config llm-tests-forge emitted");
 		expect(out.at(-1)).toContain(
 			'first metadata.case seen: "ack-optional-quiz-01", 4 rows',
 		);

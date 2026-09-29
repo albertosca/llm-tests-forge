@@ -9,6 +9,7 @@ import { renderReportMarkdown } from "../../src/report/markdown";
  */
 const REPORT: Report = {
 	generatedAt: "2026-09-15T20:00:00.000Z",
+	ranAt: "2026-09-15T19:07:12.028Z",
 	promptfooVersion: "0.123.0",
 	rows: 7,
 	matched: 6,

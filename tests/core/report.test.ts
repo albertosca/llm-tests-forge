@@ -585,7 +585,9 @@ describe("buildReport", () => {
 			caught = error;
 		}
 		expect(caught).toBeInstanceOf(ForgeError);
-		expect((caught as ForgeError).message).toContain("forge emitted");
+		expect((caught as ForgeError).message).toContain(
+			"a config llm-tests-forge emitted",
+		);
 		expect((caught as ForgeError).details.file).toBe("r.json");
 	});
 
@@ -1098,6 +1100,32 @@ describe("buildReport", () => {
 			},
 		});
 		expect(bare.promptfooVersion).toBeNull();
+	});
+
+	test("ranAt is the time promptfoo recorded in results.json, and null when an older results.json has none", () => {
+		const rows = [row({ case: "a-01", model: "m" })];
+		const withTimestamp = build([], {
+			results: {
+				results: { timestamp: "2026-09-25T14:48:00.200Z", results: rows },
+			},
+		});
+		expect(withTimestamp.ranAt).toBe("2026-09-25T14:48:00.200Z");
+		expect(withTimestamp.generatedAt).toBe(NOW.toISOString());
+
+		const withoutTimestamp = build(rows);
+		expect(withoutTimestamp.ranAt).toBeNull();
+	});
+
+	test("readResults keeps results.timestamp from a real promptfoo file", async () => {
+		const parsed = await readResults(FIXTURE);
+		expect(parsed.results.timestamp).toBe("2026-09-15T19:07:12.028Z");
+	});
+
+	test("a report.json written before ranAt existed still parses as a baseline, with ranAt null", () => {
+		const report = build([row({ case: "a-01", model: "m" })]);
+		const { ranAt, ...old } = report;
+		expect(ranAt).toBeNull();
+		expect(ReportSchema.parse(old).ranAt).toBeNull();
 
 		const empty = build([], {
 			results: {
@@ -1201,7 +1229,7 @@ describe("buildReport", () => {
 			caught = error;
 		}
 		expect((caught as ForgeError).message).toBe(
-			'no result matches a case in .forge/cases (first metadata.case seen: "ghost-01", 2 rows); was this results.json produced from a config forge emitted? (file: r.json)',
+			'no result matches a case in .forge/cases (first metadata.case seen: "ghost-01", 2 rows); was this results.json produced from a config llm-tests-forge emitted? (file: r.json)',
 		);
 	});
 
@@ -1216,7 +1244,7 @@ describe("buildReport", () => {
 			caught = error;
 		}
 		expect((caught as ForgeError).message).toBe(
-			"no result matches a case in .forge/cases (first metadata.case seen: none, 2 rows); was this results.json produced from a config forge emitted? (file: r.json)",
+			"no result matches a case in .forge/cases (first metadata.case seen: none, 2 rows); was this results.json produced from a config llm-tests-forge emitted? (file: r.json)",
 		);
 	});
 	test("a case that passes one run and errors another is partly-errored, not flaky", () => {

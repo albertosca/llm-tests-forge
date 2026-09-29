@@ -30,7 +30,8 @@ describe("suiteStatus and renderStatusLine", () => {
 		const report = JSON.parse(
 			await readFile(join(directory, ".forge", "report.json"), "utf8"),
 		);
-		const date = report.generatedAt.slice(0, 10);
+		expect(report.ranAt).toBe("2026-09-25T14:48:00.200Z");
+		const date = report.ranAt.slice(0, 10);
 		const status = await suiteStatus("evals/a", directory, FORGE_VERSION);
 		expect(renderStatusLine(status)).toBe(
 			`evals/a   extract-job-application-questions   14 scenarios approved, 0 pending · 42 cases approved, 0 pending · last run 67.9% (${date})`,
@@ -232,6 +233,80 @@ describe("suiteStatus and renderStatusLine", () => {
 		expect(renderStatusLine(status)).toBe(
 			".   (no feature yet)   0 scenarios approved, 0 pending · 0 cases approved, 0 pending · no run yet",
 		);
+	});
+
+	/** The suite copy with its report.json's two dates rewritten. */
+	async function suiteWithDates(
+		name: string,
+		dates: { ranAt?: string | null; generatedAt: string },
+	): Promise<string> {
+		const directory = await suiteCopy(name);
+		const reportFile = join(directory, ".forge", "report.json");
+		const report = JSON.parse(await readFile(reportFile, "utf8"));
+		delete report.ranAt;
+		const rewritten = { ...report, generatedAt: dates.generatedAt };
+		if (dates.ranAt !== undefined) rewritten.ranAt = dates.ranAt;
+		await writeFile(reportFile, JSON.stringify(rewritten));
+		return directory;
+	}
+
+	const lastRunOf = async (directory: string) => {
+		const status = await suiteStatus("evals/x", directory, FORGE_VERSION);
+		if (status.state !== "ok") throw new Error("expected an ok suite");
+		return status.lastRun;
+	};
+
+	test("last run is the day promptfoo ran (ranAt), not the day the report was written", async () => {
+		const directory = await suiteWithDates("ranat", {
+			ranAt: "2026-09-25T23:59:00.000Z",
+			generatedAt: "2026-09-29T08:00:00.000Z",
+		});
+		expect((await lastRunOf(directory))?.date).toBe("2026-09-25");
+	});
+
+	test("last run falls back to generatedAt for a report with no ranAt or a null one", async () => {
+		const absent = await suiteWithDates("noranat", {
+			generatedAt: "2026-09-29T08:00:00.000Z",
+		});
+		expect((await lastRunOf(absent))?.date).toBe("2026-09-29");
+		const explicitNull = await suiteWithDates("nullranat", {
+			ranAt: null,
+			generatedAt: "2026-09-28T08:00:00.000Z",
+		});
+		expect((await lastRunOf(explicitNull))?.date).toBe("2026-09-28");
+	});
+
+	test("last run prints (unknown date) for a value that is not an ISO date, never its first ten characters", async () => {
+		const garbage = await suiteWithDates("garbage", {
+			ranAt: "yesterday afternoon",
+			generatedAt: "2026-09-29T08:00:00.000Z",
+		});
+		const garbageStatus = await suiteStatus("evals/x", garbage, FORGE_VERSION);
+		expect(renderStatusLine(garbageStatus)).toEndWith(
+			"last run 67.9% (unknown date)",
+		);
+		const badGenerated = await suiteWithDates("badgenerated", {
+			generatedAt: "not-a-date-at-all",
+		});
+		expect((await lastRunOf(badGenerated))?.date).toBe("(unknown date)");
+		const impossible = await suiteWithDates("impossible", {
+			ranAt: "2026-13-45T00:00:00.000Z",
+			generatedAt: "2026-09-29T08:00:00.000Z",
+		});
+		expect((await lastRunOf(impossible))?.date).toBe("(unknown date)");
+	});
+
+	test("the guide documents the whole status --json shape", async () => {
+		const guide = await readFile("templates/guide.md", "utf8");
+		for (const name of [
+			"suites",
+			"problems",
+			"featureStatus",
+			"reason",
+			"entry",
+			"warning",
+		])
+			expect(guide).toContain(`\`${name}\``);
 	});
 
 	test("renders a report.json that does not match the schema as an error naming it", async () => {

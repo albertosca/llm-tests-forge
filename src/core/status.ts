@@ -45,6 +45,20 @@ async function exists(path: string): Promise<boolean> {
 const isReviewed = (item: { status: Scenario["status"] }): boolean =>
 	item.status === "approved" || item.status === "edited";
 
+const UNKNOWN_DATE = "(unknown date)";
+
+/**
+ * The calendar day of an ISO timestamp. A value that is not one prints as
+ * `(unknown date)`: cutting the first ten characters of whatever a hand-edited
+ * report.json holds would show garbage as if it were a date.
+ */
+function runDate(timestamp: string): string {
+	const day = /^(\d{4}-\d{2}-\d{2})(?:T|$)/.exec(timestamp)?.[1];
+	if (day === undefined || Number.isNaN(Date.parse(timestamp)))
+		return UNKNOWN_DATE;
+	return day;
+}
+
 async function readOk(
 	entry: string,
 	forgeDirectory: string,
@@ -77,7 +91,10 @@ async function readOk(
 		lastRun:
 			report === null
 				? null
-				: { passRate: report.passRate, date: report.generatedAt.slice(0, 10) },
+				: {
+						passRate: report.passRate,
+						date: runDate(report.ranAt ?? report.generatedAt),
+					},
 		warning: versionWarning(present?.suite.forge_version, installed),
 	};
 }
@@ -123,7 +140,11 @@ export function renderStatusLine(status: SuiteStatus): string {
 	const run =
 		status.lastRun === null
 			? "no run yet"
-			: `last run ${percent(status.lastRun.passRate)} (${status.lastRun.date})`;
+			: `last run ${percent(status.lastRun.passRate)} ${
+					status.lastRun.date === UNKNOWN_DATE
+						? UNKNOWN_DATE
+						: `(${status.lastRun.date})`
+				}`;
 	const feature =
 		status.featureStatus === "pending"
 			? `${status.feature} (feature pending)`

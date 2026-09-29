@@ -31,7 +31,7 @@ async function exampleDate(directory: string): Promise<string> {
 	const report = JSON.parse(
 		await readFile(join(directory, ".forge", "report.json"), "utf8"),
 	);
-	return report.generatedAt.slice(0, 10);
+	return report.ranAt.slice(0, 10);
 }
 
 async function projectWithTwoSuites(): Promise<string> {

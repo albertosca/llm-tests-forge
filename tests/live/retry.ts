@@ -6,12 +6,12 @@
  * hiding it from `bun test`'s coverage report -- see `retry.test.ts`.
  *
  * This lives under `tests/live/`, not `src/`, because it is smoke-test
- * infrastructure, not something `forge`'s own CLI ships or calls; `src/`
+ * infrastructure, not something llm-tests-forge's own CLI ships or calls; `src/`
  * stays exclusively the product surface consumed by `src/cli/bin.ts`.
  */
 
 export interface AttemptResult {
-	/** The forge CLI's own exit code for this attempt (0 = success). */
+	/** The llm-tests-forge CLI's own exit code for this attempt (0 = success). */
 	code: number;
 	/** The last line `run()` printed -- for a non-zero exit, this is the
 	 * clean `error: ...` message `run()`'s own classification guarantees
@@ -29,14 +29,15 @@ export interface RetryConfig {
 	 * busy". */
 	transientPattern: RegExp;
 	delayMs: number;
-	sleep: (ms: number) => Promise<void>;
+	sleep: (milliseconds: number) => Promise<void>;
 }
 
 export const DEFAULT_RETRY_CONFIG: RetryConfig = {
 	maxAttempts: 3,
 	transientPattern: /\b(503|unavailable|high demand)\b/i,
 	delayMs: 3_000,
-	sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+	sleep: (milliseconds) =>
+		new Promise((resolve) => setTimeout(resolve, milliseconds)),
 };
 
 /**
@@ -55,14 +56,18 @@ export async function retryTransient(
 	attempt: () => Promise<AttemptResult>,
 	config: RetryConfig = DEFAULT_RETRY_CONFIG,
 ): Promise<void> {
-	for (let n = 1; n <= config.maxAttempts; n++) {
+	for (
+		let attemptNumber = 1;
+		attemptNumber <= config.maxAttempts;
+		attemptNumber++
+	) {
 		const { code, message } = await attempt();
 		if (code === 0) return;
 		if (!config.transientPattern.test(message))
 			throw new Error(
-				`${label} failed with a non-transient error on attempt ${n}/${config.maxAttempts} (not retried -- this looks like a real defect, not the provider being busy): ${message}`,
+				`${label} failed with a non-transient error on attempt ${attemptNumber}/${config.maxAttempts} (not retried -- this looks like a real defect, not the provider being busy): ${message}`,
 			);
-		if (n === config.maxAttempts)
+		if (attemptNumber === config.maxAttempts)
 			throw new Error(
 				`${label} was still a transient provider-overload failure after ${config.maxAttempts} attempts (the provider was busy, not the code): ${message}`,
 			);

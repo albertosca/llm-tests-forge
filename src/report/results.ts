@@ -15,6 +15,8 @@ import { readFailure } from "../core/files";
  */
 export const PromptfooResultsSchema = z.object({
 	results: z.object({
+		/** When promptfoo ran (ISO), written by 0.123.0; an older results.json has none. */
+		timestamp: z.string().optional(),
 		results: z.array(
 			z.object({
 				testIdx: z.number(),
@@ -96,14 +98,14 @@ export type PromptfooRow = PromptfooResults["results"]["results"][number];
  * shape — each naming the file the person passed.
  */
 export async function readResults(path: string): Promise<PromptfooResults> {
-	const text = await readFile(path, "utf8").catch((e: unknown) => {
-		throw new ForgeError(readFailure(e), { file: path });
+	const text = await readFile(path, "utf8").catch((failure: unknown) => {
+		throw new ForgeError(readFailure(failure), { file: path });
 	});
 	let data: unknown;
 	try {
 		data = JSON.parse(text);
-	} catch (e) {
-		throw new ForgeError(`invalid JSON: ${(e as Error).message}`, {
+	} catch (failure) {
+		throw new ForgeError(`invalid JSON: ${(failure as Error).message}`, {
 			file: path,
 		});
 	}
@@ -111,7 +113,7 @@ export async function readResults(path: string): Promise<PromptfooResults> {
 	if (!parsed.success)
 		throw new ForgeError(
 			`does not match promptfoo's results shape: ${parsed.error.issues
-				.map((i) => `${i.path.join(".")}: ${i.message}`)
+				.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
 				.join("; ")}`,
 			{ file: path },
 		);
