@@ -6,6 +6,7 @@ import { runMain } from "./entry";
 import { renderGems } from "./gems";
 import { renderHexChecksums } from "./hex-checksums";
 import { renderFormula } from "./homebrew-formula";
+import { copyLicense } from "./license";
 import { renderNpmPackages } from "./npm-packages";
 import { CHECKSUMS_FILE_NAME, RELEASE_TARGETS } from "./targets";
 import { checkVersions, releaseVersion } from "./version";
@@ -32,7 +33,7 @@ export interface AssembleTools {
  * Turns a directory of downloaded release binaries (with their `SHA256SUMS`)
  * into every package the publish jobs upload, under `outDirectory`: `npm/`
  * (the main and platform packages), `wheels/`, `hex/` (a copy of the Hex
- * package with its `checksums.exs` rendered in), `gems/`, and
+ * package with its `checksums.exs` rendered in and the LICENSE beside it), `gems/`, and
  * `homebrew/llm-tests-forge.rb`. Nothing is written until the binaries match
  * `SHA256SUMS` and every manifest carries package.json's version. The
  * binaries are made executable first, since an artifact download drops the
@@ -50,6 +51,13 @@ export async function assembleRelease(
 			`the binaries do not match ${CHECKSUMS_FILE_NAME}: ${mismatches.map(({ name, reason }) => `${name} (${reason})`).join(", ")}`,
 			{ file: join(binariesDirectory, mismatches[0]?.name ?? "") },
 		);
+	// SHA256SUMS vouches only for what it lists: a target absent from both it
+	// and the directory is caught here, by name.
+	for (const target of RELEASE_TARGETS) {
+		const binary = join(binariesDirectory, target.assetName);
+		if (!(await Bun.file(binary).exists()))
+			throw new ForgeError("release binary is missing", { file: binary });
+	}
 	const version = await releaseVersion(root);
 	const stale = await checkVersions(root);
 	if (stale.length > 0)
@@ -73,6 +81,7 @@ export async function assembleRelease(
 		recursive: true,
 		filter: (source) => !HEX_LOCAL_FILES.has(basename(source)),
 	});
+	await copyLicense(root, hexDirectory);
 	await renderHexChecksums(
 		binariesDirectory,
 		root,

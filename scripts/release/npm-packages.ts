@@ -9,6 +9,7 @@ import {
 import { join, resolve } from "node:path";
 import { ForgeError, UsageError } from "../../src/core/errors";
 import { runMain } from "./entry";
+import { copyLicense, licensePath } from "./license";
 import { RELEASE_TARGETS, type ReleaseTarget } from "./targets";
 import { checkVersions, NPM_MANIFESTS, releaseVersion } from "./version";
 
@@ -38,8 +39,9 @@ function fillTemplate(text: string, values: Record<string, string>): string {
 /**
  * Writes one package per release target under `outDirectory/<os>-<cpu>/`
  * (the template's package.json plus `bin/<binary>` copied from the asset,
- * executable) and a copy of the main package under `outDirectory/main/`;
- * returns the directories written, main first. The packages carry the
+ * executable) and a copy of the main package under `outDirectory/main/`,
+ * each with the repository's LICENSE (npm packs a LICENSE whatever `files`
+ * says); returns the directories written, main first. The packages carry the
  * version of the committed manifests, which must all be stamped.
  */
 export async function renderNpmPackages(
@@ -60,10 +62,12 @@ export async function renderNpmPackages(
 		if (!(await Bun.file(source).exists()))
 			throw new ForgeError("release binary is missing", { file: source });
 	}
+	await licensePath(root);
 	const absoluteOut = resolve(outDirectory);
 	const mainDirectory = join(absoluteOut, "main");
 	await mkdir(absoluteOut, { recursive: true });
 	await cp(join(root, "packages/npm/main"), mainDirectory, { recursive: true });
+	await copyLicense(root, mainDirectory);
 	const written = [mainDirectory];
 	for (const target of RELEASE_TARGETS) {
 		const directory = join(absoluteOut, platformDirectoryName(target));
@@ -80,6 +84,7 @@ export async function renderNpmPackages(
 		const destination = join(directory, "bin", binaryName);
 		await copyFile(join(binariesDirectory, target.assetName), destination);
 		await chmod(destination, 0o755);
+		await copyLicense(root, directory);
 		written.push(directory);
 	}
 	return written;

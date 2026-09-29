@@ -5,6 +5,7 @@ import {
 	mkdir,
 	mkdtemp,
 	readFile,
+	rm,
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -37,6 +38,7 @@ async function rootWithWheelPackage(version = FORGE_VERSION): Promise<string> {
 		recursive: true,
 	});
 	await writeFile(join(root, "package.json"), `{ "version": "${version}" }\n`);
+	await cp(join(REPOSITORY, "LICENSE"), join(root, "LICENSE"));
 	return root;
 }
 
@@ -192,6 +194,18 @@ describe("wheels", () => {
 		await expect(
 			renderWheels(await fakeBinaries(), join(root, "out"), root, tool.command),
 		).rejects.toThrow("version 0.1.0-next.1 has a prerelease label");
+		expect(await Bun.file(tool.calls).exists()).toBe(false);
+	});
+
+	test("a repository without its LICENSE is refused naming it, before any build runs", async () => {
+		const root = await rootWithWheelPackage();
+		await rm(join(root, "LICENSE"));
+		const tool = await fakeUvTool();
+		await expect(
+			renderWheels(await fakeBinaries(), join(root, "out"), root, tool.command),
+		).rejects.toThrow(
+			`the LICENSE every package ships is missing (file: ${join(root, "LICENSE")})`,
+		);
 		expect(await Bun.file(tool.calls).exists()).toBe(false);
 	});
 

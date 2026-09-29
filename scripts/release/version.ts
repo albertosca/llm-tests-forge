@@ -77,7 +77,7 @@ export const GEM_MANIFESTS: readonly Manifest[] = [
 export const HOMEBREW_FORMULA_MANIFEST: Manifest = {
 	path: "packages/homebrew/llm-tests-forge.rb.tmpl",
 	format: "text",
-	pattern: /^(  version ")([^"]*)(")/m,
+	pattern: /^( {2}version ")([^"]*)(")/m,
 };
 export const HOMEBREW_MANIFESTS: readonly Manifest[] = [
 	HOMEBREW_FORMULA_MANIFEST,

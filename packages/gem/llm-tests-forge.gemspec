@@ -33,5 +33,6 @@ Gem::Specification.new do |specification|
   specification.required_ruby_version = ">= 3.0"
   specification.bindir = "exe"
   specification.executables << "llm-tests-forge"
-  specification.files = ["exe/llm-tests-forge", "lib/llm_tests_forge.rb", binary_relative_path]
+  # LICENSE is copied in beside this file by scripts/release/gems.ts, from the repository root.
+  specification.files = ["LICENSE", "exe/llm-tests-forge", "lib/llm_tests_forge.rb", binary_relative_path]
 end

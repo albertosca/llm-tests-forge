@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { ForgeError, UsageError } from "../../src/core/errors";
 import { runMain } from "./entry";
+import { licensePath } from "./license";
 import { RELEASE_TARGETS, type ReleaseTarget } from "./targets";
 import { checkVersions, PYPI_MANIFESTS, releaseVersion } from "./version";
 
@@ -62,8 +63,10 @@ export async function renderWheels(
 			{ file: join(root, stale[0]?.path ?? "package.json") },
 		);
 	const version = await releaseVersion(root);
-	// A version the wheel cannot carry is refused before anything is built.
+	// A version the wheel cannot carry is refused before anything is built,
+	// and so is a missing LICENSE, which the build hook copies in.
 	pep440Version(version);
+	await licensePath(root);
 	for (const target of targets) {
 		const source = join(binariesDirectory, target.assetName);
 		if (!(await Bun.file(source).exists()))

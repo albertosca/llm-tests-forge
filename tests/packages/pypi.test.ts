@@ -175,6 +175,60 @@ describe.skipIf(!packages)("pypi wheels", () => {
 		);
 	}, 600_000);
 
+	test("the wheel's own metadata is platform-specific: WHEEL says Root-Is-Purelib false and the target's tag, and the LICENSE ships inside", async () => {
+		if (HOST === undefined) throw new Error("this machine is not a target");
+		const paths = await installedVenv();
+		const { work, hostWheel } = await builtWheels();
+		const inspected = JSON.parse(
+			await mustRun(
+				[
+					paths.python,
+					"-c",
+					[
+						"import json, sys, zipfile",
+						"archive = zipfile.ZipFile(sys.argv[1])",
+						"names = archive.namelist()",
+						"wheel = next(name for name in names if name.endswith('.dist-info/WHEEL'))",
+						"print(json.dumps({'wheel': archive.read(wheel).decode(), 'license': archive.read('llm_tests_forge/LICENSE').decode() if 'llm_tests_forge/LICENSE' in names else None}))",
+					].join("\n"),
+					hostWheel,
+				],
+				work,
+			),
+		);
+		expect(inspected.wheel.split("\n")).toContain("Root-Is-Purelib: false");
+		expect(inspected.wheel.split("\n")).toContain(
+			`Tag: py3-none-${HOST.wheelTag}`,
+		);
+		expect(inspected.license).toBe(
+			await Bun.file(join(REPOSITORY, "LICENSE")).text(),
+		);
+	}, 600_000);
+
+	test("a relative FORGE_WHEEL_BINARY is refused naming it, since the build runs in another directory than the caller's", async () => {
+		const { work } = await builtWheels();
+		const finished = await run(
+			[
+				"uv",
+				"build",
+				"--wheel",
+				"--out-dir",
+				join(work, "refused"),
+				join(REPOSITORY, "packages/pypi"),
+			],
+			work,
+			{
+				...withoutForgeWheelVariables(),
+				FORGE_WHEEL_PLATFORM: "win_amd64",
+				FORGE_WHEEL_BINARY: "binaries/llm-tests-forge",
+			},
+		);
+		expect(finished.exitCode).not.toBe(0);
+		expect(finished.stderr).toContain(
+			"FORGE_WHEEL_BINARY must be an absolute path: binaries/llm-tests-forge",
+		);
+	}, 600_000);
+
 	test("a prerelease version (0.1.0-rc.1) is built by real uv under the PEP 440 name renderWheels predicts", async () => {
 		if (HOST === undefined) throw new Error("this machine is not a target");
 		const work = await mkdtemp(join(tmpdir(), "forge-pypi-prerelease-"));
@@ -187,6 +241,7 @@ describe.skipIf(!packages)("pypi wheels", () => {
 			join(root, "package.json"),
 			'{ "version": "0.1.0-rc.1" }\n',
 		);
+		await cp(join(REPOSITORY, "LICENSE"), join(root, "LICENSE"));
 		await stampVersion(root, PYPI_MANIFESTS);
 		const binaries = join(work, "binaries");
 		await mkdir(binaries);

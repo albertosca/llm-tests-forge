@@ -7,7 +7,14 @@
  */
 import { describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+	copyFile,
+	mkdir,
+	mkdtemp,
+	readFile,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildBinaries } from "../../scripts/release/build-binaries";
@@ -204,8 +211,8 @@ describe.skipIf(!packages || process.platform === "win32")(
 );
 
 describe.skipIf(!packages)("npm packages", () => {
-	test("main and host platform package, packed and installed into a temporary prefix, run the binary through the launcher", async () => {
-		const { prefix, work } = await installedPrefix();
+	test("main and host platform package, packed and installed into a temporary prefix, run the binary through the launcher and carry the LICENSE", async () => {
+		const { prefix, work, platformPackage } = await installedPrefix();
 		try {
 			const finished = await run(
 				[join(prefix, "node_modules/.bin/llm-tests-forge"), "--version"],
@@ -216,6 +223,17 @@ describe.skipIf(!packages)("npm packages", () => {
 				stdout: `${FORGE_VERSION}\n`,
 				stderr: "",
 			});
+			const license = await readFile(
+				join(import.meta.dir, "../../LICENSE"),
+				"utf8",
+			);
+			for (const installed of ["llm-tests-forge", platformPackage])
+				expect(
+					await readFile(
+						join(prefix, "node_modules", installed, "LICENSE"),
+						"utf8",
+					),
+				).toBe(license);
 		} finally {
 			await rm(work, { recursive: true, force: true });
 		}

@@ -130,10 +130,8 @@ describe.skipIf(!packages || HOST === undefined || BREW_MISSING)(
 			const before = await homebrewState(cache);
 			const tapName = `forge-e2e-${crypto.randomUUID().slice(0, 8)}/test`;
 			const formulaName = `${tapName}/llm-tests-forge`;
-			let tapCreated = false;
 			try {
 				await mustBrew(["tap-new", "--no-git", tapName], cache);
-				tapCreated = true;
 				const tapDirectory = (
 					await mustBrew(["--repository", tapName], cache)
 				).trim();
@@ -158,11 +156,12 @@ describe.skipIf(!packages || HOST === undefined || BREW_MISSING)(
 				);
 				expect(await run.exited).toBe(0);
 			} finally {
-				// Uninstall only if it got installed; untap only what this test tapped.
-				if (tapCreated) {
-					await brew(["uninstall", "--force", formulaName], cache);
-					await brew(["untap", "--force", tapName], cache);
-				}
+				// Always, even when tap-new failed: one that fails halfway can leave the
+				// tap behind. Both names are this test's own (a random tap), so neither
+				// command can touch anything else, and brew() does not throw when there
+				// is nothing to remove.
+				await brew(["uninstall", "--force", formulaName], cache);
+				await brew(["untap", "--force", tapName], cache);
 			}
 			expect(await homebrewState(cache)).toBe(before);
 		}, 600_000);

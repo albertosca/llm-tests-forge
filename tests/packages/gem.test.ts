@@ -210,6 +210,49 @@ describe.skipIf(!packages)("rubygems gems", () => {
 		expect(listing).toBe("true true");
 	}, 600_000);
 
+	test.skipIf(process.platform === "win32")(
+		"the binstub RubyGems generates ends up as the binary itself: same process, and the binary's exit status comes through",
+		async () => {
+			if (HOST === undefined) throw new Error("this machine is not a target");
+			const { hostGem, work } = await builtGems();
+			const { home, entry, environment } = await installed(hostGem);
+			const binary = join(
+				await installedGemDirectory(home),
+				"exe",
+				nameOf(HOST),
+				"llm-tests-forge",
+			);
+			await writeFile(binary, '#!/bin/sh\necho "pid $$ args $*"\nexit 7\n');
+			await chmod(binary, 0o755);
+			const child = Bun.spawn([entry, "one", "two"], {
+				cwd: work,
+				env: environment,
+				stdout: "pipe",
+				stderr: "pipe",
+			});
+			const [stdout, stderr, exitCode] = await Promise.all([
+				new Response(child.stdout).text(),
+				new Response(child.stderr).text(),
+				child.exited,
+			]);
+			expect({ exitCode, stdout, stderr }).toEqual({
+				exitCode: 7,
+				stdout: `pid ${child.pid} args one two\n`,
+				stderr: "",
+			});
+		},
+		600_000,
+	);
+
+	test("the installed gem carries the repository's LICENSE", async () => {
+		const { hostGem } = await builtGems();
+		const { home } = await installed(hostGem);
+		const gemDirectory = await installedGemDirectory(home);
+		expect(await Bun.file(join(gemDirectory, "LICENSE")).text()).toBe(
+			await Bun.file(join(REPOSITORY, "LICENSE")).text(),
+		);
+	}, 600_000);
+
 	test("a gem for another platform never runs its binary: RubyGems refuses its executable, and the shim run directly names this platform and the install script and exits 1", async () => {
 		const { foreignGem, work } = await builtGems();
 		const { home, entry, environment } = await installed(foreignGem);
@@ -250,6 +293,7 @@ describe.skipIf(!packages)("rubygems gems", () => {
 			join(root, "package.json"),
 			'{ "version": "0.1.0-rc.1" }\n',
 		);
+		await cp(join(REPOSITORY, "LICENSE"), join(root, "LICENSE"));
 		await stampVersion(root, GEM_MANIFESTS);
 		const binaries = join(work, "binaries");
 		await mkdir(binaries);

@@ -52,6 +52,7 @@ async function rootCopy(version = FORGE_VERSION): Promise<string> {
 		{ recursive: true },
 	);
 	await writeFile(join(root, "package.json"), `{ "version": "${version}" }\n`);
+	await cp(join(REPOSITORY, "LICENSE"), join(root, "LICENSE"));
 	return root;
 }
 
@@ -148,6 +149,7 @@ describe("assembleRelease", () => {
 		expect((await readdir(join(out, "hex"))).sort()).toEqual(
 			[
 				".formatter.exs",
+				"LICENSE",
 				"checksums.exs",
 				"checksums.exs.tmpl",
 				"lib",
@@ -156,6 +158,9 @@ describe("assembleRelease", () => {
 			].sort(),
 		);
 		expect(checksumsExs).not.toContain("stale");
+		const license = await readFile(join(root, "LICENSE"), "utf8");
+		expect(await readFile(join(out, "hex/LICENSE"), "utf8")).toBe(license);
+		expect(await readFile(join(out, "npm/main/LICENSE"), "utf8")).toBe(license);
 		expect(
 			await readFile(join(root, "packages/hex/checksums.exs"), "utf8"),
 		).toBe("%{stale: true}\n");
@@ -266,6 +271,29 @@ describe("assembleRelease", () => {
 				root,
 			}),
 		).rejects.toThrow("version 0.1.0-next.1 has a prerelease label");
+		expect(await Bun.file(join(out, "npm/main/package.json")).exists()).toBe(
+			false,
+		);
+	});
+
+	test("refuses a release binary that neither the directory nor SHA256SUMS holds (four of five), naming it, before rendering anything", async () => {
+		const binaries = await mkdtemp(join(tmpdir(), "forge-assemble-binaries-"));
+		const [absent, ...present] = RELEASE_TARGETS;
+		for (const target of present)
+			await writeFile(
+				join(binaries, target.assetName),
+				`# ${target.assetName}\n`,
+			);
+		await writeChecksums(binaries);
+		const out = join(
+			await mkdtemp(join(tmpdir(), "forge-assemble-out-")),
+			"assembled",
+		);
+		const failure = assembleRelease(binaries, out, { ...(await fakeTools()) });
+		await expect(failure).rejects.toThrow(ForgeError);
+		await expect(failure).rejects.toThrow(
+			`release binary is missing (file: ${join(binaries, absent?.assetName ?? "")})`,
+		);
 		expect(await Bun.file(join(out, "npm/main/package.json")).exists()).toBe(
 			false,
 		);

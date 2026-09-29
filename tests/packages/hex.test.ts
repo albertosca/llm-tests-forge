@@ -14,6 +14,7 @@ import { join, resolve } from "node:path";
 import { buildBinaries } from "../../scripts/release/build-binaries";
 import { writeChecksums } from "../../scripts/release/checksums";
 import { renderHexChecksums } from "../../scripts/release/hex-checksums";
+import { copyLicense } from "../../scripts/release/license";
 import { RELEASE_TARGETS } from "../../scripts/release/targets";
 import { FORGE_VERSION } from "../../src/core/version";
 
@@ -118,6 +119,8 @@ function built(): Promise<Built> {
 		await cp(join(REPOSITORY, "packages/hex"), packageCopy, {
 			recursive: true,
 		});
+		// As assemble.ts does: the LICENSE lives at the repository root and is copied in beside mix.exs.
+		await copyLicense(REPOSITORY, packageCopy);
 		await renderHexChecksums(
 			binaries,
 			REPOSITORY,
@@ -316,6 +319,37 @@ describe.skipIf(!packages)("hex package", () => {
 		expect(await readdir(join(project, "_build"))).toEqual(["dev"]);
 	}, 600_000);
 
+	test("a checksums.exs without the host asset is refused naming the asset, before anything is downloaded", async () => {
+		if (HOST === undefined) throw new Error("this machine is not a target");
+		const { work, packageCopy, intactUrl } = await built();
+		const withoutHost = await mkdtemp(join(work, "package-without-host-"));
+		await cp(packageCopy, withoutHost, { recursive: true });
+		const other = RELEASE_TARGETS.find((target) => target !== HOST);
+		await writeFile(
+			join(withoutHost, "checksums.exs"),
+			`%{\n  "${other?.assetName}" => "${"0".repeat(64)}"\n}\n`,
+		);
+		const project = await mkdtemp(join(work, "consumer-"));
+		await writeFile(
+			join(project, "mix.exs"),
+			`defmodule Consumer.MixProject do
+  use Mix.Project
+  def project, do: [app: :consumer, version: "0.0.1", deps: [{:llm_tests_forge, path: ${JSON.stringify(withoutHost)}}]]
+end
+`,
+		);
+		await mustRun(["mix", "deps.compile"], project);
+		const finished = await run(["mix", "llm_tests_forge.install"], project, {
+			LLM_TESTS_FORGE_BASE_URL: intactUrl,
+		});
+		expect(finished.exitCode).not.toBe(0);
+		expect(finished.stderr).toContain(
+			`checksums.exs has no entry for ${HOST.assetName}`,
+		);
+		expect(finished.stdout).not.toContain("Downloading");
+		expect(await readdir(join(project, "_build"))).toEqual(["dev"]);
+	}, 600_000);
+
 	test("an unreachable release is refused naming the asset and the HTTP status", async () => {
 		if (HOST === undefined) throw new Error("this machine is not a target");
 		const { intactUrl } = await built();
@@ -336,13 +370,14 @@ describe.skipIf(!packages)("hex package", () => {
 		expect(finished.exitCode).toBe(0);
 	}, 600_000);
 
-	test("mix hex.build succeeds without an account and packs the checksums but not the tests", async () => {
+	test("mix hex.build succeeds without an account and packs the checksums and the LICENSE but not the tests", async () => {
 		const { packageCopy } = await built();
 		const finished = await run(["mix", "hex.build"], packageCopy);
 		expect(finished.stderr).toBe("");
 		expect(finished.exitCode).toBe(0);
 		expect(finished.stdout).toContain(`Version: ${FORGE_VERSION}`);
 		expect(finished.stdout).toContain("checksums.exs");
+		expect(finished.stdout).toMatch(/^ {4}LICENSE$/m);
 		expect(finished.stdout).toContain(
 			"lib/mix/tasks/llm_tests_forge.install.ex",
 		);

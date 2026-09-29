@@ -5,6 +5,7 @@ import {
 	mkdir,
 	mkdtemp,
 	readFile,
+	rm,
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -31,6 +32,7 @@ async function rootWithGemPackage(version = FORGE_VERSION): Promise<string> {
 		recursive: true,
 	});
 	await writeFile(join(root, "package.json"), `{ "version": "${version}" }\n`);
+	await cp(join(REPOSITORY, "LICENSE"), join(root, "LICENSE"));
 	return root;
 }
 
@@ -58,7 +60,7 @@ async function fakeGemTool(
 	const calls = join(directory, "calls.log");
 	const script = [
 		"#!/bin/sh",
-		`echo "$FORGE_GEM_PLATFORM|$FORGE_GEM_BINARY|$(pwd)|$*" >> "${calls}"`,
+		`echo "$FORGE_GEM_PLATFORM|$FORGE_GEM_BINARY|$(pwd)|$*|$(cmp -s LICENSE "${join(REPOSITORY, "LICENSE")}" && echo the-repository-license)" >> "${calls}"`,
 		behavior === "fails" ? 'echo "cannot build" >&2; exit 3' : "",
 		'output_file=""',
 		'while [ "$#" -gt 0 ]; do',
@@ -131,9 +133,10 @@ describe("gems", () => {
 		const lines = (await readFile(tool.calls, "utf8")).trim().split("\n");
 		expect(lines).toHaveLength(RELEASE_TARGETS.length);
 		RELEASE_TARGETS.forEach((target, index) => {
-			const [platform, binary, directory, command] = (lines[index] ?? "").split(
-				"|",
-			);
+			const [platform, binary, directory, command, license] = (
+				lines[index] ?? ""
+			).split("|");
+			expect(license).toBe("the-repository-license");
 			expect(platform).toBe(target.gemPlatform);
 			expect(binary).toBe(join(binaries, target.assetName));
 			expect(directory).not.toContain(REPOSITORY);
@@ -141,6 +144,18 @@ describe("gems", () => {
 				`build llm-tests-forge.gemspec --output ${join(out, gemFileName(FORGE_VERSION, target))}`,
 			);
 		});
+	});
+
+	test("a repository without its LICENSE is refused naming it, before any build runs", async () => {
+		const root = await rootWithGemPackage();
+		await rm(join(root, "LICENSE"));
+		const tool = await fakeGemTool();
+		await expect(
+			renderGems(await fakeBinaries(), join(root, "out"), root, tool.command),
+		).rejects.toThrow(
+			`the LICENSE every package ships is missing (file: ${join(root, "LICENSE")})`,
+		);
+		expect(await Bun.file(tool.calls).exists()).toBe(false);
 	});
 
 	test("the gem file name carries the version and the platform", () => {

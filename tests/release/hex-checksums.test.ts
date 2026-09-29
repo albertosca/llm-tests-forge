@@ -17,6 +17,24 @@ import { FORGE_VERSION } from "../../src/core/version";
 
 const REPOSITORY = resolve(import.meta.dir, "../..");
 
+describe("the Hex package's documentation", () => {
+	test("the moduledoc shows the dependency line both READMEs show: dev only, not at runtime", async () => {
+		const dependency =
+			'{:llm_tests_forge, "~> 0.1", only: :dev, runtime: false}';
+		for (const path of [
+			"packages/hex/lib/llm_tests_forge.ex",
+			"README.md",
+			"README.pt.md",
+		])
+			expect({
+				path,
+				shown: (await readFile(join(REPOSITORY, path), "utf8")).includes(
+					dependency,
+				),
+			}).toEqual({ path, shown: true });
+	});
+});
+
 /** A repository root holding a copy of the committed Hex package and a package.json at `version`. */
 async function rootWithHexPackage(version = FORGE_VERSION): Promise<string> {
 	const root = await mkdtemp(join(tmpdir(), "forge-hex-root-"));

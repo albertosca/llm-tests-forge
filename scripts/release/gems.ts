@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { ForgeError, UsageError } from "../../src/core/errors";
 import { runMain } from "./entry";
+import { copyLicense, licensePath } from "./license";
 import { RELEASE_TARGETS, type ReleaseTarget } from "./targets";
 import { checkVersions, GEM_MANIFESTS, releaseVersion } from "./version";
 
@@ -41,6 +42,7 @@ export async function renderGems(
 		if (!(await Bun.file(source).exists()))
 			throw new ForgeError("release binary is missing", { file: source });
 	}
+	await licensePath(root);
 	const absoluteOut = resolve(outDirectory);
 	await mkdir(absoluteOut, { recursive: true });
 	const written: string[] = [];
@@ -48,6 +50,7 @@ export async function renderGems(
 		const scratch = await mkdtemp(join(tmpdir(), "forge-gem-build-"));
 		try {
 			await cp(join(root, "packages/gem"), scratch, { recursive: true });
+			await copyLicense(root, scratch);
 			const gem = join(absoluteOut, gemFileName(version, target));
 			const child = Bun.spawn(
 				[gemCommand, "build", "llm-tests-forge.gemspec", "--output", gem],

@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
+	copyFile,
 	cp,
 	mkdir,
 	mkdtemp,
 	readFile,
+	rm,
 	stat,
 	writeFile,
 } from "node:fs/promises";
@@ -32,6 +34,7 @@ async function rootWithNpmPackages(version = FORGE_VERSION): Promise<string> {
 		recursive: true,
 	});
 	await writeFile(join(root, "package.json"), `{ "version": "${version}" }\n`);
+	await copyFile(join(REPOSITORY, "LICENSE"), join(root, "LICENSE"));
 	return root;
 }
 
@@ -123,6 +126,21 @@ describe("npm-packages", () => {
 			);
 			expect((await stat(binary)).mode & 0o755).toBe(0o755);
 		}
+		const license = await readFile(join(REPOSITORY, "LICENSE"), "utf8");
+		for (const directory of written)
+			expect(await readFile(join(directory, "LICENSE"), "utf8")).toBe(license);
+	});
+
+	test("a repository without its LICENSE is refused naming it, and nothing is written", async () => {
+		const root = await rootWithNpmPackages();
+		await rm(join(root, "LICENSE"));
+		const out = join(root, "out");
+		await expect(
+			renderNpmPackages(await fakeBinaries(), out, root),
+		).rejects.toThrow(
+			`the LICENSE every package ships is missing (file: ${join(root, "LICENSE")})`,
+		);
+		expect(await Bun.file(join(out, "main/package.json")).exists()).toBe(false);
 	});
 
 	test("a manifest left at another version refuses the render, naming it and the stamp command", async () => {

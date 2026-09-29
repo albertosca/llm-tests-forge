@@ -12,7 +12,7 @@ defmodule LlmTestsForge.MixProject do
       package: [
         licenses: ["MIT"],
         links: %{"GitHub" => "https://github.com/albertosca/llm-tests-forge"},
-        files: ~w(lib mix.exs checksums.exs)
+        files: ~w(lib mix.exs checksums.exs LICENSE)
       ],
       deps: []
     ]

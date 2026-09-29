@@ -6,7 +6,13 @@ defmodule LlmTestsForge do
   The binary is downloaded from the GitHub Release of that version, and its
   SHA256 is compared with `checksums.exs`, which ships inside this package (the
   release workflow writes it from the release's `SHA256SUMS`). A binary whose
-  hash differs is refused and never lands on disk. See the two mix tasks:
+  hash differs is refused and never lands on disk.
+
+  Add it as a development-only dependency that is never started at runtime:
+
+      {:llm_tests_forge, "~> 0.1", only: :dev, runtime: false}
+
+  Then use the two mix tasks:
 
     * `mix llm_tests_forge.install [--if-missing]`
     * `mix llm_tests_forge <arguments>`

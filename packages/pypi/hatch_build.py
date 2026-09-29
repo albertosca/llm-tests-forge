@@ -24,12 +24,23 @@ def required_variable(name: str) -> str:
 class PlatformBinaryHook(BuildHookInterface):
     def initialize(self, version, build_data):
         platform_tag = required_variable("FORGE_WHEEL_PLATFORM")
-        binary = Path(required_variable("FORGE_WHEEL_BINARY")).resolve()
+        # The build runs in this package's directory, not the caller's, so a
+        # relative path would name a different file than the caller meant.
+        binary = Path(required_variable("FORGE_WHEEL_BINARY"))
+        if not binary.is_absolute():
+            raise RuntimeError(f"FORGE_WHEEL_BINARY must be an absolute path: {binary}")
         if not binary.is_file():
             raise RuntimeError(f"FORGE_WHEEL_BINARY does not exist: {binary}")
+        # The repository's LICENSE, two levels above this package (packages/pypi).
+        license_file = Path(self.root).resolve().parents[1] / "LICENSE"
+        if not license_file.is_file():
+            raise RuntimeError(
+                f"the LICENSE every package ships is missing: {license_file}"
+            )
         build_data["pure_python"] = False
         build_data["tag"] = "py3-none-" + platform_tag
         suffix = ".exe" if binary.suffix == ".exe" else ""
         build_data["force_include"][str(binary)] = (
             f"llm_tests_forge/bin/llm-tests-forge{suffix}"
         )
+        build_data["force_include"][str(license_file)] = "llm_tests_forge/LICENSE"
