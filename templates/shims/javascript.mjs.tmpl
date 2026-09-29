@@ -1,0 +1,39 @@
+// promptfoo JavaScript provider written by `llm-tests-forge emit`.
+// Feature: {{feature_id}}
+//
+// promptfoo calls `callApi` once per test case and per target model; the
+// model this entry was emitted for arrives in `options.config.model`.
+// Fill in `runApplication`: import your own code and call it. Return
+// { output, inputTokens, outputTokens }; token counts are optional.
+// A thrown error becomes an error row in promptfoo's results, not a
+// failed assert.
+// This file is written once and never overwritten.
+
+const INPUTS = {{input_names}};
+
+async function runApplication(inputs, model) {
+	throw new Error("edit forge_target.mjs: call your application here");
+}
+
+export default class ForgeTarget {
+	constructor(options) {
+		this.model = options?.config?.model ?? "default";
+	}
+
+	id() {
+		return "llm-tests-forge-target";
+	}
+
+	async callApi(prompt, context) {
+		const inputs = Object.fromEntries(INPUTS.map((name) => [name, context?.vars?.[name] ?? ""]));
+		try {
+			const result = await runApplication(inputs, this.model);
+			const output = typeof result.output === "string" ? result.output : JSON.stringify(result.output);
+			const promptTokens = Number(result.inputTokens ?? 0);
+			const completionTokens = Number(result.outputTokens ?? 0);
+			return { output, tokenUsage: { prompt: promptTokens, completion: completionTokens, total: promptTokens + completionTokens } };
+		} catch (error) {
+			return { error: `${error?.name ?? "Error"}: ${error?.message ?? String(error)}` };
+		}
+	}
+}

@@ -992,7 +992,7 @@ describe("buildReport", () => {
 			row({ case: "a-01", model: "m" }),
 			row({ case: "a-02", model: "m", success: false }),
 		]);
-		// After `forge move --scenario a b` every row of this run carries
+		// After `llm-tests-forge move --scenario a b` every row of this run carries
 		// the new ids; the baseline's pairs say nothing about them.
 		const report = build([row({ case: "r-01", model: "m" })], {
 			baseline: before,

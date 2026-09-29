@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { ForgeError } from "../../src/core/errors";
 import { loadTemplate, render } from "../../src/llm/templates";
 
 describe("render", () => {
@@ -19,19 +18,29 @@ describe("render", () => {
 });
 
 describe("loadTemplate", () => {
-	test("reads templates/<name>.md from the package root", async () => {
-		const text = await loadTemplate("describe");
-		expect(text).toContain("{{description}}");
+	test("every template the forge renders is embedded, and is its own text", () => {
+		const signatures: Record<string, string> = {
+			describe: "{{description}}",
+			scenarios: "{{coverage}}",
+			cases: "{{input_names}}",
+			dedupe: "{{cases}}",
+			guide: "approving is the person's job",
+			"shims/python": "def call_api",
+			"shims/javascript": "async callApi(prompt, context)",
+			"shims/typescript": "interface RunResult",
+			"shims/elixir": "defmodule ForgeTarget",
+			"shims/ruby": "def run_application(inputs, model)",
+			"shims/rust.Cargo.toml": "[workspace]",
+			"shims/rust.main.rs": "fn run_application",
+			"shims/go.mod": "module forgetarget",
+			"shims/go.main.go": "func runApplication",
+		};
+		for (const [name, signature] of Object.entries(signatures)) {
+			expect(loadTemplate(name).length).toBeGreaterThan(100);
+			expect(loadTemplate(name)).toContain(signature);
+		}
 	});
-	test("throws ForgeError naming the file when absent", async () => {
-		const err = await loadTemplate("nope").catch((e: unknown) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toContain("nope.md");
-	});
-	test("loadTemplate takes an extension, defaulting to md", async () => {
-		const py = await loadTemplate("forge_target", "py");
-		expect(py).toContain("def call_api");
-		const md = await loadTemplate("describe");
-		expect(md.length).toBeGreaterThan(0);
+	test("an unknown template name is refused by name", () => {
+		expect(() => loadTemplate("nope")).toThrow("template not found (id: nope)");
 	});
 });

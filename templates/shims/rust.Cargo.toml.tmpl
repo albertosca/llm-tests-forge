@@ -1,0 +1,20 @@
+# promptfoo exec target written by `llm-tests-forge emit`.
+# Feature: {{feature_id}}
+# Build it once with `cargo build --release` inside this directory;
+# promptfoo runs target/release/forge_target. Written once, never overwritten.
+
+[package]
+name = "forge_target"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# A workspace of its own, so a workspace at the project root does not claim it.
+[workspace]
+
+[dependencies]
+serde_json = "1"
+# Your crate, by path from this directory. Uncomment, and check the name and
+# the path (emit writes your_crate and path/to/your/crate when it found no
+# Cargo.toml above the suite).
+# {{crate_name}} = { path = "{{crate_path}}" }

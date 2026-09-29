@@ -1,0 +1,50 @@
+# promptfoo exec target written by `llm-tests-forge emit`.
+# Feature: {{feature_id}}
+#
+# promptfoo runs this through `mix run` from the project root, with
+# MIX_QUIET=1 and ELIXIR_ERL_OPTIONS routing Logger to standard error, so
+# neither compile messages nor logs (start-up logs included) reach the
+# output; main/1 routes Logger again in case your config replaced it. It
+# runs once per test case and per target model, with three arguments: the
+# prompt, the provider options as JSON, and the context as JSON. Fill in
+# `run_application/2`: call your own code and return the output (a string,
+# or anything JSON can encode). Needs Elixir 1.18+ for the JSON module.
+# Standard output is the answer, so log to standard error. A failure (an
+# exception, or exit status 1 with the message on standard error) shows in
+# promptfoo 0.123 as an error row ([ERROR], counted under errors, not under
+# failed), not as a failed assert.
+# This file is written once and never overwritten.
+
+defmodule ForgeTarget do
+  @inputs {{input_names}}
+
+  # Logger's default handler writes to standard output, which is the answer.
+  defp logs_to_standard_error do
+    case :logger.get_handler_config(:default) do
+      {:ok, handler} ->
+        :ok = :logger.remove_handler(:default)
+        :ok = :logger.add_handler(:default, :logger_std_h, %{handler | config: %{type: :standard_error}})
+
+      {:error, _reason} ->
+        :ok
+    end
+  end
+
+  def run_application(_inputs, _model) do
+    raise "edit forge_target.exs: call your application here"
+  end
+
+  def main([_prompt, options_json, context_json]) do
+    logs_to_standard_error()
+    vars = Map.get(JSON.decode!(context_json), "vars", %{})
+    inputs = Map.new(@inputs, fn name -> {name, Map.get(vars, name, "")} end)
+    model = get_in(JSON.decode!(options_json), ["config", "model"]) || "default"
+
+    case run_application(inputs, model) do
+      output when is_binary(output) -> IO.write(output)
+      output -> IO.write(JSON.encode!(output))
+    end
+  end
+end
+
+ForgeTarget.main(System.argv())

@@ -1,4 +1,4 @@
-"""promptfoo Python provider written by `forge emit`.
+"""promptfoo Python provider written by `llm-tests-forge emit`.
 
 # Feature: {{feature_id}}
 
@@ -7,11 +7,11 @@ holds the case's inputs; `options["config"]["model"]` is the model this provider
 entry was emitted for. Return {"output": <string>} — the asserts in
 promptfooconfig.yaml parse it — or {"error": <string>} when the application
 failed. If you can, also return "tokenUsage": promptfoo keeps it on each result,
-and `forge report` prices those tokens from prices.yaml and compares the bill
+and `llm-tests-forge report` prices those tokens from prices.yaml and compares the bill
 with the estimate.
 
 Fill in `run_application`. Everything else can stay as it is. This file is
-written once and never overwritten by `forge emit`.
+written once and never overwritten by `llm-tests-forge emit`.
 """
 
 import json
@@ -34,8 +34,8 @@ async def call_api(prompt, options, context):
     model = (options.get("config") or {}).get("model") or "default"
     try:
         result = await run_application(inputs, model)
-    except Exception as e:  # promptfoo shows this as an error row, not a failed assert
-        return {"error": f"{type(e).__name__}: {e}"}
+    except Exception as error:  # promptfoo shows this as an error row, not a failed assert
+        return {"error": f"{type(error).__name__}: {error}"}
     output = result["output"]
     if not isinstance(output, str):
         output = json.dumps(output)

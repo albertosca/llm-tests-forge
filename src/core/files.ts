@@ -17,11 +17,14 @@ import {
 	CaseSchema,
 	type Feature,
 	FeatureSchema,
+	type Language,
 	type Scenario,
 	ScenarioSchema,
 	type Suite,
 	SuiteSchema,
 } from "./schemas";
+import { DEFAULT_ENTRY } from "./target";
+import { isHigherVersion } from "./version";
 
 export interface ForgePaths {
 	root: string;
@@ -165,7 +168,11 @@ export async function readYamlFile<T>(
 	return parseYamlText(path, await readText(path), schema);
 }
 
-function parseYamlText<T>(path: string, text: string, schema: ZodType<T>): T {
+export function parseYamlText<T>(
+	path: string,
+	text: string,
+	schema: ZodType<T>,
+): T {
 	let data: unknown;
 	try {
 		data = parse(text);
@@ -292,7 +299,7 @@ export async function caseFileFingerprint(
 	);
 }
 
-/** A cases file as `forge review` read it: its cases and the fingerprint of the file they came from. */
+/** A cases file as `llm-tests-forge review` read it: its cases and the fingerprint of the file they came from. */
 export interface ReadCaseFile {
 	cases: Case[];
 	fingerprint: CaseFileFingerprint;
@@ -314,20 +321,54 @@ export async function readCaseFile(
 	return { cases: await readCases(forgeDirectory, scenarioId), fingerprint };
 }
 
-export const SUITE_EXAMPLE = `target:
-  kind: promptfoo-python
-  entry: forge_target.py          # the shim emit writes next to this file
-  python: .venv/bin/python        # optional: interpreter that can import your application
-  models: [anthropic/claude-haiku-4-5]
-judges: [google/gemini-3.5-flash]
-repeat: 2
-include: []                        # scenario ids; empty means every approved scenario`;
+/** A YAML line with its comment starting at column 34, as the example lines up. */
+const withComment = (text: string, comment: string): string =>
+	`${text.padEnd(34)}# ${comment}`;
 
-export async function readSuite(forgeDirectory: string): Promise<Suite> {
+/**
+ * The suite.yaml the "not found" error shows, in the project's language
+ * when there is one (python otherwise, and for `other`): the kinds comment
+ * lists the rest either way.
+ */
+export function suiteExample(language: Language | undefined): string {
+	const kind =
+		language === undefined || language === "other" ? "python" : language;
+	return [
+		"target:",
+		withComment(
+			`  kind: ${kind}`,
+			"python | javascript | typescript | elixir | ruby | rust | go | exec | http",
+		),
+		withComment(
+			`  entry: ${DEFAULT_ENTRY[kind]}`,
+			"optional: the shim emit writes next to this file",
+		),
+		...(kind === "python"
+			? [
+					withComment(
+						"  python: .venv/bin/python",
+						"optional: interpreter that can import your application",
+					),
+				]
+			: []),
+		"  models: [anthropic/claude-haiku-4-5]",
+		"judges: [google/gemini-3.5-flash]",
+		"repeat: 2",
+		withComment(
+			"include: []",
+			"scenario ids; empty means every approved scenario",
+		),
+	].join("\n");
+}
+
+export async function readSuite(
+	forgeDirectory: string,
+	language?: Language,
+): Promise<Suite> {
 	const path = forgePaths(forgeDirectory).suite;
 	if (!(await exists(path)))
 		throw new ForgeError(
-			`suite.yaml not found; write one like:\n${SUITE_EXAMPLE}`,
+			`suite.yaml not found; write one like:\n${suiteExample(language)}`,
 			{
 				file: path,
 			},
@@ -392,6 +433,36 @@ export function rewriteSuiteInclude(options: {
 			{ file: path, id: from },
 		);
 	return document.toString({ flowCollectionPadding: false, lineWidth: 0 });
+}
+
+/**
+ * Records `version` as suite.yaml's `forge_version` and reads a legacy
+ * `target.kind: promptfoo-python` as `python`, through the document so the
+ * person's comments survive (see `rewriteSuiteInclude`). A stamp already at
+ * or above `version` stays: an older forge must not claim a suite that a
+ * newer one wrote. True when the file was written; false when there was
+ * nothing to change or no suite.yaml.
+ */
+export async function stampSuite(
+	forgeDirectory: string,
+	version: string,
+): Promise<boolean> {
+	const present = await readSuiteIfPresent(forgeDirectory);
+	if (present === null) return false;
+	const document = parseDocument(present.text);
+	const existing = document.get("forge_version");
+	const keepExisting =
+		typeof existing === "string" && !isHigherVersion(version, existing);
+	const stamp = keepExisting ? existing : version;
+	const legacyKind = document.getIn(["target", "kind"]) === "promptfoo-python";
+	if (existing === stamp && !legacyKind) return false;
+	document.set("forge_version", stamp);
+	if (legacyKind) document.setIn(["target", "kind"], "python");
+	await writeFile(
+		forgePaths(forgeDirectory).suite,
+		document.toString({ flowCollectionPadding: false, lineWidth: 0 }),
+	);
+	return true;
 }
 
 export async function writeSuite(

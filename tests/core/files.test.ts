@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	readdir,
+	readFile,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parse } from "yaml";
 import { ForgeError } from "../../src/core/errors";
 import {
 	caseFileFingerprint,
@@ -15,13 +23,15 @@ import {
 	readScenarios,
 	readSuite,
 	readYamlFile,
+	stampSuite,
+	suiteExample,
 	writeCases,
 	writeFeature,
 	writeScenarios,
 	writeSuite,
 } from "../../src/core/files";
 import type { Case, Scenario } from "../../src/core/schemas";
-import { SuiteSchema } from "../../src/core/schemas";
+import { LANGUAGES, SuiteSchema } from "../../src/core/schemas";
 
 async function tmpForge(): Promise<string> {
 	const directory = await mkdtemp(join(tmpdir(), "forge-"));
@@ -191,7 +201,7 @@ describe("forgePaths: plan 2 entries", () => {
 describe("suite.yaml", () => {
 	const suite = {
 		target: {
-			kind: "promptfoo-python" as const,
+			kind: "python" as const,
 			entry: "forge_target.py",
 			models: ["anthropic/claude-haiku-4-5"],
 		},
@@ -217,6 +227,36 @@ describe("suite.yaml", () => {
 		expect((caught as Error).message).toContain(join(directory, "suite.yaml"));
 		expect((caught as Error).message).toContain("target:");
 		expect((caught as Error).message).toContain("judges:");
+	});
+	test("readSuite's example uses the project's language when it is given one", async () => {
+		const directory = join(
+			await mkdtemp(join(tmpdir(), "forge-files-")),
+			".forge",
+		);
+		const caught = await readSuite(directory, "ruby").catch(
+			(error: Error) => error,
+		);
+		expect((caught as Error).message).toContain(suiteExample("ruby"));
+	});
+	test("suiteExample: the language's kind and default entry, python for none or other, and every example parses as a suite", () => {
+		expect(suiteExample("elixir").split("\n").slice(0, 3)).toEqual([
+			"target:",
+			"  kind: elixir                    # python | javascript | typescript | elixir | ruby | rust | go | exec | http",
+			"  entry: forge_target.exs         # optional: the shim emit writes next to this file",
+		]);
+		expect(suiteExample("elixir")).not.toContain("python: .venv/bin/python");
+		for (const language of [undefined, "other"] as const) {
+			expect(suiteExample(language)).toContain("  kind: python ");
+			expect(suiteExample(language)).toContain(
+				"  python: .venv/bin/python        # optional: interpreter that can import your application",
+			);
+		}
+		for (const language of LANGUAGES) {
+			const parsed = SuiteSchema.parse(parse(suiteExample(language)));
+			expect(parsed.target.kind).toBe(
+				language === "other" ? "python" : language,
+			);
+		}
 	});
 });
 
@@ -390,5 +430,100 @@ describe("readYamlFile: the real cause of a read failure", () => {
 		expect((caught as Error).message).toBe(
 			`cannot read: ${(rawError as Error).message} (file: ${target})`,
 		);
+	});
+});
+
+describe("stampSuite", () => {
+	async function suiteWith(text: string): Promise<{
+		forgeDirectory: string;
+		path: string;
+	}> {
+		const forgeDirectory = await tmpForge();
+		await mkdir(forgeDirectory, { recursive: true });
+		const path = join(forgeDirectory, "suite.yaml");
+		await writeFile(path, text);
+		return { forgeDirectory, path };
+	}
+	const LEGACY = `target:
+  kind: promptfoo-python
+  entry: forge_target.py
+  python: .venv/bin/python # the run's own interpreter
+  models: [anthropic/claude-haiku-4-5]
+judges: [google/gemini-3.5-flash]
+`;
+
+	test("keeps comments, turns promptfoo-python into python, sets forge_version, and says it wrote", async () => {
+		const { forgeDirectory, path } = await suiteWith(LEGACY);
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(true);
+		const text = await readFile(path, "utf8");
+		expect(text).toContain("# the run's own interpreter");
+		expect(text).toContain("kind: python\n");
+		expect(text).not.toContain("promptfoo-python");
+		expect(text).toContain("forge_version: 0.4.1");
+		expect((await readSuite(forgeDirectory)).forge_version).toBe("0.4.1");
+	});
+	test("a second stamp with the same version writes nothing and returns false", async () => {
+		const { forgeDirectory, path } = await suiteWith(LEGACY);
+		await stampSuite(forgeDirectory, "0.4.1");
+		const before = await readFile(path, "utf8");
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(false);
+		expect(await readFile(path, "utf8")).toBe(before);
+	});
+	test("never lowers a stamp: a suite stamped 0.5.0 stays 0.5.0 under 0.4.1", async () => {
+		const { forgeDirectory, path } = await suiteWith(
+			`forge_version: 0.5.0\n${LEGACY}`,
+		);
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(true);
+		const text = await readFile(path, "utf8");
+		expect(text).toContain("forge_version: 0.5.0");
+		expect(text).not.toContain("0.4.1");
+		expect(text).toContain("kind: python\n");
+	});
+	test("a higher patch in the stamp is kept too", async () => {
+		const { forgeDirectory } = await suiteWith(
+			`forge_version: 0.4.2\n${LEGACY}`,
+		);
+		await stampSuite(forgeDirectory, "0.4.1");
+		expect((await readSuite(forgeDirectory)).forge_version).toBe("0.4.2");
+	});
+	test("a higher stamp on a suite with nothing to normalise writes nothing and returns false", async () => {
+		const text = `forge_version: 0.5.0\n${LEGACY.replace("promptfoo-python", "python")}`;
+		const { forgeDirectory, path } = await suiteWith(text);
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(false);
+		expect(await readFile(path, "utf8")).toBe(text);
+	});
+	test("raises an older stamp", async () => {
+		const { forgeDirectory } = await suiteWith(
+			`forge_version: 0.3.0\n${LEGACY}`,
+		);
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(true);
+		expect((await readSuite(forgeDirectory)).forge_version).toBe("0.4.1");
+	});
+	test("a stamp that is not a version is replaced", async () => {
+		const { forgeDirectory } = await suiteWith(
+			`forge_version: garbage\n${LEGACY}`,
+		);
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(true);
+		expect((await readSuite(forgeDirectory)).forge_version).toBe("0.4.1");
+	});
+	test("a suite with no kind to normalise and no stamp is only stamped", async () => {
+		const { forgeDirectory, path } = await suiteWith(
+			LEGACY.replace("promptfoo-python", "python"),
+		);
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(true);
+		expect(await readFile(path, "utf8")).toContain("forge_version: 0.4.1");
+	});
+	test("a suite already stamped and normalised but for the kind is rewritten", async () => {
+		const { forgeDirectory } = await suiteWith(
+			`forge_version: 0.4.1\n${LEGACY}`,
+		);
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(true);
+		expect((await readSuite(forgeDirectory)).target.kind).toBe("python");
+	});
+	test("without a suite.yaml it returns false and creates no file", async () => {
+		const forgeDirectory = await tmpForge();
+		await mkdir(forgeDirectory, { recursive: true });
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(false);
+		expect(await readdir(forgeDirectory)).toEqual([]);
 	});
 });

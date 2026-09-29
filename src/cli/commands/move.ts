@@ -37,7 +37,7 @@ const BARE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
  */
 function casesFileFor(files: string[], id: string): string | undefined {
 	const wanted = fold(id);
-	return files.find((f) => fold(f) === wanted);
+	return files.find((fileName) => fold(fileName) === wanted);
 }
 
 /**
@@ -58,8 +58,8 @@ function fold(name: string): string {
  * exists) or impossible (the old id is gone from scenarios.yaml).
  */
 async function attempt(work: Promise<void>, afterwards: string): Promise<void> {
-	await work.catch((e: unknown) => {
-		const message = e instanceof Error ? e.message : String(e);
+	await work.catch((error: unknown) => {
+		const message = error instanceof Error ? error.message : String(error);
 		throw new ForgeError(`${message}; ${afterwards}`);
 	});
 }
@@ -72,17 +72,17 @@ function requireBareId(id: string): void {
 }
 
 /**
- * `forge move`: the two file moves `forge review` refuses to make as
+ * `llm-tests-forge move`: the two file moves `llm-tests-forge review` refuses to make as
  * decisions. Every check runs before the first write, and the destination
  * is written before the source is touched, so a failure part-way leaves a
  * duplicate to clean up rather than a case that exists nowhere.
  */
 export async function moveCommand(
-	args: string[],
-	ctx: CliContext,
+	commandArguments: string[],
+	context: CliContext,
 ): Promise<void> {
 	const { values, positionals } = parseArgs({
-		args,
+		args: commandArguments,
 		options: {
 			scenario: { type: "string" },
 			case: { type: "string" },
@@ -97,12 +97,16 @@ export async function moveCommand(
 			"move takes either --scenario <old> <new> or --case <id> --to <scenario>",
 		);
 	if (scenarioForm) {
-		const [to, ...extra] = positionals;
-		if (values.scenario === undefined || to === undefined || extra.length > 0)
+		const [destination, ...extra] = positionals;
+		if (
+			values.scenario === undefined ||
+			destination === undefined ||
+			extra.length > 0
+		)
 			throw new UsageError(
 				"--scenario takes exactly two ids: the old one and the new one",
 			);
-		await moveScenario(values.scenario, to, ctx);
+		await moveScenario(values.scenario, destination, context);
 		return;
 	}
 	if (values.case === undefined || values.to === undefined)
@@ -111,22 +115,22 @@ export async function moveCommand(
 		throw new UsageError(
 			`unexpected argument "${positionals[0]}"; --case takes only --to <scenario>`,
 		);
-	await moveOneCase(values.case, values.to, ctx);
+	await moveOneCase(values.case, values.to, context);
 }
 
 async function moveScenario(
 	from: string,
-	to: string,
-	ctx: CliContext,
+	destination: string,
+	context: CliContext,
 ): Promise<void> {
-	requireBareId(to);
-	const paths = forgePaths(ctx.forgeDir);
-	const scenarios = await readScenarios(ctx.forgeDir);
+	requireBareId(destination);
+	const paths = forgePaths(context.forgeDirectory);
+	const scenarios = await readScenarios(context.forgeDirectory);
 	// `readCases` answers `[]` for a file that is not there, and a scenario
 	// reviewed before `cases` ran for it has none: the rename then must not
 	// invent an empty `cases/<new>.yaml`, which every later verb would read
 	// as a scenario that already has cases.
-	const files = await listCaseScenarios(ctx.forgeDir);
+	const files = await listCaseScenarios(context.forgeDirectory);
 	// The source file is found by the same rule as everything else on
 	// disk. A file whose name differs from the id only by case was read
 	// (the read resolves case-insensitively on macOS) and then left where
@@ -139,10 +143,16 @@ async function moveScenario(
 			{ file: join(paths.casesDir, `${sourceFile}.yaml`), id: from },
 		);
 	const hasFile = sourceFile !== undefined;
-	const cases = hasFile ? await readCases(ctx.forgeDir, from) : [];
-	const read = await readSuiteIfPresent(ctx.forgeDir);
+	const cases = hasFile ? await readCases(context.forgeDirectory, from) : [];
+	const read = await readSuiteIfPresent(context.forgeDirectory);
 	const suite = read === null ? null : read.suite;
-	const result = renameScenario({ from, to, scenarios, cases, suite });
+	const result = renameScenario({
+		from,
+		to: destination,
+		scenarios,
+		cases,
+		suite,
+	});
 	// scenarios.yaml is not the only place a name can be taken: a stray
 	// `cases/<new>.yaml` with no scenario entry would be overwritten by the
 	// write below and its cases lost — and a rename that only changes case
@@ -153,16 +163,16 @@ async function moveScenario(
 	// the file put back holds cases naming a scenario that no longer
 	// exists. The way through is two renames via a temporary id, so that
 	// is what the refusal says.
-	if (hasFile && fold(to) === fold(from))
+	if (hasFile && fold(destination) === fold(from))
 		throw new ForgeError(
-			`"${to}" differs from "${from}" only in letter case or Unicode normalisation, which is one file on the default macOS filesystem; rename through a temporary id: forge move --scenario ${from} tmp-${to} && forge move --scenario tmp-${to} ${to}`,
-			{ file: join(paths.casesDir, `${from}.yaml`), id: to },
+			`"${destination}" differs from "${from}" only in letter case or Unicode normalisation, which is one file on the default macOS filesystem; rename through a temporary id: llm-tests-forge move --scenario ${from} tmp-${destination} && llm-tests-forge move --scenario tmp-${destination} ${destination}`,
+			{ file: join(paths.casesDir, `${from}.yaml`), id: destination },
 		);
-	const clash = casesFileFor(files, to);
+	const clash = casesFileFor(files, destination);
 	if (clash !== undefined)
 		throw new ForgeError(
 			`cases/${clash}.yaml already exists; pick another id or move that file away first`,
-			{ file: join(paths.casesDir, `${clash}.yaml`), id: to },
+			{ file: join(paths.casesDir, `${clash}.yaml`), id: destination },
 		);
 	// Prepared before the first write, so a suite that cannot be rewritten
 	// in place refuses the whole move rather than leaving scenarios.yaml
@@ -175,7 +185,7 @@ async function moveScenario(
 					path: paths.suite,
 					text: read.text,
 					from,
-					to,
+					to: destination,
 					occurrences,
 				})
 			: null;
@@ -184,20 +194,20 @@ async function moveScenario(
 	const keepFile = cases.length > 0;
 	const written: string[] = [];
 	if (keepFile) {
-		await writeCases(ctx.forgeDir, to, result.cases);
-		written.push(`cases/${to}.yaml`);
+		await writeCases(context.forgeDirectory, destination, result.cases);
+		written.push(`cases/${destination}.yaml`);
 	}
 	await attempt(
-		writeScenarios(ctx.forgeDir, result.scenarios),
+		writeScenarios(context.forgeDirectory, result.scenarios),
 		keepFile
-			? `cases/${to}.yaml is already written; delete it by hand and run the move again`
+			? `cases/${destination}.yaml is already written; delete it by hand and run the move again`
 			: "nothing else is written; run the move again",
 	);
 	written.push("scenarios.yaml");
 	if (rewrittenSuite !== null) {
 		await attempt(
 			writeText(paths.suite, rewrittenSuite),
-			`already written: ${written.join(", ")}; change ${from} to ${to} in suite.include by hand${hasFile ? `, then delete cases/${from}.yaml` : ""}`,
+			`already written: ${written.join(", ")}; change ${from} to ${destination} in suite.include by hand${hasFile ? `, then delete cases/${from}.yaml` : ""}`,
 		);
 		written.push("suite.yaml");
 	}
@@ -206,35 +216,37 @@ async function moveScenario(
 			join(paths.casesDir, `${from}.yaml`),
 			`already written: ${written.join(", ")}; delete cases/${from}.yaml by hand`,
 		);
-	ctx.stdout(
-		`move: scenario ${from} → ${to}; ${result.renamedIds.size} case(s) renumbered`,
+	context.stdout(
+		`move: scenario ${from} → ${destination}; ${result.renamedIds.size} case(s) renumbered`,
 	);
 	if (hasFile && !keepFile)
-		ctx.stdout(`move: cases/${from}.yaml held no case and was removed`);
-	if (rewrittenSuite !== null) ctx.stdout("move: suite.include updated");
+		context.stdout(`move: cases/${from}.yaml held no case and was removed`);
+	if (rewrittenSuite !== null) context.stdout("move: suite.include updated");
 	// `import` appends to the scenario by this id and to no other.
 	if (from === IMPORTED_SCENARIO_ID)
-		ctx.stdout(
-			`move: later imports start a new "${IMPORTED_SCENARIO_ID}" scenario; ${to} keeps these cases`,
+		context.stdout(
+			`move: later imports start a new "${IMPORTED_SCENARIO_ID}" scenario; ${destination} keeps these cases`,
 		);
 }
 
 async function moveOneCase(
 	caseId: string,
 	toId: string,
-	ctx: CliContext,
+	context: CliContext,
 ): Promise<void> {
-	const paths = forgePaths(ctx.forgeDir);
-	const feature = await readFeature(ctx.forgeDir);
+	const paths = forgePaths(context.forgeDirectory);
+	const feature = await readFeature(context.forgeDirectory);
 	requireApprovedFeature(feature, paths.feature);
-	const scenarios = await readScenarios(ctx.forgeDir);
-	const to = scenarios.find((s) => s.id === toId);
-	if (to === undefined)
+	const scenarios = await readScenarios(context.forgeDirectory);
+	const destinationScenario = scenarios.find(
+		(scenario) => scenario.id === toId,
+	);
+	if (destinationScenario === undefined)
 		throw new ForgeError(`scenario "${toId}" not found`, { id: toId });
 	// The case's file is whichever one holds it, not the one its `scenario`
 	// field names: the field being wrong is exactly what `review --all`
 	// sends people here to fix.
-	const all = await readAllCases(ctx.forgeDir);
+	const all = await readAllCases(context.forgeDirectory);
 	// The destination's file is looked up by the scenario's id. A file whose
 	// name differs from that id only by case is a different key here and
 	// the same file on the default macOS filesystem: the lookup would miss,
@@ -246,7 +258,7 @@ async function moveOneCase(
 			{ file: join(paths.casesDir, `${spelled}.yaml`), id: toId },
 		);
 	const holders = [...all.keys()].filter((id) =>
-		(all.get(id) ?? []).some((c) => c.id === caseId),
+		(all.get(id) ?? []).some((kase) => kase.id === caseId),
 	);
 	const [fromId, ...others] = holders;
 	if (fromId === undefined)
@@ -262,19 +274,19 @@ async function moveOneCase(
 	const result = moveCase({
 		caseId,
 		from: { id: fromId },
-		to,
+		to: destinationScenario,
 		fromCases: all.get(fromId) ?? [],
 		toCases: all.get(toId) ?? [],
 		feature,
 	});
-	await writeCases(ctx.forgeDir, toId, result.toCases);
+	await writeCases(context.forgeDirectory, toId, result.toCases);
 	// The last case leaving takes the file with it: a `cases/<id>.yaml`
 	// holding `[]` reads to `dedupe` as a scenario to refuse and to `review
 	// --all` as one with nothing to approve, and no verb ever removes it.
 	// A scenario with no file is the ordinary state before `cases` runs.
 	if (result.fromCases.length > 0)
 		await attempt(
-			writeCases(ctx.forgeDir, fromId, result.fromCases),
+			writeCases(context.forgeDirectory, fromId, result.fromCases),
 			`${result.moved.id} is already written into cases/${toId}.yaml; remove ${caseId} from cases/${fromId}.yaml by hand`,
 		);
 	else
@@ -282,17 +294,20 @@ async function moveOneCase(
 			join(paths.casesDir, `${fromId}.yaml`),
 			`${result.moved.id} is already written into cases/${toId}.yaml; delete cases/${fromId}.yaml by hand`,
 		);
-	ctx.stdout(`move: ${caseId} → ${result.moved.id} (scenario ${toId})`);
+	context.stdout(`move: ${caseId} → ${result.moved.id} (scenario ${toId})`);
 	if (result.reopened !== null)
-		ctx.stdout(
-			`move: ${result.moved.id} re-opened: ${result.reopened} — edit it in \`forge review\` to give it an expected the ${to.oracle} oracle accepts`,
+		context.stdout(
+			`move: ${result.moved.id} re-opened: ${result.reopened} — edit it in \`llm-tests-forge review\` to give it an expected the ${destinationScenario.oracle} oracle accepts`,
 		);
 	if (result.fromCases.length === 0)
-		ctx.stdout(`move: cases/${fromId}.yaml removed; it held no other case`);
+		context.stdout(`move: cases/${fromId}.yaml removed; it held no other case`);
 	// Where the case landed decides whether it runs: `emit` selects the
 	// approved cases of approved scenarios only.
-	if (to.status !== "approved" && to.status !== "edited")
-		ctx.stdout(
-			`move: scenario ${toId} is ${to.status}, so ${result.moved.id} will not run until the scenario is approved`,
+	if (
+		destinationScenario.status !== "approved" &&
+		destinationScenario.status !== "edited"
+	)
+		context.stdout(
+			`move: scenario ${toId} is ${destinationScenario.status}, so ${result.moved.id} will not run until the scenario is approved`,
 		);
 }

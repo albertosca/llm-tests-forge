@@ -82,12 +82,12 @@ export async function reviewCommand(
 	// interactive path, where a typo answered "nothing pending" and exited
 	// 0 while `cases`, `dedupe` and `review --all` all named the same bad id
 	// and exited 1.
-	const paths = forgePaths(context.forgeDir);
+	const paths = forgePaths(context.forgeDirectory);
 	// `scenarios` and `feature` below move with the pass: `onDecided`
 	// replaces the entry a decision just produced, so the oracle a later
 	// case is checked against is the one this pass approved, not the one
 	// that was on disk when it started.
-	let scenarios = await readScenarios(context.forgeDir);
+	let scenarios = await readScenarios(context.forgeDirectory);
 	const named = values.scenario
 		? scenarios.find((scenario) => scenario.id === values.scenario)
 		: undefined;
@@ -104,7 +104,7 @@ export async function reviewCommand(
 
 	const scenarioIds = values.scenario
 		? [values.scenario]
-		: await listCaseScenarios(context.forgeDir);
+		: await listCaseScenarios(context.forgeDirectory);
 	const casesById = new Map<string, Case[]>();
 	// Every cases file that existed, with a snapshot of its size and
 	// modification time taken as its cases were read. The write-back below
@@ -116,7 +116,7 @@ export async function reviewCommand(
 	// write back and is simply absent here.
 	const readCaseFiles = new Map<string, ReadCaseFile>();
 	for (const id of scenarioIds) {
-		const caseFile = await readCaseFile(context.forgeDir, id);
+		const caseFile = await readCaseFile(context.forgeDirectory, id);
 		casesById.set(id, caseFile?.cases ?? []);
 		if (caseFile !== null) readCaseFiles.set(id, caseFile);
 	}
@@ -154,14 +154,14 @@ export async function reviewCommand(
 		await reviewAllCommand({
 			scenario: named,
 			cases: casesById.get(named.id) ?? [],
-			feature: await readFeature(context.forgeDir),
-			forgeDir: context.forgeDir,
+			feature: await readFeature(context.forgeDirectory),
+			forgeDirectory: context.forgeDirectory,
 			stdout: context.stdout,
 		});
 		return;
 	}
 
-	let feature = await readFeature(context.forgeDir);
+	let feature = await readFeature(context.forgeDirectory);
 	// The list as it was read off disk. The write-back below matches every
 	// decision against the file by the id the item had on entry, so it
 	// reads from here rather than from the live `scenarios`, which moves
@@ -238,7 +238,7 @@ export async function reviewCommand(
 		if (item.item.scenario !== file) {
 			const path = join(paths.casesDir, `${file}.yaml`);
 			throw new ForgeError(
-				`case ${item.item.id} names scenario "${item.item.scenario}" but lives in ${path}; run \`forge move --case ${item.item.id} --to ${item.item.scenario}\` or fix the file`,
+				`case ${item.item.id} names scenario "${item.item.scenario}" but lives in ${path}; run \`llm-tests-forge move --case ${item.item.id} --to ${item.item.scenario}\` or fix the file`,
 				{ file: path, id: item.item.id },
 			);
 		}
@@ -334,7 +334,8 @@ export async function reviewCommand(
 	const decidedFeature = result.decisions.find(
 		(decision) => decision.kind === "feature",
 	);
-	if (decidedFeature) await writeFeature(context.forgeDir, decidedFeature.item);
+	if (decidedFeature)
+		await writeFeature(context.forgeDirectory, decidedFeature.item);
 
 	const decidedScenarios = new Map(
 		result.decisions
@@ -343,7 +344,7 @@ export async function reviewCommand(
 	);
 	if (decidedScenarios.size > 0)
 		await writeScenarios(
-			context.forgeDir,
+			context.forgeDirectory,
 			scenariosAsRead.map(
 				(scenario) => takeOnce(decidedScenarios, scenario.id) ?? scenario,
 			),
@@ -400,7 +401,7 @@ export async function reviewCommand(
 		// disk, so its re-opens are neither printed nor counted, and "still
 		// pending" keeps describing the disk.
 		const skipReason = touched
-			? await writeBackSkipReason(context.forgeDir, id, before)
+			? await writeBackSkipReason(context.forgeDirectory, id, before)
 			: null;
 		if (skipReason !== null) {
 			context.stdout(
@@ -421,7 +422,7 @@ export async function reviewCommand(
 			);
 			totalReopened += reopened;
 		}
-		if (touched) await writeCases(context.forgeDir, id, next);
+		if (touched) await writeCases(context.forgeDirectory, id, next);
 	}
 	// The pass above walks the cases files, so a scenario whose oracle this
 	// pass changed before `cases` ever ran for it said nothing at all — and

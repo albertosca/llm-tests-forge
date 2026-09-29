@@ -281,7 +281,7 @@ function unmatched(report: Report): string[] {
  */
 export function renderReportMarkdown(report: Report): string {
 	return [
-		`# forge report — ${report.generatedAt}`,
+		`# llm-tests-forge report — ${report.generatedAt}`,
 		"",
 		headline(report),
 		"",

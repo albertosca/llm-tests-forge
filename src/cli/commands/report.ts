@@ -39,7 +39,7 @@ async function readBaseline(path: string): Promise<Report> {
 	const parsed = ReportSchema.safeParse(data);
 	if (!parsed.success)
 		throw new ForgeError(
-			`is not a forge report: ${parsed.error.issues
+			`is not a report written by llm-tests-forge: ${parsed.error.issues
 				.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
 				.join("; ")}`,
 			{ file: path },
@@ -59,12 +59,15 @@ export async function reportCommand(
 	const resultsPath = positionals[0];
 	if (!resultsPath)
 		throw new UsageError("report needs the path of promptfoo's results.json");
-	const paths = forgePaths(context.forgeDir);
-	const feature = await readFeature(context.forgeDir);
+	const paths = forgePaths(context.forgeDirectory);
+	const feature = await readFeature(context.forgeDirectory);
 	requireApprovedFeature(feature, paths.feature);
-	const suite = await readSuite(context.forgeDir);
-	const scenarios = await readScenarios(context.forgeDir);
-	const casesByScenario = await readAllCases(context.forgeDir);
+	const suite = await readSuite(
+		context.forgeDirectory,
+		context.project?.config.language,
+	);
+	const scenarios = await readScenarios(context.forgeDirectory);
+	const casesByScenario = await readAllCases(context.forgeDirectory);
 	const prices = await loadPrices();
 	const allCases = [...casesByScenario.values()].flat();
 	const selection = selectCases({
@@ -81,7 +84,10 @@ export async function reportCommand(
 		selection,
 		feature,
 		prices,
-		promptTokens: await promptTokensFor(context.forgeDir, feature.prompt_file),
+		promptTokens: await promptTokensFor(
+			context.forgeDirectory,
+			feature.prompt_file,
+		),
 	});
 	const results = await readResults(resultsPath);
 	// Checked against undefined, not truthiness: `--baseline ""` is a

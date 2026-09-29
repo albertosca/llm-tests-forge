@@ -15,18 +15,18 @@ export interface DescribeArgs {
 	llm: Llm;
 }
 
-export async function describeFeature(args: DescribeArgs): Promise<Feature> {
-	if (args.text.trim() === "")
+export async function describeFeature(request: DescribeArgs): Promise<Feature> {
+	if (request.text.trim() === "")
 		throw new ForgeError("describe needs a non-empty description");
-	const template = await loadTemplate("describe");
+	const template = loadTemplate("describe");
 	const prompt = render(template, {
-		description: args.text.trim(),
-		prompt: args.promptText ?? "",
+		description: request.text.trim(),
+		prompt: request.promptText ?? "",
 	});
-	const { object } = await args.llm.generate({
+	const { object } = await request.llm.generate({
 		schema: DescribeOutputSchema,
 		prompt,
-		model: args.model,
+		model: request.model,
 		verb: "describe",
 	});
 	return { ...object, status: "pending" };

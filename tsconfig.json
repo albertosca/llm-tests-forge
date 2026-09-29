@@ -4,6 +4,7 @@
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"strict": true,
+		"resolveJsonModule": true,
 		"noUncheckedIndexedAccess": true,
 		"types": ["bun-types"],
 		"skipLibCheck": true,

@@ -55,7 +55,7 @@ const caseOf = (
 	generated_by: "t",
 });
 const suite = (models: string[], judges: string[], repeat: number): Suite => ({
-	target: { kind: "promptfoo-python", entry: "forge_target.py", models },
+	target: { kind: "python", entry: "forge_target.py", models },
 	judges,
 	repeat,
 	include: [],

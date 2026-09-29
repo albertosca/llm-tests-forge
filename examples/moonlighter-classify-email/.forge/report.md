@@ -1,4 +1,4 @@
-# forge report — 2026-09-28T16:10:42.411Z
+# llm-tests-forge report — 2026-09-29T01:43:25.293Z
 
 **Pass rate:** 95.8% (46 of 48 runs, 0 errored) · **failing or errored:** 1 · **flaky:** 0 · **judge disagreements:** 0
 

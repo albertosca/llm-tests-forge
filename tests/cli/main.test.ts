@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	chmod,
+	cp,
 	mkdir,
 	mkdtemp,
 	readdir,
@@ -15,7 +16,7 @@ import { join, resolve } from "node:path";
 import { parse } from "yaml";
 import type { CliContext } from "../../src/cli/context";
 import { createContext } from "../../src/cli/context";
-import { modelFlag, run } from "../../src/cli/main";
+import { COMMANDS, drafterFlag, main, run, USAGE } from "../../src/cli/main";
 import {
 	readCases,
 	readFeature,
@@ -26,6 +27,9 @@ import {
 	writeScenarios,
 	writeSuite,
 } from "../../src/core/files";
+import { readProject } from "../../src/core/project";
+import { FORGE_VERSION } from "../../src/core/version";
+import { projectWith } from "../helpers/project";
 
 /** An unambiguously old timestamp: any real write resets a file's mtime to
  * "now", which is trivially distinguishable from this regardless of the
@@ -40,7 +44,7 @@ async function ctxIn(cwd: string, stdinLines: string[] = []) {
 	const queue = [...stdinLines];
 	const context = createContext({
 		cwd,
-		model: MODEL,
+		drafter: MODEL,
 		stdin: async () => queue.shift() ?? "",
 	});
 	context.stdout = (line) => out.push(line);
@@ -168,13 +172,69 @@ describe("forge CLI end to end (fake provider)", () => {
 		);
 	});
 
-	test("missing model is a usage error (exit 2) naming the flag", async () => {
+	test("--help, -h and help print the usage and exit 0; --version, -V and version print the version and exit 0", async () => {
+		for (const flag of ["--help", "-h", "help"]) {
+			const { context, out } = await ctxIn(
+				await mkdtemp(join(tmpdir(), "forge-help-")),
+			);
+			expect(await run([flag], context)).toBe(0);
+			expect(out.join("\n")).toContain("describe <text...>");
+		}
+		for (const flag of ["--version", "-V", "version"]) {
+			const { context, out } = await ctxIn(
+				await mkdtemp(join(tmpdir(), "forge-version-")),
+			);
+			expect(await run([flag], context)).toBe(0);
+			expect(out).toEqual([FORGE_VERSION]);
+		}
+	});
+
+	test("missing drafter is a usage error (exit 2) naming the flag", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const out: string[] = [];
 		const context = createContext({ cwd, env: {}, stdin: async () => "" });
 		context.stdout = (line) => out.push(line);
 		expect(await run(["describe", "x"], context)).toBe(2);
-		expect(out.at(-1)).toContain("--model");
+		expect(out.at(-1)).toContain("--drafter");
+	});
+
+	test("the drafter comes from --drafter or FORGE_DRAFTER; the old --model and FORGE_MODEL are gone", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-drafter-"));
+		const fromEnvironment = createContext({
+			cwd: directory,
+			env: { FORGE_DRAFTER: "fake/x" },
+			stdin: async () => "",
+		});
+		expect(fromEnvironment.drafter).toBe("fake/x");
+		const oldName = createContext({
+			cwd: directory,
+			env: { FORGE_MODEL: "fake/x" },
+			stdin: async () => "",
+		});
+		expect(() => oldName.drafter).toThrow(
+			"no drafter: pass --drafter provider/model, set FORGE_DRAFTER, or set defaults.drafter in forge.yaml",
+		);
+		const { context, out } = await ctxIn(directory);
+		expect(await run(["describe", "text", "--model", "fake/x"], context)).toBe(
+			2,
+		);
+		expect(out.join("\n")).toContain("Unknown option '--model'");
+	});
+
+	test("USAGE's emit line names the target kind's shim, not python's file", () => {
+		const emitLine = USAGE.split("\n").find((line) =>
+			line.startsWith("  emit "),
+		);
+		expect(emitLine).toEndWith(
+			"approved cases -> .forge/promptfooconfig.yaml + the target kind's shim, or cases.jsonl",
+		);
+	});
+
+	test("every message that names a command says llm-tests-forge", async () => {
+		expect(USAGE).toStartWith("usage: llm-tests-forge <verb>");
+		expect(USAGE).not.toMatch(
+			/(^|[\s`])forge (describe|scenarios|cases|dedupe|import|review|move|estimate|emit|report)\b/m,
+		);
 	});
 });
 
@@ -519,7 +579,7 @@ describe("review --all: never approves a case with no expected (Finding 2)", () 
 			true,
 		);
 		expect(out.at(-1)).toBe(
-			"review: approved 0 pending case(s) of imported; 2 left pending (no expected set — run `forge review --scenario imported` to fill them in)",
+			"review: approved 0 pending case(s) of imported; 2 left pending (no expected set — run `llm-tests-forge review --scenario imported` to fill them in)",
 		);
 	});
 
@@ -568,7 +628,7 @@ describe("review --all: never approves a case with no expected (Finding 2)", () 
 		expect(after[1]?.status).toBe("pending");
 		expect(after[1]?.expected).toBeUndefined();
 		expect(out.at(-1)).toBe(
-			"review: approved 1 pending case(s) of polite-rejection; 1 left pending (no expected set — run `forge review --scenario polite-rejection` to fill them in)",
+			"review: approved 1 pending case(s) of polite-rejection; 1 left pending (no expected set — run `llm-tests-forge review --scenario polite-rejection` to fill them in)",
 		);
 	});
 });
@@ -652,15 +712,15 @@ describe("import: --oracle validation", () => {
 	});
 });
 
-describe("modelFlag", () => {
-	test("reads --model from raw argv", () => {
-		expect(modelFlag(["describe", "x", "--model", "anthropic/haiku"])).toBe(
+describe("drafterFlag", () => {
+	test("reads --drafter from raw argv", () => {
+		expect(drafterFlag(["describe", "x", "--drafter", "anthropic/haiku"])).toBe(
 			"anthropic/haiku",
 		);
 	});
 
-	test("returns undefined when --model is absent", () => {
-		expect(modelFlag(["describe", "x"])).toBeUndefined();
+	test("returns undefined when --drafter is absent", () => {
+		expect(drafterFlag(["describe", "x"])).toBeUndefined();
 	});
 });
 
@@ -739,7 +799,7 @@ describe("createContext defaults", () => {
 		try {
 			const context = createContext({
 				cwd: "/tmp",
-				env: { FORGE_MODEL: "fake/x" },
+				env: { FORGE_DRAFTER: "fake/x" },
 				stdin: async () => "",
 			});
 			context.stdout("hello");
@@ -777,7 +837,7 @@ describe("the downstream gate: nothing runs on a pending feature (whole-branch F
 		noModelCalls(context);
 		expect(await run(["scenarios"], context)).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: feature is pending; run \`forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
+			`error: feature is pending; run \`llm-tests-forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
 		);
 	});
 
@@ -789,7 +849,7 @@ describe("the downstream gate: nothing runs on a pending feature (whole-branch F
 		noModelCalls(context);
 		expect(await run(["cases"], context)).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: feature is pending; run \`forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
+			`error: feature is pending; run \`llm-tests-forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
 		);
 	});
 
@@ -802,7 +862,7 @@ describe("the downstream gate: nothing runs on a pending feature (whole-branch F
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["import", jsonl], context)).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: feature is pending; run \`forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
+			`error: feature is pending; run \`llm-tests-forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
 		);
 		const wrote = await stat(
 			join(cwd, ".forge", "cases", "imported.yaml"),
@@ -846,6 +906,8 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 		);
 		expect(out.at(-1)).toContain("--force");
 		expect(out.at(-1)).toContain(featurePath);
+		// No project, so there is nothing to register it in.
+		expect(out.at(-1)).not.toContain("not registered");
 		expect(await readFile(featurePath, "utf8")).toBe(before);
 		expect((await stat(featurePath)).mtime.getTime()).toBe(LONG_AGO.getTime());
 	});
@@ -860,6 +922,38 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 		).toBe(0);
 		expect(out.at(-1)).toContain("written as pending");
 		expect((await readFeature(join(cwd, ".forge"))).status).toBe("pending");
+	});
+
+	test("in a project, the refusal for a reviewed suite that is not registered says how to register it; a registered one does not", async () => {
+		// A suite copied in before init: reviewed, but not in forge.yaml.
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/kept]\n",
+		);
+		for (const name of ["classify", "kept"])
+			await cp(
+				"examples/moonlighter-extract-questions/.forge",
+				join(root, "evals", name, ".forge"),
+				{ recursive: true },
+			);
+		const describeIn = async (directory: string): Promise<string[]> => {
+			const lines: string[] = [];
+			expect(
+				await main(["describe", "--drafter", MODEL, "anything"], {
+					cwd: directory,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(1);
+			return lines;
+		};
+		const unregistered = await describeIn(join(root, "evals", "classify"));
+		expect(unregistered.join("\n")).toContain(
+			"re-run with --force to replace it. This suite is not registered in forge.yaml: to register it without describing it again, add its path to suites: in forge.yaml (for example `suites: [evals/classify]`, or a `- evals/classify` line under suites:)",
+		);
+		const registered = await describeIn(join(root, "evals", "kept"));
+		expect(registered.join("\n")).toContain("re-run with --force");
+		expect(registered.join("\n")).not.toContain("not registered");
 	});
 
 	test("a still-pending feature is not reviewed work, so re-describing over it is allowed", async () => {
@@ -958,7 +1052,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 		});
 
 		expect(out).toContain(
-			`cannot apply: a scenario's id cannot be changed in review (from "polite-rejection" to "polite-rejection-fixed"): it names .forge/cases/<id>.yaml; run \`forge move --scenario polite-rejection polite-rejection-fixed\` (id: polite-rejection)`,
+			`cannot apply: a scenario's id cannot be changed in review (from "polite-rejection" to "polite-rejection-fixed"): it names .forge/cases/<id>.yaml; run \`llm-tests-forge move --scenario polite-rejection polite-rejection-fixed\` (id: polite-rejection)`,
 		);
 		const scenarios = await readScenarios(forgeDirectory);
 		expect(scenarios.map((scenario) => [scenario.id, scenario.status])).toEqual(
@@ -1044,7 +1138,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 			out.some(
 				(line) =>
 					line ===
-					`cannot apply: a case's scenario cannot be changed in review (from "polite-rejection" to "huge-signature"); run \`forge move --case polite-rejection-01 --to huge-signature\` (id: polite-rejection-01)`,
+					`cannot apply: a case's scenario cannot be changed in review (from "polite-rejection" to "huge-signature"); run \`llm-tests-forge move --case polite-rejection-01 --to huge-signature\` (id: polite-rejection-01)`,
 			),
 		).toBe(true);
 		const cases = await readCases(forgeDirectory, "polite-rejection");
@@ -1151,7 +1245,7 @@ describe("dedupe never writes a phantom empty cases file (whole-branch Finding 5
 			await run(["dedupe", "--scenario", "polite-rejection"], context),
 		).toBe(1);
 		expect(out.at(-1)).toBe(
-			'error: scenario "polite-rejection" has no cases yet; run `forge cases --scenario polite-rejection` first (id: polite-rejection)',
+			'error: scenario "polite-rejection" has no cases yet; run `llm-tests-forge cases --scenario polite-rejection` first (id: polite-rejection)',
 		);
 		expect(out.join("\n")).not.toContain("0 marked as duplicates");
 
@@ -1420,7 +1514,7 @@ describe("review: a write-back never recreates a cases file removed during the p
 		const out: string[] = [];
 		const removingContext = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			stdin: async () => {
 				await unlink(casesPath);
 				return "approve";
@@ -1468,7 +1562,7 @@ describe("review: a write-back guard also skips a cases file recreated during th
 		const out: string[] = [];
 		const removingContext = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			stdin: async () => {
 				await unlink(casesPath);
 				await writeFile(casesPath, outsideContent, "utf8");
@@ -1547,7 +1641,7 @@ describe("review: a write-back guard skips just the files it cannot trust, and s
 		const out: string[] = [];
 		const removingContext = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			stdin: async () => {
 				questionsAnswered += 1;
 				// Removed while answering the second question -- after its
@@ -1594,7 +1688,7 @@ describe("review: onInteractivePass arms end-of-input only for the interactive p
 		const out: string[] = [];
 		const context = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			stdin: async () => "approve",
 			onInteractivePass: () => {
 				interactivePassCalls += 1;
@@ -1630,7 +1724,7 @@ describe("review: onInteractivePass arms end-of-input only for the interactive p
 		const out: string[] = [];
 		const context = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			stdin: async () => "",
 			onInteractivePass: () => {
 				interactivePassCalls += 1;
@@ -1686,7 +1780,7 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 		// nothing else uses" was advice no free id could satisfy: the
 		// refusal a person can act on is the one that names the file move.
 		expect(out).toContain(
-			'cannot apply: a scenario\'s id cannot be changed in review (from "polite-rejection" to "huge-signature"): it names .forge/cases/<id>.yaml; run `forge move --scenario polite-rejection huge-signature` (id: polite-rejection)',
+			'cannot apply: a scenario\'s id cannot be changed in review (from "polite-rejection" to "huge-signature"): it names .forge/cases/<id>.yaml; run `llm-tests-forge move --scenario polite-rejection huge-signature` (id: polite-rejection)',
 		);
 		expect(out.join("\n")).not.toContain("pick an id nothing else uses");
 		const scenarios = await readScenarios(join(cwd, ".forge"));
@@ -1738,7 +1832,7 @@ const FEATURE = {
 };
 const SUITE = {
 	target: {
-		kind: "promptfoo-python" as const,
+		kind: "python" as const,
 		entry: "forge_target.py",
 		models: ["anthropic/claude-haiku-4-5"],
 	},
@@ -1847,7 +1941,7 @@ describe("review --all checks that every case in the file belongs to it", () => 
 		).toBe(1);
 
 		expect(out.at(-1)).toBe(
-			`error: case polite-rejection-02 names scenario "huge-signature" but lives in ${casesFile}; run \`forge move --case polite-rejection-02 --to huge-signature\` or fix the file (file: ${casesFile}, id: polite-rejection-02)`,
+			`error: case polite-rejection-02 names scenario "huge-signature" but lives in ${casesFile}; run \`llm-tests-forge move --case polite-rejection-02 --to huge-signature\` or fix the file (file: ${casesFile}, id: polite-rejection-02)`,
 		);
 		// Checked before the first write: the sibling that would have been
 		// approved is still pending, and the file was never rewritten.
@@ -2223,7 +2317,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		const out: string[] = [];
 		const context = createContext({
 			cwd,
-			model: MODEL,
+			drafter: MODEL,
 			// The only answer is the scenario's "edit"; before giving it, the
 			// cases file is rewritten by "someone else" and dated long ago, so
 			// the write-back guard cannot mistake it for the file it read.
@@ -2952,7 +3046,7 @@ describe("review refuses a case that names another existing scenario before the 
 		const { context, out } = await ctxIn(cwd, ["approve", "approve"]);
 		expect(await run(["review", "--only", "cases"], context)).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: case aa-02 names scenario "bb" but lives in ${aaFile}; run \`forge move --case aa-02 --to bb\` or fix the file (file: ${aaFile}, id: aa-02)`,
+			`error: case aa-02 names scenario "bb" but lives in ${aaFile}; run \`llm-tests-forge move --case aa-02 --to bb\` or fix the file (file: ${aaFile}, id: aa-02)`,
 		);
 		expect(out.some((line) => line.startsWith("--- case"))).toBe(false);
 		expect((await stat(aaFile)).mtime.getTime()).toBe(LONG_AGO.getTime());
@@ -3047,7 +3141,7 @@ describe("dedupe checks every scenario before it writes the first one", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["dedupe"], context)).toBe(1);
 		expect(out.at(-1)).toBe(
-			'error: scenario "zzz-empty" has no cases yet; run `forge cases --scenario zzz-empty` first (id: zzz-empty)',
+			'error: scenario "zzz-empty" has no cases yet; run `llm-tests-forge cases --scenario zzz-empty` first (id: zzz-empty)',
 		);
 		expect((await stat(first)).mtime.getTime()).toBe(LONG_AGO.getTime());
 		expect(out.some((line) => line.includes("marked as duplicates"))).toBe(
@@ -3177,7 +3271,7 @@ describe("estimate", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["estimate"], context)).toBe(0);
 		expect(out).toContain(
-			"estimate: 1 item excluded; run `forge review` to include it:",
+			"estimate: 1 item excluded; run `llm-tests-forge review` to include it:",
 		);
 		expect(out).toContain(
 			"  case polite-rejection-01 is pending (" +
@@ -3221,7 +3315,7 @@ describe("estimate", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["estimate"], context)).toBe(0);
 		expect(out.slice(-3)).toEqual([
-			"estimate: 2 items excluded; run `forge review` to include them:",
+			"estimate: 2 items excluded; run `llm-tests-forge review` to include them:",
 			`  case polite-rejection-01 is pending (${join(forgeDirectory, "cases", "polite-rejection.yaml")})`,
 			`  case vague-rubric-01 is pending (${join(forgeDirectory, "cases", "vague-rubric.yaml")})`,
 		]);
@@ -3255,7 +3349,7 @@ describe("estimate", () => {
 			"estimate: 1 item excluded:",
 			`  scenario vague-rubric is rejected (${join(forgeDirectory, "scenarios.yaml")})`,
 		]);
-		expect(out.join("\n")).not.toContain("forge review");
+		expect(out.join("\n")).not.toContain("llm-tests-forge review");
 	});
 	test("selecting no case at all exits 1 naming the cases directory, printing no table", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -3285,6 +3379,26 @@ describe("estimate", () => {
 		expect(await run(["estimate"], context)).toBe(1);
 		expect(out.join("\n")).toContain("suite.yaml not found");
 		expect(out.join("\n")).toContain("judges:");
+	});
+	test("in a project, the missing suite.yaml's example uses the project's language", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: ruby\nsuites: [evals/a]\n",
+		);
+		const suiteDirectory = join(root, "evals", "a");
+		await writeFeature(join(suiteDirectory, ".forge"), FEATURE);
+		for (const verb of ["emit", "estimate"]) {
+			const lines: string[] = [];
+			expect(
+				await main([verb], {
+					cwd: suiteDirectory,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(1);
+			expect(lines.join("\n")).toContain("  kind: ruby ");
+			expect(lines.join("\n")).toContain("  entry: forge_target.rb ");
+		}
 	});
 	test("an unknown flag is a usage error (exit 2)", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -3361,6 +3475,190 @@ describe("emit", () => {
 		expect((await stat(shim)).mtime.getTime()).toBe(LONG_AGO.getTime());
 		expect(out).toContain(`emit: kept existing ${shim}`);
 	});
+	test("ruby: writes forge_target.rb, runs it through exec, and keeps it on a second emit", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: { kind: "ruby", models: ["anthropic/claude-haiku-4-5"] },
+		});
+		const shim = join(forgeDirectory, "forge_target.rb");
+		const first = await ctxIn(cwd);
+		expect(await run(["emit"], first.context)).toBe(0);
+		expect(await readFile(shim, "utf8")).toContain('INPUTS = ["email"].freeze');
+		const parsedConfig = parse(
+			await readFile(join(forgeDirectory, "promptfooconfig.yaml"), "utf8"),
+		);
+		expect(parsedConfig.providers[0].id).toBe("exec: ruby forge_target.rb");
+		expect(first.out).toContain(
+			`emit: wrote ${shim}; edit run_application to call your application`,
+		);
+		await writeFile(shim, "# mine\n");
+		const second = await ctxIn(cwd);
+		expect(await run(["emit"], second.context)).toBe(0);
+		expect(await readFile(shim, "utf8")).toBe("# mine\n");
+		expect(second.out).toContain(`emit: kept existing ${shim}`);
+	});
+	test("go: writes go.mod and main.go under forge_target/, pointing at the project's module, and says how to build", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await writeFile(join(cwd, "go.mod"), "module example.com/myapp\n");
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: { kind: "go", models: ["anthropic/claude-haiku-4-5"] },
+		});
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(await readdir(join(forgeDirectory, "forge_target"))).toEqual([
+			"go.mod",
+			"main.go",
+		]);
+		expect(
+			await readFile(join(forgeDirectory, "forge_target", "go.mod"), "utf8"),
+		).toContain("// replace example.com/myapp => ../..");
+		const parsedConfig = parse(
+			await readFile(join(forgeDirectory, "promptfooconfig.yaml"), "utf8"),
+		);
+		expect(parsedConfig.providers[0].id).toBe(
+			"exec: ./forge_target/forge_target",
+		);
+		expect(out.at(-1)).toBe(
+			`emit: wrote ${join(forgeDirectory, "forge_target", "go.mod")}, ${join(forgeDirectory, "forge_target", "main.go")}; edit runApplication in main.go to call your application, then run \`GOWORK=off go build -o forge_target .\` in that directory`,
+		);
+	});
+	test("each shim file is kept or written on its own: a go suite switched to rust gets the rust files, a deleted main.go comes back, an untouched shim is all kept", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const shimDirectory = join(forgeDirectory, "forge_target");
+		const goSuite = {
+			...SUITE,
+			target: { kind: "go" as const, models: ["anthropic/claude-haiku-4-5"] },
+		};
+		await writeSuite(forgeDirectory, goSuite);
+		expect(await run(["emit"], (await ctxIn(cwd)).context)).toBe(0);
+		await writeFile(join(shimDirectory, "go.mod"), "// mine\n");
+		const untouched = await ctxIn(cwd);
+		expect(await run(["emit"], untouched.context)).toBe(0);
+		expect(untouched.out.at(-1)).toBe(
+			`emit: kept existing ${join(shimDirectory, "go.mod")}, ${join(shimDirectory, "main.go")}`,
+		);
+		await unlink(join(shimDirectory, "main.go"));
+		const repaired = await ctxIn(cwd);
+		expect(await run(["emit"], repaired.context)).toBe(0);
+		expect(await readFile(join(shimDirectory, "go.mod"), "utf8")).toBe(
+			"// mine\n",
+		);
+		expect(await readFile(join(shimDirectory, "main.go"), "utf8")).toContain(
+			"func runApplication",
+		);
+		expect(repaired.out.at(-1)).toBe(
+			`emit: kept existing ${join(shimDirectory, "go.mod")}; wrote ${join(shimDirectory, "main.go")}; edit runApplication in main.go to call your application, then run \`GOWORK=off go build -o forge_target .\` in that directory`,
+		);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: { kind: "rust", models: ["anthropic/claude-haiku-4-5"] },
+		});
+		const switched = await ctxIn(cwd);
+		expect(await run(["emit"], switched.context)).toBe(0);
+		expect(await readFile(join(shimDirectory, "Cargo.toml"), "utf8")).toContain(
+			"[workspace]",
+		);
+		expect(
+			await readFile(join(shimDirectory, "src", "main.rs"), "utf8"),
+		).toContain("fn run_application");
+		expect(switched.out.at(-1)).toContain(
+			`emit: wrote ${join(shimDirectory, "Cargo.toml")}, ${join(shimDirectory, "src", "main.rs")}; `,
+		);
+	});
+	test("a target.entry holding whitespace is refused before anything is written: promptfoo splits an exec command on it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: {
+				kind: "ruby",
+				entry: "my target.rb",
+				models: ["anthropic/claude-haiku-4-5"],
+			},
+		});
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(1);
+		expect(out.at(-1)).toContain("target.entry must not contain whitespace");
+		expect(out.at(-1)).toContain(join(forgeDirectory, "suite.yaml"));
+		await expect(
+			stat(join(forgeDirectory, "promptfooconfig.yaml")),
+		).rejects.toThrow();
+	});
+	test("elixir runs from the mix project above the suite, and with none is refused before anything is written", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const suiteDirectory = join(cwd, "evals", "classify");
+		const forgeDirectory = await forgeWithApprovedCases(suiteDirectory);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: { kind: "elixir", models: ["anthropic/claude-haiku-4-5"] },
+		});
+		const refused = await ctxIn(suiteDirectory);
+		expect(await run(["emit"], refused.context)).toBe(1);
+		expect(refused.out.at(-1)).toContain(`no mix.exs above ${suiteDirectory}`);
+		await expect(
+			stat(join(forgeDirectory, "promptfooconfig.yaml")),
+		).rejects.toThrow();
+		await writeFile(join(cwd, "mix.exs"), "defmodule App.MixProject do\n");
+		const { context } = await ctxIn(suiteDirectory);
+		expect(await run(["emit"], context)).toBe(0);
+		const parsedConfig = parse(
+			await readFile(join(forgeDirectory, "promptfooconfig.yaml"), "utf8"),
+		);
+		expect(parsedConfig.providers[0].id).toBe(
+			`exec: sh -c 'cd "../../.." && MIX_QUIET=1 ELIXIR_ERL_OPTIONS="$ELIXIR_ERL_OPTIONS -logger default_handler [{config,#{type=>standard_error}}]" mix run "evals/classify/.forge/forge_target.exs" "$@"' forge_target`,
+		);
+		expect(
+			await readFile(join(forgeDirectory, "forge_target.exs"), "utf8"),
+		).toContain('@inputs ["email"]');
+	});
+	test("exec and http reach code the person already runs: no shim is written", async () => {
+		for (const target of [
+			{
+				kind: "exec" as const,
+				command: "./run.sh",
+				models: ["anthropic/claude-haiku-4-5"],
+			},
+			{
+				kind: "http" as const,
+				url: "http://localhost:4000/classify",
+				models: ["anthropic/claude-haiku-4-5"],
+			},
+		]) {
+			const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+			const forgeDirectory = await forgeWithApprovedCases(cwd);
+			await writeSuite(forgeDirectory, { ...SUITE, target });
+			const { context, out } = await ctxIn(cwd);
+			expect(await run(["emit"], context)).toBe(0);
+			const written = await readdir(forgeDirectory);
+			expect(written.filter((name) => name.startsWith("forge_target"))).toEqual(
+				[],
+			);
+			expect(out.join("\n")).not.toContain("forge_target");
+			expect(out.join("\n")).not.toContain("warning");
+		}
+	});
+	test("an http suite with two target models and no {{target_model}} is emitted with one warning line", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: {
+				kind: "http",
+				url: "http://localhost:4000/classify",
+				models: ["anthropic/claude-haiku-4-5", "google/gemini-3.5-flash"],
+			},
+		});
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(out.filter((line) => line.includes("warning"))).toEqual([
+			"emit: warning: target.kind is http and target.models lists 2 models, but {{target_model}} appears nowhere in target.url, target.headers or target.body, so every provider sends the same request",
+		]);
+	});
 	test("refuses on pending items, lists every one, writes nothing, exits 1", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedCases(cwd);
@@ -3386,7 +3684,7 @@ describe("emit", () => {
 		expect(await run(["emit"], context)).toBe(1);
 		const text = out.join("\n");
 		expect(text).toContain(
-			"error: emit refused: 2 items block it; run `forge review`",
+			"error: emit refused: 2 items block it; run `llm-tests-forge review`",
 		);
 		expect(text).toContain("case polite-rejection-01 is pending");
 		expect(text).toContain("case polite-rejection-02 is pending");
@@ -3418,7 +3716,7 @@ describe("emit", () => {
 		const text = out.join("\n");
 		expect(text).toContain("error: emit refused: 1 item blocks it");
 		expect(text).toContain("scenario polite-rejection is rejected");
-		expect(text).not.toContain("forge review");
+		expect(text).not.toContain("llm-tests-forge review");
 	});
 	test("a case whose expected no longer matches its scenario's oracle blocks emit, naming both", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -3442,7 +3740,7 @@ describe("emit", () => {
 		expect(await run(["emit"], context)).toBe(1);
 		const text = out.join("\n");
 		expect(text).toContain(
-			"error: emit refused: 1 item blocks it; run `forge review`",
+			"error: emit refused: 1 item blocks it; run `llm-tests-forge review`",
 		);
 		expect(text).toContain(
 			`case polite-rejection-01: oracle is fields but expected.fields is missing (${join(forgeDirectory, "cases", "polite-rejection.yaml")})`,
@@ -3785,7 +4083,7 @@ describe("report", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["report", RESULTS, "--baseline", bad], context)).toBe(1);
 		expect(out.at(-1)).toContain(bad);
-		expect(out.at(-1)).toContain("is not a forge report");
+		expect(out.at(-1)).toContain("is not a report written by llm-tests-forge");
 	});
 
 	test("a baseline that is not JSON at all names the file and the problem", async () => {
@@ -3861,7 +4159,7 @@ describe("report", () => {
 		);
 	});
 
-	test("after forge move renames a scenario, the baseline diff names the pairs it could not compare and coverage names the scenario", async () => {
+	test("after llm-tests-forge move renames a scenario, the baseline diff names the pairs it could not compare and coverage names the scenario", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeMatchingFixture(cwd);
 		const first = await ctxIn(cwd);
@@ -3941,7 +4239,7 @@ const CASE = (
 	...extra,
 });
 
-describe("forge move --scenario <old> <new>", () => {
+describe("llm-tests-forge move --scenario <old> <new>", () => {
 	test("renames the scenario, renumbers its cases into the new file, deletes the old file, and follows suite.include", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
@@ -3993,9 +4291,16 @@ describe("forge move --scenario <old> <new>", () => {
 	test("a suite that does not name the scenario is not rewritten, and a scenario with no cases file gets none", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
-		await writeSuite(forgeDirectory, SUITE);
 		const suiteFile = join(forgeDirectory, "suite.yaml");
-		await utimes(suiteFile, LONG_AGO, LONG_AGO);
+		const seeded = `target:
+  kind: python
+  entry: forge_target.py
+  models: [anthropic/claude-haiku-4-5] # kept
+judges: [google/gemini-3.5-flash]
+repeat: 2
+include: [other] # kept too
+`;
+		await writeFile(suiteFile, seeded);
 
 		const { context, out } = await ctxIn(cwd);
 		expect(
@@ -4004,7 +4309,11 @@ describe("forge move --scenario <old> <new>", () => {
 		expect(out).toEqual([
 			"move: scenario polite-rejection → soft-no; 0 case(s) renumbered",
 		]);
-		expect((await stat(suiteFile)).mtime.getTime()).toBe(LONG_AGO.getTime());
+		// Only the stamp line is new: any other rewrite (writeSuite drops the
+		// comments and turns flow lists into blocks) changes this text.
+		expect(await readFile(suiteFile, "utf8")).toBe(
+			`${seeded}forge_version: ${FORGE_VERSION}\n`,
+		);
 		// No cases file existed, so none is invented: an empty
 		// `cases/soft-no.yaml` would read to every later verb as a scenario
 		// that already has cases.
@@ -4143,7 +4452,7 @@ describe("forge move --scenario <old> <new>", () => {
 			),
 		).toBe(1);
 		expect(out.at(-1)).toBe(
-			`error: "Polite-Rejection" differs from "polite-rejection" only in letter case or Unicode normalisation, which is one file on the default macOS filesystem; rename through a temporary id: forge move --scenario polite-rejection tmp-Polite-Rejection && forge move --scenario tmp-Polite-Rejection Polite-Rejection (file: ${oldFile}, id: Polite-Rejection)`,
+			`error: "Polite-Rejection" differs from "polite-rejection" only in letter case or Unicode normalisation, which is one file on the default macOS filesystem; rename through a temporary id: llm-tests-forge move --scenario polite-rejection tmp-Polite-Rejection && llm-tests-forge move --scenario tmp-Polite-Rejection Polite-Rejection (file: ${oldFile}, id: Polite-Rejection)`,
 		);
 		// The advice, followed: two renames, three files never in
 		// conflict, and the cases renumbered at the end.
@@ -4214,13 +4523,14 @@ include: [keep, polite-rejection, keep]   # only these for now
 		const after = await readFile(suiteFile, "utf8");
 		expect(after.split("\n")).toEqual([
 			"target:",
-			"  kind: promptfoo-python",
+			"  kind: python",
 			"  entry: forge_target.py",
 			"  python: .venv/bin/python # any interpreter that can import the app",
 			"  models: [anthropic/claude-haiku-4-5]",
 			"judges: [google/gemini-3.5-flash]",
 			"repeat: 2",
 			"include: [keep, soft-no, keep] # only these for now",
+			`forge_version: ${FORGE_VERSION}`,
 			"",
 		]);
 		expect((await readSuite(forgeDirectory)).include).toEqual([
@@ -4231,7 +4541,7 @@ include: [keep, polite-rejection, keep]   # only these for now
 	});
 });
 
-describe("forge move --scenario: the source file and the suite", () => {
+describe("llm-tests-forge move --scenario: the source file and the suite", () => {
 	test("a source file spelled with different case than the id is refused, and scenarios.yaml is untouched", async () => {
 		// The read resolves case-insensitively on macOS, so the cases were
 		// read and renamed in memory, the file was neither written nor
@@ -4368,7 +4678,7 @@ judges: [google/gemini-3.5-flash]
 	});
 });
 
-describe("forge move --case <id> --to <scenario>", () => {
+describe("llm-tests-forge move --case <id> --to <scenario>", () => {
 	async function twoScenarios(
 		cwd: string,
 		destinationOracle: "label" | "rubric" = "label",
@@ -4459,7 +4769,7 @@ describe("forge move --case <id> --to <scenario>", () => {
 		).toBe(0);
 		expect(out.slice(0, 2)).toEqual([
 			"move: polite-rejection-01 → huge-signature-01 (scenario huge-signature)",
-			"move: huge-signature-01 re-opened: oracle is rubric but expected.rubric is missing — edit it in `forge review` to give it an expected the rubric oracle accepts",
+			"move: huge-signature-01 re-opened: oracle is rubric but expected.rubric is missing — edit it in `llm-tests-forge review` to give it an expected the rubric oracle accepts",
 		]);
 		const destination = await readCases(forgeDirectory, "huge-signature");
 		expect(
@@ -4618,7 +4928,7 @@ describe("forge move --case <id> --to <scenario>", () => {
 	});
 });
 
-describe("forge move --case: the destination's file and status", () => {
+describe("llm-tests-forge move --case: the destination's file and status", () => {
 	test("a destination whose cases file is spelled with different case is refused, so the file is never replaced", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = join(cwd, ".forge");
@@ -4715,7 +5025,7 @@ describe("forge move --case: the destination's file and status", () => {
 	});
 });
 
-describe("forge move --case: a twin id in the source", () => {
+describe("llm-tests-forge move --case: a twin id in the source", () => {
 	test("exits 1 naming the file, moves nothing, and drops nothing", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = join(cwd, ".forge");
@@ -4766,7 +5076,7 @@ describe("forge move --case: a twin id in the source", () => {
 	});
 });
 
-describe("forge move: a file name that differs from the id only in Unicode normalisation", () => {
+describe("llm-tests-forge move: a file name that differs from the id only in Unicode normalisation", () => {
 	// `café` written to disk as NFC, named in scenarios.yaml as NFD: APFS
 	// opens the file by either spelling, JavaScript compares them unequal,
 	// and the case-only guard let both forms through.
@@ -4843,7 +5153,7 @@ describe("forge move: a file name that differs from the id only in Unicode norma
 	});
 });
 
-describe("forge move --scenario: a write that fails after the first one", () => {
+describe("llm-tests-forge move --scenario: a write that fails after the first one", () => {
 	test("names what is already on disk and what to do by hand", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
@@ -4884,7 +5194,7 @@ describe("forge move --scenario: a write that fails after the first one", () => 
 	});
 });
 
-describe("forge move --scenario: when suite.yaml cannot be rewritten", () => {
+describe("llm-tests-forge move --scenario: when suite.yaml cannot be rewritten", () => {
 	test("the failure lists what is already written and the two hand steps", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
@@ -4925,7 +5235,7 @@ describe("forge move --scenario: when suite.yaml cannot be rewritten", () => {
 	});
 });
 
-describe("forge move --case: when the source cannot be rewritten", () => {
+describe("llm-tests-forge move --case: when the source cannot be rewritten", () => {
 	test("the failure names the copy already in the destination and what to remove by hand", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = join(cwd, ".forge");
@@ -4979,7 +5289,7 @@ describe("forge move --case: when the source cannot be rewritten", () => {
 	});
 });
 
-describe("forge move --case: when the source cannot be removed", () => {
+describe("llm-tests-forge move --case: when the source cannot be removed", () => {
 	test("the failure names the file and what is already written, and a retry is refused rather than writing a second copy", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = join(cwd, ".forge");
@@ -5051,7 +5361,7 @@ describe("forge move --case: when the source cannot be removed", () => {
 	});
 });
 
-describe("forge move usage", () => {
+describe("llm-tests-forge move usage", () => {
 	test("neither form, both forms, a half form and stray arguments are usage errors", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		await forgeWithApprovedScenario(cwd);
@@ -5074,5 +5384,698 @@ describe("forge move usage", () => {
 		expect(out.at(-1)).toBe(
 			"error: move takes either --scenario <old> <new> or --case <id> --to <scenario>",
 		);
+	});
+});
+
+describe("main(): the suite and the project", () => {
+	test("inside a project, a verb run where there is no .forge lists the registered suites and exits 2", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		const lines: string[] = [];
+		expect(
+			await main(["estimate"], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(2);
+		expect(lines.join("\n")).toContain("registered suites in");
+		expect(lines.join("\n")).toContain("evals/a");
+		expect(lines.join("\n")).toContain("--suite <path>");
+	});
+
+	test("--suite is taken out of the arguments before the verb parses them, in both spellings", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		await cp(
+			resolve("examples/moonlighter-extract-questions/.forge"),
+			join(root, "evals", "a", ".forge"),
+			{ recursive: true },
+		);
+		await cp(
+			resolve("examples/moonlighter-extract-questions/prompt.txt"),
+			join(root, "evals", "a", "prompt.txt"),
+		);
+		for (const argv of [
+			["estimate", "--suite", "evals/a"],
+			["estimate", "--suite=evals/a"],
+		]) {
+			const lines: string[] = [];
+			expect(
+				await main(argv, {
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(0);
+			expect(lines.join("\n")).toContain("total");
+		}
+	});
+
+	test("--suite with no path, and --suite naming a suite that is not registered, are reported as errors", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		const missingPath: string[] = [];
+		expect(
+			await main(["estimate", "--suite"], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => missingPath.push(line),
+			}),
+		).toBe(2);
+		expect(missingPath).toEqual([
+			"error: --suite needs a path: --suite <path>",
+		]);
+		const unregistered: string[] = [];
+		expect(
+			await main(["estimate", "--suite", "evals/zzz"], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => unregistered.push(line),
+			}),
+		).toBe(2);
+		expect(unregistered.join("\n")).toContain(
+			'error: suite "evals/zzz" is not registered in',
+		);
+		expect(unregistered.join("\n")).toContain(
+			"registered: evals/a. If it exists, add its path to suites: in forge.yaml (for example `suites: [evals/zzz]`, or a `- evals/zzz` line under suites:)",
+		);
+	});
+
+	test("a forge.yaml that does not parse is a ForgeError naming the file, exit 1", async () => {
+		const root = await projectWith("version: 2\n");
+		const lines: string[] = [];
+		expect(
+			await main(["estimate"], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(1);
+		expect(lines.join("\n")).toContain("forge.yaml");
+	});
+
+	test("a programming error is not flattened into an error line", async () => {
+		const outside = await mkdtemp(join(tmpdir(), "forge-outside-"));
+		await expect(
+			main(["describe"], {
+				cwd: outside,
+				env: { FORGE_DRAFTER: MODEL },
+				stdin: async () => {
+					throw new TypeError("a bug, not a message");
+				},
+				stdout: () => {},
+			}),
+		).rejects.toBeInstanceOf(TypeError);
+	});
+
+	test("a verb run outside any project is not refused by the suite guard", async () => {
+		const outside = await mkdtemp(join(tmpdir(), "forge-outside-"));
+		const lines: string[] = [];
+		await main(["estimate"], {
+			cwd: outside,
+			env: {},
+			stdin: async () => "",
+			stdout: (line) => lines.push(line),
+		});
+		expect(lines.join("\n")).not.toContain("no suite here");
+		expect(lines.join("\n")).toContain("feature.yaml");
+	});
+
+	test("inside a project with no .forge, a word that is not a verb gets the usage, not the suite guard", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		for (const word of ["frobnicate", "toString"]) {
+			const lines: string[] = [];
+			expect(
+				await main([word], {
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(2);
+			expect(lines.join("\n")).toContain("usage: llm-tests-forge");
+			expect(lines.join("\n")).not.toContain("no suite here");
+		}
+	});
+
+	test("inside a project with no .forge, no verb at all gets the usage, not the suite guard", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		const lines: string[] = [];
+		expect(
+			await main([], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(2);
+		expect(lines.join("\n")).toContain("usage: llm-tests-forge");
+		expect(lines.join("\n")).not.toContain("no suite here");
+	});
+
+	test("help and version are answered even when forge.yaml is malformed, in a project with no .forge", async () => {
+		const root = await projectWith("version: 2\n");
+		for (const [word, expected] of [
+			["--help", "usage: llm-tests-forge"],
+			["help", "usage: llm-tests-forge"],
+			["--version", FORGE_VERSION],
+			["version", FORGE_VERSION],
+		] as const) {
+			const lines: string[] = [];
+			expect(
+				await main([word], {
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(0);
+			expect(lines.join("\n")).toContain(expected);
+		}
+	});
+
+	test("help, version and guide after --suite are still answered when forge.yaml is malformed", async () => {
+		const root = await projectWith("version: 2\n");
+		for (const [argv, expected] of [
+			[["--suite", "evals/x", "--help"], "usage: llm-tests-forge"],
+			[["--suite=evals/x", "help"], "usage: llm-tests-forge"],
+			[["--suite", "evals/x", "version"], FORGE_VERSION],
+			[["--suite", "evals/x", "guide"], "approving is the person's job"],
+		] as const) {
+			const lines: string[] = [];
+			expect(
+				await main([...argv], {
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(0);
+			expect(lines.join("\n")).toContain(expected);
+		}
+	});
+
+	test("guide is answered even when forge.yaml is malformed, and does not stamp or warn", async () => {
+		const root = await projectWith("version: 2\n");
+		const lines: string[] = [];
+		expect(
+			await main(["guide"], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(0);
+		expect(lines.join("\n")).toContain("approving is the person's job");
+	});
+
+	test("guide exits 0 and opens with the rule that approving is the person's job", async () => {
+		const { context, out } = await ctxIn(
+			await mkdtemp(join(tmpdir(), "forge-guide-")),
+		);
+		expect(await run(["guide"], context)).toBe(0);
+		const guide = out.join("\n");
+		const firstParagraph = guide
+			.split(/\n\s*\n/)
+			.find((block) => !block.trimStart().startsWith("#"));
+		expect(firstParagraph).toContain("approving is the person's job");
+	});
+
+	test("the guide names every verb in USAGE, so a new verb without a guide entry fails", async () => {
+		const { context, out } = await ctxIn(
+			await mkdtemp(join(tmpdir(), "forge-guide-")),
+		);
+		await run(["guide"], context);
+		const guide = out.join("\n");
+		const verbs = USAGE.split("\n")
+			.map((line) => /^ {2}([a-z]+)\b/.exec(line)?.[1])
+			.filter((verb): verb is string => verb !== undefined);
+		expect(verbs).toContain("status");
+		expect(verbs).toContain("guide");
+		expect([...verbs].filter((verb) => verb !== "help").sort()).toEqual(
+			Object.keys(COMMANDS).sort(),
+		);
+		const everyVerb = guide.split("## Every verb")[1]?.split("\n## ")[0] ?? "";
+		for (const verb of [...verbs, "version"])
+			expect(everyVerb).toContain(`- \`llm-tests-forge ${verb}\`:`);
+	});
+
+	test("guide prints the manual first and neither warns about nor stamps an old suite", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-guide-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = join(forgeDirectory, "suite.yaml");
+		await writeFile(
+			path,
+			`forge_version: 0.0.1\n${await readFile(path, "utf8")}`,
+		);
+		const before = await readFile(path, "utf8");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["guide"], context)).toBe(0);
+		expect(out).toHaveLength(1);
+		expect(out[0]?.startsWith("# llm-tests-forge")).toBe(true);
+		expect(await readFile(path, "utf8")).toBe(before);
+	});
+
+	test("the skill and the marketplace file have the shape the plugin needs", async () => {
+		const skill = await readFile(
+			"plugin/skills/llm-tests-forge/SKILL.md",
+			"utf8",
+		);
+		const frontmatter = parse(/^---\n([\s\S]*?)\n---/.exec(skill)?.[1] ?? "");
+		expect(frontmatter.name).toBe("llm-tests-forge");
+		expect(frontmatter.description).toContain("create LLM tests");
+		expect(frontmatter.description).toContain("cria testes");
+		const marketplace = JSON.parse(
+			await readFile(".claude-plugin/marketplace.json", "utf8"),
+		);
+		expect(marketplace.plugins).toHaveLength(1);
+		expect(marketplace.plugins[0].source).toBe("./plugin");
+		const manifest = JSON.parse(
+			await readFile("plugin/.claude-plugin/plugin.json", "utf8"),
+		);
+		expect(manifest.version).toBe(FORGE_VERSION);
+	});
+
+	test("--suite is refused when it has no usable path, is repeated, or names a backslash path; what follows -- is left alone", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		const attempts: [string[], number, string][] = [
+			[
+				["estimate", "--suite="],
+				2,
+				"error: --suite needs a path: --suite <path>",
+			],
+			[
+				["estimate", "--suite", "--drafter", "x"],
+				2,
+				"error: --suite needs a path: --suite <path>",
+			],
+			[
+				["estimate", "--suite", "evals/a", "--suite=evals/a"],
+				2,
+				"error: --suite was given more than once; pass one path",
+			],
+			[
+				["estimate", "--suite", "evals\\a"],
+				2,
+				'error: suite "evals\\a" uses a backslash; write paths with forward slashes',
+			],
+		];
+		for (const [argv, exitCode, expected] of attempts) {
+			const lines: string[] = [];
+			expect(
+				await main(argv, {
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(exitCode);
+			expect(lines).toEqual([expected]);
+		}
+		const afterDashes: string[] = [];
+		await main(["describe", "--", "--suite", "evals/a"], {
+			cwd: root,
+			env: { FORGE_DRAFTER: MODEL },
+			stdin: async () => "",
+			stdout: (line) => afterDashes.push(line),
+		});
+		expect(afterDashes.join("\n")).not.toContain("--suite needs");
+		expect(afterDashes.join("\n")).not.toContain("not registered");
+	});
+
+	test("describe at the project root registers it as '.', once, and every verb still works afterwards", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: []\n",
+		);
+		const first: string[] = [];
+		expect(
+			await main(["describe", "classify hiring emails", "--drafter", MODEL], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => first.push(line),
+			}),
+		).toBe(0);
+		expect(
+			parse(await readFile(join(root, "forge.yaml"), "utf8")).suites,
+		).toEqual(["."]);
+		expect(first.join("\n")).toContain(
+			`describe: registered . in ${join(root, "forge.yaml")}`,
+		);
+		const project = await readProject(root);
+		expect(project.problems).toEqual([]);
+		expect(project.suites.map((suite) => suite.directory)).toEqual([root]);
+		const estimate: string[] = [];
+		expect(
+			await main(["estimate"], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => estimate.push(line),
+			}),
+		).toBe(1);
+		expect(estimate.join("\n")).not.toContain("forge.yaml");
+		const second: string[] = [];
+		expect(
+			await main(
+				["describe", "classify hiring emails", "--force", "--drafter", MODEL],
+				{
+					cwd: root,
+					env: {},
+					stdin: async () => "",
+					stdout: (line) => second.push(line),
+				},
+			),
+		).toBe(0);
+		expect(second.join("\n")).not.toContain("registered");
+		expect(
+			parse(await readFile(join(root, "forge.yaml"), "utf8")).suites,
+		).toEqual(["."]);
+	});
+
+	test("describe keeps an absolute --prompt-file absolute and rebases './prompt.txt' from inside the suite", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		const suiteDirectory = join(root, "evals", "a");
+		await mkdir(suiteDirectory, { recursive: true });
+		await writeFile(join(suiteDirectory, "prompt.txt"), "Classify the email.");
+		const outsideFile = join(root, "elsewhere.txt");
+		await writeFile(outsideFile, "Classify.");
+		const spellings: [string, string][] = [
+			[outsideFile, outsideFile],
+			["./prompt.txt", "prompt.txt"],
+		];
+		for (const [given, stored] of spellings) {
+			expect(
+				await main(
+					[
+						"describe",
+						"classify hiring emails",
+						"--force",
+						"--prompt-file",
+						given,
+						"--drafter",
+						MODEL,
+					],
+					{
+						cwd: suiteDirectory,
+						env: {},
+						stdin: async () => "",
+						stdout: () => {},
+					},
+				),
+			).toBe(0);
+			expect(
+				(await readFeature(join(suiteDirectory, ".forge"))).prompt_file,
+			).toBe(stored);
+		}
+	});
+
+	test("the drafter falls back to defaults.drafter in forge.yaml, after --drafter and FORGE_DRAFTER", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\ndefaults:\n  drafter: fake/from-project\n",
+		);
+		const project = await readProject(root);
+		expect(
+			createContext({ cwd: root, project, env: {}, stdin: async () => "" })
+				.drafter,
+		).toBe("fake/from-project");
+		expect(
+			createContext({
+				cwd: root,
+				project,
+				env: { FORGE_DRAFTER: "fake/env" },
+				stdin: async () => "",
+			}).drafter,
+		).toBe("fake/env");
+		// An empty FORGE_DRAFTER is unset, so defaults.drafter still applies.
+		expect(
+			createContext({
+				cwd: root,
+				project,
+				env: { FORGE_DRAFTER: "" },
+				stdin: async () => "",
+			}).drafter,
+		).toBe("fake/from-project");
+		expect(
+			createContext({
+				cwd: root,
+				project,
+				drafter: "fake/flag",
+				env: { FORGE_DRAFTER: "fake/env" },
+				stdin: async () => "",
+			}).drafter,
+		).toBe("fake/flag");
+	});
+
+	test("describe in an unregistered directory of a project registers it, keeps forge.yaml's comments, and writes a starting suite.yaml from the defaults", async () => {
+		const root = await projectWith(
+			"# keep me\nversion: 1\nlanguage: python\nsuites: []\ndefaults:\n  target_models: [anthropic/claude-haiku-4-5]\n  judges: [google/gemini-3.5-flash]\n",
+		);
+		const suiteDirectory = join(root, "evals", "new");
+		await mkdir(suiteDirectory, { recursive: true });
+		const lines: string[] = [];
+		const exitCode = await main(
+			["describe", "classify hiring emails", "--drafter", MODEL],
+			{
+				cwd: suiteDirectory,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			},
+		);
+		expect(exitCode).toBe(0);
+		const projectText = await readFile(join(root, "forge.yaml"), "utf8");
+		expect(projectText).toContain("# keep me");
+		expect(parse(projectText).suites).toEqual(["evals/new"]);
+		expect(lines.join("\n")).toContain(
+			`describe: registered evals/new in ${join(root, "forge.yaml")}`,
+		);
+		expect(lines.join("\n")).toContain("from forge.yaml's defaults");
+		const suite = await readSuite(join(suiteDirectory, ".forge"));
+		expect(suite.target).toEqual({
+			kind: "python",
+			entry: "forge_target.py",
+			models: ["anthropic/claude-haiku-4-5"],
+		});
+		expect(suite.judges).toEqual(["google/gemini-3.5-flash"]);
+		expect(suite.repeat).toBe(1);
+		expect(suite.include).toEqual([]);
+	});
+
+	test("describe leaves an existing suite.yaml and an already registered suite alone", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/new]\ndefaults:\n  target_models: [m/x]\n  judges: [m/y]\n",
+		);
+		const suiteDirectory = join(root, "evals", "new");
+		await mkdir(join(suiteDirectory, ".forge"), { recursive: true });
+		const existing = "target:\n  kind: ruby\n  models: [m/z]\njudges: [m/j]\n";
+		await writeFile(join(suiteDirectory, ".forge", "suite.yaml"), existing);
+		const lines: string[] = [];
+		expect(
+			await main(["describe", "classify hiring emails", "--drafter", MODEL], {
+				cwd: suiteDirectory,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(0);
+		expect(
+			await readFile(join(suiteDirectory, ".forge", "suite.yaml"), "utf8"),
+		).toBe(`${existing}forge_version: ${FORGE_VERSION}\n`);
+		expect(lines.join("\n")).not.toContain("registered evals/new");
+		expect(lines.join("\n")).not.toContain("from forge.yaml's defaults");
+	});
+
+	test("describe writes no starting suite.yaml when a default is missing or the language is other, and still registers the suite", async () => {
+		for (const projectText of [
+			"version: 1\nlanguage: python\ndefaults:\n  judges: [google/gemini-3.5-flash]\n",
+			"version: 1\nlanguage: python\ndefaults:\n  target_models: [m/x]\n",
+			"version: 1\nlanguage: other\ndefaults:\n  target_models: [m/x]\n  judges: [m/y]\n",
+		]) {
+			const root = await projectWith(projectText);
+			const suiteDirectory = join(root, "evals", "new");
+			await mkdir(suiteDirectory, { recursive: true });
+			expect(
+				await main(["describe", "classify hiring emails", "--drafter", MODEL], {
+					cwd: suiteDirectory,
+					env: {},
+					stdin: async () => "",
+					stdout: () => {},
+				}),
+			).toBe(0);
+			expect(
+				await Bun.file(join(suiteDirectory, ".forge", "suite.yaml")).exists(),
+			).toBe(false);
+			expect(
+				parse(await readFile(join(root, "forge.yaml"), "utf8")).suites,
+			).toEqual(["evals/new"]);
+		}
+	});
+
+	test("describe --suite evals/a --prompt-file prompts/p.txt from the project root stores the path that resolves from evals/a to the same file", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		await mkdir(join(root, "evals", "a"), { recursive: true });
+		await mkdir(join(root, "prompts"), { recursive: true });
+		await writeFile(join(root, "prompts", "p.txt"), "Classify the email.");
+		expect(
+			await main(
+				[
+					"describe",
+					"classify hiring emails",
+					"--suite",
+					"evals/a",
+					"--prompt-file",
+					"prompts/p.txt",
+					"--drafter",
+					MODEL,
+				],
+				{ cwd: root, env: {}, stdin: async () => "", stdout: () => {} },
+			),
+		).toBe(0);
+		const feature = await readFeature(join(root, "evals", "a", ".forge"));
+		expect(feature.prompt_file).toBe(join("..", "..", "prompts", "p.txt"));
+		const stored = feature.prompt_file ?? "";
+		expect(resolve(root, "evals", "a", stored)).toBe(
+			join(root, "prompts", "p.txt"),
+		);
+	});
+});
+
+describe("the version stamp and the version warning", () => {
+	const OLDER_WARNING = `warning: this suite was written by llm-tests-forge 0.0.1; installed is ${FORGE_VERSION}`;
+
+	async function stampWith(forgeDirectory: string, stamp: string | undefined) {
+		const path = join(forgeDirectory, "suite.yaml");
+		const text = await readFile(path, "utf8");
+		await writeFile(
+			path,
+			stamp === undefined ? text : `forge_version: ${stamp}\n${text}`,
+		);
+		return path;
+	}
+
+	test("emit on a suite stamped by an older version warns first, then leaves forge_version at the installed one", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = await stampWith(forgeDirectory, "0.0.1");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(out[0]).toBe(OLDER_WARNING);
+		expect(await readFile(path, "utf8")).toContain(
+			`forge_version: ${FORGE_VERSION}`,
+		);
+		expect(await readFile(path, "utf8")).not.toContain("0.0.1");
+	});
+	test("estimate warns and does not change suite.yaml", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = await stampWith(forgeDirectory, "0.0.1");
+		const before = await readFile(path, "utf8");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], context)).toBe(0);
+		expect(out[0]).toBe(OLDER_WARNING);
+		expect(await readFile(path, "utf8")).toBe(before);
+	});
+	test("a suite stamped by a newer version says to upgrade and keeps its stamp after emit", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = await stampWith(forgeDirectory, "999.0.0");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(out[0]).toBe(
+			`warning: this suite was written by llm-tests-forge 999.0.0, newer than the installed ${FORGE_VERSION}; upgrade llm-tests-forge before changing it`,
+		);
+		expect(await readFile(path, "utf8")).toContain("forge_version: 999.0.0");
+	});
+	test("a suite with no stamp gets no warning, and a writing verb stamps it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
+		expect((await readSuite(forgeDirectory)).forge_version).toBe(FORGE_VERSION);
+	});
+	test("a verb that fails does not stamp", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeSuite(forgeDirectory, SUITE);
+		const path = join(forgeDirectory, "suite.yaml");
+		const before = await readFile(path, "utf8");
+		const { context } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(1);
+		expect(await readFile(path, "utf8")).toBe(before);
+	});
+	test("a suite.yaml that does not parse is left to the verb's own error, with no warning", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = join(forgeDirectory, "suite.yaml");
+		await writeFile(path, "forge_version: 0.0.1\ntarget: [unclosed\n");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(1);
+		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
+		expect(out.at(-1)).toContain(path);
+	});
+	test("a verb that never reads suite.yaml still succeeds when the stamp cannot: one warning, exit 0, the file left as it was", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await mkdir(forgeDirectory, { recursive: true });
+		const path = join(forgeDirectory, "suite.yaml");
+		const malformed = "target: [unclosed\n";
+		await writeFile(path, malformed);
+		const { context, out } = await ctxIn(cwd);
+		expect(
+			await run(["describe", "The bot classifies hiring emails"], context),
+		).toBe(0);
+		expect((await readFeature(forgeDirectory)).status).toBe("pending");
+		const warnings = out.filter((line) => line.startsWith("warning:"));
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0]).toStartWith(`warning: could not stamp ${path}: `);
+		expect(await readFile(path, "utf8")).toBe(malformed);
+	});
+	test("a legacy kind: promptfoo-python is rewritten as python by a writing verb", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = join(forgeDirectory, "suite.yaml");
+		await writeFile(
+			path,
+			(await readFile(path, "utf8")).replace(
+				"kind: python",
+				"kind: promptfoo-python",
+			),
+		);
+		const { context } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		const text = await readFile(path, "utf8");
+		expect(text).toContain("kind: python");
+		expect(text).not.toContain("promptfoo-python");
+	});
+	test("an unknown verb neither warns nor stamps", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = await stampWith(forgeDirectory, "0.0.1");
+		const before = await readFile(path, "utf8");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["frobnicate"], context)).toBe(2);
+		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
+		expect(await readFile(path, "utf8")).toBe(before);
 	});
 });

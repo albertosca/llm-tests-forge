@@ -18,13 +18,17 @@ const feature: Feature = {
 	status: "approved",
 };
 
-const scn = (
+const makeScenario = (
 	id: string,
 	oracle: Oracle = "label",
 	status: Scenario["status"] = "approved",
 ): Scenario => ({ id, kind: "happy", oracle, description: `d ${id}`, status });
 
-const cs = (id: string, scenario: string, extra: Partial<Case> = {}): Case => ({
+const makeCase = (
+	id: string,
+	scenario: string,
+	extra: Partial<Case> = {},
+): Case => ({
 	id,
 	scenario,
 	input: { email: id },
@@ -36,7 +40,7 @@ const cs = (id: string, scenario: string, extra: Partial<Case> = {}): Case => ({
 
 const suiteWith = (include: string[]): Suite => ({
 	target: {
-		kind: "promptfoo-python",
+		kind: "python",
 		entry: "forge_target.py",
 		models: ["anthropic/claude-haiku-4-5"],
 	},
@@ -46,14 +50,14 @@ const suiteWith = (include: string[]): Suite => ({
 });
 
 const thrown = (run: () => unknown): ForgeError => {
-	let err: unknown;
+	let caught: unknown;
 	try {
 		run();
-	} catch (e) {
-		err = e;
+	} catch (error) {
+		caught = error;
 	}
-	expect(err).toBeInstanceOf(ForgeError);
-	return err as ForgeError;
+	expect(caught).toBeInstanceOf(ForgeError);
+	return caught as ForgeError;
 };
 
 describe("renameScenario", () => {
@@ -61,10 +65,16 @@ describe("renameScenario", () => {
 		const result = renameScenario({
 			from: "old",
 			to: "new",
-			scenarios: [scn("old", "rubric", "edited"), scn("keep")],
+			scenarios: [
+				makeScenario("old", "rubric", "edited"),
+				makeScenario("keep"),
+			],
 			cases: [
-				cs("old-01", "old"),
-				cs("old-02", "old", { duplicate_of: "old-01", status: "pending" }),
+				makeCase("old-01", "old"),
+				makeCase("old-02", "old", {
+					duplicate_of: "old-01",
+					status: "pending",
+				}),
 			],
 			suite: null,
 		});
@@ -79,9 +89,15 @@ describe("renameScenario", () => {
 				description: "d old",
 				status: "edited",
 			},
-			scn("keep"),
+			makeScenario("keep"),
 		]);
-		expect(result.cases.map((c) => [c.id, c.scenario, c.status])).toEqual([
+		expect(
+			result.cases.map((renamed) => [
+				renamed.id,
+				renamed.scenario,
+				renamed.status,
+			]),
+		).toEqual([
 			["new-01", "new", "approved"],
 			["new-02", "new", "pending"],
 		]);
@@ -96,61 +112,65 @@ describe("renameScenario", () => {
 	});
 
 	test("an unknown `from` is refused by name and nothing is rewritten", () => {
-		const err = thrown(() =>
+		const failure = thrown(() =>
 			renameScenario({
 				from: "ghost",
 				to: "new",
-				scenarios: [scn("old")],
+				scenarios: [makeScenario("old")],
 				cases: [],
 				suite: null,
 			}),
 		);
-		expect(err.message).toBe(
+		expect(failure.message).toBe(
 			'scenario "ghost" is not in scenarios.yaml (id: ghost)',
 		);
 	});
 
 	test("a `from` that scenarios.yaml holds twice is refused, so the twin is fixed rather than renamed along", () => {
-		const err = thrown(() =>
+		const failure = thrown(() =>
 			renameScenario({
 				from: "old",
 				to: "new",
-				scenarios: [scn("old"), scn("keep"), scn("old")],
+				scenarios: [
+					makeScenario("old"),
+					makeScenario("keep"),
+					makeScenario("old"),
+				],
 				cases: [],
 				suite: null,
 			}),
 		);
-		expect(err.message).toBe(
+		expect(failure.message).toBe(
 			'scenarios.yaml holds 2 entries under id "old"; fix the file first (id: old)',
 		);
 	});
 
 	test("a `to` another scenario already holds is refused by name", () => {
-		const err = thrown(() =>
+		const failure = thrown(() =>
 			renameScenario({
 				from: "old",
 				to: "taken",
-				scenarios: [scn("old"), scn("taken")],
+				scenarios: [makeScenario("old"), makeScenario("taken")],
 				cases: [],
 				suite: null,
 			}),
 		);
-		expect(err.message).toBe(
+		expect(failure.message).toBe(
 			'scenario "taken" already exists in scenarios.yaml; pick an id nothing else uses (id: taken)',
 		);
 	});
 
 	test("renaming a scenario onto its own id is refused as a taken id", () => {
-		const err = thrown(() =>
+		const failure = thrown(() =>
 			renameScenario({
 				from: "old",
 				to: "old",
-				scenarios: [scn("old")],
+				scenarios: [makeScenario("old")],
 				cases: [],
 				suite: null,
 			}),
 		);
-		expect(err.message).toBe(
+		expect(failure.message).toBe(
 			'scenario "old" already exists in scenarios.yaml; pick an id nothing else uses (id: old)',
 		);
 	});
@@ -159,7 +179,7 @@ describe("renameScenario", () => {
 		const result = renameScenario({
 			from: "old",
 			to: "new",
-			scenarios: [scn("old"), scn("keep")],
+			scenarios: [makeScenario("old"), makeScenario("keep")],
 			cases: [],
 			suite: suiteWith(["keep", "old"]),
 		});
@@ -172,7 +192,7 @@ describe("renameScenario", () => {
 		const result = renameScenario({
 			from: "old",
 			to: "new",
-			scenarios: [scn("old")],
+			scenarios: [makeScenario("old")],
 			cases: [],
 			suite: null,
 		});
@@ -183,24 +203,24 @@ describe("renameScenario", () => {
 		const result = renameScenario({
 			from: "old",
 			to: "new",
-			scenarios: [scn("old")],
-			cases: [cs("hand-written", "old")],
+			scenarios: [makeScenario("old")],
+			cases: [makeCase("hand-written", "old")],
 			suite: null,
 		});
-		expect(result.cases.map((c) => [c.id, c.scenario])).toEqual([
-			["hand-written", "new"],
-		]);
+		expect(
+			result.cases.map((renamed) => [renamed.id, renamed.scenario]),
+		).toEqual([["hand-written", "new"]]);
 		// Nothing was renumbered, so nothing is reported as renumbered.
 		expect([...result.renamedIds]).toEqual([]);
 	});
 
 	test("a case in the file that names another scenario is left exactly as it was", () => {
-		const foreign = cs("old-02", "elsewhere");
+		const foreign = makeCase("old-02", "elsewhere");
 		const result = renameScenario({
 			from: "old",
 			to: "new",
-			scenarios: [scn("old"), scn("elsewhere")],
-			cases: [cs("old-01", "old"), foreign],
+			scenarios: [makeScenario("old"), makeScenario("elsewhere")],
+			cases: [makeCase("old-01", "old"), foreign],
 			suite: null,
 		});
 		// A hand edit put it there and a rename is not the verb that fixes
@@ -216,32 +236,32 @@ describe("renameScenario refusals the file forces", () => {
 		// `old-01` becomes `new-01`, and a hand-written `new-01` sits in
 		// the same file: two entries under one id, which review resolves
 		// one over the other.
-		const err = thrown(() =>
+		const failure = thrown(() =>
 			renameScenario({
 				from: "old",
 				to: "new",
-				scenarios: [scn("old")],
-				cases: [cs("old-01", "old"), cs("new-01", "old")],
+				scenarios: [makeScenario("old")],
+				cases: [makeCase("old-01", "old"), makeCase("new-01", "old")],
 				suite: null,
 			}),
 		);
-		expect(err.message).toBe(
+		expect(failure.message).toBe(
 			"case old-01 would become new-01, an id the file already holds; rename one of them by hand first (id: old-01)",
 		);
 	});
 });
 
 describe("moveCase", () => {
-	const from = scn("old");
-	const to = scn("dest");
+	const from = makeScenario("old");
+	const destination = makeScenario("dest");
 
 	test("moves the case into the destination's numbering and out of the source file", () => {
 		const result = moveCase({
 			caseId: "old-02",
 			from,
-			to,
-			fromCases: [cs("old-01", "old"), cs("old-02", "old")],
-			toCases: [cs("dest-01", "dest"), cs("dest-02", "dest")],
+			to: destination,
+			fromCases: [makeCase("old-01", "old"), makeCase("old-02", "old")],
+			toCases: [makeCase("dest-01", "dest"), makeCase("dest-02", "dest")],
 			feature,
 		});
 		expect(result.moved.id).toBe("dest-03");
@@ -250,8 +270,10 @@ describe("moveCase", () => {
 		// already had stands.
 		expect(result.moved.status).toBe("approved");
 		expect(result.reopened).toBeNull();
-		expect(result.fromCases.map((c) => c.id)).toEqual(["old-01"]);
-		expect(result.toCases.map((c) => c.id)).toEqual([
+		expect(result.fromCases.map((remaining) => remaining.id)).toEqual([
+			"old-01",
+		]);
+		expect(result.toCases.map((arrived) => arrived.id)).toEqual([
 			"dest-01",
 			"dest-02",
 			"dest-03",
@@ -264,8 +286,8 @@ describe("moveCase", () => {
 		const result = moveCase({
 			caseId: "old-01",
 			from,
-			to: scn("dest", "rubric"),
-			fromCases: [cs("old-01", "old")],
+			to: makeScenario("dest", "rubric"),
+			fromCases: [makeCase("old-01", "old")],
 			toCases: [],
 			feature,
 		});
@@ -280,14 +302,14 @@ describe("moveCase", () => {
 	});
 
 	test("a case with no expected at all has nothing to re-check, and keeps its status", () => {
-		const imported = cs("old-01", "old", {
+		const imported = makeCase("old-01", "old", {
 			expected: undefined,
 			status: "pending",
 		});
 		const result = moveCase({
 			caseId: "old-01",
 			from,
-			to: scn("dest", "rubric"),
+			to: makeScenario("dest", "rubric"),
 			fromCases: [imported],
 			toCases: [],
 			feature,
@@ -301,11 +323,11 @@ describe("moveCase", () => {
 		const result = moveCase({
 			caseId: "old-02",
 			from,
-			to,
+			to: destination,
 			fromCases: [
-				cs("old-01", "old"),
-				cs("old-02", "old", { duplicate_of: "old-01" }),
-				cs("old-03", "old", { duplicate_of: "old-02" }),
+				makeCase("old-01", "old"),
+				makeCase("old-02", "old", { duplicate_of: "old-01" }),
+				makeCase("old-03", "old", { duplicate_of: "old-02" }),
 			],
 			toCases: [],
 			feature,
@@ -313,7 +335,12 @@ describe("moveCase", () => {
 		// `duplicate_of` names a case in the same file, and neither end of
 		// the pair is in the same file as the other any more.
 		expect("duplicate_of" in result.moved).toBe(false);
-		expect(result.fromCases.map((c) => [c.id, c.duplicate_of])).toEqual([
+		expect(
+			result.fromCases.map((remaining) => [
+				remaining.id,
+				remaining.duplicate_of,
+			]),
+		).toEqual([
 			["old-01", undefined],
 			["old-03", undefined],
 		]);
@@ -324,8 +351,8 @@ describe("moveCase", () => {
 		const result = moveCase({
 			caseId: "old-01",
 			from,
-			to: scn("dest", "rubric"),
-			fromCases: [cs("old-01", "old", { status: "rejected" })],
+			to: makeScenario("dest", "rubric"),
+			fromCases: [makeCase("old-01", "old", { status: "rejected" })],
 			toCases: [],
 			feature,
 		});
@@ -334,17 +361,17 @@ describe("moveCase", () => {
 	});
 
 	test("a destination case with the same input is refused, so a retried move cannot add a second copy", () => {
-		const err = thrown(() =>
+		const failure = thrown(() =>
 			moveCase({
 				caseId: "old-01",
 				from,
-				to,
-				fromCases: [cs("old-01", "old")],
-				toCases: [cs("dest-01", "dest", { input: { email: "old-01" } })],
+				to: destination,
+				fromCases: [makeCase("old-01", "old")],
+				toCases: [makeCase("dest-01", "dest", { input: { email: "old-01" } })],
 				feature,
 			}),
 		);
-		expect(err.message).toBe(
+		expect(failure.message).toBe(
 			'case "old-01" has the same input as "dest-01", already in scenario "dest"; delete one of them (id: old-01)',
 		);
 	});
@@ -352,37 +379,37 @@ describe("moveCase", () => {
 	test("a case id the source file holds twice is refused, so neither entry is dropped", () => {
 		// Moving "the" case took the first entry and removed every entry
 		// under the id from the source: one moved, one gone in silence.
-		const err = thrown(() =>
+		const failure = thrown(() =>
 			moveCase({
 				caseId: "old-01",
 				from,
-				to,
+				to: destination,
 				fromCases: [
-					cs("old-01", "old", { input: { email: "FIRST" } }),
-					cs("old-01", "old", { input: { email: "SECOND" } }),
-					cs("old-02", "old"),
+					makeCase("old-01", "old", { input: { email: "FIRST" } }),
+					makeCase("old-01", "old", { input: { email: "SECOND" } }),
+					makeCase("old-02", "old"),
 				],
 				toCases: [],
 				feature,
 			}),
 		);
-		expect(err.message).toBe(
+		expect(failure.message).toBe(
 			'cases file of scenario "old" holds 2 entries under id "old-01"; fix the file first (id: old-01)',
 		);
 	});
 
 	test("a case the source file does not hold is refused by name", () => {
-		const err = thrown(() =>
+		const failure = thrown(() =>
 			moveCase({
 				caseId: "old-09",
 				from,
-				to,
-				fromCases: [cs("old-01", "old")],
+				to: destination,
+				fromCases: [makeCase("old-01", "old")],
 				toCases: [],
 				feature,
 			}),
 		);
-		expect(err.message).toBe(
+		expect(failure.message).toBe(
 			'case "old-09" is not in scenario "old" (id: old-09)',
 		);
 	});
@@ -391,17 +418,17 @@ describe("moveCase", () => {
 		// The source and the destination are the same file: writing the
 		// destination and then removing the source would delete the file
 		// that was just written.
-		const err = thrown(() =>
+		const failure = thrown(() =>
 			moveCase({
 				caseId: "old-01",
 				from,
-				to: scn("old"),
-				fromCases: [cs("old-01", "old")],
-				toCases: [cs("old-01", "old")],
+				to: makeScenario("old"),
+				fromCases: [makeCase("old-01", "old")],
+				toCases: [makeCase("old-01", "old")],
 				feature,
 			}),
 		);
-		expect(err.message).toBe(
+		expect(failure.message).toBe(
 			'case "old-01" is already in scenario "old" (id: old-01)',
 		);
 	});

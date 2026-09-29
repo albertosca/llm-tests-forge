@@ -23,67 +23,67 @@ export interface EnumerateScenariosArgs {
 
 function uniqueId(base: string, taken: Set<string>): string {
 	let id = base;
-	let n = 2;
+	let suffix = 2;
 	while (taken.has(id)) {
-		id = `${base}-${n}`;
-		n += 1;
+		id = `${base}-${suffix}`;
+		suffix += 1;
 	}
 	taken.add(id);
 	return id;
 }
 
 export async function enumerateScenarios(
-	args: EnumerateScenariosArgs,
+	request: EnumerateScenariosArgs,
 ): Promise<Scenario[]> {
-	const wantedKinds = args.kinds ?? [...Kind.options];
-	const count = args.more ?? DEFAULT_COUNT;
+	const wantedKinds = request.kinds ?? [...Kind.options];
+	const count = request.more ?? DEFAULT_COUNT;
 	const coverage =
-		args.more === undefined
+		request.more === undefined
 			? `, with at least one of each kind: ${wantedKinds.join(", ")}`
 			: "";
-	const template = await loadTemplate("scenarios");
+	const template = loadTemplate("scenarios");
 	const prompt = render(template, {
-		feature: stringify(args.feature, { lineWidth: 0 }),
+		feature: stringify(request.feature, { lineWidth: 0 }),
 		count: String(count),
 		coverage,
 		existing:
-			args.existing.length > 0
+			request.existing.length > 0
 				? stringify(
-						args.existing.map((s) => ({
-							id: s.id,
-							kind: s.kind,
-							description: s.description,
+						request.existing.map((scenario) => ({
+							id: scenario.id,
+							kind: scenario.kind,
+							description: scenario.description,
 						})),
 						{ lineWidth: 0 },
 					)
 				: "(none)",
 	});
-	const { object } = await args.llm.generate({
+	const { object } = await request.llm.generate({
 		schema: ScenariosOutputSchema,
 		prompt,
-		model: args.model,
+		model: request.model,
 		verb: "scenarios",
 	});
 	if (object.scenarios.length === 0)
 		throw new ForgeError("the model returned zero scenarios", {
-			id: args.feature.id,
+			id: request.feature.id,
 		});
 
-	if (args.more === undefined) {
-		const present = new Set(object.scenarios.map((s) => s.kind));
-		const missing = wantedKinds.filter((k) => !present.has(k));
+	if (request.more === undefined) {
+		const present = new Set(object.scenarios.map((scenario) => scenario.kind));
+		const missing = wantedKinds.filter((kind) => !present.has(kind));
 		if (missing.length > 0)
 			throw new ForgeError(
 				`generated scenarios miss these kinds: ${missing.join(", ")}; rerun, or restrict with --kinds`,
-				{ id: args.feature.id },
+				{ id: request.feature.id },
 			);
 	}
 
-	const taken = new Set(args.existing.map((s) => s.id));
-	const fresh: Scenario[] = object.scenarios.map((s) => ({
-		...s,
-		id: uniqueId(slugify(s.id) || "scenario", taken),
+	const taken = new Set(request.existing.map((scenario) => scenario.id));
+	const fresh: Scenario[] = object.scenarios.map((scenario) => ({
+		...scenario,
+		id: uniqueId(slugify(scenario.id) || "scenario", taken),
 		status: "pending",
 	}));
-	return [...args.existing, ...fresh];
+	return [...request.existing, ...fresh];
 }

@@ -1,0 +1,28 @@
+# promptfoo exec target written by `llm-tests-forge emit`.
+# Feature: {{feature_id}}
+#
+# promptfoo runs `ruby forge_target.rb` from .forge/, once per test case
+# and per target model, with three arguments: the prompt, the provider
+# options as JSON, and the context as JSON. Fill in `run_application`:
+# require your own code (require_relative from this file) and return the
+# output (a String, or anything JSON can generate).
+# Standard output is the answer, so log to standard error. A failure (an
+# exception, or exit status 1 with the message on standard error) shows in
+# promptfoo 0.123 as an error row ([ERROR], counted under errors, not under
+# failed), not as a failed assert.
+# This file is written once and never overwritten.
+
+require "json"
+
+INPUTS = {{input_names}}.freeze
+
+def run_application(inputs, model)
+  raise NotImplementedError, "edit forge_target.rb: call your application here"
+end
+
+_prompt, options_json, context_json = ARGV
+vars = JSON.parse(context_json).fetch("vars", {})
+inputs = INPUTS.to_h { |name| [name, vars.fetch(name, "")] }
+model = JSON.parse(options_json).dig("config", "model") || "default"
+output = run_application(inputs, model)
+print(output.is_a?(String) ? output : JSON.generate(output))

@@ -1,4 +1,4 @@
-# Written by forge emit; edit suite.yaml and re-run instead of editing this file.
+# Written by llm-tests-forge emit; edit suite.yaml and re-run instead of editing this file.
 description: "extract-job-application-questions: forge suite, 42 cases from 14 scenarios"
 prompts:
   - "{{page}}"

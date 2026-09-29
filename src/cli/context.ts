@@ -1,11 +1,16 @@
 import { join } from "node:path";
 import { UsageError } from "../core/errors";
+import type { Project } from "../core/project";
 import { createLlm, type Llm } from "../llm/generate";
 
 export interface CliContext {
-	forgeDir: string;
+	/** The directory the command was run from. */
+	cwd: string;
+	forgeDirectory: string;
+	/** The forge.yaml the suite belongs to, or null outside a project. */
+	project: Project | null;
 	llm: Llm;
-	readonly model: string;
+	readonly drafter: string;
 	stdout: (line: string) => void;
 	stdin: () => Promise<string>;
 	/**
@@ -23,12 +28,16 @@ export interface CliContext {
 
 export interface CreateContextOptions {
 	cwd: string;
-	model?: string;
+	drafter?: string;
+	/** The suite's `.forge`; absent -> `<cwd>/.forge`. */
+	forgeDirectory?: string;
+	/** The project the suite belongs to; absent -> none. */
+	project?: Project | null;
 	env?: Record<string, string | undefined>;
 	/**
 	 * How to read one line of input. There is no real-terminal default
 	 * here on purpose: reading a real line (via `console`'s async
-	 * iterator) is I/O that only makes sense for the actual `forge`
+	 * iterator) is I/O that only makes sense for the actual `llm-tests-forge`
 	 * binary, so `src/cli/bin.ts` supplies that implementation and every
 	 * test supplies its own scripted one.
 	 */
@@ -39,17 +48,24 @@ export interface CreateContextOptions {
 
 export function createContext(options: CreateContextOptions): CliContext {
 	const environment = options.env ?? process.env;
-	const forgeDirectory = join(options.cwd, ".forge");
-	const model = options.model ?? environment.FORGE_MODEL;
+	const forgeDirectory = options.forgeDirectory ?? join(options.cwd, ".forge");
+	const project = options.project ?? null;
+	// An empty FORGE_DRAFTER="" is unset, not a choice: it must not hide defaults.drafter.
+	const drafter =
+		options.drafter ??
+		(environment.FORGE_DRAFTER || undefined) ??
+		project?.config.defaults.drafter;
 	return {
-		forgeDir: forgeDirectory,
-		llm: createLlm({ forgeDir: forgeDirectory }),
-		get model(): string {
-			if (!model)
+		cwd: options.cwd,
+		forgeDirectory,
+		project,
+		llm: createLlm({ forgeDirectory }),
+		get drafter(): string {
+			if (!drafter)
 				throw new UsageError(
-					"no model: pass --model provider/model or set FORGE_MODEL",
+					"no drafter: pass --drafter provider/model, set FORGE_DRAFTER, or set defaults.drafter in forge.yaml",
 				);
-			return model;
+			return drafter;
 		},
 		stdout: (line) => console.log(line),
 		stdin: options.stdin,

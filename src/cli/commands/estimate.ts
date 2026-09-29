@@ -31,30 +31,33 @@ import { requireApprovedFeature } from "../gates";
  * flattening every cause into "not readable".
  */
 export async function promptTokensFor(
-	forgeDir: string,
+	forgeDirectory: string,
 	promptFile: string | undefined,
 ): Promise<number> {
 	if (promptFile === undefined) return 0;
-	const path = resolve(forgeDir, "..", promptFile);
-	const text = await readFile(path, "utf8").catch((e: unknown) => {
-		throw new ForgeError(`prompt_file ${readFailure(e)}`, { file: path });
+	const path = resolve(forgeDirectory, "..", promptFile);
+	const text = await readFile(path, "utf8").catch((error: unknown) => {
+		throw new ForgeError(`prompt_file ${readFailure(error)}`, { file: path });
 	});
 	return approxTokens(text);
 }
 
 export async function estimateCommand(
-	args: string[],
-	ctx: CliContext,
+	commandArguments: string[],
+	context: CliContext,
 ): Promise<void> {
-	parseArgs({ args, options: {} });
-	const paths = forgePaths(ctx.forgeDir);
-	const feature = await readFeature(ctx.forgeDir);
+	parseArgs({ args: commandArguments, options: {} });
+	const paths = forgePaths(context.forgeDirectory);
+	const feature = await readFeature(context.forgeDirectory);
 	requireApprovedFeature(feature, paths.feature);
-	const suite = await readSuite(ctx.forgeDir);
+	const suite = await readSuite(
+		context.forgeDirectory,
+		context.project?.config.language,
+	);
 	const selection = selectCases({
 		suite,
-		scenarios: await readScenarios(ctx.forgeDir),
-		casesByScenario: await readAllCases(ctx.forgeDir),
+		scenarios: await readScenarios(context.forgeDirectory),
+		casesByScenario: await readAllCases(context.forgeDirectory),
 		paths,
 		feature,
 	});
@@ -62,7 +65,7 @@ export async function estimateCommand(
 	// run is free" when it means "this run has nothing in it".
 	if (selection.cases.length === 0)
 		throw new ForgeError(
-			"no approved case to estimate; run `forge review` first",
+			"no approved case to estimate; run `llm-tests-forge review` first",
 			{ file: paths.casesDir },
 		);
 	const estimate = estimateSuite({
@@ -70,18 +73,23 @@ export async function estimateCommand(
 		selection,
 		feature,
 		prices: await loadPrices(),
-		promptTokens: await promptTokensFor(ctx.forgeDir, feature.prompt_file),
+		promptTokens: await promptTokensFor(
+			context.forgeDirectory,
+			feature.prompt_file,
+		),
 	});
-	ctx.stdout(renderEstimate(estimate));
+	context.stdout(renderEstimate(estimate));
 	if (selection.blockers.length > 0) {
-		const n = selection.blockers.length;
+		const count = selection.blockers.length;
 		// Same rule as `emit`: a rejected item was already decided, so
-		// pointing at `forge review` for it would be wrong advice.
+		// pointing at `llm-tests-forge review` for it would be wrong advice.
 		const hint =
 			selection.reviewable > 0
-				? `; run \`forge review\` to include ${n === 1 ? "it" : "them"}`
+				? `; run \`llm-tests-forge review\` to include ${count === 1 ? "it" : "them"}`
 				: "";
-		ctx.stdout(`estimate: ${n} item${n === 1 ? "" : "s"} excluded${hint}:`);
-		for (const b of selection.blockers) ctx.stdout(`  ${b}`);
+		context.stdout(
+			`estimate: ${count} item${count === 1 ? "" : "s"} excluded${hint}:`,
+		);
+		for (const blocker of selection.blockers) context.stdout(`  ${blocker}`);
 	}
 }

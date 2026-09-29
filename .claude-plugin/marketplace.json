@@ -1,0 +1,12 @@
+{
+	"name": "llm-tests-forge",
+	"description": "Claude Code plugins for llm-tests-forge, which forges reviewed promptfoo suites for LLM features",
+	"owner": { "name": "albertosca" },
+	"plugins": [
+		{
+			"name": "llm-tests-forge",
+			"source": "./plugin",
+			"description": "Operate llm-tests-forge from Claude Code"
+		}
+	]
+}

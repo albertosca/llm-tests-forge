@@ -1,10 +1,9 @@
-import { fileURLToPath } from "node:url";
-import { readYamlFile } from "../core/files";
+import embeddedPrices from "../../prices.yaml" with { type: "text" };
+import { parseYamlText, readYamlFile } from "../core/files";
 import { type Prices, PricesSchema } from "../core/schemas";
 
-export const PRICES_PATH = fileURLToPath(
-	new URL("../../prices.yaml", import.meta.url),
-);
+/** The name errors give the embedded table, which has no path on the disk. */
+const EMBEDDED_PRICES = "prices.yaml (embedded)";
 
 export interface ModelPrice {
 	input: number;
@@ -16,14 +15,21 @@ export interface ModelPrice {
 	priced: boolean;
 }
 
-export async function loadPrices(path: string = PRICES_PATH): Promise<Prices> {
+export async function loadPrices(path?: string): Promise<Prices> {
+	if (path === undefined)
+		return parseYamlText(EMBEDDED_PRICES, String(embeddedPrices), PricesSchema);
 	return readYamlFile(path, PricesSchema);
 }
 
-function commonPrefix(a: string, b: string): number {
-	let i = 0;
-	while (i < a.length && i < b.length && a[i] === b[i]) i += 1;
-	return i;
+function commonPrefix(first: string, second: string): number {
+	let index = 0;
+	while (
+		index < first.length &&
+		index < second.length &&
+		first[index] === second[index]
+	)
+		index += 1;
+	return index;
 }
 
 /**
@@ -41,14 +47,14 @@ export function priceFor(model: string, prices: Prices): ModelPrice {
 	const provider = model.split("/")[0] ?? "";
 	let best: string | undefined;
 	let bestPrice: Prices["models"][string] | undefined;
-	let bestLen = -1;
+	let bestLength = -1;
 	for (const [name, price] of Object.entries(prices.models)) {
 		if (!name.startsWith(`${provider}/`)) continue;
-		const len = commonPrefix(name, model);
-		if (len > bestLen) {
+		const length = commonPrefix(name, model);
+		if (length > bestLength) {
 			best = name;
 			bestPrice = price;
-			bestLen = len;
+			bestLength = length;
 		}
 	}
 	if (best === undefined || bestPrice === undefined)

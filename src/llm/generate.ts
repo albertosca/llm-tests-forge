@@ -20,17 +20,19 @@ export interface GenerateArgs<T> {
 }
 
 export interface Llm {
-	generate<T>(args: GenerateArgs<T>): Promise<{ object: T; usage: Usage }>;
+	generate<T>(request: GenerateArgs<T>): Promise<{ object: T; usage: Usage }>;
 }
 
 export interface CreateLlmOptions {
-	forgeDir: string;
+	forgeDirectory: string;
 	resolve?: (spec: string) => ResolvedModel;
 	now?: () => Date;
 }
 
 function isStringArray(value: unknown): value is string[] {
-	return Array.isArray(value) && value.every((v) => typeof v === "string");
+	return (
+		Array.isArray(value) && value.every((item) => typeof item === "string")
+	);
 }
 
 /**
@@ -51,8 +53,8 @@ async function fakeModel(
 	let responses: Record<string, unknown>;
 	try {
 		responses = JSON.parse(text) as Record<string, unknown>;
-	} catch (e) {
-		throw new ForgeError(`invalid JSON: ${(e as Error).message}`, {
+	} catch (error) {
+		throw new ForgeError(`invalid JSON: ${(error as Error).message}`, {
 			file: path,
 		});
 	}
@@ -70,14 +72,14 @@ async function fakeModel(
 	let reply: string;
 	if (Array.isArray(entry)) {
 		const key = `${path}::${verb}`;
-		const i = cursors.get(key) ?? 0;
-		const picked = entry[Math.min(i, entry.length - 1)];
+		const position = cursors.get(key) ?? 0;
+		const picked = entry[Math.min(position, entry.length - 1)];
 		if (picked === undefined)
 			throw new ForgeError(`fake responses entry for "${verb}" is empty`, {
 				file: path,
 			});
 		reply = picked;
-		cursors.set(key, i + 1);
+		cursors.set(key, position + 1);
 	} else {
 		reply = entry;
 	}
@@ -94,10 +96,10 @@ async function fakeModel(
 	});
 }
 
-export function createLlm(opts: CreateLlmOptions): Llm {
-	const paths = forgePaths(opts.forgeDir);
-	const now = opts.now ?? (() => new Date());
-	const resolve = opts.resolve ?? resolveModel;
+export function createLlm(options: CreateLlmOptions): Llm {
+	const paths = forgePaths(options.forgeDirectory);
+	const now = options.now ?? (() => new Date());
+	const resolve = options.resolve ?? resolveModel;
 	/** This instance's position in each fake response sequence. */
 	const fakeCursors = new Map<string, number>();
 
@@ -109,14 +111,14 @@ export function createLlm(opts: CreateLlmOptions): Llm {
 	}
 
 	return {
-		async generate<T>(args: GenerateArgs<T>) {
-			const model = await pickModel(args.model, args.verb);
-			const ts = now().toISOString();
+		async generate<T>(request: GenerateArgs<T>) {
+			const model = await pickModel(request.model, request.verb);
+			const timestamp = now().toISOString();
 			try {
 				const result = await generateObject({
 					model,
-					schema: args.schema,
-					prompt: args.prompt,
+					schema: request.schema,
+					prompt: request.prompt,
 				});
 				const usage: Usage = {
 					inputTokens: result.usage.inputTokens ?? 0,
@@ -125,23 +127,23 @@ export function createLlm(opts: CreateLlmOptions): Llm {
 				await mkdir(paths.root, { recursive: true });
 				await appendFile(
 					paths.usage,
-					`${JSON.stringify({ ts, verb: args.verb, model: args.model, ...usage })}\n`,
+					`${JSON.stringify({ ts: timestamp, verb: request.verb, model: request.model, ...usage })}\n`,
 				);
 				return { object: result.object, usage };
-			} catch (e) {
-				if (NoObjectGeneratedError.isInstance(e)) {
+			} catch (error) {
+				if (NoObjectGeneratedError.isInstance(error)) {
 					await mkdir(paths.failuresDir, { recursive: true });
 					const rawPath = join(
 						paths.failuresDir,
-						`${args.verb}-${ts.replace(/:/g, "-")}.txt`,
+						`${request.verb}-${timestamp.replace(/:/g, "-")}.txt`,
 					);
-					await writeFile(rawPath, e.text ?? "", "utf8");
+					await writeFile(rawPath, error.text ?? "", "utf8");
 					throw new ForgeError(
-						`model output did not match the ${args.verb} schema: ${e.message}`,
+						`model output did not match the ${request.verb} schema: ${error.message}`,
 						{ rawPath },
 					);
 				}
-				throw e;
+				throw error;
 			}
 		},
 	};

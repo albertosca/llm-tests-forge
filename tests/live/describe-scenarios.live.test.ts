@@ -2,7 +2,7 @@
  * One real call per verb against a live model. Off by default; run with
  * `bun run test:live` (sets FORGE_LIVE=1).
  *
- * Default model: google/gemini-3.5-flash. Override with FORGE_MODEL to
+ * Default model: google/gemini-3.5-flash. Override with FORGE_DRAFTER to
  * point at a different provider/model. GOOGLE_API_KEY comes from the shell
  * or, when the shell does not export it, from ~/.config/google/api.env
  * (loaded by `tests/live/preload.ts`) -- a key in neither place fails this
@@ -36,7 +36,7 @@ import { expectedMatchesOracle } from "../../src/core/oracle";
 import { DEFAULT_RETRY_CONFIG, retryTransient } from "./retry";
 
 const live = process.env.FORGE_LIVE === "1";
-const model = process.env.FORGE_MODEL ?? "google/gemini-3.5-flash";
+const model = process.env.FORGE_DRAFTER ?? "google/gemini-3.5-flash";
 
 const MISSING_GOOGLE_KEY =
 	"GOOGLE_API_KEY is not set. Export it before running `bun run test:live` " +
@@ -54,19 +54,23 @@ describe.skipIf(!live)(
 				throw new Error(MISSING_GOOGLE_KEY);
 
 			const cwd = await mkdtemp(join(tmpdir(), "forge-live-"));
-			const ctx = createContext({ cwd, model, stdin: async () => "" });
+			const context = createContext({
+				cwd,
+				drafter: model,
+				stdin: async () => "",
+			});
 			const out: string[] = [];
-			ctx.stdout = (l) => out.push(l);
+			context.stdout = (line) => out.push(line);
 
 			await retryTransient(
-				"`forge describe`",
+				"`llm-tests-forge describe`",
 				async () => ({
 					code: await run(
 						[
 							"describe",
 							"The bot receives one hiring-process email (from, subject, body) and classifies it as rejection, acknowledgement, interview, screening, offer, info_request or unrelated, answering JSON only. Automated confirmations are acknowledgement, never screening.",
 						],
-						ctx,
+						context,
 					),
 					message: out.at(-1) ?? "(no output)",
 				}),
@@ -80,55 +84,63 @@ describe.skipIf(!live)(
 			});
 
 			await retryTransient(
-				"`forge scenarios`",
+				"`llm-tests-forge scenarios`",
 				async () => ({
-					code: await run(["scenarios"], ctx),
+					code: await run(["scenarios"], context),
 					message: out.at(-1) ?? "(no output)",
 				}),
 				DEFAULT_RETRY_CONFIG,
 			);
 			const scenarios = await readScenarios(join(cwd, ".forge"));
-			expect(new Set(scenarios.map((s) => s.kind)).size).toBe(6);
+			expect(new Set(scenarios.map((scenario) => scenario.kind)).size).toBe(6);
 
 			const target = scenarios[0];
 			if (!target)
-				throw new Error("expected `forge scenarios` to write at least one");
+				throw new Error(
+					"expected `llm-tests-forge scenarios` to write at least one",
+				);
 			await writeScenarios(join(cwd, ".forge"), [
 				{ ...target, status: "approved" },
 				...scenarios.slice(1),
 			]);
 
 			await retryTransient(
-				"`forge cases`",
+				"`llm-tests-forge cases`",
 				async () => ({
-					code: await run(["cases", "--scenario", target.id, "--n", "2"], ctx),
+					code: await run(
+						["cases", "--scenario", target.id, "--n", "2"],
+						context,
+					),
 					message: out.at(-1) ?? "(no output)",
 				}),
 				DEFAULT_RETRY_CONFIG,
 			);
 			const cases = await readCases(join(cwd, ".forge"), target.id);
 			if (cases.length === 0)
-				throw new Error("expected `forge cases` to write at least one case");
-			for (const c of cases) {
+				throw new Error(
+					"expected `llm-tests-forge cases` to write at least one case",
+				);
+			for (const kase of cases) {
 				for (const inputDef of feature.inputs) {
-					const value = c.input[inputDef.name];
+					const value = kase.input[inputDef.name];
 					if (typeof value !== "string" || value.length === 0)
 						throw new Error(
-							`case ${c.id} input.${inputDef.name} must be a non-empty string, got ${JSON.stringify(value)}`,
+							`case ${kase.id} input.${inputDef.name} must be a non-empty string, got ${JSON.stringify(value)}`,
 						);
 				}
-				if (!c.expected) throw new Error(`case ${c.id} has no expected value`);
+				if (!kase.expected)
+					throw new Error(`case ${kase.id} has no expected value`);
 				const problem = expectedMatchesOracle(
-					c.expected,
+					kase.expected,
 					target.oracle,
 					feature,
 				);
-				if (problem) throw new Error(`case ${c.id}: ${problem}`);
+				if (problem) throw new Error(`case ${kase.id}: ${problem}`);
 			}
 
 			console.log(out.join("\n"));
 			console.log(
-				`cases: generated ${cases.length} case(s) for scenario "${target.id}": ${cases.map((c) => c.id).join(", ")}`,
+				`cases: generated ${cases.length} case(s) for scenario "${target.id}": ${cases.map((kase) => kase.id).join(", ")}`,
 			);
 		}, 300_000);
 	},

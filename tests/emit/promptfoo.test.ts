@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "yaml";
 import { ForgeError } from "../../src/core/errors";
 import type { Case, Feature, Scenario, Suite } from "../../src/core/schemas";
+import { SuiteSchema } from "../../src/core/schemas";
 import type { Selection } from "../../src/core/select";
 import {
 	buildPromptfooConfig,
+	httpTargetModelWarning,
 	renderPromptfooConfig,
 	TOLERANT_PARSE,
 } from "../../src/emit/promptfoo";
@@ -28,7 +30,7 @@ const jsonFeature: Feature = {
 };
 const suite: Suite = {
 	target: {
-		kind: "promptfoo-python",
+		kind: "python",
 		entry: "forge_target.py",
 		models: ["anthropic/claude-haiku-4-5", "google/gemini-3.5-flash"],
 		python: ".venv/bin/python",
@@ -92,6 +94,175 @@ function reasonOf(result: true | Failure): string {
 }
 
 describe("buildPromptfooConfig", () => {
+	test("each target kind emits the provider promptfoo 0.123 calls for it", () => {
+		const withTarget = (target: Record<string, unknown>) => ({
+			...suite,
+			target: { models: ["anthropic/claude-haiku-4-5"], ...target },
+		});
+		const providerFor = (target: Record<string, unknown>, command?: string) =>
+			buildPromptfooConfig({
+				feature: jsonFeature,
+				suite: SuiteSchema.parse(withTarget(target)),
+				selection,
+				command,
+			}).providers[0];
+		expect(providerFor({ kind: "python", python: ".venv/bin/python" })).toEqual(
+			{
+				id: "file://forge_target.py",
+				label: "anthropic/claude-haiku-4-5",
+				config: {
+					model: "anthropic/claude-haiku-4-5",
+					pythonExecutable: ".venv/bin/python",
+				},
+			},
+		);
+		expect(providerFor({ kind: "javascript" })?.id).toBe(
+			"file://forge_target.mjs",
+		);
+		expect(providerFor({ kind: "typescript" })).toEqual({
+			id: "file://forge_target.ts",
+			label: "anthropic/claude-haiku-4-5",
+			config: { model: "anthropic/claude-haiku-4-5" },
+		});
+		expect(providerFor({ kind: "ruby" }, "ruby forge_target.rb")).toEqual({
+			id: "exec: ruby forge_target.rb",
+			label: "anthropic/claude-haiku-4-5",
+			config: { model: "anthropic/claude-haiku-4-5" },
+		});
+		expect(providerFor({ kind: "exec", command: "./run.sh" })?.id).toBe(
+			"exec: ./run.sh",
+		);
+		expect(
+			providerFor({
+				kind: "http",
+				url: "http://127.0.0.1:4000/extract",
+				response: "json.result",
+			}),
+		).toEqual({
+			id: "http",
+			label: "anthropic/claude-haiku-4-5",
+			config: {
+				url: "http://127.0.0.1:4000/extract",
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: Object.fromEntries(
+					jsonFeature.inputs.map((input) => [input.name, `{{${input.name}}}`]),
+				),
+				transformResponse:
+					'typeof (json.result) === "string" ? (json.result) : JSON.stringify(json.result)',
+			},
+		});
+	});
+	test("a shim kind that runs through exec, emitted without its command, is refused by name", () => {
+		expect(() =>
+			buildPromptfooConfig({
+				feature: jsonFeature,
+				suite: SuiteSchema.parse({
+					...suite,
+					target: { kind: "elixir", models: ["m/x"] },
+				}),
+				selection,
+			}),
+		).toThrow("no exec command for target.kind elixir");
+	});
+	test("an http target keeps its own method, headers and body", () => {
+		const provider = buildPromptfooConfig({
+			feature: jsonFeature,
+			suite: SuiteSchema.parse({
+				...suite,
+				target: {
+					kind: "http",
+					models: ["m/x"],
+					url: "http://127.0.0.1:1/x",
+					method: "PUT",
+					headers: { "X-Key": "1" },
+					body: { text: "{{email}}" },
+				},
+			}),
+			selection,
+		}).providers[0];
+		expect(provider?.config).toMatchObject({
+			method: "PUT",
+			headers: { "X-Key": "1" },
+			body: { text: "{{email}}" },
+		});
+	});
+	test("an http target gets each provider's model wherever {{target_model}} appears: url, a header, a nested body string", () => {
+		const providers = buildPromptfooConfig({
+			feature: jsonFeature,
+			suite: SuiteSchema.parse({
+				...suite,
+				target: {
+					kind: "http",
+					models: ["anthropic/claude-haiku-4-5", "google/gemini-3.5-flash"],
+					url: "http://127.0.0.1:1/x?model={{target_model}}",
+					headers: { "X-Model": "{{target_model}}", "X-Key": "1" },
+					body: {
+						text: "{{email}}",
+						options: { models: ["use {{target_model}} here"], retries: 2 },
+					},
+				},
+			}),
+			selection,
+		}).providers;
+		expect(providers.map((provider) => provider.config)).toMatchObject([
+			{
+				url: "http://127.0.0.1:1/x?model=anthropic/claude-haiku-4-5",
+				headers: { "X-Model": "anthropic/claude-haiku-4-5", "X-Key": "1" },
+				body: {
+					text: "{{email}}",
+					options: {
+						models: ["use anthropic/claude-haiku-4-5 here"],
+						retries: 2,
+					},
+				},
+			},
+			{
+				url: "http://127.0.0.1:1/x?model=google/gemini-3.5-flash",
+				headers: { "X-Model": "google/gemini-3.5-flash", "X-Key": "1" },
+				body: {
+					text: "{{email}}",
+					options: { models: ["use google/gemini-3.5-flash here"], retries: 2 },
+				},
+			},
+		]);
+	});
+	test("httpTargetModelWarning: several http models with no {{target_model}} anywhere warn; one model, the placeholder, or another kind do not", () => {
+		const httpSuite = (target: Record<string, unknown>): Suite =>
+			SuiteSchema.parse({
+				...suite,
+				target: { kind: "http", url: "http://127.0.0.1:1/x", ...target },
+			});
+		expect(httpTargetModelWarning(httpSuite({ models: ["m/a", "m/b"] }))).toBe(
+			"warning: target.kind is http and target.models lists 2 models, but {{target_model}} appears nowhere in target.url, target.headers or target.body, so every provider sends the same request",
+		);
+		expect(httpTargetModelWarning(httpSuite({ models: ["m/a"] }))).toBeNull();
+		expect(
+			httpTargetModelWarning(
+				httpSuite({
+					models: ["m/a", "m/b"],
+					body: { nested: ["{{target_model}}"] },
+				}),
+			),
+		).toBeNull();
+		expect(
+			httpTargetModelWarning(
+				httpSuite({
+					models: ["m/a", "m/b"],
+					headers: { "X-Model": "{{target_model}}" },
+				}),
+			),
+		).toBeNull();
+		expect(
+			httpTargetModelWarning(
+				httpSuite({
+					models: ["m/a", "m/b"],
+					url: "http://127.0.0.1:1/{{target_model}}",
+				}),
+			),
+		).toBeNull();
+		expect(httpTargetModelWarning(suite)).toBeNull();
+	});
 	test("providers: one file:// provider per target model, labelled by the model, with the python path", () => {
 		const config = buildPromptfooConfig({
 			feature: labelFeature,
@@ -629,7 +800,7 @@ describe("renderPromptfooConfig", () => {
 		const text = renderPromptfooConfig(config);
 		expect(
 			text.startsWith(
-				"# Written by forge emit; edit suite.yaml and re-run instead of editing this file.\n",
+				"# Written by llm-tests-forge emit; edit suite.yaml and re-run instead of editing this file.\n",
 			),
 		).toBe(true);
 		expect(parse(text)).toEqual(config);
