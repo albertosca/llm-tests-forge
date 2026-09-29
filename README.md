@@ -187,8 +187,6 @@ Commit `forge.yaml`, and in each suite `feature.yaml`, `scenarios.yaml`, `cases/
 - It keeps no history: `--baseline` compares two runs, and nothing collects them over time.
 - It is not published to any package registry yet.
 
-See `docs/superpowers/specs/2026-09-14-llm-test-forge-design.md` and `docs/superpowers/specs/2026-09-28-installable-in-any-project-design.md` for the full design and `docs/superpowers/BACKLOG.md` for what is deferred and why.
-
 ## Develop
 
     bun test          # unit tests, no network, coverage gate
@@ -202,8 +200,6 @@ See `docs/superpowers/specs/2026-09-14-llm-test-forge-design.md` and `docs/super
 The coverage gate is bun's own: a 1.0 floor on **lines and functions**, with `src/cli/bin.ts` excluded. Bun measures no branch coverage at all, so a file at 100% can still have untested guard arms — read the gate as a floor, not as proof the suite is complete.
 
 `test:live` needs `GOOGLE_API_KEY` and fails loudly (not silently) if it's unset. Google's free tier is intermittent rather than simply down, so the test retries a 503/"high demand" response up to 3 attempts with a short pause between them; any other failure (quota, auth, an unknown model id, a schema mismatch) fails on the first occurrence instead of retrying.
-
-Design: `docs/superpowers/specs/2026-09-14-llm-test-forge-design.md` and `docs/superpowers/specs/2026-09-28-installable-in-any-project-design.md`.
 
 ## License
 

@@ -7,3 +7,6 @@ coverage/
 __pycache__/
 dist/
 *.bun-build
+
+# Planning docs live in the private repo albertosca/private-project-docs (llm-tests-forge/), symlinked here.
+/docs/superpowers
