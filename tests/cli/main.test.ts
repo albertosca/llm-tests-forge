@@ -5608,25 +5608,54 @@ describe("main(): the suite and the project", () => {
 			).toBe(0);
 			expect(lines).toEqual([USAGE]);
 		}
-		const afterDashes: string[] = [];
-		await main(["describe", "--", "--help"], {
-			cwd: root,
-			env: { FORGE_DRAFTER: MODEL },
-			stdin: async () => "",
-			stdout: (line) => afterDashes.push(line),
-		});
-		expect(afterDashes).not.toContain(USAGE);
 	});
 
-	test("--version stays a verb-position flag: after another verb it is not the version", async () => {
+	test("describe -- --help and describe -- -h run describe with the flag as the text, in a valid project", async () => {
+		for (const word of ["--help", "-h"]) {
+			const root = await projectWith(
+				"version: 1\nlanguage: python\nsuites: []\n",
+			);
+			const lines: string[] = [];
+			expect(
+				await main(["describe", "--", word], {
+					cwd: root,
+					env: { FORGE_DRAFTER: MODEL },
+					// The text is a positional: stdin is only read when there is none.
+					stdin: async () => {
+						throw new Error("describe read stdin instead of taking the text");
+					},
+					stdout: (line) => lines.push(line),
+				}),
+			).toBe(0);
+			expect(lines).not.toContain(USAGE);
+			expect(lines.join("\n")).toContain(
+				'describe: feature "classify-email" written as pending',
+			);
+			expect(
+				(await readFile(join(root, ".forge", "feature.yaml"), "utf8")).length,
+			).toBeGreaterThan(0);
+		}
+	});
+
+	test("the usage and the guide say that a describe text of -h or --help goes after --", async () => {
+		expect(USAGE).toContain("a text that is -h or --help goes after --");
+		expect(await readFile("templates/guide.md", "utf8")).toContain(
+			"so a text that is one of them goes after `--`",
+		);
+	});
+
+	test("--version stays a verb-position flag: after another verb it is an unknown option, exit 2, not the version", async () => {
 		const lines: string[] = [];
-		await main(["status", "--version"], {
-			cwd: await mkdtemp(join(tmpdir(), "forge-version-")),
-			env: {},
-			stdin: async () => "",
-			stdout: (line) => lines.push(line),
-		});
-		expect(lines).not.toEqual([FORGE_VERSION]);
+		expect(
+			await main(["status", "--version"], {
+				cwd: await mkdtemp(join(tmpdir(), "forge-version-")),
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(2);
+		expect(lines.join("\n")).toContain("error: Unknown option '--version'");
+		expect(lines).not.toContain(FORGE_VERSION);
 	});
 
 	test("guide is answered even when forge.yaml is malformed, and does not stamp or warn", async () => {

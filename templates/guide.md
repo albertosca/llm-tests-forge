@@ -68,7 +68,7 @@ then `llm-tests-forge report results.json`. promptfoo exits with status 100 when
 ## Every verb
 
 - `llm-tests-forge init`: detect the language, write `forge.yaml` and the `AGENTS.md` block.
-- `llm-tests-forge describe`: free text (or stdin) becomes `.forge/feature.yaml`, pending review. Calls the drafter.
+- `llm-tests-forge describe`: free text (or stdin) becomes `.forge/feature.yaml`, pending review. Calls the drafter. `-h` and `--help` anywhere before a `--` print the usage, so a text that is one of them goes after `--`.
 - `llm-tests-forge scenarios`: the approved feature becomes `.forge/scenarios.yaml`. Calls the drafter.
 - `llm-tests-forge cases`: approved scenarios become `.forge/cases/<id>.yaml`. Calls the drafter.
 - `llm-tests-forge dedupe`: marks likely duplicate cases with `duplicate_of`. Calls the drafter.

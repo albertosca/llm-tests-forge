@@ -23,7 +23,7 @@ import { type CliContext, createContext } from "./context";
 export const USAGE = `usage: llm-tests-forge <verb> [options]
   init [--language l]                                 detect the language -> forge.yaml + the llm-tests-forge block in AGENTS.md
   describe <text...> [--prompt-file f] [--force] [--drafter m]
-                                                     free text (or stdin) -> .forge/feature.yaml (pending)
+                                                     free text (or stdin) -> .forge/feature.yaml (pending); a text that is -h or --help goes after --
   scenarios [--kinds a,b] [--more n] [--drafter m]    feature -> .forge/scenarios.yaml
   cases [--n 5] [--scenario id] [--drafter m]         approved scenarios -> .forge/cases/<id>.yaml
   dedupe [--scenario id] [--drafter m]                mark likely duplicates (duplicate_of)
@@ -253,8 +253,6 @@ const VERBS_EXEMPT_FROM_SUITE_GUARD = new Set([
 
 /** Answered before any forge.yaml is read, so a broken one never hides them. */
 const INFORMATION_VERBS = new Set([
-	"--help",
-	"-h",
 	"help",
 	"--version",
 	"-V",
