@@ -21,8 +21,8 @@
 - id: boolean-yes-no-question
   kind: edge
   oracle: fields
-  description: A short yes/no style question like 'Are you legally authorized to work in the US?' with only two implicit options should be classified as kind boolean with empty options.
-  status: approved
+  description: A short yes/no style question like 'Are you legally authorized to work in the US?' should be classified as kind single_select whose options are the two answers as the page shows them (Yes/No, Oui/Non...); a lone checkbox to tick, such as a consent statement, stays boolean with empty options.
+  status: pending
 - id: required-marker-missing
   kind: ambiguous
   oracle: fields
@@ -68,3 +68,13 @@
   oracle: fields
   description: A page with English navigation and marketing text but form questions in German should extract only the German-language questions with labels preserved exactly as written.
   status: approved
+- id: imported
+  kind: happy
+  oracle: rubric
+  description: Real inputs imported from application logs
+  status: approved
+- id: portuguese-application-form
+  kind: edge
+  oracle: fields
+  description: 'A Brazilian application form in Portuguese, laid out the way Gupy, InHire or Solides render it: labels such as Nome completo, E-mail, Telefone, Pretensão salarial (R$), Currículo; Yes/No questions answered Sim/Não, extracted as single_select with options Sim and Não; required marked as "obrigatório" or with an asterisk and optional fields marked "(opcional)", both read as required true/false; a required marker written after the question mark ("...? *" or "...? (obrigatório)"); and a LGPD consent checkbox ("Li e concordo com a Política de Privacidade"), which stays boolean.'
+  status: pending

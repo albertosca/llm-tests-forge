@@ -1,0 +1,185 @@
+- id: imported-01
+  scenario: imported
+  input:
+    page: |-
+      ElevenLabs
+      Forward Deployed Engineer - Software Engineer - Brazil
+      Location
+      Brazil
+
+      Employment Type
+      Full time
+
+      Location Type
+      On-site
+
+      Department
+      Engineering & Product
+      Enterprise - Deployment
+
+      Overview
+      Application
+      Nenhum arquivo escolhido
+      Autofill from resume
+      Upload your resume here to autofill key application fields.
+
+      Upload file
+      Name
+      Type here...
+      Email
+      hello@example.com...
+      Location
+      Country you're currently residing in
+
+      Start typing...
+
+      Resume
+      Nenhum arquivo escolhido
+
+      Upload File
+      or drag and drop here
+
+
+      How did you hear about ElevenLabs? 
+
+      I'm a user
+
+      News article
+
+      Job board
+
+      Social media (LinkedIn, Instagram, X etc)
+
+      In person event
+
+      Referral
+
+      I was reached out to
+
+      Other (please specify)
+      If other, please specify below
+      Type here...
+      Link to your Github profile
+      Type here...
+      Link to your LinkedIn profile
+      Type here...
+      Why ElevenLabs, and why now?
+      Type here...
+
+      What's the most impactful thing you've built? What was your specific contribution?
+      Type here...
+
+      How did you know it worked? What did success actually look like?
+      Type here...
+
+      Have you used ElevenLabs - even in a personal or side project? What did you build or explore?
+      Type here...
+
+      Submit Application
+      Powered by 
+      Privacy PolicySecurityVulnerability Disclosure
+
+      O menu 1Password está disponível. Pressione a seta para baixo para selecionar.
+  status: pending
+  generated_by: import:real-pages.jsonl
+- id: imported-02
+  scenario: imported
+  input:
+    page: |-
+      Devsu
+      Sr FullStack (Javascript + React.js/Vue.js)
+      RemoteDevsu, EngineeringFull time
+
+      Overview
+      Application
+      Autofill application
+      Save time by importing your resume in one of the following formats: .pdf, .doc, .docx, .odt, or .rtf.
+
+      * Required fields
+      Personal information
+      *
+      First name
+      *
+      Last name
+      *
+      Email
+      *
+      Phone
+      +55
+      The hiring team may use this number to contact you about this job.
+      Photo (Optional)
+       or drag and drop here
+      Nenhum arquivo escolhido
+      Profile
+      *
+      Resume
+       or drag and drop here
+      Nenhum arquivo escolhido
+      Details
+      *
+      Desired Monthly Salary in USD
+      *
+      Country of Residence
+      Select an option…
+      *
+      During this application process I agree to use only my own words. I understand that plagiarism, the use of AI or other generated content will disqualify my application.
+
+
+      Yes
+
+      No
+      *
+      I have advanced English skills (Can maintain a technical interview in English)
+
+      *
+      Do you have experience as a contractor?
+
+      *
+      How long have your worked with Javascript?
+      *
+      How long have you worked with React?
+
+      *
+      Have you worked with Vue.js?
+
+      *
+      Do you have experience with B2B SaaS, multi-tenant platforms, hospitality or travel?
+
+      *
+      Do you have experience with React Native?
+
+      Devsu does not discriminate on the basis of race, sex, color, religion, age, national origin, marital status, disability, veteran status, genetic information, sexual orientation, gender identity or any other reason prohibited by law in provision of employment opportunities and benefits.
+      View website
+      View all jobs
+      Help
+      Actividade
+      Powered byWorkable
+  status: pending
+  generated_by: import:real-pages.jsonl
+- id: imported-03
+  scenario: imported
+  input:
+    page: |-
+      Sr Agentic Engineer — apply at FM
+      Flywheel Motion
+
+      We're hiring a Sr Agentic Engineer. This 40-minute task asks you to architect and ship a multi-step agentic workflow for one of our products, write a failure autopsy from your own experience, and sketch an agent architecture for a new feature.
+
+      Your name
+      Email
+      LinkedIn URL (optional)
+      City
+      Your actual city — not your work arrangement. "Remote" is not a valid answer here.
+      Country
+      Vietnam, India, United States, Nigeria, Philippines, Pakistan, Indonesia, United Kingdom, Germany, Spain, France, Italy, Portugal, Netherlands, Poland, Ukraine, Romania, Serbia, Croatia, Bosnia and Herzegovina, North Macedonia, Albania, Bulgaria, Greece, Czechia, Slovakia, Slovenia, Hungary, Moldova, Lithuania, Latvia, Estonia, Ireland, Austria, Belgium, Switzerland, Sweden, Norway, Denmark, Finland, Turkey, Egypt, South Africa, Kenya, Morocco, Algeria, Tunisia, Ghana, Brazil, Argentina, Mexico, Colombia, Canada, Australia, New Zealand, Singapore, Malaysia, Thailand, Indonesia, Japan, South Korea, Hong Kong, Taiwan, China, Bangladesh, Sri Lanka, Nepal, United Arab Emirates, Saudi Arabia, Israel, Georgia, Armenia, Other
+      Your CV
+      PDF, DOC or DOCX, up to 5 MB. We ask for your CV up front so we can review your background alongside your answers. If your CV is in Drive or Dropbox, download it first and attach the file.
+      Hourly rate range (USD)
+      Your honest expectation, not the maximum you'd accept.
+      How did you hear about us? (optional)
+      Someone referred me, Wellfound, LinkedIn, Google / Search, Friend or colleague, Reddit, X / Twitter, Facebook, Telegram, WTF website, Other
+      Who referred you? (their name)
+      Website
+      Checkbox: Inform me about upcoming career opportunities at Flywheel Motion
+  status: pending
+  generated_by: import:real-pages.jsonl
