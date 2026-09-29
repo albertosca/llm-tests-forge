@@ -11,6 +11,7 @@ import { describeCommand } from "./commands/describe";
 import { emitCommand } from "./commands/emit";
 import { estimateCommand } from "./commands/estimate";
 import { importCommand } from "./commands/import";
+import { initCommand } from "./commands/init";
 import { moveCommand } from "./commands/move";
 import { reportCommand } from "./commands/report";
 import { reviewCommand } from "./commands/review";
@@ -18,6 +19,7 @@ import { scenariosCommand } from "./commands/scenarios";
 import { type CliContext, createContext } from "./context";
 
 export const USAGE = `usage: llm-tests-forge <verb> [options]
+  init [--language l]                                 detect the language -> forge.yaml + the llm-tests-forge block in AGENTS.md
   describe <text...> [--prompt-file f] [--force] [--drafter m]
                                                      free text (or stdin) -> .forge/feature.yaml (pending)
   scenarios [--kinds a,b] [--more n] [--drafter m]    feature -> .forge/scenarios.yaml
@@ -38,6 +40,7 @@ const COMMANDS: Record<
 	string,
 	(commandArguments: string[], context: CliContext) => Promise<void>
 > = {
+	init: initCommand,
 	describe: describeCommand,
 	scenarios: scenariosCommand,
 	cases: casesCommand,
@@ -269,9 +272,17 @@ export async function main(
 		const { rest, suite } = information
 			? { rest: argv, suite: undefined }
 			: takeSuiteFlag(argv);
-		const resolution = information
-			? { forgeDirectory: undefined, project: null }
-			: await resolveSuite({ cwd: options.cwd, suite });
+		// `init` reads no forge.yaml through the resolution: it creates one, and
+		// a broken one must not stop it from updating AGENTS.md.
+		const initializing = rest[0] === "init";
+		if (initializing && suite !== undefined)
+			throw new UsageError(
+				"init works at the project root and does not take --suite",
+			);
+		const resolution =
+			information || initializing
+				? { forgeDirectory: undefined, project: null }
+				: await resolveSuite({ cwd: options.cwd, suite });
 		const context = createContext({
 			cwd: options.cwd,
 			drafter: drafterFlag(rest),
