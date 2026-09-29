@@ -46,7 +46,7 @@ There is one suite per function under test, by convention in `evals/<function>/`
 
     llm-tests-forge status
 
-One line per registered suite: its counts, last run and any version warning. `status --json` prints the same for a program. It is how a person, or an agent with no chat history, finds out what exists and what is pending.
+One line per registered suite: its feature (marked `(feature pending)` while it waits for review), its scenarios and cases as approved and pending (rejected scenarios are shown apart, never in those counts), its last run and any version warning. `status --json` prints the same for a program, with `featureStatus` and `scenarios: { approved, pending, rejected }`. It is how a person, or an agent with no chat history, finds out what exists and what is pending.
 
     llm-tests-forge guide
 

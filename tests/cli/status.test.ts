@@ -49,7 +49,7 @@ describe("status through main()", () => {
 		const { code, lines } = await runStatus(root);
 		expect(code).toBe(0);
 		expect(lines).toEqual([
-			`evals/a   extract-job-application-questions   14/14 scenarios · 42 approved, 0 pending · last run 67.9% (${date})`,
+			`evals/a   extract-job-application-questions   14 scenarios approved, 0 pending · 42 cases approved, 0 pending · last run 67.9% (${date})`,
 			"evals/gone   missing",
 			'forge.yaml: suite "../x" climbs out of the project',
 		]);
@@ -68,7 +68,8 @@ describe("status through main()", () => {
 					entry: "evals/a",
 					state: "ok",
 					feature: "extract-job-application-questions",
-					scenarios: { approved: 14, total: 14 },
+					featureStatus: "approved",
+					scenarios: { approved: 14, pending: 0, rejected: 0 },
 					cases: { approved: 42, pending: 0 },
 					lastRun: { passRate: 0.6786, date },
 					warning: null,
@@ -88,7 +89,7 @@ describe("status through main()", () => {
 		const { code, lines } = await runStatus(directory);
 		expect(code).toBe(0);
 		expect(lines).toEqual([
-			`.   extract-job-application-questions   14/14 scenarios · 42 approved, 0 pending · last run 67.9% (${date})`,
+			`.   extract-job-application-questions   14 scenarios approved, 0 pending · 42 cases approved, 0 pending · last run 67.9% (${date})`,
 		]);
 	});
 

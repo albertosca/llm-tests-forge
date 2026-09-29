@@ -33,13 +33,14 @@ describe("suiteStatus and renderStatusLine", () => {
 		const date = report.generatedAt.slice(0, 10);
 		const status = await suiteStatus("evals/a", directory, FORGE_VERSION);
 		expect(renderStatusLine(status)).toBe(
-			`evals/a   extract-job-application-questions   14/14 scenarios · 42 approved, 0 pending · last run 67.9% (${date})`,
+			`evals/a   extract-job-application-questions   14 scenarios approved, 0 pending · 42 cases approved, 0 pending · last run 67.9% (${date})`,
 		);
 		expect(status).toEqual({
 			entry: "evals/a",
 			state: "ok",
 			feature: "extract-job-application-questions",
-			scenarios: { approved: 14, total: 14 },
+			featureStatus: "approved",
+			scenarios: { approved: 14, pending: 0, rejected: 0 },
 			cases: { approved: 42, pending: 0 },
 			lastRun: { passRate: 0.6786, date },
 			warning: null,
@@ -71,7 +72,7 @@ describe("suiteStatus and renderStatusLine", () => {
 		expect(status.cases).toEqual({ approved: 40, pending: 1 });
 	});
 
-	test("counts edited scenarios as approved, and pending and rejected ones as not", async () => {
+	test("counts edited scenarios as approved, pending ones as pending, and rejected ones apart, outside the total", async () => {
 		const directory = await suiteCopy("scenario-counts");
 		const scenariosFile = join(directory, ".forge", "scenarios.yaml");
 		const scenarios = parse(await readFile(scenariosFile, "utf8"));
@@ -85,7 +86,65 @@ describe("suiteStatus and renderStatusLine", () => {
 			FORGE_VERSION,
 		);
 		if (status.state !== "ok") throw new Error("expected an ok suite");
-		expect(status.scenarios).toEqual({ approved: 12, total: 14 });
+		expect(status.scenarios).toEqual({ approved: 12, pending: 1, rejected: 1 });
+		expect(renderStatusLine(status)).toContain(
+			"   12 scenarios approved, 1 pending, 1 rejected · 42 cases approved",
+		);
+	});
+
+	test("a feature waiting for review is named as pending on the line and in featureStatus", async () => {
+		const directory = await suiteCopy("feature-pending");
+		const featureFile = join(directory, ".forge", "feature.yaml");
+		await writeFile(
+			featureFile,
+			(await readFile(featureFile, "utf8")).replace(
+				/^status: approved$/m,
+				"status: pending",
+			),
+		);
+		const status = await suiteStatus(
+			"evals/feature-pending",
+			directory,
+			FORGE_VERSION,
+		);
+		if (status.state !== "ok") throw new Error("expected an ok suite");
+		expect(status.featureStatus).toBe("pending");
+		expect(renderStatusLine(status)).toStartWith(
+			"evals/feature-pending   extract-job-application-questions (feature pending)   14 scenarios approved",
+		);
+	});
+
+	test("an edited feature is shown by its id alone, like an approved one", async () => {
+		const directory = await suiteCopy("feature-edited");
+		const featureFile = join(directory, ".forge", "feature.yaml");
+		await writeFile(
+			featureFile,
+			(await readFile(featureFile, "utf8")).replace(
+				/^status: approved$/m,
+				"status: edited",
+			),
+		);
+		const status = await suiteStatus(
+			"evals/feature-edited",
+			directory,
+			FORGE_VERSION,
+		);
+		if (status.state !== "ok") throw new Error("expected an ok suite");
+		expect(status.featureStatus).toBe("edited");
+		expect(renderStatusLine(status)).toStartWith(
+			"evals/feature-edited   extract-job-application-questions   14 scenarios approved",
+		);
+	});
+
+	test("a .forge that is a plain file is an error naming it, not an ok suite", async () => {
+		const root = await mkdtemp(join(tmpdir(), "forge-status-"));
+		await writeFile(join(root, ".forge"), "not a directory\n");
+		const status = await suiteStatus(".", root, FORGE_VERSION);
+		expect(status).toEqual({
+			entry: ".",
+			state: "error",
+			error: `${join(root, ".forge")} is a file, not a directory`,
+		});
 	});
 
 	test("shows a suite with case files but no feature.yaml as no feature yet, counting its cases", async () => {
@@ -141,6 +200,21 @@ describe("suiteStatus and renderStatusLine", () => {
 		expect(line).toContain(scenariosFile);
 	});
 
+	test("an error whose message spans lines is joined into the suite's one line", async () => {
+		const directory = await suiteCopy("multiline");
+		const scenariosFile = join(directory, ".forge", "scenarios.yaml");
+		// The YAML parser's message quotes the source line and a caret under it.
+		await writeFile(scenariosFile, "- id: [unclosed\n");
+		const status = await suiteStatus(
+			"evals/multiline",
+			directory,
+			FORGE_VERSION,
+		);
+		if (status.state !== "error") throw new Error("expected an error suite");
+		expect(status.error).not.toContain("\n");
+		expect(status.error).toContain(scenariosFile);
+	});
+
 	test("renders a suite with no feature.yaml yet as ok with no feature and zero counts", async () => {
 		const root = await mkdtemp(join(tmpdir(), "forge-status-"));
 		await mkdir(join(root, ".forge"));
@@ -149,13 +223,14 @@ describe("suiteStatus and renderStatusLine", () => {
 			entry: ".",
 			state: "ok",
 			feature: "(no feature yet)",
-			scenarios: { approved: 0, total: 0 },
+			featureStatus: null,
+			scenarios: { approved: 0, pending: 0, rejected: 0 },
 			cases: { approved: 0, pending: 0 },
 			lastRun: null,
 			warning: null,
 		});
 		expect(renderStatusLine(status)).toBe(
-			".   (no feature yet)   0/0 scenarios · 0 approved, 0 pending · no run yet",
+			".   (no feature yet)   0 scenarios approved, 0 pending · 0 cases approved, 0 pending · no run yet",
 		);
 	});
 

@@ -46,7 +46,7 @@ Há uma suíte por função testada, por convenção em `evals/<função>/`, cad
 
     llm-tests-forge status
 
-Uma linha por suíte registrada: suas contagens, a última rodada e qualquer aviso de versão. `status --json` imprime o mesmo para um programa. É assim que uma pessoa, ou um agente sem histórico de conversa, descobre o que existe e o que está pendente.
+Uma linha por suíte registrada: a funcionalidade (marcada `(feature pending)` enquanto espera revisão), os cenários e os casos como aprovados e pendentes (cenários rejeitados aparecem à parte, nunca nessas contagens), a última rodada e qualquer aviso de versão. `status --json` imprime o mesmo para um programa, com `featureStatus` e `scenarios: { approved, pending, rejected }`. É assim que uma pessoa, ou um agente sem histórico de conversa, descobre o que existe e o que está pendente.
 
     llm-tests-forge guide
 

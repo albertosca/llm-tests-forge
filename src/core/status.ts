@@ -1,4 +1,4 @@
-import { access } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { ForgeError } from "./errors";
 import {
@@ -10,9 +10,15 @@ import {
 	readYamlFile,
 } from "./files";
 import { ReportSchema } from "./report";
-import type { Case, Scenario } from "./schemas";
+import type { Case, Feature, Scenario } from "./schemas";
 import { versionWarning } from "./version";
 
+/**
+ * The shape `status --json` prints for each suite, kept stable for agents:
+ * `featureStatus` is null when there is no feature.yaml yet; `scenarios`
+ * counts approved (approved or edited), pending and rejected apart, so a
+ * rejected scenario never counts towards what is left to review.
+ */
 export type SuiteStatus =
 	| { entry: string; state: "missing" }
 	| { entry: string; state: "error"; error: string }
@@ -20,7 +26,8 @@ export type SuiteStatus =
 			entry: string;
 			state: "ok";
 			feature: string;
-			scenarios: { approved: number; total: number };
+			featureStatus: Feature["status"] | null;
+			scenarios: { approved: number; pending: number; rejected: number };
 			cases: { approved: number; pending: number };
 			lastRun: { passRate: number; date: string } | null;
 			warning: string | null;
@@ -57,9 +64,11 @@ async function readOk(
 		entry,
 		state: "ok",
 		feature: feature?.id ?? "(no feature yet)",
+		featureStatus: feature?.status ?? null,
 		scenarios: {
 			approved: scenarios.filter(isReviewed).length,
-			total: scenarios.length,
+			pending: scenarios.filter((item) => item.status === "pending").length,
+			rejected: scenarios.filter((item) => item.status === "rejected").length,
 		},
 		cases: {
 			approved: cases.filter(isReviewed).length,
@@ -85,11 +94,22 @@ export async function suiteStatus(
 ): Promise<SuiteStatus> {
 	const forgeDirectory = join(directory, ".forge");
 	if (!(await exists(forgeDirectory))) return { entry, state: "missing" };
+	if (!(await stat(forgeDirectory)).isDirectory())
+		return {
+			entry,
+			state: "error",
+			error: `${forgeDirectory} is a file, not a directory`,
+		};
 	try {
 		return await readOk(entry, forgeDirectory, installed);
 	} catch (error) {
 		if (!(error instanceof ForgeError)) throw error;
-		return { entry, state: "error", error: error.message };
+		// A parser's message spans lines (it quotes the source); status is one line per suite.
+		return {
+			entry,
+			state: "error",
+			error: error.message.replace(/\s*\n\s*/g, " ").trim(),
+		};
 	}
 }
 
@@ -104,7 +124,17 @@ export function renderStatusLine(status: SuiteStatus): string {
 		status.lastRun === null
 			? "no run yet"
 			: `last run ${percent(status.lastRun.passRate)} (${status.lastRun.date})`;
-	const line = `${status.entry}   ${status.feature}   ${status.scenarios.approved}/${status.scenarios.total} scenarios · ${status.cases.approved} approved, ${status.cases.pending} pending · ${run}`;
+	const feature =
+		status.featureStatus === "pending"
+			? `${status.feature} (feature pending)`
+			: status.feature;
+	const rejected =
+		status.scenarios.rejected > 0
+			? `, ${status.scenarios.rejected} rejected`
+			: "";
+	const scenarios = `${status.scenarios.approved} scenarios approved, ${status.scenarios.pending} pending${rejected}`;
+	const cases = `${status.cases.approved} cases approved, ${status.cases.pending} pending`;
+	const line = `${status.entry}   ${feature}   ${scenarios} · ${cases} · ${run}`;
 	// The ⚠ replaces the "warning: " prefix; the JSON keeps versionWarning's text as is.
 	return status.warning === null
 		? line

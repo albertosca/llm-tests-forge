@@ -19,6 +19,10 @@ llm-tests-forge forges regression suites for LLM features: a person describes wh
 - `--suite <path>` (path relative to the project root) runs a verb on a registered suite from anywhere inside the project; otherwise the verb uses the suite of the current directory.
 - No `forge.yaml` yet: `llm-tests-forge init` detects the language, writes it, and adds a block about the forge to `AGENTS.md`.
 
+## Reading status
+
+A suite's line reads `<path>   <feature id>   <n> scenarios approved, <n> pending · <n> cases approved, <n> pending · last run <pass rate> (<date>)`, where approved includes edited. `(feature pending)` after the feature id means the feature waits for the person's review: `scenarios`, `cases`, `estimate`, `emit` and `report` refuse to run until it is approved. Rejected scenarios are left out of both counts and shown apart (`, <n> rejected`) when there are any. `missing` means the directory has no `.forge/`; `error: <message>` names the file that could not be read. `--json` prints each readable suite as `entry`, `state` (`ok`, `missing` or `error`), `feature`, `featureStatus` (`pending`, `approved`, `edited`, or null with no `feature.yaml` yet), `scenarios` (`approved`, `pending`, `rejected`), `cases` (`approved`, `pending`), `lastRun` (`passRate`, `date`, or null) and `warning`; a `missing` suite has only `entry` and `state`, an `error` one adds `error`.
+
 ## Starting a suite for a function
 
 `cd` into a new directory (convention `evals/<function>/`), then run `llm-tests-forge describe "<what the function does>" --prompt-file <its system prompt>`. Then ask the person to review the feature.
