@@ -3,12 +3,17 @@ import { ForgeError } from "./errors";
 export const AGENTS_START = "<!-- llm-tests-forge:start -->";
 export const AGENTS_END = "<!-- llm-tests-forge:end -->";
 
+/** How the command is called when it is a project dependency rather than on the PATH; the guide and the plugin skill say the same. */
+export const PER_PROJECT_INVOCATIONS =
+	"Installed as a project dependency, call it as `npx llm-tests-forge`, `uv run llm-tests-forge`, `bundle exec llm-tests-forge`, or `_build/llm-tests-forge` under Elixir.";
+
 export function agentsBlock(): string {
 	return [
 		AGENTS_START,
 		"This project keeps LLM regression suites made with llm-tests-forge.",
 		"Run `llm-tests-forge status` to see which suites exist and what is pending.",
 		"Run `llm-tests-forge guide` before creating or changing a suite: it is the manual, and approving is the person's job.",
+		PER_PROJECT_INVOCATIONS,
 		AGENTS_END,
 	].join("\n");
 }

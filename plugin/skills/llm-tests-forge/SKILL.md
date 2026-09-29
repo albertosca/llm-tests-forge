@@ -12,4 +12,6 @@ This project's LLM regression suites are made with the `llm-tests-forge` command
 
 Approving is the person's job: never mark anything approved by editing files, and never run `llm-tests-forge review` for them. When a review is due, stop and ask them to run it.
 
+Installed as a project dependency, call it as `npx llm-tests-forge`, `uv run llm-tests-forge`, `bundle exec llm-tests-forge`, or `_build/llm-tests-forge` under Elixir.
+
 If `llm-tests-forge` is not installed, say so and point to https://github.com/albertosca/llm-tests-forge for installation.

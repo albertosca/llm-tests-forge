@@ -14,6 +14,8 @@ When the pipeline reaches a review, stop and ask the person to run `llm-tests-fo
 
 llm-tests-forge forges regression suites for LLM features: a person describes what a function does, the forge drafts scenarios and cases with a model, the person reviews every draft, and `emit` turns the approved cases into a promptfoo config. This manual is embedded in the installed binary, so it matches the installed version.
 
+Installed as a project dependency rather than on the PATH, the command is reached through the project's own tool: `npx llm-tests-forge` (npm), `uv run llm-tests-forge` (PyPI), `bundle exec llm-tests-forge` (RubyGems), and `_build/llm-tests-forge` under Elixir (placed there by `mix llm_tests_forge.install`). Every `llm-tests-forge` in this manual means that command.
+
 - `forge.yaml` at the project root lists the suites. Each suite is a directory with a `.forge/` inside it. `describe` registers a new suite; a suite that already existed (copied in, or made before `init`) is registered by no verb: add its path to `suites:` in `forge.yaml` by hand (for example `suites: [evals/classify]`).
 - `llm-tests-forge status` says what exists: one line per suite with its counts, last run and any version warning. `llm-tests-forge status --json` prints the same for a program.
 - `--suite <path>` (path relative to the project root) runs a verb on a registered suite from anywhere inside the project; otherwise the verb uses the suite of the current directory.

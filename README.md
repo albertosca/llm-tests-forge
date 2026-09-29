@@ -31,7 +31,7 @@ For Ruby, add this line to your `Gemfile` and run `bundle install`:
 
     gem "llm-tests-forge", group: :development
 
-Rust and Go projects have no package of their own: use Homebrew or the script. `install.sh` puts the binary in `~/.local/bin` by default and verifies its SHA256 first; `--dir <bin-directory>` chooses another directory and `--version vX.Y.Z` pins a release; through the pipe, pass them after `sh -s --`. Under Elixir, an interactive `review` runs as `_build/llm-tests-forge review`, because `mix llm_tests_forge review` refuses (it exits 2).
+Rust and Go projects have no package of their own: use Homebrew or the script. `install.sh` puts the binary in `~/.local/bin` by default and verifies its SHA256 first, against the `SHA256SUMS` of the same release: that proves the download is intact, not that it is authentic (for a hash pinned in the package itself, use Homebrew or Hex); `--dir <bin-directory>` chooses another directory and `--version vX.Y.Z` pins a release; through the pipe, pass them after `sh -s --`. Under Elixir, an interactive `review` runs as `_build/llm-tests-forge review`, because `mix llm_tests_forge review` refuses (it exits 2); `review --scenario <id> --all` asks nothing and runs through mix.
 
 From a clone, which works today, requires [bun](https://bun.sh) 1.4 or newer:
 

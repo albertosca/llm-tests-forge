@@ -1,11 +1,43 @@
 import { describe, expect, test } from "bun:test";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
 	AGENTS_END,
 	AGENTS_START,
 	agentsBlock,
+	PER_PROJECT_INVOCATIONS,
 	planAgentsBlock,
 	upsertAgentsBlock,
 } from "../../src/core/agents-block";
+
+describe("the per-project invocations", () => {
+	test("the AGENTS block, the guide and the plugin skill name the same four ways to call a project-local install", async () => {
+		const repositoryRoot = join(import.meta.dir, "..", "..");
+		const invocations = [
+			"`npx llm-tests-forge`",
+			"`uv run llm-tests-forge`",
+			"`bundle exec llm-tests-forge`",
+			"`_build/llm-tests-forge`",
+		];
+		const texts = {
+			block: agentsBlock(),
+			guide: await readFile(join(repositoryRoot, "templates/guide.md"), "utf8"),
+			skill: await readFile(
+				join(repositoryRoot, "plugin/skills/llm-tests-forge/SKILL.md"),
+				"utf8",
+			),
+		};
+		for (const [name, text] of Object.entries(texts))
+			for (const invocation of invocations)
+				expect({ name, invocation, named: text.includes(invocation) }).toEqual({
+					name,
+					invocation,
+					named: true,
+				});
+		expect(texts.block.split("\n")).toContain(PER_PROJECT_INVOCATIONS);
+		expect(texts.skill).toContain(PER_PROJECT_INVOCATIONS);
+	});
+});
 
 describe("upsertAgentsBlock", () => {
 	const block = agentsBlock();
