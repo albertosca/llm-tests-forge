@@ -1,0 +1,51 @@
+class LlmTestsForge < Formula
+  desc "Forge reviewed regression suites for your LLM features and emit them for promptfoo"
+  homepage "https://github.com/albertosca/llm-tests-forge"
+  version "0.1.0"
+  license "MIT"
+
+  on_macos do
+    on_arm do
+      url "{{BASE_URL}}/llm-tests-forge-darwin-arm64"
+      sha256 "{{SHA256:llm-tests-forge-darwin-arm64}}"
+    end
+    on_intel do
+      url "{{BASE_URL}}/llm-tests-forge-darwin-x64"
+      sha256 "{{SHA256:llm-tests-forge-darwin-x64}}"
+    end
+  end
+
+  on_linux do
+    on_arm do
+      url "{{BASE_URL}}/llm-tests-forge-linux-arm64"
+      sha256 "{{SHA256:llm-tests-forge-linux-arm64}}"
+    end
+    on_intel do
+      url "{{BASE_URL}}/llm-tests-forge-linux-x64"
+      sha256 "{{SHA256:llm-tests-forge-linux-x64}}"
+    end
+  end
+
+  def install
+    on_macos do
+      on_arm do
+        bin.install "llm-tests-forge-darwin-arm64" => "llm-tests-forge"
+      end
+      on_intel do
+        bin.install "llm-tests-forge-darwin-x64" => "llm-tests-forge"
+      end
+    end
+    on_linux do
+      on_arm do
+        bin.install "llm-tests-forge-linux-arm64" => "llm-tests-forge"
+      end
+      on_intel do
+        bin.install "llm-tests-forge-linux-x64" => "llm-tests-forge"
+      end
+    end
+  end
+
+  test do
+    assert_equal "#{version}\n", shell_output("#{bin}/llm-tests-forge --version")
+  end
+end

@@ -73,6 +73,16 @@ export const GEM_MANIFESTS: readonly Manifest[] = [
 	},
 ];
 
+/** The formula template's manifest: the `  version "…"` line (indented two spaces; no other line of the template starts that way). */
+export const HOMEBREW_FORMULA_MANIFEST: Manifest = {
+	path: "packages/homebrew/llm-tests-forge.rb.tmpl",
+	format: "text",
+	pattern: /^(  version ")([^"]*)(")/m,
+};
+export const HOMEBREW_MANIFESTS: readonly Manifest[] = [
+	HOMEBREW_FORMULA_MANIFEST,
+];
+
 /**
  * Every package manifest, relative to the repository root. Each packaging
  * task adds its own files here as it creates them.
@@ -87,11 +97,15 @@ export const MANIFESTS: readonly Manifest[] = [
 	...PYPI_MANIFESTS,
 	...HEX_MANIFESTS,
 	...GEM_MANIFESTS,
+	...HOMEBREW_MANIFESTS,
 ];
 
 const REPOSITORY_ROOT = resolve(import.meta.dir, "../..");
 
-function versionIn(manifest: Manifest, text: string): string | undefined {
+export function versionIn(
+	manifest: Manifest,
+	text: string,
+): string | undefined {
 	if (manifest.format === "json") {
 		let parsed: unknown;
 		try {

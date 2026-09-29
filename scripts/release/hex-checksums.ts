@@ -10,7 +10,10 @@ const HEX_CHECKSUMS_TEMPLATE = "packages/hex/checksums.exs.tmpl";
 const HEX_CHECKSUMS_OUTPUT = "packages/hex/checksums.exs";
 
 /** Reads `SHA256SUMS` text into asset name → hex; a line that is not `<64 hex>  <name>` is refused. */
-function parseChecksums(text: string, file: string): Map<string, string> {
+export function parseChecksums(
+	text: string,
+	file: string,
+): Map<string, string> {
 	const checksums = new Map<string, string>();
 	for (const line of text.split("\n")) {
 		if (line === "") continue;
