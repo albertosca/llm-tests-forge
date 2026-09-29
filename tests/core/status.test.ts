@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import {
+	cp,
+	mkdir,
+	mkdtemp,
+	readFile,
+	unlink,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parse, stringify } from "yaml";
 import { renderStatusLine, suiteStatus } from "../../src/core/status";
 import { FORGE_VERSION } from "../../src/core/version";
 
@@ -63,6 +71,36 @@ describe("suiteStatus and renderStatusLine", () => {
 		expect(status.cases).toEqual({ approved: 40, pending: 1 });
 	});
 
+	test("counts edited scenarios as approved, and pending and rejected ones as not", async () => {
+		const directory = await suiteCopy("scenario-counts");
+		const scenariosFile = join(directory, ".forge", "scenarios.yaml");
+		const scenarios = parse(await readFile(scenariosFile, "utf8"));
+		const statuses = ["edited", "pending", "rejected"];
+		for (const [position, status] of statuses.entries())
+			scenarios[position].status = status;
+		await writeFile(scenariosFile, stringify(scenarios));
+		const status = await suiteStatus(
+			"evals/scenario-counts",
+			directory,
+			FORGE_VERSION,
+		);
+		if (status.state !== "ok") throw new Error("expected an ok suite");
+		expect(status.scenarios).toEqual({ approved: 12, total: 14 });
+	});
+
+	test("shows a suite with case files but no feature.yaml as no feature yet, counting its cases", async () => {
+		const directory = await suiteCopy("no-feature");
+		await unlink(join(directory, ".forge", "feature.yaml"));
+		const status = await suiteStatus(
+			"evals/no-feature",
+			directory,
+			FORGE_VERSION,
+		);
+		if (status.state !== "ok") throw new Error("expected an ok suite");
+		expect(status.feature).toBe("(no feature yet)");
+		expect(status.cases).toEqual({ approved: 42, pending: 0 });
+	});
+
 	test("puts the version warning after two spaces and a warning sign", async () => {
 		const directory = await suiteCopy("old");
 		const suiteFile = join(directory, ".forge", "suite.yaml");
@@ -77,7 +115,7 @@ describe("suiteStatus and renderStatusLine", () => {
 			await suiteStatus("evals/old", directory, FORGE_VERSION),
 		);
 		expect(line).toEndWith(
-			`  ⚠ warning: this suite was written by llm-tests-forge 0.0.1; installed is ${FORGE_VERSION}`,
+			`  ⚠ this suite was written by llm-tests-forge 0.0.1; installed is ${FORGE_VERSION}`,
 		);
 	});
 

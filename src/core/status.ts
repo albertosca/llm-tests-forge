@@ -105,5 +105,8 @@ export function renderStatusLine(status: SuiteStatus): string {
 			? "no run yet"
 			: `last run ${percent(status.lastRun.passRate)} (${status.lastRun.date})`;
 	const line = `${status.entry}   ${status.feature}   ${status.scenarios.approved}/${status.scenarios.total} scenarios · ${status.cases.approved} approved, ${status.cases.pending} pending · ${run}`;
-	return status.warning === null ? line : `${line}  ⚠ ${status.warning}`;
+	// The ⚠ replaces the "warning: " prefix; the JSON keeps versionWarning's text as is.
+	return status.warning === null
+		? line
+		: `${line}  ⚠ ${status.warning.replace(/^warning: /, "")}`;
 }

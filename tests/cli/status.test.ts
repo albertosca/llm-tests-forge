@@ -117,6 +117,23 @@ describe("status through main()", () => {
 		expect(lines[0]).toContain(join(root, "forge.yaml"));
 	});
 
+	test("a project with no suites says how to start one in the human form and lists nothing in --json", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: []\n",
+		);
+		const human = await runStatus(root);
+		expect(human.code).toBe(0);
+		expect(human.lines).toEqual([
+			`no suites registered in ${join(root, "forge.yaml")}; run llm-tests-forge describe in a new directory to start one`,
+		]);
+		const machine = await runStatus(root, ["status", "--json"]);
+		expect(machine.code).toBe(0);
+		expect(JSON.parse(machine.lines[0] ?? "")).toEqual({
+			suites: [],
+			problems: [],
+		});
+	});
+
 	test("takes no positional argument", async () => {
 		const root = await projectWithTwoSuites();
 		const { code, lines } = await runStatus(root, ["status", "evals/a"]);

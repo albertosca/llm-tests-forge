@@ -59,6 +59,16 @@ export async function statusCommand(
 		);
 		return;
 	}
+	if (
+		context.project !== null &&
+		suites.length === 0 &&
+		problems.length === 0
+	) {
+		context.stdout(
+			`no suites registered in ${context.project.file}; run llm-tests-forge describe in a new directory to start one`,
+		);
+		return;
+	}
 	for (const status of statuses) context.stdout(renderStatusLine(status));
 	for (const problem of problems)
 		context.stdout(`${PROJECT_FILE}: ${problem.reason}`);
