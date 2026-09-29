@@ -949,7 +949,7 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 		};
 		const unregistered = await describeIn(join(root, "evals", "classify"));
 		expect(unregistered.join("\n")).toContain(
-			"re-run with --force to replace it. This suite is not registered in forge.yaml: to register it without describing it again, add its path to suites: in forge.yaml (for example `suites: [evals/classify]`, or, when suites is already a block list, add a `  - evals/classify` line)",
+			"re-run with --force to replace it. This suite is not registered in forge.yaml: to register it without describing it again, add its path to suites: in forge.yaml (for example `suites: [evals/classify]`, or, when suites is already a block list, add a `- evals/classify` line with the same indentation as the existing entries)",
 		);
 		const registered = await describeIn(join(root, "evals", "kept"));
 		expect(registered.join("\n")).toContain("re-run with --force");
@@ -5465,7 +5465,7 @@ describe("main(): the suite and the project", () => {
 			'error: suite "evals/zzz" is not registered in',
 		);
 		expect(unregistered.join("\n")).toContain(
-			"registered: evals/a. If it exists, add its path to suites: in forge.yaml (for example `suites: [evals/zzz]`, or, when suites is already a block list, add a `  - evals/zzz` line)",
+			"registered: evals/a. If it exists, add its path to suites: in forge.yaml (for example `suites: [evals/zzz]`, or, when suites is already a block list, add a `- evals/zzz` line with the same indentation as the existing entries)",
 		);
 	});
 

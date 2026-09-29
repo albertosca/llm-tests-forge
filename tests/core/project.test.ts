@@ -42,7 +42,7 @@ describe("forge.yaml", () => {
 	test("the registration hint offers only forms that parse: the flow form on init's own file, the block line on a block list", async () => {
 		const hint = registrationHint("evals/classify");
 		expect(hint).toBe(
-			"add its path to suites: in forge.yaml (for example `suites: [evals/classify]`, or, when suites is already a block list, add a `  - evals/classify` line)",
+			"add its path to suites: in forge.yaml (for example `suites: [evals/classify]`, or, when suites is already a block list, add a `- evals/classify` line with the same indentation as the existing entries)",
 		);
 		expect(hint).not.toContain("under suites:");
 		const flowForm = projectFileText("python").replace(
@@ -50,14 +50,17 @@ describe("forge.yaml", () => {
 			"suites: [evals/classify]",
 		);
 		expect(parse(flowForm).suites).toEqual(["evals/classify"]);
-		const blockList = "version: 1\nlanguage: python\nsuites:\n  - evals/a\n";
-		const withLine = `${blockList}  - evals/classify\n`;
-		expect(parse(withLine).suites).toEqual(["evals/a", "evals/classify"]);
-		const project = await readProject(await projectWith(withLine));
-		expect(project.suites.map((suite) => suite.entry)).toEqual([
-			"evals/a",
-			"evals/classify",
-		]);
+		// The hint says: same indentation as the existing entries.
+		for (const indentation of ["", "  ", "    "]) {
+			const blockList = `version: 1\nlanguage: python\nsuites:\n${indentation}- evals/a\n`;
+			const withLine = `${blockList}${indentation}- evals/classify\n`;
+			expect(parse(withLine).suites).toEqual(["evals/a", "evals/classify"]);
+			const project = await readProject(await projectWith(withLine));
+			expect(project.suites.map((suite) => suite.entry)).toEqual([
+				"evals/a",
+				"evals/classify",
+			]);
+		}
 	});
 	test("registerSuite keeps init's flow list a flow list, with no blank line", async () => {
 		const project = await readProject(

@@ -114,7 +114,7 @@ export async function readProject(root: string): Promise<Project> {
  * `init`): there is no verb for it, so the messages that meet one say this.
  */
 export function registrationHint(entry: string): string {
-	return `add its path to suites: in ${PROJECT_FILE} (for example \`suites: [${entry}]\`, or, when suites is already a block list, add a \`  - ${entry}\` line)`;
+	return `add its path to suites: in ${PROJECT_FILE} (for example \`suites: [${entry}]\`, or, when suites is already a block list, add a \`- ${entry}\` line with the same indentation as the existing entries)`;
 }
 
 /** The registered entries for messages: "evals/a, evals/b", or "none yet". */
@@ -149,7 +149,7 @@ function listsSameDirectory(project: Project, directory: string): boolean {
 /**
  * The forge.yaml text with `suiteDirectory` added to `suites`, or null when
  * it is already listed. Edited through the document so every comment
- * survives; spacing is the printer's, as with `rewriteSuiteInclude`. Pure.
+ * survives; spacing is the printer's, as with `rewriteSuiteInclude`. It reads the filesystem only to compare real paths.
  */
 export function registerSuite(
 	project: Project,
