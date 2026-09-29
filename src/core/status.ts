@@ -9,7 +9,7 @@ import {
 	readSuiteIfPresent,
 	readYamlFile,
 } from "./files";
-import { ReportSchema } from "./report";
+import { isoDay, ReportSchema } from "./report";
 import type { Case, Feature, Scenario } from "./schemas";
 import { versionWarning } from "./version";
 
@@ -48,17 +48,6 @@ const isReviewed = (item: { status: Scenario["status"] }): boolean =>
 /** Display text only: the JSON carries null for an unknown date. */
 const UNKNOWN_DATE = "unknown date";
 
-/**
- * The calendar day of an ISO timestamp, or null when the value is not one:
- * cutting the first ten characters of whatever a hand-edited report.json
- * holds would show garbage as if it were a date.
- */
-function runDate(timestamp: string): string | null {
-	const day = /^(\d{4}-\d{2}-\d{2})(?:T|$)/.exec(timestamp)?.[1];
-	if (day === undefined || Number.isNaN(Date.parse(timestamp))) return null;
-	return day;
-}
-
 async function readOk(
 	entry: string,
 	forgeDirectory: string,
@@ -93,7 +82,7 @@ async function readOk(
 				? null
 				: {
 						passRate: report.passRate,
-						date: runDate(report.ranAt ?? report.generatedAt),
+						date: isoDay(report.ranAt ?? report.generatedAt),
 					},
 		warning: versionWarning(present?.suite.forge_version, installed),
 	};

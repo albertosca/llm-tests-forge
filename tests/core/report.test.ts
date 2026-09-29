@@ -1169,6 +1169,23 @@ describe("buildReport", () => {
 		expect(report.ranAt).toBeNull();
 	});
 
+	test("a results.timestamp Date.parse takes but that is not ISO does not become ranAt: status could not show it", () => {
+		const rows = [row({ case: "a-01", model: "m" })];
+		const report = build([], {
+			results: { results: { timestamp: "Tue Sep 16 2026", results: rows } },
+		});
+		expect(report.ranAt).toBeNull();
+	});
+
+	test("a hand-edited report.json whose ranAt is not a string still parses, with ranAt null", () => {
+		const report = build([row({ case: "a-01", model: "m" })]);
+		for (const edited of [5, true, {}, ["2026-09-25"]]) {
+			const parsed = ReportSchema.parse({ ...report, ranAt: edited });
+			expect(parsed.ranAt).toBeNull();
+			expect(parsed.rows).toBe(report.rows);
+		}
+	});
+
 	test("a report.json written before ranAt existed still parses as a baseline, with ranAt null", () => {
 		const report = build([row({ case: "a-01", model: "m" })]);
 		const { ranAt, ...old } = report;

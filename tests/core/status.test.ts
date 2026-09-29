@@ -298,6 +298,16 @@ describe("suiteStatus and renderStatusLine", () => {
 		expect((await lastRunOf(impossible))?.date).toBeNull();
 	});
 
+	test("a hand-edited ranAt that is not a string does not refuse the report: the suite is ok and the day falls back to generatedAt", async () => {
+		const directory = await suiteWithDates("numericranat", {
+			generatedAt: "2026-09-29T08:00:00.000Z",
+		});
+		const reportFile = join(directory, ".forge", "report.json");
+		const report = JSON.parse(await readFile(reportFile, "utf8"));
+		await writeFile(reportFile, JSON.stringify({ ...report, ranAt: 5 }));
+		expect((await lastRunOf(directory))?.date).toBe("2026-09-29");
+	});
+
 	test("the guide documents the whole status --json shape", async () => {
 		const guide = await readFile("templates/guide.md", "utf8");
 		for (const name of [
