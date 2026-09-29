@@ -1,8 +1,9 @@
 import { access } from "node:fs/promises";
 import { ForgeError, UsageError } from "../core/errors";
+import { readSuiteIfPresent, stampSuite } from "../core/files";
 import { registeredSuiteNames } from "../core/project";
 import { resolveSuite } from "../core/resolve";
-import { FORGE_VERSION } from "../core/version";
+import { FORGE_VERSION, versionWarning } from "../core/version";
 import { casesCommand } from "./commands/cases";
 import { dedupeCommand } from "./commands/dedupe";
 import { describeCommand } from "./commands/describe";
@@ -79,6 +80,32 @@ function isProgrammingError(error: unknown): boolean {
 	);
 }
 
+/** The verbs that write into the suite; each stamps suite.yaml once it succeeds. */
+const STAMPING_VERBS = new Set([
+	"describe",
+	"scenarios",
+	"cases",
+	"dedupe",
+	"import",
+	"review",
+	"move",
+	"emit",
+	"report",
+]);
+
+/**
+ * Prints the version warning for the suite about to be used. A suite.yaml
+ * that is absent or does not parse is left alone here: the verb reports its
+ * own error for it.
+ */
+async function warnAboutSuiteVersion(context: CliContext): Promise<void> {
+	const present = await readSuiteIfPresent(context.forgeDirectory).catch(
+		() => null,
+	);
+	const warning = versionWarning(present?.suite.forge_version, FORGE_VERSION);
+	if (warning !== null) context.stdout(warning);
+}
+
 export async function run(
 	argv: string[],
 	context: CliContext,
@@ -99,7 +126,10 @@ export async function run(
 		return 2;
 	}
 	try {
+		await warnAboutSuiteVersion(context);
 		await command(rest, context);
+		if (STAMPING_VERBS.has(verb ?? ""))
+			await stampSuite(context.forgeDirectory, FORGE_VERSION);
 		return 0;
 	} catch (error) {
 		if (error instanceof UsageError) {

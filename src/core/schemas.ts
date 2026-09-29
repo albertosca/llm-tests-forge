@@ -168,6 +168,8 @@ const TargetSchema = z
 	});
 
 export const SuiteSchema = z.object({
+	/** The forge version that last wrote this suite; absent on suites older than the stamp. */
+	forge_version: z.string().optional(),
 	target: TargetSchema,
 	judges: z.array(z.string()).min(1),
 	repeat: z.number().int().min(1).default(1),

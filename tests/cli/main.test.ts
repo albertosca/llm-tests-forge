@@ -4211,8 +4211,6 @@ describe("llm-tests-forge move --scenario <old> <new>", () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
 		await writeSuite(forgeDirectory, SUITE);
-		const suiteFile = join(forgeDirectory, "suite.yaml");
-		await utimes(suiteFile, LONG_AGO, LONG_AGO);
 
 		const { context, out } = await ctxIn(cwd);
 		expect(
@@ -4221,7 +4219,11 @@ describe("llm-tests-forge move --scenario <old> <new>", () => {
 		expect(out).toEqual([
 			"move: scenario polite-rejection → soft-no; 0 case(s) renumbered",
 		]);
-		expect((await stat(suiteFile)).mtime.getTime()).toBe(LONG_AGO.getTime());
+		// Only the version stamp is new: no include entry named the scenario.
+		expect(await readSuite(forgeDirectory)).toEqual({
+			...SUITE,
+			forge_version: FORGE_VERSION,
+		});
 		// No cases file existed, so none is invented: an empty
 		// `cases/soft-no.yaml` would read to every later verb as a scenario
 		// that already has cases.
@@ -4431,13 +4433,14 @@ include: [keep, polite-rejection, keep]   # only these for now
 		const after = await readFile(suiteFile, "utf8");
 		expect(after.split("\n")).toEqual([
 			"target:",
-			"  kind: promptfoo-python",
+			"  kind: python",
 			"  entry: forge_target.py",
 			"  python: .venv/bin/python # any interpreter that can import the app",
 			"  models: [anthropic/claude-haiku-4-5]",
 			"judges: [google/gemini-3.5-flash]",
 			"repeat: 2",
 			"include: [keep, soft-no, keep] # only these for now",
+			`forge_version: ${FORGE_VERSION}`,
 			"",
 		]);
 		expect((await readSuite(forgeDirectory)).include).toEqual([
@@ -5691,7 +5694,7 @@ describe("main(): the suite and the project", () => {
 		).toBe(0);
 		expect(
 			await readFile(join(suiteDirectory, ".forge", "suite.yaml"), "utf8"),
-		).toBe(existing);
+		).toBe(`${existing}forge_version: ${FORGE_VERSION}\n`);
 		expect(lines.join("\n")).not.toContain("registered evals/new");
 		expect(lines.join("\n")).not.toContain("from forge.yaml's defaults");
 	});
@@ -5750,5 +5753,108 @@ describe("main(): the suite and the project", () => {
 		expect(resolve(root, "evals", "a", stored)).toBe(
 			join(root, "prompts", "p.txt"),
 		);
+	});
+});
+
+describe("the version stamp and the version warning", () => {
+	const OLDER_WARNING = `warning: this suite was written by llm-tests-forge 0.0.1; installed is ${FORGE_VERSION}`;
+
+	async function stampWith(forgeDirectory: string, stamp: string | undefined) {
+		const path = join(forgeDirectory, "suite.yaml");
+		const text = await readFile(path, "utf8");
+		await writeFile(
+			path,
+			stamp === undefined ? text : `forge_version: ${stamp}\n${text}`,
+		);
+		return path;
+	}
+
+	test("emit on a suite stamped by an older version warns first, then leaves forge_version at the installed one", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = await stampWith(forgeDirectory, "0.0.1");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(out[0]).toBe(OLDER_WARNING);
+		expect(await readFile(path, "utf8")).toContain(
+			`forge_version: ${FORGE_VERSION}`,
+		);
+		expect(await readFile(path, "utf8")).not.toContain("0.0.1");
+	});
+	test("estimate warns and does not change suite.yaml", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = await stampWith(forgeDirectory, "0.0.1");
+		const before = await readFile(path, "utf8");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], context)).toBe(0);
+		expect(out[0]).toBe(OLDER_WARNING);
+		expect(await readFile(path, "utf8")).toBe(before);
+	});
+	test("a suite stamped by a newer version says to upgrade and keeps its stamp after emit", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = await stampWith(forgeDirectory, "999.0.0");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(out[0]).toBe(
+			`warning: this suite was written by llm-tests-forge 999.0.0, newer than the installed ${FORGE_VERSION}; upgrade llm-tests-forge before changing it`,
+		);
+		expect(await readFile(path, "utf8")).toContain("forge_version: 999.0.0");
+	});
+	test("a suite with no stamp gets no warning, and a writing verb stamps it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
+		expect((await readSuite(forgeDirectory)).forge_version).toBe(FORGE_VERSION);
+	});
+	test("a verb that fails does not stamp", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeSuite(forgeDirectory, SUITE);
+		const path = join(forgeDirectory, "suite.yaml");
+		const before = await readFile(path, "utf8");
+		const { context } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(1);
+		expect(await readFile(path, "utf8")).toBe(before);
+	});
+	test("a suite.yaml that does not parse is left to the verb's own error, with no warning", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = join(forgeDirectory, "suite.yaml");
+		await writeFile(path, "forge_version: 0.0.1\ntarget: [unclosed\n");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(1);
+		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
+		expect(out.at(-1)).toContain(path);
+	});
+	test("a legacy kind: promptfoo-python is rewritten as python by a writing verb", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = join(forgeDirectory, "suite.yaml");
+		await writeFile(
+			path,
+			(await readFile(path, "utf8")).replace(
+				"kind: python",
+				"kind: promptfoo-python",
+			),
+		);
+		const { context } = await ctxIn(cwd);
+		expect(await run(["emit"], context)).toBe(0);
+		const text = await readFile(path, "utf8");
+		expect(text).toContain("kind: python");
+		expect(text).not.toContain("promptfoo-python");
+	});
+	test("an unknown verb neither warns nor stamps", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const path = await stampWith(forgeDirectory, "0.0.1");
+		const before = await readFile(path, "utf8");
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["frobnicate"], context)).toBe(2);
+		expect(out.some((line) => line.startsWith("warning:"))).toBe(false);
+		expect(await readFile(path, "utf8")).toBe(before);
 	});
 });

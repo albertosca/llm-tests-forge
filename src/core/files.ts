@@ -22,6 +22,7 @@ import {
 	type Suite,
 	SuiteSchema,
 } from "./schemas";
+import { isHigherVersion } from "./version";
 
 export interface ForgePaths {
 	root: string;
@@ -396,6 +397,36 @@ export function rewriteSuiteInclude(options: {
 			{ file: path, id: from },
 		);
 	return document.toString({ flowCollectionPadding: false, lineWidth: 0 });
+}
+
+/**
+ * Records `version` as suite.yaml's `forge_version` and reads a legacy
+ * `target.kind: promptfoo-python` as `python`, through the document so the
+ * person's comments survive (see `rewriteSuiteInclude`). A stamp already at
+ * or above `version` stays: an older forge must not claim a suite that a
+ * newer one wrote. True when the file was written; false when there was
+ * nothing to change or no suite.yaml.
+ */
+export async function stampSuite(
+	forgeDirectory: string,
+	version: string,
+): Promise<boolean> {
+	const present = await readSuiteIfPresent(forgeDirectory);
+	if (present === null) return false;
+	const document = parseDocument(present.text);
+	const existing = document.get("forge_version");
+	const keepExisting =
+		typeof existing === "string" && !isHigherVersion(version, existing);
+	const stamp = keepExisting ? existing : version;
+	const legacyKind = document.getIn(["target", "kind"]) === "promptfoo-python";
+	if (existing === stamp && !legacyKind) return false;
+	document.set("forge_version", stamp);
+	if (legacyKind) document.setIn(["target", "kind"], "python");
+	await writeFile(
+		forgePaths(forgeDirectory).suite,
+		document.toString({ flowCollectionPadding: false, lineWidth: 0 }),
+	);
+	return true;
 }
 
 export async function writeSuite(
