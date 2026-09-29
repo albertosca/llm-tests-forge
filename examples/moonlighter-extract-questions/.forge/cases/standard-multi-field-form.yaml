@@ -282,5 +282,5 @@
           kind: long_text
           required: false
           options: []
-  status: pending
+  status: approved
   generated_by: anthropic/claude-sonnet-5

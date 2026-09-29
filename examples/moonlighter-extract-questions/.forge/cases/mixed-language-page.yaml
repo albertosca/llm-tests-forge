@@ -96,8 +96,8 @@
           kind: single_select
           required: false
           options:
-          - Ja
-          - Nein
+            - Ja
+            - Nein
         - label: Ich stimme der Verarbeitung meiner Daten gemäß der Datenschutzerklärung zu.
           kind: boolean
           required: false
@@ -213,13 +213,13 @@
           kind: single_select
           required: false
           options:
-          - Ja
-          - Nein
+            - Ja
+            - Nein
         - label: Ich habe die Datenschutzhinweise gelesen und akzeptiere diese.
           kind: boolean
           required: false
           options: []
-  status: pending
+  status: approved
   generated_by: anthropic/claude-sonnet-5
 - id: mixed-language-page-03
   scenario: mixed-language-page
@@ -316,8 +316,8 @@
           kind: single_select
           required: false
           options:
-          - Ja
-          - Nein
+            - Ja
+            - Nein
         - label: Ich bestätige, dass alle Angaben in dieser Bewerbung wahrheitsgemäß sind.
           kind: boolean
           required: false
