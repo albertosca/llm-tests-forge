@@ -53,28 +53,38 @@ function nextFence(fence: Fence | null, line: string): Fence | null {
 	return closes ? null : fence;
 }
 
-/** True when a fence opens and never closes: CommonMark would call the rest of the file code, but a person never meant that. */
-function endsInsideFence(lines: string[]): boolean {
+/**
+ * The index of the line that opens a fence which never closes, or null when
+ * every fence closes. CommonMark would call the rest of the file code, but a
+ * person never meant that: from this line on, the text is plain.
+ */
+function unclosedFenceStart(lines: string[]): number | null {
 	let fence: Fence | null = null;
-	for (const line of lines) fence = nextFence(fence, line);
-	return fence !== null;
+	let openedAt = 0;
+	for (const [index, line] of lines.entries()) {
+		const next = nextFence(fence, line);
+		if (fence === null && next !== null) openedAt = index;
+		fence = next;
+	}
+	return fence === null ? null : openedAt;
 }
 
 /**
  * The complete start/end pairs in `lines`, in order. A marker out of place
  * (an end with nothing open, a start left open) is refused by line number:
  * guessing which half was meant would rewrite text the person wrote. A
- * marker inside a closed fenced code block is quoted text, not the block; a
- * fence still open at the end of the file is not a fence, so nothing is
- * skipped.
+ * marker inside a closed fenced code block is quoted text, not the block; the
+ * fence still open at the end of the file is not a fence, so from its opener
+ * on nothing is skipped (the fences that did close still protect what they
+ * quote).
  */
 function findBlocks(file: string, lines: string[]): MarkedBlock[] {
 	const blocks: MarkedBlock[] = [];
 	let openAt: number | null = null;
 	let fence: Fence | null = null;
-	const honorFences = !endsInsideFence(lines);
+	const honorFencesBefore = unclosedFenceStart(lines) ?? lines.length;
 	for (const [index, line] of lines.entries()) {
-		if (honorFences) {
+		if (index < honorFencesBefore) {
 			const before = fence;
 			fence = nextFence(fence, line);
 			if (before !== null || fence !== null) continue;

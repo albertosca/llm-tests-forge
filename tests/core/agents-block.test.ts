@@ -106,6 +106,18 @@ describe("upsertAgentsBlock", () => {
 			expect(second.text.split(AGENTS_START).length - 1).toBe(1);
 		}
 	});
+	test("a stray unclosed fence later in the file does not turn off the fences that closed: the quoted pair stays and the block is appended once", () => {
+		const quotedPair = `${AGENTS_START}\nquoted\n${AGENTS_END}\n`;
+		for (const fence of ["```", "~~~"]) {
+			const existing = `${fence}\n${quotedPair}${fence}\nText.\n${fence}\nstray\n`;
+			const first = planAgentsBlock("AGENTS.md", existing);
+			expect(first.replaced).toBe(false);
+			expect(first.text).toBe(`${existing}\n${block}\n`);
+			const second = planAgentsBlock("AGENTS.md", first.text);
+			expect(second.text).toBe(first.text);
+			expect(second.text.split(AGENTS_START).length - 1).toBe(2);
+		}
+	});
 	test("a fence indented four spaces is indented code, not a fence: it does not hide the pair", () => {
 		const existing = `# t\n    \`\`\`\n${AGENTS_START}\nold\n${AGENTS_END}\n`;
 		const planned = planAgentsBlock("AGENTS.md", existing);
