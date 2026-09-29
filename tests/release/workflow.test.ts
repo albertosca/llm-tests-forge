@@ -21,6 +21,7 @@ import { FORGE_VERSION } from "../../src/core/version";
 const REPOSITORY = resolve(import.meta.dir, "../..");
 const RELEASE_WORKFLOW = join(REPOSITORY, ".github/workflows/release.yml");
 const LINT_WORKFLOW = join(REPOSITORY, ".github/workflows/lint.yml");
+const CI_WORKFLOW = join(REPOSITORY, ".github/workflows/ci.yml");
 
 const StepSchema = z.object({
 	name: z.string().optional(),
@@ -160,9 +161,11 @@ describe("the release workflow's shape", () => {
 		expect(needsOf(jobNamed("smoke"))).toEqual(["build"]);
 		expect(needsOf(jobNamed("assemble"))).toEqual(["build"]);
 		expect(needsOf(jobNamed("release")).sort()).toEqual(["assemble", "smoke"]);
+		expect(needsOf(jobNamed("packages"))).toEqual(["check"]);
 		expect(Object.keys(workflow.jobs).sort()).toEqual(
 			[
 				"check",
+				"packages",
 				"build",
 				"smoke",
 				"assemble",
@@ -517,6 +520,46 @@ describe("the smoke steps, run here against the source CLI", () => {
 	}, 60000);
 });
 
+describe("the package tests in CI", () => {
+	for (const path of [CI_WORKFLOW, RELEASE_WORKFLOW])
+		test(`${path.slice(REPOSITORY.length + 1)} has a packages job running test:packages on ubuntu-24.04 with every package toolchain`, async () => {
+			const packagesJob = (await readWorkflow(path)).jobs.packages;
+			expect(packagesJob?.["runs-on"]).toBe("ubuntu-24.04");
+			expect(packagesJob?.permissions).toEqual({ contents: "read" });
+			const steps = packagesJob?.steps ?? [];
+			expect(steps.map((step) => step.uses ?? step.run)).toEqual([
+				"actions/checkout@v4",
+				"oven-sh/setup-bun@v2",
+				"bun install --frozen-lockfile",
+				"actions/setup-node@v4",
+				"astral-sh/setup-uv@v6",
+				"ruby/setup-ruby@v1",
+				"erlef/setup-beam@v1",
+				"mix local.hex --force",
+				"bun run test:packages",
+			]);
+			const withOf = (uses: string) =>
+				steps.find((step) => step.uses === uses)?.with;
+			expect(withOf("oven-sh/setup-bun@v2")).toEqual({
+				"bun-version": "1.4.2",
+			});
+			expect(withOf("actions/setup-node@v4")).toEqual({ "node-version": "22" });
+			expect(withOf("ruby/setup-ruby@v1")).toEqual({ "ruby-version": "3.3" });
+			expect(withOf("erlef/setup-beam@v1")).toEqual({
+				"otp-version": "27",
+				"elixir-version": "1.18",
+			});
+		});
+
+	test("every publish job needs the packages job, so nothing is published past a red package test", () => {
+		for (const publish of PUBLISH_JOBS)
+			expect({
+				job: publish.job,
+				needsPackages: needsOf(jobNamed(publish.job)).includes("packages"),
+			}).toEqual({ job: publish.job, needsPackages: true });
+	});
+});
+
 describe("the Ruby lint in CI", () => {
 	test("lint.yml has a job that runs lint:ruby after setting up Ruby and rubocop", async () => {
 		const lint = await readWorkflow(LINT_WORKFLOW);
@@ -537,10 +580,15 @@ describe("the Ruby lint in CI", () => {
 
 const actionlint = Bun.which("actionlint");
 test.skipIf(actionlint === null)(
-	`actionlint accepts release.yml and lint.yml${actionlint === null ? " (skipped: actionlint is not installed on this machine)" : ""}`,
+	`actionlint accepts release.yml, lint.yml and ci.yml${actionlint === null ? " (skipped: actionlint is not installed on this machine)" : ""}`,
 	() => {
 		const child = Bun.spawnSync(
-			[actionlint ?? "actionlint", RELEASE_WORKFLOW, LINT_WORKFLOW],
+			[
+				actionlint ?? "actionlint",
+				RELEASE_WORKFLOW,
+				LINT_WORKFLOW,
+				CI_WORKFLOW,
+			],
 			{ cwd: REPOSITORY },
 		);
 		expect(child.stdout.toString()).toBe("");

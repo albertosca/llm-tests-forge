@@ -34,6 +34,8 @@ jobs:
         env:
           PCT: ${{ steps.coverage.outputs.pct }}
         run: |
+          # The single quotes keep the JavaScript's own ${...} away from the shell.
+          # shellcheck disable=SC2016
           bun -e 'const p = Number(process.env.PCT); const color = p >= 95 ? "brightgreen" : p >= 80 ? "yellow" : "red"; require("node:fs").writeFileSync("/tmp/coverage.json", `${JSON.stringify({ schemaVersion: 1, label: "coverage", message: `${p}%`, color })}\n`)'
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -48,6 +50,32 @@ jobs:
           git add coverage.json
           git commit -m "Update the coverage badge: ${PCT}%" || echo "coverage unchanged"
           git push origin badges
+  # The opt-in package tests: each package built from a freshly compiled
+  # binary and installed into a temporary prefix with its own tool. The
+  # Homebrew test skips here (no brew on the PATH of a Linux runner).
+  packages:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18"
+      - run: mix local.hex --force
+      - run: bun run test:packages
   typecheck:
     runs-on: ubuntu-latest
     steps:

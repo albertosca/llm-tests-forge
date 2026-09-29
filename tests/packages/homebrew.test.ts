@@ -87,73 +87,84 @@ afterAll(async () => {
 		await rm(directory, { recursive: true, force: true });
 });
 
-describe.skipIf(!packages || HOST === undefined)("homebrew formula", () => {
-	test("installs from a temporary tap, passes brew test, runs, and leaves Homebrew as it found it", async () => {
-		if (HOST === undefined) throw new Error("this machine is not a target");
-		const work = await mkdtemp(join(tmpdir(), "forge-brew-e2e-"));
-		workDirectories.push(work);
-		const cache = join(work, "cache");
-		const binaries = join(work, "binaries");
-		await buildBinaries(binaries, HOST.bunTarget);
-		// The other targets get small stand-ins: the formula lists every Homebrew asset, and only the host's is downloaded.
-		for (const target of RELEASE_TARGETS)
-			if (target !== HOST && target.homebrew !== null)
-				await writeFile(join(binaries, target.assetName), target.assetName);
-		const sumsText = await writeChecksums(binaries);
-		const server = Bun.serve({
-			port: 0,
-			hostname: "127.0.0.1",
-			async fetch(request) {
-				const name = new URL(request.url).pathname.slice(1);
-				const file = Bun.file(join(binaries, name));
-				if (name === "" || name.includes("/") || !(await file.exists()))
-					return new Response("not found", { status: 404 });
-				return new Response(file);
-			},
-		});
-		servers.push(server);
-		const formula = await renderFormula(
-			FORGE_VERSION,
-			sumsText,
-			join(binaries, "SHA256SUMS"),
-			`http://127.0.0.1:${server.port}`,
-		);
-		const formulaPath = join(work, "llm-tests-forge.rb");
-		await writeFile(formulaPath, formula);
+// A Linux CI runner carries no brew on its PATH, and installing Homebrew there
+// to test the formula is not worth its minutes: the test is skipped, and says so.
+const BREW_MISSING = Bun.which("brew") === null;
 
-		const before = await homebrewState(cache);
-		const tapName = `forge-e2e-${crypto.randomUUID().slice(0, 8)}/test`;
-		const formulaName = `${tapName}/llm-tests-forge`;
-		let tapCreated = false;
-		try {
-			await mustBrew(["tap-new", "--no-git", tapName], cache);
-			tapCreated = true;
-			const tapDirectory = (
-				await mustBrew(["--repository", tapName], cache)
-			).trim();
-			await copyFile(
-				formulaPath,
-				join(tapDirectory, "Formula", "llm-tests-forge.rb"),
-			);
-			await mustBrew(["install", formulaName], cache);
-			await mustBrew(["test", formulaName], cache);
-			const prefix = (await mustBrew(["--prefix", formulaName], cache)).trim();
-			const run = Bun.spawn(
-				[join(prefix, "bin", "llm-tests-forge"), "--version"],
-				{
-					stdout: "pipe",
-					stderr: "pipe",
+describe.skipIf(!packages || HOST === undefined || BREW_MISSING)(
+	`homebrew formula${BREW_MISSING ? " (skipped: brew is not on the PATH)" : ""}`,
+	() => {
+		test("installs from a temporary tap, passes brew test, runs, and leaves Homebrew as it found it", async () => {
+			if (HOST === undefined) throw new Error("this machine is not a target");
+			const work = await mkdtemp(join(tmpdir(), "forge-brew-e2e-"));
+			workDirectories.push(work);
+			const cache = join(work, "cache");
+			const binaries = join(work, "binaries");
+			await buildBinaries(binaries, HOST.bunTarget);
+			// The other targets get small stand-ins: the formula lists every Homebrew asset, and only the host's is downloaded.
+			for (const target of RELEASE_TARGETS)
+				if (target !== HOST && target.homebrew !== null)
+					await writeFile(join(binaries, target.assetName), target.assetName);
+			const sumsText = await writeChecksums(binaries);
+			const server = Bun.serve({
+				port: 0,
+				hostname: "127.0.0.1",
+				async fetch(request) {
+					const name = new URL(request.url).pathname.slice(1);
+					const file = Bun.file(join(binaries, name));
+					if (name === "" || name.includes("/") || !(await file.exists()))
+						return new Response("not found", { status: 404 });
+					return new Response(file);
 				},
+			});
+			servers.push(server);
+			const formula = await renderFormula(
+				FORGE_VERSION,
+				sumsText,
+				join(binaries, "SHA256SUMS"),
+				`http://127.0.0.1:${server.port}`,
 			);
-			expect(await new Response(run.stdout).text()).toBe(`${FORGE_VERSION}\n`);
-			expect(await run.exited).toBe(0);
-		} finally {
-			// Uninstall only if it got installed; untap only what this test tapped.
-			if (tapCreated) {
-				await brew(["uninstall", "--force", formulaName], cache);
-				await brew(["untap", "--force", tapName], cache);
+			const formulaPath = join(work, "llm-tests-forge.rb");
+			await writeFile(formulaPath, formula);
+
+			const before = await homebrewState(cache);
+			const tapName = `forge-e2e-${crypto.randomUUID().slice(0, 8)}/test`;
+			const formulaName = `${tapName}/llm-tests-forge`;
+			let tapCreated = false;
+			try {
+				await mustBrew(["tap-new", "--no-git", tapName], cache);
+				tapCreated = true;
+				const tapDirectory = (
+					await mustBrew(["--repository", tapName], cache)
+				).trim();
+				await copyFile(
+					formulaPath,
+					join(tapDirectory, "Formula", "llm-tests-forge.rb"),
+				);
+				await mustBrew(["install", formulaName], cache);
+				await mustBrew(["test", formulaName], cache);
+				const prefix = (
+					await mustBrew(["--prefix", formulaName], cache)
+				).trim();
+				const run = Bun.spawn(
+					[join(prefix, "bin", "llm-tests-forge"), "--version"],
+					{
+						stdout: "pipe",
+						stderr: "pipe",
+					},
+				);
+				expect(await new Response(run.stdout).text()).toBe(
+					`${FORGE_VERSION}\n`,
+				);
+				expect(await run.exited).toBe(0);
+			} finally {
+				// Uninstall only if it got installed; untap only what this test tapped.
+				if (tapCreated) {
+					await brew(["uninstall", "--force", formulaName], cache);
+					await brew(["untap", "--force", tapName], cache);
+				}
 			}
-		}
-		expect(await homebrewState(cache)).toBe(before);
-	}, 600_000);
-});
+			expect(await homebrewState(cache)).toBe(before);
+		}, 600_000);
+	},
+);

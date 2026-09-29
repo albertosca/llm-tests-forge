@@ -35,6 +35,32 @@ jobs:
       - run: gem install rubocop -v 1.91.0
       - run: bun run lint:ruby
 
+  # The package tests (see ci.yml): every publish job waits for them.
+  packages:
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18"
+      - run: mix local.hex --force
+      - run: bun run test:packages
+
   build:
     needs: check
     runs-on: ubuntu-24.04
@@ -192,7 +218,7 @@ jobs:
             install.sh
 
   publish-npm:
-    needs: [release, assemble]
+    needs: [release, assemble, packages]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -228,7 +254,7 @@ jobs:
           npm publish --access public assembled/npm/main
 
   publish-pypi:
-    needs: [release, assemble]
+    needs: [release, assemble, packages]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -253,7 +279,7 @@ jobs:
         run: uv publish --token "$PYPI_TOKEN" assembled/wheels/*.whl
 
   publish-hex:
-    needs: [release, assemble]
+    needs: [release, assemble, packages]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -284,7 +310,7 @@ jobs:
           mix hex.publish package --yes
 
   publish-gem:
-    needs: [release, assemble]
+    needs: [release, assemble, packages]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -314,7 +340,7 @@ jobs:
           done
 
   publish-homebrew:
-    needs: [release, assemble]
+    needs: [release, assemble, packages]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
