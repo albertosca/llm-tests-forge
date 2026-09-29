@@ -111,14 +111,45 @@ function scriptOf(step: Step): string {
 }
 
 /** The registry each publish job serves, the secret it maps, and the name its notices give it. */
+/**
+ * The registry each publish job serves, the secret it maps, the job-level
+ * boolean that says whether that secret is set, the one step that receives
+ * the secret itself, and the name its notices give the registry.
+ */
 const PUBLISH_JOBS = [
-	{ job: "publish-npm", token: "NPM_TOKEN", registry: "npm" },
-	{ job: "publish-pypi", token: "PYPI_TOKEN", registry: "PyPI" },
-	{ job: "publish-hex", token: "HEX_API_KEY", registry: "Hex" },
-	{ job: "publish-gem", token: "GEM_HOST_API_KEY", registry: "RubyGems" },
+	{
+		job: "publish-npm",
+		token: "NPM_TOKEN",
+		flag: "NPM_TOKEN_SET",
+		publishStep: "Publish the platform packages, then the main package",
+		registry: "npm",
+	},
+	{
+		job: "publish-pypi",
+		token: "PYPI_TOKEN",
+		flag: "PYPI_TOKEN_SET",
+		publishStep: "Publish the wheels",
+		registry: "PyPI",
+	},
+	{
+		job: "publish-hex",
+		token: "HEX_API_KEY",
+		flag: "HEX_API_KEY_SET",
+		publishStep: "Publish the Hex package",
+		registry: "Hex",
+	},
+	{
+		job: "publish-gem",
+		token: "GEM_HOST_API_KEY",
+		flag: "GEM_HOST_API_KEY_SET",
+		publishStep: "Push the gems",
+		registry: "RubyGems",
+	},
 	{
 		job: "publish-homebrew",
 		token: "HOMEBREW_TAP_TOKEN",
+		flag: "HOMEBREW_TAP_TOKEN_SET",
+		publishStep: "Check out the tap",
 		registry: "Homebrew",
 	},
 ] as const;
@@ -129,8 +160,8 @@ const ALLOWED_SECRETS = new Set<string>([
 ]);
 
 /** The only guard a publish step may carry: its own token is set and the tag is not a prerelease. */
-function publishGuard(token: string): string {
-	return `env.${token} != '' && !contains(github.ref_name, '-')`;
+function publishGuard(flag: string): string {
+	return `env.${flag} == 'true' && !contains(github.ref_name, '-')`;
 }
 
 const SMOKE_RUNNERS: Record<string, string> = {
@@ -239,23 +270,36 @@ describe("secrets and publishing", () => {
 		expect(workflowText).not.toMatch(/secrets\s*\[/);
 	});
 
-	test("each registry token appears only in its own publish job's env", () => {
+	test("each registry token is mentioned only in its own publish job: as a boolean in the job's env, and its value in the one step that publishes", () => {
 		for (const [name, job] of Object.entries(workflow.jobs)) {
 			const own = PUBLISH_JOBS.find((publish) => publish.job === name);
 			const jobText = JSON.stringify(job);
-			const mentioned = [...jobText.matchAll(/secrets\.(\w+)/g)]
-				.map((match) => match[1])
-				.filter((secret) => secret !== "GITHUB_TOKEN");
+			const mentioned = new Set(
+				[...jobText.matchAll(/secrets\.(\w+)/g)]
+					.map((match) => match[1])
+					.filter((secret) => secret !== "GITHUB_TOKEN"),
+			);
 			expect({
 				name,
 				githubToken: jobText.includes("secrets.GITHUB_TOKEN"),
 			}).toEqual({ name, githubToken: name === "release" });
-			expect({ name, mentioned }).toEqual({
+			expect({ name, mentioned: [...mentioned] }).toEqual({
 				name,
 				mentioned: own === undefined ? [] : [own.token],
 			});
-			if (own !== undefined)
-				expect(job.env?.[own.token]).toBe(`\${{ secrets.${own.token} }}`);
+			if (own === undefined) continue;
+			// The job's env holds only whether the token is set, never the token.
+			expect(job.env).toEqual({
+				[own.flag]: `\${{ secrets.${own.token} != '' }}`,
+			});
+			const value = `\${{ secrets.${own.token} }}`;
+			const receiving = job.steps.filter((step) =>
+				JSON.stringify(step).includes(value),
+			);
+			expect({
+				name,
+				receiving: receiving.map((step) => step.name ?? step.uses),
+			}).toEqual({ name, receiving: [own.publishStep] });
 		}
 	});
 
@@ -269,7 +313,7 @@ describe("secrets and publishing", () => {
 					`echo "::notice::${publish.registry} token not set; not published"`,
 			);
 			expect(tokenNotice).toEqual([
-				expect.objectContaining({ if: `env.${publish.token} == ''` }),
+				expect.objectContaining({ if: `env.${publish.flag} != 'true'` }),
 			]);
 			const prereleaseNotice = job.steps.filter(
 				(step) =>
@@ -287,19 +331,28 @@ describe("secrets and publishing", () => {
 			for (const step of working)
 				expect({ step: step.name ?? step.uses, if: step.if }).toEqual({
 					step: step.name ?? step.uses,
-					if: publishGuard(publish.token),
+					if: publishGuard(publish.flag),
 				});
 		});
 	}
 
+	test("the wheels are published with the token in UV_PUBLISH_TOKEN, never on the command line, skipping files PyPI already holds", () => {
+		const step = stepNamed(jobNamed("publish-pypi"), "Publish the wheels");
+		expect(step.env).toEqual({
+			UV_PUBLISH_TOKEN: `\${{ secrets.PYPI_TOKEN }}`,
+		});
+		expect(scriptOf(step).trim()).toBe(
+			"uv publish --check-url https://pypi.org/simple/ assembled/wheels/*.whl",
+		);
+	});
+
 	test("the Homebrew job commits the rendered formula to albertosca/homebrew-tap", () => {
 		const job = jobNamed("publish-homebrew");
-		const checkout = job.steps.find(
-			(step) => step.uses === "actions/checkout@v4",
-		);
-		expect(checkout?.with).toEqual({
+		const checkout = stepNamed(job, "Check out the tap");
+		expect(checkout.uses).toBe("actions/checkout@v4");
+		expect(checkout.with).toEqual({
 			repository: "albertosca/homebrew-tap",
-			token: `\${{ env.HOMEBREW_TAP_TOKEN }}`,
+			token: `\${{ secrets.HOMEBREW_TAP_TOKEN }}`,
 			path: "tap",
 		});
 		const script = scriptOf(stepNamed(job, "Commit the formula to the tap"));
@@ -307,6 +360,112 @@ describe("secrets and publishing", () => {
 			"cp assembled/homebrew/llm-tests-forge.rb tap/Formula/llm-tests-forge.rb",
 		);
 		expect(script).toContain("git push");
+	});
+});
+
+describe("re-running a publish step after a partial publish", () => {
+	/** A directory holding executable stand-ins, to put first on the PATH. */
+	async function toolsWith(tools: Record<string, string>): Promise<string> {
+		const directory = await mkdtemp(join(tmpdir(), "forge-publish-tools-"));
+		for (const [name, script] of Object.entries(tools)) {
+			await writeFile(join(directory, name), script);
+			await chmod(join(directory, name), 0o755);
+		}
+		return directory;
+	}
+
+	test("npm skips each package whose exact version npm already holds and publishes the rest, main last", async () => {
+		const workspace = await mkdtemp(join(tmpdir(), "forge-publish-npm-"));
+		for (const [directory, name] of [
+			["main", "llm-tests-forge"],
+			["darwin-arm64", "@llm-tests-forge/darwin-arm64"],
+			["linux-x64", "@llm-tests-forge/linux-x64"],
+		] as const) {
+			await mkdir(join(workspace, "assembled/npm", directory), {
+				recursive: true,
+			});
+			await writeFile(
+				join(workspace, "assembled/npm", directory, "package.json"),
+				JSON.stringify({ name, version: "1.2.3" }),
+			);
+		}
+		const calls = join(workspace, "npm-calls.txt");
+		// npm view prints the version only when that exact version exists; for a
+		// missing version of an existing package it prints nothing and exits 0.
+		const tools = await toolsWith({
+			npm: [
+				"#!/bin/sh",
+				`echo "$*" >> "${calls}"`,
+				'if [ "$1" = view ]; then',
+				'  case "$2" in',
+				"  @llm-tests-forge/darwin-arm64@1.2.3) echo 1.2.3 ;;",
+				"  llm-tests-forge@1.2.3) exit 0 ;;",
+				'  *) echo "npm error code E404" >&2; exit 1 ;;',
+				"  esac",
+				"fi",
+				"",
+			].join("\n"),
+		});
+		const result = runStep(
+			scriptOf(
+				stepNamed(
+					jobNamed("publish-npm"),
+					"Publish the platform packages, then the main package",
+				),
+			),
+			workspace,
+			{ PATH: `${tools}:${process.env.PATH ?? ""}` },
+		);
+		expect(result.exitCode).toBe(0);
+		expect(result.output).toContain(
+			"@llm-tests-forge/darwin-arm64@1.2.3 is already on npm; skipped",
+		);
+		const published = (await readFile(calls, "utf8"))
+			.split("\n")
+			.filter((line) => line.startsWith("publish"));
+		expect(published).toEqual([
+			"publish --access public assembled/npm/linux-x64",
+			"publish --access public assembled/npm/main",
+		]);
+	});
+
+	test("gem push treats RubyGems' refusal to repush a version as a skip, and any other failure stops the step", async () => {
+		const workspace = await mkdtemp(join(tmpdir(), "forge-publish-gem-"));
+		await mkdir(join(workspace, "assembled/gems"), { recursive: true });
+		for (const name of ["a-already.gem", "b-new.gem"])
+			await writeFile(join(workspace, "assembled/gems", name), "gem\n");
+		const script = scriptOf(
+			stepNamed(jobNamed("publish-gem"), "Push the gems"),
+		);
+		const repushing = await toolsWith({
+			gem: [
+				"#!/bin/sh",
+				'case "$2" in',
+				'*already*) echo "Repushing of gem versions is not allowed."; echo "Please use \\`gem yank\\` to remove bad gem releases."; exit 1 ;;',
+				'*) echo "Successfully registered gem: $2" ;;',
+				"esac",
+				"",
+			].join("\n"),
+		});
+		const skipped = runStep(script, workspace, {
+			PATH: `${repushing}:${process.env.PATH ?? ""}`,
+		});
+		expect(skipped.exitCode).toBe(0);
+		expect(skipped.output).toContain(
+			"assembled/gems/a-already.gem is already on RubyGems; skipped",
+		);
+		expect(skipped.output).toContain(
+			"Successfully registered gem: assembled/gems/b-new.gem",
+		);
+		const refusing = await toolsWith({
+			gem: '#!/bin/sh\necho "Access Denied. Please sign up for an account"\nexit 1\n',
+		});
+		const stopped = runStep(script, workspace, {
+			PATH: `${refusing}:${process.env.PATH ?? ""}`,
+		});
+		expect(stopped.exitCode).toBe(1);
+		expect(stopped.output).toContain("Access Denied");
+		expect(stopped.output).not.toContain("b-new.gem");
 	});
 });
 

@@ -222,36 +222,51 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    # Only whether the token is set lives in the job's env; the token itself
+    # goes to the one step that publishes.
     env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NPM_TOKEN_SET: ${{ secrets.NPM_TOKEN != '' }}
     steps:
-      - if: env.NPM_TOKEN == ''
+      - if: env.NPM_TOKEN_SET != 'true'
         run: echo "::notice::npm token not set; not published"
       - if: contains(github.ref_name, '-')
         run: echo "::notice::npm not published for a prerelease tag"
-      - if: env.NPM_TOKEN != '' && !contains(github.ref_name, '-')
+      - if: env.NPM_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         uses: actions/download-artifact@v4
         with:
           name: packages
       - name: Unpack the packages
-        if: env.NPM_TOKEN != '' && !contains(github.ref_name, '-')
+        if: env.NPM_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         run: tar -xf packages.tar
-      - if: env.NPM_TOKEN != '' && !contains(github.ref_name, '-')
+      - if: env.NPM_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           registry-url: https://registry.npmjs.org
+      # A re-run after a partial publish skips what npm already holds: npm
+      # view prints the version only when that exact version exists (for a
+      # missing version of an existing package it prints nothing and exits 0).
       - name: Publish the platform packages, then the main package
-        if: env.NPM_TOKEN != '' && !contains(github.ref_name, '-')
+        if: env.NPM_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         env:
-          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          publish_unless_present() {
+            name="$(node -p "require('./$1/package.json').name")"
+            version="$(node -p "require('./$1/package.json').version")"
+            published="$(npm view "$name@$version" version 2>/dev/null || true)"
+            if [ "$published" = "$version" ]; then
+              echo "$name@$version is already on npm; skipped"
+            else
+              npm publish --access public "$1"
+            fi
+          }
           for directory in assembled/npm/*/; do
             if [ "$directory" != "assembled/npm/main/" ]; then
-              npm publish --access public "$directory"
+              publish_unless_present "${directory%/}"
             fi
           done
-          npm publish --access public assembled/npm/main
+          publish_unless_present assembled/npm/main
 
   publish-pypi:
     needs: [release, assemble, packages]
@@ -259,24 +274,29 @@ jobs:
     permissions:
       contents: read
     env:
-      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+      PYPI_TOKEN_SET: ${{ secrets.PYPI_TOKEN != '' }}
     steps:
-      - if: env.PYPI_TOKEN == ''
+      - if: env.PYPI_TOKEN_SET != 'true'
         run: echo "::notice::PyPI token not set; not published"
       - if: contains(github.ref_name, '-')
         run: echo "::notice::PyPI not published for a prerelease tag"
-      - if: env.PYPI_TOKEN != '' && !contains(github.ref_name, '-')
+      - if: env.PYPI_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         uses: actions/download-artifact@v4
         with:
           name: packages
       - name: Unpack the packages
-        if: env.PYPI_TOKEN != '' && !contains(github.ref_name, '-')
+        if: env.PYPI_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         run: tar -xf packages.tar
-      - if: env.PYPI_TOKEN != '' && !contains(github.ref_name, '-')
+      - if: env.PYPI_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         uses: astral-sh/setup-uv@v6
+      # uv reads the token from UV_PUBLISH_TOKEN, so it is never on the command
+      # line; --check-url skips a file the index already holds, so a re-run after
+      # a partial publish uploads only what is missing.
       - name: Publish the wheels
-        if: env.PYPI_TOKEN != '' && !contains(github.ref_name, '-')
-        run: uv publish --token "$PYPI_TOKEN" assembled/wheels/*.whl
+        if: env.PYPI_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: uv publish --check-url https://pypi.org/simple/ assembled/wheels/*.whl
 
   publish-hex:
     needs: [release, assemble, packages]
@@ -284,26 +304,28 @@ jobs:
     permissions:
       contents: read
     env:
-      HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+      HEX_API_KEY_SET: ${{ secrets.HEX_API_KEY != '' }}
     steps:
-      - if: env.HEX_API_KEY == ''
+      - if: env.HEX_API_KEY_SET != 'true'
         run: echo "::notice::Hex token not set; not published"
       - if: contains(github.ref_name, '-')
         run: echo "::notice::Hex not published for a prerelease tag"
-      - if: env.HEX_API_KEY != '' && !contains(github.ref_name, '-')
+      - if: env.HEX_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
         uses: actions/download-artifact@v4
         with:
           name: packages
       - name: Unpack the packages
-        if: env.HEX_API_KEY != '' && !contains(github.ref_name, '-')
+        if: env.HEX_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
         run: tar -xf packages.tar
-      - if: env.HEX_API_KEY != '' && !contains(github.ref_name, '-')
+      - if: env.HEX_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
         uses: erlef/setup-beam@v1
         with:
           otp-version: "27"
           elixir-version: "1.18"
       - name: Publish the Hex package
-        if: env.HEX_API_KEY != '' && !contains(github.ref_name, '-')
+        if: env.HEX_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
         working-directory: assembled/hex
         run: |
           mix local.hex --force
@@ -315,28 +337,40 @@ jobs:
     permissions:
       contents: read
     env:
-      GEM_HOST_API_KEY: ${{ secrets.GEM_HOST_API_KEY }}
+      GEM_HOST_API_KEY_SET: ${{ secrets.GEM_HOST_API_KEY != '' }}
     steps:
-      - if: env.GEM_HOST_API_KEY == ''
+      - if: env.GEM_HOST_API_KEY_SET != 'true'
         run: echo "::notice::RubyGems token not set; not published"
       - if: contains(github.ref_name, '-')
         run: echo "::notice::RubyGems not published for a prerelease tag"
-      - if: env.GEM_HOST_API_KEY != '' && !contains(github.ref_name, '-')
+      - if: env.GEM_HOST_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
         uses: actions/download-artifact@v4
         with:
           name: packages
       - name: Unpack the packages
-        if: env.GEM_HOST_API_KEY != '' && !contains(github.ref_name, '-')
+        if: env.GEM_HOST_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
         run: tar -xf packages.tar
-      - if: env.GEM_HOST_API_KEY != '' && !contains(github.ref_name, '-')
+      - if: env.GEM_HOST_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
+      # A re-run after a partial publish skips a gem RubyGems already holds: it
+      # answers "Repushing of gem versions is not allowed" for one; any other
+      # failure stops the job.
       - name: Push the gems
-        if: env.GEM_HOST_API_KEY != '' && !contains(github.ref_name, '-')
+        if: env.GEM_HOST_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.GEM_HOST_API_KEY }}
         run: |
           for gem_file in assembled/gems/*.gem; do
-            gem push "$gem_file"
+            status=0
+            output="$(gem push "$gem_file" 2>&1)" || status=$?
+            printf '%s\n' "$output"
+            case "$output" in
+            *"Repushing of gem versions is not allowed"*)
+              echo "$gem_file is already on RubyGems; skipped" ;;
+            *) [ "$status" -eq 0 ] || exit "$status" ;;
+            esac
           done
 
   publish-homebrew:
@@ -345,27 +379,29 @@ jobs:
     permissions:
       contents: read
     env:
-      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      HOMEBREW_TAP_TOKEN_SET: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
     steps:
-      - if: env.HOMEBREW_TAP_TOKEN == ''
+      - if: env.HOMEBREW_TAP_TOKEN_SET != 'true'
         run: echo "::notice::Homebrew token not set; not published"
       - if: contains(github.ref_name, '-')
         run: echo "::notice::Homebrew not published for a prerelease tag"
-      - if: env.HOMEBREW_TAP_TOKEN != '' && !contains(github.ref_name, '-')
+      - if: env.HOMEBREW_TAP_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         uses: actions/download-artifact@v4
         with:
           name: packages
       - name: Unpack the packages
-        if: env.HOMEBREW_TAP_TOKEN != '' && !contains(github.ref_name, '-')
+        if: env.HOMEBREW_TAP_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         run: tar -xf packages.tar
-      - if: env.HOMEBREW_TAP_TOKEN != '' && !contains(github.ref_name, '-')
+      # The token goes to the checkout, which keeps it for the push below.
+      - name: Check out the tap
+        if: env.HOMEBREW_TAP_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         uses: actions/checkout@v4
         with:
           repository: albertosca/homebrew-tap
-          token: ${{ env.HOMEBREW_TAP_TOKEN }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
       - name: Commit the formula to the tap
-        if: env.HOMEBREW_TAP_TOKEN != '' && !contains(github.ref_name, '-')
+        if: env.HOMEBREW_TAP_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         run: |
           mkdir -p tap/Formula
           cp assembled/homebrew/llm-tests-forge.rb tap/Formula/llm-tests-forge.rb
