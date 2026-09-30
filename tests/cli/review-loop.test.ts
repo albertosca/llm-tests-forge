@@ -395,20 +395,22 @@ describe("runReviewLoop", () => {
 		});
 	});
 
-	test("an editor killed by Ctrl+C skips the item and ends the pass: no retry, no re-render, nothing after it asked", async () => {
+	test("an editor killed by Ctrl+C skips the item on screen and every later one, as a Ctrl+C at the prompt does: no retry, no re-render, nothing after it asked", async () => {
 		// A ForgeError from the editor used to read as a bad edit: "cannot
 		// apply" was printed, the same item was rendered and asked again,
 		// and the person who pressed Ctrl+C to stop was asked to go on.
 		const printed: string[] = [];
+		const answers = ["approve", "edit"];
 		let asked = 0;
 		const result = await runReviewLoop({
 			items: [
+				{ kind: "feature", item: feature },
 				{ kind: "case", item: withExp },
 				{ kind: "scenario", item: scn },
 			],
 			ask: async () => {
 				asked += 1;
-				return asked === 1 ? "edit" : "approve";
+				return answers.shift() ?? "approve";
 			},
 			openEditor: async () => {
 				throw new EditorInterruptedError('editor "vi" was interrupted');
@@ -420,12 +422,14 @@ describe("runReviewLoop", () => {
 			print: (line) => printed.push(line),
 		});
 		expect(result.summary).toEqual({
-			approved: 0,
+			approved: 1,
 			rejected: 0,
 			edited: 0,
-			skipped: 1,
+			skipped: 2,
 		});
-		expect(result.decisions).toEqual([]);
+		expect(result.decisions.map((decision) => decision.kind)).toEqual([
+			"feature",
+		]);
 		expect(
 			printed.filter((line) => line === `--- case ${withExp.id} ---`),
 		).toHaveLength(1);
@@ -435,7 +439,7 @@ describe("runReviewLoop", () => {
 		expect(printed.some((line) => line.startsWith("cannot apply:"))).toBe(
 			false,
 		);
-		expect(asked).toBe(1);
+		expect(asked).toBe(2);
 	});
 
 	test("skip leaves no decision", async () => {

@@ -166,7 +166,7 @@ export async function runReviewLoop(
 			});
 	};
 
-	for (const pending of loopArguments.items) {
+	for (const [position, pending] of loopArguments.items.entries()) {
 		// The kind and the item stay paired all the way through, so
 		// narrowing on `current.kind` types `current.item`; a bare
 		// `Feature | Scenario | Case` beside `pending.kind` had every case
@@ -244,10 +244,12 @@ export async function runReviewLoop(
 			} catch (error) {
 				// Ctrl+C inside `$EDITOR` is a request to stop, not a bad
 				// edit: retrying re-rendered the item and asked the person
-				// who had just pressed it to go on. The item is skipped and
-				// the pass ends here, so the caller writes what was decided.
+				// who had just pressed it to go on. The item on screen and
+				// every later one are skipped, as a Ctrl+C at the prompt skips
+				// them, and the pass ends here so the caller writes what was
+				// decided.
 				if (error instanceof EditorInterruptedError) {
-					summary.skipped += 1;
+					summary.skipped += loopArguments.items.length - position;
 					return { decisions, summary };
 				}
 				if (error instanceof ForgeError) {

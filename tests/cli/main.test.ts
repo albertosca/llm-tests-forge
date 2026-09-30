@@ -1718,6 +1718,53 @@ describe("review: startInteractivePass arms end-of-input only for the interactiv
 		expect(interactivePassCalls).toBe(1);
 	});
 
+	test("a real $EDITOR killed by Ctrl+C skips the case on screen and every later one, and the decision taken before it is written", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(
+			forgeDirectory,
+			"polite-rejection",
+			["01", "02", "03"].map((number) => ({
+				id: `polite-rejection-${number}`,
+				scenario: "polite-rejection",
+				input: { email: number },
+				expected: { label: "rejection" },
+				status: "pending" as const,
+				generated_by: "hand",
+			})),
+		);
+		// A stand-in for an editor that dies of the Ctrl+C: it sends SIGINT
+		// to itself only, never to the test process.
+		const editor = join(cwd, "editor-killed-by-sigint.sh");
+		await writeFile(editor, "#!/bin/sh\nkill -INT $$\n");
+		await chmod(editor, 0o755);
+		const { context, out } = await ctxIn(cwd, ["approve", "edit"]);
+		const original = process.env.EDITOR;
+		process.env.EDITOR = editor;
+		try {
+			expect(
+				await run(
+					["review", "--scenario", "polite-rejection", "--only", "cases"],
+					context,
+				),
+			).toBe(0);
+		} finally {
+			if (original === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = original;
+		}
+		expect(out.some((line) => line.startsWith("cannot apply:"))).toBe(false);
+		expect(out).not.toContain("--- case polite-rejection-03 ---");
+		expect(out.at(-1)).toBe(
+			"review: 1 approved, 0 rejected, 0 edited, 2 skipped, 0 re-opened, 2 still pending",
+		);
+		const onDisk = await readCases(forgeDirectory, "polite-rejection");
+		expect(onDisk.map((caseEntry) => caseEntry.status)).toEqual([
+			"approved",
+			"pending",
+			"pending",
+		]);
+	});
+
 	test("the write-back and its report run inside the pass's whileWriting, where a second Ctrl+C lets the write finish", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
