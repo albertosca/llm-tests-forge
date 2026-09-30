@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import {
 	approxTokens,
+	type EstimateLine,
 	estimateSuite,
 	guessOutputTokens,
 	INPUT_CHARACTERS_PER_TOKEN_HIGH,
@@ -165,23 +166,34 @@ describe("estimateSuite", () => {
 		// Both cases carry the label "rejection" (9 characters, approxTokens 3),
 		// but the measured mean (3) is below the label guess (8), so the guess
 		// wins and this behaves exactly as it did with no measuring at all.
+		// The range: 220 tokens stand for 880 characters, which at 4.2 and
+		// 3.5 characters per token are 209.5 and 251.4 tokens (floored and
+		// ceiled); the output guess of 32 spans 0.5x to 1.25x.
 		expect(estimate.lines).toEqual([
 			{
 				model: "anthropic/claude-haiku-4-5",
 				role: "target",
 				calls: 4,
 				inputTokens: (100 + 10) * 2,
+				inputTokensLow: 209,
+				inputTokensHigh: 252,
 				outputTokens: 4 * 8,
+				outputTokensLow: 16,
+				outputTokensHigh: 40,
 				dollars: (220 * 1 + 32 * 5) / 1_000_000,
+				dollarsLow: (209 * 1 + 16 * 5) / 1_000_000,
+				dollarsHigh: (252 * 1 + 40 * 5) / 1_000_000,
 				pricedAs: "anthropic/claude-haiku-4-5",
 				approximate: false,
 				priced: true,
 			},
 		]);
 		expect(estimate.totalDollars).toBe((220 * 1 + 32 * 5) / 1_000_000);
+		expect(estimate.totalDollarsLow).toBe((209 * 1 + 16 * 5) / 1_000_000);
+		expect(estimate.totalDollarsHigh).toBe((252 * 1 + 40 * 5) / 1_000_000);
 		expect(estimate.pricesUpdated).toBe("2026-09-15");
 		expect(estimate.notes).toEqual([
-			"tokens are estimated as characters / 4; output size is a guess from output.kind; the 2 reviewed expected values measured below it",
+			"tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is estimated from output.kind, with no text basis; the 2 reviewed expected values measured below it",
 			"application prompt not counted: set feature.prompt_file to include it",
 		]);
 	});
@@ -208,7 +220,7 @@ describe("estimateSuite", () => {
 		// guess (8), so the guess wins and the note says the one measured value
 		// fell below it.
 		expect(estimate.notes).toEqual([
-			"tokens are estimated as characters / 4; output size is a guess from output.kind; the 1 reviewed expected value measured below it",
+			"tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is estimated from output.kind, with no text basis; the 1 reviewed expected value measured below it",
 		]);
 	});
 	test("judges are charged only for rubric cases, once per judge per target model per repeat", () => {
@@ -237,13 +249,26 @@ describe("estimateSuite", () => {
 		// The only non-rubric case's label ("rejection", approxTokens 3) is
 		// below the label guess (8), so the guess wins here too.
 		const perCall = 8 + 20 + JUDGE_PROMPT_OVERHEAD;
+		// Each judge call's prompt spans the graded answer's band (8 at 0.5x
+		// and 1.25x), the rubric's 80 characters at 4.2 and 3.5 characters
+		// per token, and the overhead band 170 to 380; four calls, floored
+		// and ceiled once over the sum. The output spans 60 to 350 a call.
+		const inputTokensLow = Math.floor((4 + 80 / 4.2 + 170) * 4);
+		const inputTokensHigh = Math.ceil((10 + 80 / 3.5 + 380) * 4);
+		expect([inputTokensLow, inputTokensHigh]).toEqual([772, 1652]);
 		expect(judge).toEqual({
 			model: "google/gemini-3.5-flash",
 			role: "judge",
 			calls: 1 * 2 * 2,
 			inputTokens: perCall * 4,
+			inputTokensLow,
+			inputTokensHigh,
 			outputTokens: JUDGE_OUTPUT_TOKENS * 4,
+			outputTokensLow: 60 * 4,
+			outputTokensHigh: 350 * 4,
 			dollars: (perCall * 4 * 0.3 + JUDGE_OUTPUT_TOKENS * 4 * 2.5) / 1_000_000,
+			dollarsLow: (inputTokensLow * 0.3 + 60 * 4 * 2.5) / 1_000_000,
+			dollarsHigh: (inputTokensHigh * 0.3 + 350 * 4 * 2.5) / 1_000_000,
 			pricedAs: "google/gemini-3.5-flash",
 			approximate: false,
 			priced: true,
@@ -310,6 +335,9 @@ describe("estimateSuite", () => {
 		expect(haiku?.priced).toBe(true);
 		expect(haiku?.dollars).toBeGreaterThan(0);
 		expect(estimate.totalDollars).toBe(haiku?.dollars ?? -1);
+		expect([unpriced?.dollarsLow, unpriced?.dollarsHigh]).toEqual([0, 0]);
+		expect(estimate.totalDollarsLow).toBe(haiku?.dollarsLow ?? -1);
+		expect(estimate.totalDollarsHigh).toBe(haiku?.dollarsHigh ?? -1);
 		expect(estimate.notes).toContain(
 			"not priced: ollama/llama3 has no row in prices.yaml",
 		);
@@ -360,7 +388,7 @@ describe("estimateSuite", () => {
 		});
 		expect(estimate.lines[0]?.outputTokens).toBe(2 * 40);
 		expect(estimate.notes).toContain(
-			"tokens are estimated as characters / 4; output size is a guess from output.kind; the 2 reviewed expected values measured below it",
+			"tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is estimated from output.kind, with no text basis; the 2 reviewed expected values measured below it",
 		);
 	});
 	test("a fields mean at or above the guess wins, and the note names the reviewed count", () => {
@@ -392,7 +420,7 @@ describe("estimateSuite", () => {
 		});
 		expect(estimate.lines[0]?.outputTokens).toBe(1 * 52);
 		expect(estimate.notes).toContain(
-			"tokens are estimated as characters / 4; output size is the mean of 1 reviewed expected value",
+			"tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is the mean of 1 reviewed expected value",
 		);
 	});
 	test("a label expected on a json feature is not measured, so it falls back to the guess", () => {
@@ -420,7 +448,7 @@ describe("estimateSuite", () => {
 		});
 		expect(estimate.lines[0]?.outputTokens).toBe(1 * 40);
 		expect(estimate.notes).toContain(
-			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+			"tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is estimated from output.kind, with no text basis",
 		);
 	});
 	test("a label long enough to beat the guess is still not measured on a json feature: the gate excludes it, not the floor", () => {
@@ -455,7 +483,7 @@ describe("estimateSuite", () => {
 		});
 		expect(estimate.lines[0]?.outputTokens).toBe(1 * 40);
 		expect(estimate.notes).toContain(
-			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+			"tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is estimated from output.kind, with no text basis",
 		);
 	});
 	test("a label mean at or above the label guess wins, using the measured mean", () => {
@@ -479,7 +507,7 @@ describe("estimateSuite", () => {
 		});
 		expect(estimate.lines[0]?.outputTokens).toBe(1 * 10);
 		expect(estimate.notes).toContain(
-			"tokens are estimated as characters / 4; output size is the mean of 1 reviewed expected value",
+			"tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is the mean of 1 reviewed expected value",
 		);
 	});
 	test("rubric-only cases: no measurable expected value, so output size falls back to the kind-based guess", () => {
@@ -502,9 +530,40 @@ describe("estimateSuite", () => {
 		});
 		expect(estimate.lines[0]?.outputTokens).toBe(1 * 8);
 		expect(estimate.notes).toContain(
-			"tokens are estimated as characters / 4; output size is a guess from output.kind",
+			"tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is estimated from output.kind, with no text basis",
 		);
 	});
+});
+
+/** A priced target line: $0.0004 at the point, $0.0002 to $0.0006 as a range. */
+const PRICED_HAIKU: EstimateLine = {
+	model: "anthropic/claude-haiku-4-5",
+	role: "target",
+	calls: 4,
+	inputTokens: 220,
+	inputTokensLow: 209,
+	inputTokensHigh: 252,
+	outputTokens: 32,
+	outputTokensLow: 16,
+	outputTokensHigh: 40,
+	dollars: 0.0004,
+	dollarsLow: 0.0002,
+	dollarsHigh: 0.0006,
+	pricedAs: "anthropic/claude-haiku-4-5",
+	approximate: false,
+	priced: true,
+};
+
+/** A line whose provider has no row in prices.yaml: every dollar figure is 0. */
+const unpricedLine = (model: string, approximate: boolean): EstimateLine => ({
+	...PRICED_HAIKU,
+	model,
+	dollars: 0,
+	dollarsLow: 0,
+	dollarsHigh: 0,
+	pricedAs: model,
+	approximate,
+	priced: false,
 });
 
 describe("renderEstimate", () => {
@@ -514,6 +573,8 @@ describe("renderEstimate", () => {
 			rubricCases: 0,
 			pricesUpdated: "2026-09-15",
 			totalDollars: 0.0012,
+			totalDollarsLow: 0.0006,
+			totalDollarsHigh: 0.0018,
 			notes: ["n1", "n2"],
 			lines: [
 				{
@@ -521,8 +582,14 @@ describe("renderEstimate", () => {
 					role: "target",
 					calls: 4,
 					inputTokens: 220,
+					inputTokensLow: 209,
+					inputTokensHigh: 252,
 					outputTokens: 32,
+					outputTokensLow: 16,
+					outputTokensHigh: 40,
 					dollars: 0.0004,
+					dollarsLow: 0.0002,
+					dollarsHigh: 0.0006,
 					pricedAs: "anthropic/claude-haiku-4-5",
 					approximate: false,
 					priced: true,
@@ -532,8 +599,14 @@ describe("renderEstimate", () => {
 					role: "judge",
 					calls: 2,
 					inputTokens: 100,
+					inputTokensLow: 90,
+					inputTokensHigh: 120,
 					outputTokens: 10,
+					outputTokensLow: 5,
+					outputTokensHigh: 13,
 					dollars: 0.0008,
+					dollarsLow: 0.0004,
+					dollarsHigh: 0.0012,
 					pricedAs: "google/gemini-3.5-flash",
 					approximate: true,
 					priced: true,
@@ -545,13 +618,13 @@ describe("renderEstimate", () => {
 			"estimate: 2 cases, 0 with a rubric; prices dated 2026-09-15",
 		);
 		expect(lines).toContain(
-			"  target  anthropic/claude-haiku-4-5            4 calls     220 in      32 out  $0.000400",
+			"  target  anthropic/claude-haiku-4-5            4 calls     220 in      32 out  $0.000200–$0.000600 (point $0.000400)",
 		);
 		expect(lines).toContain(
-			"  judge   google/gemini-9 ~                     2 calls     100 in      10 out  $0.000800  (priced as google/gemini-3.5-flash)",
+			"  judge   google/gemini-9 ~                     2 calls     100 in      10 out  $0.000400–$0.001200 (point $0.000800)  (priced as google/gemini-3.5-flash)",
 		);
 		expect(lines).toContain(
-			"  total                                                                         $0.001200",
+			"  total                                                                         $0.000600–$0.001800 (point $0.001200)",
 		);
 		expect(lines).toContain("note: n1");
 		expect(lines).toContain("note: n2");
@@ -562,31 +635,10 @@ describe("renderEstimate", () => {
 			rubricCases: 0,
 			pricesUpdated: "2026-09-15",
 			totalDollars: 0.0004,
+			totalDollarsLow: 0.0002,
+			totalDollarsHigh: 0.0006,
 			notes: ["not priced: ollama/llama3 has no row in prices.yaml"],
-			lines: [
-				{
-					model: "anthropic/claude-haiku-4-5",
-					role: "target",
-					calls: 4,
-					inputTokens: 220,
-					outputTokens: 32,
-					dollars: 0.0004,
-					pricedAs: "anthropic/claude-haiku-4-5",
-					approximate: false,
-					priced: true,
-				},
-				{
-					model: "ollama/llama3",
-					role: "target",
-					calls: 4,
-					inputTokens: 220,
-					outputTokens: 32,
-					dollars: 0,
-					pricedAs: "ollama/llama3",
-					approximate: true,
-					priced: false,
-				},
-			],
+			lines: [PRICED_HAIKU, unpricedLine("ollama/llama3", true)],
 		});
 		const lines = text.split("\n");
 		const unpriced = lines.find((line) => line.includes("ollama/llama3"));
@@ -604,34 +656,13 @@ describe("renderEstimate", () => {
 			rubricCases: 0,
 			pricesUpdated: "2026-09-15",
 			totalDollars: 0.0004,
+			totalDollarsLow: 0.0002,
+			totalDollarsHigh: 0.0006,
 			notes: [],
-			lines: [
-				{
-					model: "anthropic/claude-haiku-4-5",
-					role: "target",
-					calls: 4,
-					inputTokens: 220,
-					outputTokens: 32,
-					dollars: 0.0004,
-					pricedAs: "anthropic/claude-haiku-4-5",
-					approximate: false,
-					priced: true,
-				},
-				{
-					model: "ollama/llama3",
-					role: "target",
-					calls: 4,
-					inputTokens: 220,
-					outputTokens: 32,
-					dollars: 0,
-					pricedAs: "ollama/llama3",
-					approximate: false,
-					priced: false,
-				},
-			],
+			lines: [PRICED_HAIKU, unpricedLine("ollama/llama3", false)],
 		});
 		expect(text.split("\n")).toContain(
-			"  total                                                                         $0.000400  (1 line not priced)",
+			"  total                                                                         $0.000200–$0.000600 (point $0.000400)  (1 line not priced)",
 		);
 	});
 	test("with every line unpriced the total reads 'not priced', not $0.000000", () => {
@@ -640,30 +671,12 @@ describe("renderEstimate", () => {
 			rubricCases: 0,
 			pricesUpdated: "2026-09-15",
 			totalDollars: 0,
+			totalDollarsLow: 0,
+			totalDollarsHigh: 0,
 			notes: [],
 			lines: [
-				{
-					model: "ollama/llama3",
-					role: "target",
-					calls: 4,
-					inputTokens: 220,
-					outputTokens: 32,
-					dollars: 0,
-					pricedAs: "ollama/llama3",
-					approximate: false,
-					priced: false,
-				},
-				{
-					model: "ollama/qwen3",
-					role: "target",
-					calls: 4,
-					inputTokens: 220,
-					outputTokens: 32,
-					dollars: 0,
-					pricedAs: "ollama/qwen3",
-					approximate: false,
-					priced: false,
-				},
+				unpricedLine("ollama/llama3", false),
+				unpricedLine("ollama/qwen3", false),
 			],
 		});
 		const lines = text.split("\n");
@@ -686,18 +699,18 @@ describe("renderEstimate", () => {
 			rubricCases: 0,
 			pricesUpdated: "2026-09-15",
 			totalDollars: 1.2,
+			totalDollarsLow: 0.6,
+			totalDollarsHigh: 1.8,
 			notes: [],
 			lines: [
 				{
+					...PRICED_HAIKU,
 					model: longModel,
-					role: "target",
 					calls: 120000,
-					inputTokens: 220,
-					outputTokens: 32,
 					dollars: 1.2,
+					dollarsLow: 0.6,
+					dollarsHigh: 1.8,
 					pricedAs: longModel,
-					approximate: false,
-					priced: true,
 				},
 			],
 		});

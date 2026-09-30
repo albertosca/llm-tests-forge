@@ -68,13 +68,25 @@ export const JUDGE_OUTPUT_TOKENS = 183;
 export const JUDGE_OUTPUT_TOKENS_LOW = 60;
 export const JUDGE_OUTPUT_TOKENS_HIGH = 350;
 
+/**
+ * One model's share of the run. The point figures are characters/4 and the
+ * point constants; the `Low`/`High` figures are the same counts through the
+ * calibrated bands above, floored and ceiled, so the range is what a
+ * recorded run could plausibly have cost rather than a single guess.
+ */
 export interface EstimateLine {
 	model: string;
 	role: "target" | "judge";
 	calls: number;
 	inputTokens: number;
+	inputTokensLow: number;
+	inputTokensHigh: number;
 	outputTokens: number;
+	outputTokensLow: number;
+	outputTokensHigh: number;
 	dollars: number;
+	dollarsLow: number;
+	dollarsHigh: number;
 	pricedAs: string;
 	approximate: boolean;
 	/** False when the model's provider has no row at all in prices.yaml. */
@@ -85,7 +97,10 @@ export interface Estimate {
 	lines: EstimateLine[];
 	cases: number;
 	rubricCases: number;
+	/** The priced lines' sums; an unpriced line adds nothing to any of the three. */
 	totalDollars: number;
+	totalDollarsLow: number;
+	totalDollarsHigh: number;
 	pricesUpdated: string;
 	notes: string[];
 }
@@ -192,14 +207,14 @@ function chooseOutputSize(
 	measured: MeasuredOutputSizes | null,
 	guessedOutputSize: number,
 ): ChosenOutputSize {
-	const guessNote = "output size is a guess from output.kind";
+	const guessNote = "output is estimated from output.kind, with no text basis";
 	if (measured === null)
 		return { outputSize: guessedOutputSize, note: guessNote };
 	const reviewedValues = plural(measured.count, "reviewed expected value");
 	if (measured.mean >= guessedOutputSize)
 		return {
 			outputSize: measured.mean,
-			note: `output size is the mean of ${reviewedValues}`,
+			note: `output is the mean of ${reviewedValues}`,
 		};
 	return {
 		outputSize: guessedOutputSize,
@@ -214,6 +229,57 @@ function dollars(
 ): number {
 	return (inputTokens * price.input + outputTokens * price.output) / 1_000_000;
 }
+
+/** Tokens counted as characters/4, re-counted at the band's fewest tokens per character. */
+function fewestTokens(tokens: number): number {
+	return (tokens * CHARACTERS_PER_TOKEN) / INPUT_CHARACTERS_PER_TOKEN_HIGH;
+}
+
+/** Tokens counted as characters/4, re-counted at the band's most tokens per character. */
+function mostTokens(tokens: number): number {
+	return (tokens * CHARACTERS_PER_TOKEN) / INPUT_CHARACTERS_PER_TOKEN_LOW;
+}
+
+type LineTokens = Pick<
+	EstimateLine,
+	| "model"
+	| "role"
+	| "calls"
+	| "inputTokens"
+	| "inputTokensLow"
+	| "inputTokensHigh"
+	| "outputTokens"
+	| "outputTokensLow"
+	| "outputTokensHigh"
+>;
+
+/** The line's three dollar figures, each from its own pair of token counts. */
+function pricedLine(
+	tokens: LineTokens,
+	price: ReturnType<typeof priceFor>,
+): EstimateLine {
+	return {
+		...tokens,
+		dollars: dollars(tokens.inputTokens, tokens.outputTokens, price),
+		dollarsLow: dollars(tokens.inputTokensLow, tokens.outputTokensLow, price),
+		dollarsHigh: dollars(
+			tokens.inputTokensHigh,
+			tokens.outputTokensHigh,
+			price,
+		),
+		pricedAs: price.pricedAs,
+		approximate: price.approximate,
+		priced: price.priced,
+	};
+}
+
+const pricedSum = (
+	lines: EstimateLine[],
+	amountOf: (line: EstimateLine) => number,
+): number =>
+	lines
+		.filter((line) => line.priced)
+		.reduce((sum, line) => sum + amountOf(line), 0);
 
 export function estimateSuite(parameters: {
 	suite: Suite;
@@ -245,45 +311,72 @@ export function estimateSuite(parameters: {
 			caseInputTokens.reduce((sum, tokens) => sum + tokens + promptTokens, 0) *
 			suite.repeat;
 		const outputTokens = calls * outputSize;
-		lines.push({
-			model,
-			role: "target",
-			calls,
-			inputTokens,
-			outputTokens,
-			dollars: dollars(inputTokens, outputTokens, price),
-			pricedAs: price.pricedAs,
-			approximate: price.approximate,
-			priced: price.priced,
-		});
+		lines.push(
+			pricedLine(
+				{
+					model,
+					role: "target",
+					calls,
+					inputTokens,
+					inputTokensLow: Math.floor(fewestTokens(inputTokens)),
+					inputTokensHigh: Math.ceil(mostTokens(inputTokens)),
+					outputTokens,
+					outputTokensLow: Math.floor(outputTokens * OUTPUT_GUESS_LOW_FACTOR),
+					outputTokensHigh: Math.ceil(outputTokens * OUTPUT_GUESS_HIGH_FACTOR),
+				},
+				price,
+			),
+		);
 	}
+	// Each judge call reads the target's answer (the output band), the
+	// rubric (the characters band) and promptfoo's own grading prompt (the
+	// overhead band).
+	const rubricTokens = rubricCases.map((testCase) =>
+		approxTokens(testCase.expected?.rubric ?? ""),
+	);
+	const perRubricCase = (perCase: (tokens: number) => number): number =>
+		rubricTokens.reduce((sum, tokens) => sum + perCase(tokens), 0);
 	for (const judge of rubricCases.length > 0 ? suite.judges : []) {
 		const price = priceFor(judge, prices);
 		const perJudgeCalls = suite.target.models.length * suite.repeat;
 		const calls = rubricCases.length * perJudgeCalls;
-		const inputTokens =
-			rubricCases.reduce(
-				(sum, testCase) =>
-					sum +
-					outputSize +
-					approxTokens(testCase.expected?.rubric ?? "") +
-					JUDGE_PROMPT_OVERHEAD,
-				0,
-			) * perJudgeCalls;
-		const outputTokens = calls * JUDGE_OUTPUT_TOKENS;
-		lines.push({
-			model: judge,
-			role: "judge",
-			calls,
-			inputTokens,
-			outputTokens,
-			dollars: dollars(inputTokens, outputTokens, price),
-			pricedAs: price.pricedAs,
-			approximate: price.approximate,
-			priced: price.priced,
-		});
+		lines.push(
+			pricedLine(
+				{
+					model: judge,
+					role: "judge",
+					calls,
+					inputTokens:
+						perRubricCase(
+							(tokens) => outputSize + tokens + JUDGE_PROMPT_OVERHEAD,
+						) * perJudgeCalls,
+					inputTokensLow: Math.floor(
+						perRubricCase(
+							(tokens) =>
+								outputSize * OUTPUT_GUESS_LOW_FACTOR +
+								fewestTokens(tokens) +
+								JUDGE_PROMPT_OVERHEAD_LOW,
+						) * perJudgeCalls,
+					),
+					inputTokensHigh: Math.ceil(
+						perRubricCase(
+							(tokens) =>
+								outputSize * OUTPUT_GUESS_HIGH_FACTOR +
+								mostTokens(tokens) +
+								JUDGE_PROMPT_OVERHEAD_HIGH,
+						) * perJudgeCalls,
+					),
+					outputTokens: calls * JUDGE_OUTPUT_TOKENS,
+					outputTokensLow: calls * JUDGE_OUTPUT_TOKENS_LOW,
+					outputTokensHigh: calls * JUDGE_OUTPUT_TOKENS_HIGH,
+				},
+				price,
+			),
+		);
 	}
-	const notes = [`tokens are estimated as characters / 4; ${outputSizeNote}`];
+	const notes = [
+		`tokens are counted as characters/4 and shown as a range calibrated on recorded runs; ${outputSizeNote}`,
+	];
 	if (promptTokens === 0)
 		notes.push(
 			"application prompt not counted: set feature.prompt_file to include it",
@@ -298,9 +391,9 @@ export function estimateSuite(parameters: {
 		lines,
 		cases: selection.cases.length,
 		rubricCases: rubricCases.length,
-		totalDollars: lines
-			.filter((line) => line.priced)
-			.reduce((sum, line) => sum + line.dollars, 0),
+		totalDollars: pricedSum(lines, (line) => line.dollars),
+		totalDollarsLow: pricedSum(lines, (line) => line.dollarsLow),
+		totalDollarsHigh: pricedSum(lines, (line) => line.dollarsHigh),
 		pricesUpdated: prices.updated,
 		notes,
 	};
@@ -309,6 +402,11 @@ export function estimateSuite(parameters: {
 /** What a line with no price at all prints where a dollar figure would go. */
 const NOT_PRICED = "not priced";
 
+/** `$low–$high (point $point)`: the range first, because it is the honest figure. */
+function rangeText(low: number, high: number, point: number): string {
+	return `$${low.toFixed(6)}–$${high.toFixed(6)} (point $${point.toFixed(6)})`;
+}
+
 export function renderEstimate(estimate: Estimate): string {
 	const out = [
 		`estimate: ${plural(estimate.cases, "case")}, ${estimate.rubricCases} with a rubric; prices dated ${estimate.pricesUpdated}`,
@@ -316,7 +414,9 @@ export function renderEstimate(estimate: Estimate): string {
 	const rendered = estimate.lines.map((line) => {
 		const marked = line.priced && line.approximate;
 		const name = `${line.model}${marked ? " ~" : ""}`.padEnd(34);
-		const dollarText = line.priced ? `$${line.dollars.toFixed(6)}` : NOT_PRICED;
+		const dollarText = line.priced
+			? rangeText(line.dollarsLow, line.dollarsHigh, line.dollars)
+			: NOT_PRICED;
 		// The column the dollar figure starts at, taken from the prefix that
 		// puts it there rather than by searching the finished row for a "$":
 		// a row that says "not priced" carries no "$" at all, and a search
@@ -345,7 +445,11 @@ export function renderEstimate(estimate: Estimate): string {
 	const figure =
 		unpriced === estimate.lines.length
 			? NOT_PRICED
-			: `$${estimate.totalDollars.toFixed(6)}`;
+			: rangeText(
+					estimate.totalDollarsLow,
+					estimate.totalDollarsHigh,
+					estimate.totalDollars,
+				);
 	const omitted =
 		unpriced === 0 ? "" : `  (${plural(unpriced, "line")} not priced)`;
 	out.push(

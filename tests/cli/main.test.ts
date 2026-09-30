@@ -3165,7 +3165,12 @@ describe("estimate", () => {
 			/^ {2}target {2}anthropic\/claude-haiku-4-5 .* 4 calls/m,
 		);
 		expect(text).toMatch(/^ {2}judge {3}google\/gemini-3\.5-flash.* 2 calls/m);
-		expect(text).toContain("note: tokens are estimated as characters / 4");
+		expect(text).toMatch(
+			/^ {2}total {2,}\$\d+\.\d{6}–\$\d+\.\d{6} \(point \$\d+\.\d{6}\)$/m,
+		);
+		expect(text).toContain(
+			"note: tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is",
+		);
 		expect(text).toContain("note: application prompt not counted");
 	});
 	test("a single selected case with no rubric pluralizes to singular", async () => {
