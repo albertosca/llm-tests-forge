@@ -221,6 +221,14 @@ export function httpTargetModelWarning(suite: Suite): string | null {
 	return `warning: target.kind is http and target.models lists ${target.models.length} models, but ${TARGET_MODEL_PLACEHOLDER} appears nowhere in target.url, target.headers or target.body, so every provider sends the same request`;
 }
 
+/**
+ * The schema accepts `HTTP://` as it accepts `http://`; the emitted url
+ * spells the scheme lower-case and leaves the host and path as written.
+ */
+function lowerCaseScheme(url: string): string {
+	return url.replace(/^https?:\/\//i, (scheme) => scheme.toLowerCase());
+}
+
 function providerFor(
 	model: string,
 	suite: Suite,
@@ -253,7 +261,10 @@ function providerFor(
 				id: "http",
 				label: model,
 				config: {
-					url: target.url === undefined ? undefined : substitute(target.url),
+					url:
+						target.url === undefined
+							? undefined
+							: substitute(lowerCaseScheme(target.url)),
 					method: target.method ?? "POST",
 					headers: mapStrings(
 						target.headers ?? { "Content-Type": "application/json" },

@@ -187,6 +187,22 @@ describe("buildPromptfooConfig", () => {
 			body: { text: "{{email}}" },
 		});
 	});
+	test("an upper-case url scheme is emitted lower-case, and the rest of the url is left as written", () => {
+		const urlOf = (url: string): unknown =>
+			buildPromptfooConfig({
+				feature: jsonFeature,
+				suite: SuiteSchema.parse({
+					...suite,
+					target: { kind: "http", models: ["m/x"], url },
+				}),
+				selection,
+			}).providers[0]?.config.url;
+		expect(urlOf("HTTP://example.test/x")).toBe("http://example.test/x");
+		expect(urlOf("HttpS://Example.test/Upper/HTTP://")).toBe(
+			"https://Example.test/Upper/HTTP://",
+		);
+		expect(urlOf("http://example.test/x")).toBe("http://example.test/x");
+	});
 	test("an http target gets each provider's model wherever {{target_model}} appears: url, a header, a nested body string", () => {
 		const providers = buildPromptfooConfig({
 			feature: jsonFeature,
