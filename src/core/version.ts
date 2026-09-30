@@ -6,7 +6,8 @@ export const FORGE_VERSION: string = packageJson.version;
 export type VersionRelation = "same" | "patch" | "older" | "newer";
 
 interface ParsedVersion {
-	core: [number, number, number];
+	/** Major, minor and patch as digit strings: `Number` loses precision past 2^53. */
+	core: [string, string, string];
 	/** The dot-separated identifiers after `-`; empty for a release. */
 	prerelease: string[];
 }
@@ -33,9 +34,21 @@ function parseVersion(version: string): ParsedVersion | null {
 	const match = SEMVER.exec(version);
 	if (!match) return null;
 	return {
-		core: [Number(match[1]), Number(match[2]), Number(match[3])],
+		core: [match[1] ?? "", match[2] ?? "", match[3] ?? ""],
 		prerelease: match[4] === undefined ? [] : match[4].split("."),
 	};
+}
+
+/**
+ * Two numeric identifiers compared exactly, at any size: with no leading
+ * zeros (the grammar forbids them) the longer is larger, and equal lengths
+ * compare as text. Negative, zero or positive, as `left` is lower, equal or
+ * higher.
+ */
+function compareDigits(left: string, right: string): number {
+	if (left.length !== right.length) return left.length - right.length;
+	if (left === right) return 0;
+	return left < right ? -1 : 1;
 }
 
 /**
@@ -54,7 +67,7 @@ function comparePrerelease(left: string[], right: string[]): number {
 		const leftNumeric = /^\d+$/.test(leftIdentifier);
 		const rightNumeric = /^\d+$/.test(rightIdentifier);
 		if (leftNumeric && rightNumeric) {
-			const difference = Number(leftIdentifier) - Number(rightIdentifier);
+			const difference = compareDigits(leftIdentifier, rightIdentifier);
 			if (difference !== 0) return difference;
 		} else if (leftNumeric !== rightNumeric) {
 			return leftNumeric ? -1 : 1;
@@ -79,7 +92,10 @@ export function compareVersions(
 	const current = parseVersion(installed);
 	if (stamped === null || current === null) return "older";
 	for (const position of [0, 1] as const) {
-		const difference = stamped.core[position] - current.core[position];
+		const difference = compareDigits(
+			stamped.core[position],
+			current.core[position],
+		);
 		if (difference < 0) return "older";
 		if (difference > 0) return "newer";
 	}
@@ -102,9 +118,13 @@ export function isHigherVersion(candidate: string, existing: string): boolean {
 	const lower = parseVersion(existing);
 	if (higher === null) return false;
 	if (lower === null) return true;
-	for (const position of [0, 1, 2] as const)
-		if (higher.core[position] !== lower.core[position])
-			return higher.core[position] > lower.core[position];
+	for (const position of [0, 1, 2] as const) {
+		const difference = compareDigits(
+			higher.core[position],
+			lower.core[position],
+		);
+		if (difference !== 0) return difference > 0;
+	}
 	return comparePrerelease(higher.prerelease, lower.prerelease) > 0;
 }
 

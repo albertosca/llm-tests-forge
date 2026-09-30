@@ -66,6 +66,21 @@ describe("compareVersions", () => {
 			expect(compareVersions("0.1.0", invalid)).toBe("older");
 		}
 	});
+	test("numbers past Number.MAX_SAFE_INTEGER compare exactly, in the core and the prerelease", () => {
+		expect(
+			compareVersions("1.0.0-9007199254740993", "1.0.0-9007199254740992"),
+		).toBe("patch");
+		expect(
+			compareVersions("9007199254740993.0.0", "9007199254740992.0.0"),
+		).toBe("newer");
+		expect(
+			compareVersions("0.9007199254740992.0", "0.9007199254740993.0"),
+		).toBe("older");
+		expect(
+			compareVersions("0.0.9007199254740993", "0.0.9007199254740992"),
+		).toBe("patch");
+		expect(compareVersions("0.0.10", "0.0.9")).toBe("patch");
+	});
 	test("the identifiers SemVer 2.0.0 allows still parse", () => {
 		expect(compareVersions("0.1.0-0", "0.1.0-0")).toBe("same");
 		expect(compareVersions("0.1.0-0a", "0.1.0-0a")).toBe("same");
@@ -99,6 +114,19 @@ describe("isHigherVersion", () => {
 	test("an unreadable existing stamp is replaceable and an unreadable candidate never wins", () => {
 		expect(isHigherVersion("0.1.0", "garbage")).toBe(true);
 		expect(isHigherVersion("garbage", "0.1.0")).toBe(false);
+	});
+	test("numbers past Number.MAX_SAFE_INTEGER order exactly, whichever way round", () => {
+		for (const [higher, lower] of [
+			["1.0.0-9007199254740993", "1.0.0-9007199254740992"],
+			["9007199254740993.0.0", "9007199254740992.0.0"],
+			["0.9007199254740993.0", "0.9007199254740992.0"],
+			["0.0.9007199254740993", "0.0.9007199254740992"],
+			["0.0.100000000000000000000", "0.0.99999999999999999999"],
+			["1.0.0-alpha.100000000000000000000", "1.0.0-alpha.99999999999999999999"],
+		] as const) {
+			expect(isHigherVersion(higher, lower)).toBe(true);
+			expect(isHigherVersion(lower, higher)).toBe(false);
+		}
 	});
 	test("an invalid prerelease is never an upgrade, and build metadata never makes one", () => {
 		for (const invalid of ["0.1.0-01", "0.1.0-beta..1", "0.1.0-"]) {
