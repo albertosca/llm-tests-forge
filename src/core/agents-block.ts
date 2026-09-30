@@ -33,6 +33,16 @@ function listLineNumbers(numbers: number[]): string {
 interface Fence {
 	character: string;
 	length: number;
+	/** How many blockquotes deep the opener stood. */
+	depth: number;
+}
+
+/** The blockquote markers a line starts with, each up to three spaces in and one space after. */
+const QUOTE_MARKERS = /^(?: {0,3}> ?)*/;
+
+/** How many blockquotes deep `line` stands. */
+function lineQuoteDepth(line: string): number {
+	return quoteDepth(QUOTE_MARKERS.exec(line)?.[0] ?? "");
 }
 
 /** The spaces, tabs and `>` before a marker: its indentation and blockquote prefix. */
@@ -52,19 +62,36 @@ function quoteDepth(prefix: string): number {
 function fenceOf(
 	line: string,
 ): { character: string; length: number; rest: string } | null {
-	const unquoted = line.replace(/\r$/, "").replace(/^(?: {0,3}> ?)*/, "");
+	const unquoted = line.replace(/\r$/, "").replace(QUOTE_MARKERS, "");
 	const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(unquoted);
 	const run = match?.[1];
 	if (match === null || run === undefined) return null;
 	return { character: run.charAt(0), length: run.length, rest: match[2] ?? "" };
 }
 
-/** The fence state after `line`: opened, closed, or unchanged. */
-function nextFence(fence: Fence | null, line: string): Fence | null {
+/**
+ * The fence still open when `line` begins: a line fewer blockquotes deep
+ * than the fence's opener (a blank line, or text outside the quote) ends
+ * the blockquote and the fence in it, as CommonMark has it.
+ */
+function fenceBefore(fence: Fence | null, line: string): Fence | null {
+	return fence !== null && lineQuoteDepth(line) < fence.depth ? null : fence;
+}
+
+/**
+ * The fence state after `line`: opened, closed, or unchanged. A line that
+ * ends a fence by its depth is then read as a possible opener itself.
+ */
+function nextFence(open: Fence | null, line: string): Fence | null {
+	const fence = fenceBefore(open, line);
 	const found = fenceOf(line);
 	if (found === null) return fence;
 	if (fence === null)
-		return { character: found.character, length: found.length };
+		return {
+			character: found.character,
+			length: found.length,
+			depth: lineQuoteDepth(line),
+		};
 	const closes =
 		found.character === fence.character &&
 		found.length >= fence.length &&
@@ -105,7 +132,7 @@ function findBlocks(file: string, lines: string[]): MarkedBlock[] {
 	const honorFencesBefore = unclosedFenceStart(lines) ?? lines.length;
 	for (const [index, line] of lines.entries()) {
 		if (index < honorFencesBefore) {
-			const before = fence;
+			const before = fenceBefore(fence, line);
 			fence = nextFence(fence, line);
 			if (before !== null || fence !== null) continue;
 		}

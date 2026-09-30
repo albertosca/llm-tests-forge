@@ -264,6 +264,33 @@ describe("upsertAgentsBlock", () => {
 		const nested = `>>\`\`\`\n>> ${AGENTS_START}\n>> ${AGENTS_END}\n>>\`\`\`\n`;
 		expect(planAgentsBlock("AGENTS.md", nested).replaced).toBe(false);
 	});
+	test("a fence in a blockquote ends where the blockquote does, so a later quoted fence line does not hide the real pair", () => {
+		const fence = "```";
+		const existing = `> ${fence}\n> code\n\n${AGENTS_START}\nold\n${AGENTS_END}\n> ${fence}\n`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`> ${fence}\n> code\n\n${block}\n> ${fence}\n`);
+		expect(upsertAgentsBlock("AGENTS.md", planned.text)).toBe(planned.text);
+		// Two deep, closed by the shallower line that is itself the start marker.
+		const quoted = block
+			.split("\n")
+			.map((line) => `> ${line}`)
+			.join("\n");
+		const nested = `>> ${fence}\n>> code\n> ${AGENTS_START}\n> old\n> ${AGENTS_END}\n>> ${fence}\n`;
+		const nestedPlanned = planAgentsBlock("AGENTS.md", nested);
+		expect(nestedPlanned.replaced).toBe(true);
+		expect(nestedPlanned.text).toBe(
+			`>> ${fence}\n>> code\n${quoted}\n>> ${fence}\n`,
+		);
+		// An unquoted fence is not ended by a blank line.
+		const unquoted = `${fence}\n\n${AGENTS_START}\n${AGENTS_END}\n${fence}\n`;
+		expect(planAgentsBlock("AGENTS.md", unquoted).replaced).toBe(false);
+		// A closer deeper than its opener still closes it.
+		const deeperCloser = `> ${fence}\n> ${AGENTS_START}\n>> ${fence}\n${AGENTS_START}\n${AGENTS_END}\n`;
+		expect(planAgentsBlock("AGENTS.md", deeperCloser).text).toBe(
+			`> ${fence}\n> ${AGENTS_START}\n>> ${fence}\n${block}\n`,
+		);
+	});
 	test("the block says the project uses llm-tests-forge and points at status and guide", () => {
 		expect(block).toStartWith(AGENTS_START);
 		expect(block).toEndWith(AGENTS_END);
