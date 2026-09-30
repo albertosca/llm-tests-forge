@@ -403,8 +403,8 @@ export async function reviewCommand(
 			// is back by the time this runs, and existence alone would miss that
 			// it is not the file this pass read. Decided before anything about
 			// this file is announced: a file the guard skips re-opened nothing on
-			// disk, so its re-opens are neither printed nor counted, and "still
-			// pending" keeps describing the disk.
+			// disk, so its re-opens are not counted, and its decisions go back
+			// into "still pending" through `totalDecisionsNotWritten`.
 			const skipReason = touched
 				? await writeBackSkipReason(context.forgeDirectory, id, before)
 				: null;
@@ -443,13 +443,18 @@ export async function reviewCommand(
 		const summary = result.summary;
 		// `skipped` counts the items a person answered "skip" to; it is not the
 		// same set as "still pending", which also holds everything --only
-		// filtered out of this pass. Every decision leaves its item approved,
-		// rejected or edited, so what stays pending is exactly what was pending
-		// on entry minus the decisions taken — plus the cases an oracle change
-		// re-opened, which are pending now whether or not they were on entry,
-		// and which the line reports on their own so the total adds up.
+		// filtered out of this pass. Every decision that lands leaves its item
+		// approved, rejected or edited, so what stays pending is what was
+		// pending on entry minus the decisions taken, plus back the decisions
+		// the write-back refused (their items are as the pass found them) —
+		// plus the cases an oracle change re-opened, which are pending now
+		// whether or not they were on entry, and which the line reports on
+		// their own so the total adds up.
 		const stillPending =
-			pendingOnDisk - result.decisions.length + totalReopened;
+			pendingOnDisk -
+			result.decisions.length +
+			totalDecisionsNotWritten +
+			totalReopened;
 		// The counts above stay exactly what the loop decided, even for a
 		// decision the write-back above refused: "2 approved" is true of the
 		// pass regardless of whether both landed. This clause is what says some

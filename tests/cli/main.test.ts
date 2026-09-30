@@ -1661,8 +1661,11 @@ describe("review: a write-back guard skips just the files it cannot trust, and s
 		expect(out).toContain(
 			"review: cases/huge-signature.yaml was removed during the pass; its decisions were not written",
 		);
+		// The decision that did not land leaves its item as pending as the
+		// pass found it, so "still pending" counts it: "0 still pending"
+		// here claimed both cases had been taken care of.
 		expect(out.at(-1)).toBe(
-			"review: 2 approved, 0 rejected, 0 edited, 0 skipped, 0 re-opened, 0 still pending; 1 decision(s) not written",
+			"review: 2 approved, 0 rejected, 0 edited, 0 skipped, 0 re-opened, 1 still pending; 1 decision(s) not written",
 		);
 		await expect(stat(hugeSignaturePath)).rejects.toThrow();
 		const politeRejection = await readCases(forgeDirectory, "polite-rejection");
