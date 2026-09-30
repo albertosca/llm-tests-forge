@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { askChoice, askExpectedFor, openInEditor } from "../../src/cli/prompts";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+	askChoice,
+	askExpectedFor,
+	EditorInterruptedError,
+	openInEditor,
+} from "../../src/cli/prompts";
 import { ForgeError } from "../../src/core/errors";
 import type { Case } from "../../src/core/schemas";
 
@@ -168,5 +176,38 @@ describe("openInEditor", () => {
 			'editor "false" exited with 1',
 		);
 		expect((caught as ForgeError).details.file).toMatch(/item\.yaml$/);
+		expect(caught).not.toBeInstanceOf(EditorInterruptedError);
 	});
+
+	/** An `$EDITOR` stand-in: a shell script, never a real editor. */
+	async function editorScript(body: string): Promise<string> {
+		const directory = await mkdtemp(join(tmpdir(), "forge-editor-"));
+		const path = join(directory, "editor.sh");
+		await writeFile(path, `#!/bin/sh\n${body}\n`);
+		await chmod(path, 0o755);
+		return path;
+	}
+
+	test.each([
+		["exits 130", "exit 130"],
+		["is killed by SIGINT", "kill -INT $$"],
+	])(
+		"an $EDITOR that %s raises EditorInterruptedError naming the editor and the temp file",
+		async (_label, body) => {
+			const editor = await editorScript(body);
+			let caught: unknown;
+			try {
+				await openInEditor("id: s-01\n", { EDITOR: editor });
+			} catch (error) {
+				caught = error;
+			}
+			expect(caught).toBeInstanceOf(EditorInterruptedError);
+			expect((caught as EditorInterruptedError).message).toContain(
+				`editor "${editor}" was interrupted`,
+			);
+			expect((caught as EditorInterruptedError).details.file).toMatch(
+				/item\.yaml$/,
+			);
+		},
+	);
 });

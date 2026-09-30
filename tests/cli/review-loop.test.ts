@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parse, stringify } from "yaml";
+import { EditorInterruptedError } from "../../src/cli/prompts";
 import type { ReviewLoopResult } from "../../src/cli/review-loop";
 import { runReviewLoop } from "../../src/cli/review-loop";
 import { ForgeError } from "../../src/core/errors";
@@ -392,6 +393,49 @@ describe("runReviewLoop", () => {
 			kind: "case",
 			item: { ...withExp, id: "s-42", status: "edited" },
 		});
+	});
+
+	test("an editor killed by Ctrl+C skips the item and ends the pass: no retry, no re-render, nothing after it asked", async () => {
+		// A ForgeError from the editor used to read as a bad edit: "cannot
+		// apply" was printed, the same item was rendered and asked again,
+		// and the person who pressed Ctrl+C to stop was asked to go on.
+		const printed: string[] = [];
+		let asked = 0;
+		const result = await runReviewLoop({
+			items: [
+				{ kind: "case", item: withExp },
+				{ kind: "scenario", item: scn },
+			],
+			ask: async () => {
+				asked += 1;
+				return asked === 1 ? "edit" : "approve";
+			},
+			openEditor: async () => {
+				throw new EditorInterruptedError('editor "vi" was interrupted');
+			},
+			askExpected: async () => ({ label: "x" }),
+			checkExpected: () => null,
+			takenIdsFor: () => new Set(),
+			oracleOf: () => "label",
+			print: (line) => printed.push(line),
+		});
+		expect(result.summary).toEqual({
+			approved: 0,
+			rejected: 0,
+			edited: 0,
+			skipped: 1,
+		});
+		expect(result.decisions).toEqual([]);
+		expect(
+			printed.filter((line) => line === `--- case ${withExp.id} ---`),
+		).toHaveLength(1);
+		expect(
+			printed.filter((line) => line === `--- scenario ${scn.id} ---`),
+		).toHaveLength(0);
+		expect(printed.some((line) => line.startsWith("cannot apply:"))).toBe(
+			false,
+		);
+		expect(asked).toBe(1);
 	});
 
 	test("skip leaves no decision", async () => {

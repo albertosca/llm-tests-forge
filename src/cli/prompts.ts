@@ -1,8 +1,22 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ForgeError } from "../core/errors";
+import { ForgeError, type ForgeErrorDetails } from "../core/errors";
 import type { Case, Expected, Oracle } from "../core/schemas";
+
+/**
+ * `$EDITOR` ended by Ctrl+C rather than closed. It is a `ForgeError` so
+ * nothing above the review loop mistakes it for a bug, but the loop does
+ * not treat it as a bad edit to retry: the person asked to stop, so the
+ * item is skipped and the pass ends (see `runReviewLoop`). The constructor
+ * is written out for the coverage reason `UsageError` gives.
+ */
+export class EditorInterruptedError extends ForgeError {
+	constructor(message: string, details: ForgeErrorDetails = {}) {
+		super(message, details);
+		this.name = "EditorInterruptedError";
+	}
+}
 
 export type Io = {
 	stdin: () => Promise<string>;
@@ -110,6 +124,14 @@ export async function openInEditor(
 		stdio: ["inherit", "inherit", "inherit"],
 	});
 	const code = await editorProcess.exited;
+	// Ctrl+C reaches the editor too (it shares the terminal's process
+	// group). An editor that dies of it exits by the signal, which Bun
+	// reports as 130; one that catches it and exits 130 itself is the same
+	// request to stop.
+	if (code === 130 || editorProcess.signalCode === "SIGINT")
+		throw new EditorInterruptedError(`editor "${editor}" was interrupted`, {
+			file: path,
+		});
 	if (code !== 0)
 		throw new ForgeError(`editor "${editor}" exited with ${code}`, {
 			file: path,
