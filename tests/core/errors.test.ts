@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { ForgeError } from "../../src/core/errors";
+import { ForgeError, UsageError } from "../../src/core/errors";
 
 describe("ForgeError", () => {
+	test("an error that escapes reads as its own class in a trace: ForgeError, or UsageError for a bad command line", () => {
+		expect(String(new ForgeError("boom"))).toBe("ForgeError: boom");
+		expect(String(new UsageError("bad flag", { id: "--repeat" }))).toBe(
+			"UsageError: bad flag (id: --repeat)",
+		);
+		expect(new UsageError("bad flag")).toBeInstanceOf(ForgeError);
+	});
+
 	test("message alone", () => {
 		const error = new ForgeError("boom");
 		expect(error.message).toBe("boom");

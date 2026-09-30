@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describeFeature } from "../../src/core/describe";
 import { ForgeError } from "../../src/core/errors";
+import type { Feature } from "../../src/core/schemas";
 import { createLlm, type Llm } from "../../src/llm/generate";
 
 const FAKE = "fake/tests/fixtures/describe-response.json";
@@ -67,5 +68,64 @@ describe("describeFeature", () => {
 		await expect(
 			describeFeature({ text: "   ", model: FAKE, llm: await llm() }),
 		).rejects.toThrow(ForgeError);
+		await expect(
+			describeFeature({ text: " \n\t", model: FAKE, llm: await llm() }),
+		).rejects.toThrow("describe needs a non-empty description");
+	});
+});
+
+describe("describeFeature, as the model is asked and answered", () => {
+	/**
+	 * Answers with `answer`, read through the schema the caller asked with
+	 * (as the real model call does), and records every prompt it was sent.
+	 */
+	function recordingLlm(answer: unknown): { llm: Llm; prompts: string[] } {
+		const prompts: string[] = [];
+		return {
+			prompts,
+			llm: {
+				async generate(request) {
+					prompts.push(request.prompt);
+					return {
+						object: request.schema.parse(answer),
+						usage: { inputTokens: 0, outputTokens: 0 },
+					};
+				},
+			},
+		};
+	}
+	const ANSWER: Omit<Feature, "status"> = {
+		id: "classify-email",
+		purpose: "Classifies hiring emails.",
+		inputs: [{ name: "email", kind: "text" }],
+		output: { kind: "label", labels: ["rejection", "unrelated"] },
+		invariants: [],
+	};
+
+	test("the description is quoted trimmed, and with no prompt given the prompt section is empty", async () => {
+		const { llm: recording, prompts } = recordingLlm(ANSWER);
+		await describeFeature({
+			text: "  \n The bot classifies hiring emails \n\n",
+			model: "anthropic/x",
+			llm: recording,
+		});
+		expect(prompts[0]).toContain(
+			"<description>\nThe bot classifies hiring emails\n</description>",
+		);
+		expect(prompts[0]).toContain("<prompt>\n\n</prompt>");
+	});
+
+	test("the model never chooses the prompt file nor the status: a feature it describes is pending, with no prompt file", async () => {
+		const { llm: recording } = recordingLlm({
+			...ANSWER,
+			prompt_file: "prompts/chosen-by-the-model.md",
+			status: "approved",
+		});
+		const feature = await describeFeature({
+			text: "The bot classifies hiring emails",
+			model: "anthropic/x",
+			llm: recording,
+		});
+		expect(feature).toStrictEqual({ ...ANSWER, status: "pending" });
 	});
 });
