@@ -366,7 +366,11 @@ end
 	test("the package's own ExUnit tests pass", async () => {
 		const { packageCopy } = await built();
 		const finished = await run(["mix", "test"], packageCopy);
-		expect(finished.stdout).toMatch(/Result: \d+ passed\n$/);
+		// Elixir 1.20 summarises as "Result: N passed", the CI's 1.18 as
+		// "N tests, 0 failures"; either way at least one test must have run.
+		expect(finished.stdout).toMatch(
+			/(?:[1-9]\d* tests, 0 failures|Result: [1-9]\d* passed)\n$/,
+		);
 		expect(finished.exitCode).toBe(0);
 	}, 600_000);
 

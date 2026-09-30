@@ -197,9 +197,13 @@ describe.skipIf(!packages)("pypi wheels", () => {
 			),
 		);
 		expect(inspected.wheel.split("\n")).toContain("Root-Is-Purelib: false");
-		expect(inspected.wheel.split("\n")).toContain(
-			`Tag: py3-none-${HOST.wheelTag}`,
-		);
+		// A compressed tag set such as manylinux_2_17_x86_64.manylinux2014_x86_64
+		// is written as one Tag line per platform tag.
+		for (const platformTag of HOST.wheelTag.split(".")) {
+			expect(inspected.wheel.split("\n")).toContain(
+				`Tag: py3-none-${platformTag}`,
+			);
+		}
 		expect(inspected.license).toBe(
 			await Bun.file(join(REPOSITORY, "LICENSE")).text(),
 		);
