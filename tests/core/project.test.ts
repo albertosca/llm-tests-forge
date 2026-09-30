@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
@@ -17,6 +17,14 @@ import { projectWith } from "../helpers/project";
 // that has one (a forge.yaml in the home directory or /tmp) cannot prove it.
 const sandbox = await mkdtemp(join(tmpdir(), "forge-sandbox-"));
 const machineHasProjectFileAbove = (await findProjectRoot(sandbox)) !== null;
+
+// Two spellings of one directory exist only where the filesystem folds case
+// (macOS and Windows by default); elsewhere they are two directories.
+await mkdir(join(sandbox, "CaseProbe"));
+const filesystemFoldsCase = await stat(join(sandbox, "caseprobe")).then(
+	() => true,
+	() => false,
+);
 
 describe("forge.yaml", () => {
 	test("findProjectRoot walks up to the nearest forge.yaml", async () => {
@@ -101,6 +109,17 @@ describe("forge.yaml", () => {
 		const other = registerSuite(project, join(root, "evals", "other"));
 		expect(other?.entry).toBe("evals/other");
 	});
+	test.skipIf(!filesystemFoldsCase)(
+		"registerSuite does not register evals/suite while evals/Suite, the same directory, is listed (skipped on a case-sensitive filesystem, where they are two directories)",
+		async () => {
+			const root = await projectWith(
+				"version: 1\nlanguage: go\nsuites:\n  - evals/Suite\n",
+			);
+			await mkdir(join(root, "evals", "Suite"), { recursive: true });
+			const project = await readProject(root);
+			expect(registerSuite(project, join(root, "evals", "suite"))).toBeNull();
+		},
+	);
 	test("readProject keeps the good suites and reports each bad entry by name, without throwing", async () => {
 		const root = await projectWith(
 			"version: 1\nlanguage: python\nsuites:\n  - evals/a\n  - evals/a/\n  - ../outside\n  - /abs/path\n  - evals\\win\n  - evals/b\n",
@@ -241,6 +260,169 @@ describe("forge.yaml", () => {
 		const all = text.replaceAll("  # ", "  ");
 		expect((await readProject(await projectWith(all))).config.defaults).toEqual(
 			expected,
+		);
+	});
+});
+
+/** The forge.yaml text after registering `<root>/<suite>` in a project whose file is `text`. */
+async function registeredText(
+	text: string,
+	suite = "evals/b",
+): Promise<string> {
+	const project = await readProject(await projectWith(text));
+	const registered = registerSuite(project, join(project.root, suite));
+	if (registered === null) throw new Error(`${suite} was already registered`);
+	// Whatever registration writes must read back with the entry added.
+	expect(parse(registered.text).suites).toEqual([
+		...project.config.suites,
+		registered.entry,
+	]);
+	return registered.text;
+}
+
+describe("registerSuite changes only the line it adds", () => {
+	test("a CRLF block list gets a CRLF line at the last item's indent, and nothing else changes", async () => {
+		expect(
+			await registeredText(
+				"version: 1\r\nlanguage: go\r\nsuites:\r\n    - evals/a # first\r\n    - evals/c\r\n\r\ndefaults: {  }\r\n",
+			),
+		).toBe(
+			"version: 1\r\nlanguage: go\r\nsuites:\r\n    - evals/a # first\r\n    - evals/c\r\n    - evals/b\r\n\r\ndefaults: {  }\r\n",
+		);
+	});
+	test("a block list at column zero, followed by another key", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites:\n- evals/a\ndefaults:\n  judges: [ a ]\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites:\n- evals/a\n- evals/b\ndefaults:\n  judges: [ a ]\n",
+		);
+	});
+	test("a trailing comment on the last item stays on that item", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites:\n  - evals/a\n  - evals/c   # the last\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites:\n  - evals/a\n  - evals/c   # the last\n  - evals/b\n",
+		);
+	});
+	test("a comment after suites: stays where it was", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites: # my suites\n  - evals/a\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites: # my suites\n  - evals/a\n  - evals/b\n",
+		);
+	});
+	test("a file with no trailing newline gets the line at the end, still with none", async () => {
+		expect(
+			await registeredText("version: 1\nlanguage: go\nsuites:\n  - evals/a"),
+		).toBe("version: 1\nlanguage: go\nsuites:\n  - evals/a\n  - evals/b");
+		expect(
+			await registeredText("version: 1\r\nlanguage: go\r\nsuites: [evals/a]"),
+		).toBe("version: 1\r\nlanguage: go\r\nsuites: [evals/a, evals/b]");
+	});
+	test("a one-line flow list gets `, <entry>` after its last item, its own spacing kept", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites: [ evals/a ,evals/c ]  # mine\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites: [ evals/a ,evals/c, evals/b ]  # mine\n",
+		);
+	});
+	test("a one-line flow list with a trailing comma keeps it after the new entry", async () => {
+		expect(
+			await registeredText("version: 1\nlanguage: go\nsuites: [evals/a,]\n"),
+		).toBe("version: 1\nlanguage: go\nsuites: [evals/a, evals/b,]\n");
+	});
+	test("a multi-line flow list gets its own line at the last item's indent", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites: [\n    evals/a, # first\n    evals/c # last\n]\ndefaults: {}\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites: [\n    evals/a, # first\n    evals/c, # last\n    evals/b\n]\ndefaults: {}\n",
+		);
+	});
+	test("a multi-line CRLF flow list with a trailing comma keeps the comma style and the comment", async () => {
+		expect(
+			await registeredText(
+				"version: 1\r\nlanguage: go\r\nsuites: [\r\n  evals/a,\r\n  evals/c, # last\r\n]\r\n",
+			),
+		).toBe(
+			"version: 1\r\nlanguage: go\r\nsuites: [\r\n  evals/a,\r\n  evals/c, # last\r\n  evals/b,\r\n]\r\n",
+		);
+	});
+	test("a flow list whose last item shares the line of `]` is extended on that line", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites: [\n  evals/a, evals/c]\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites: [\n  evals/a, evals/c, evals/b]\n",
+		);
+		expect(
+			await registeredText("version: 1\nlanguage: go\nsuites: [evals/a\n  ]\n"),
+		).toBe("version: 1\nlanguage: go\nsuites: [evals/a, evals/b\n  ]\n");
+	});
+	test("an empty flow list gets the entry inside its brackets", async () => {
+		expect(
+			await registeredText(
+				"version: 1\r\nlanguage: go\r\nsuites: []   # none yet\r\ndefaults: { }\r\n",
+			),
+		).toBe(
+			"version: 1\r\nlanguage: go\r\nsuites: [evals/b]   # none yet\r\ndefaults: { }\r\n",
+		);
+	});
+	test("an entry YAML would misread is quoted for the list's own style", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites: [evals/a]\n",
+				"evals/b,c",
+			),
+		).toBe('version: 1\nlanguage: go\nsuites: [evals/a, "evals/b,c"]\n');
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites:\n  - evals/a\n",
+				"evals/b #c",
+			),
+		).toBe(
+			'version: 1\nlanguage: go\nsuites:\n  - evals/a\n  - "evals/b #c"\n',
+		);
+	});
+	test("a missing suites is added through the document, keeping CRLF", async () => {
+		expect(
+			await registeredText("# mine\r\nversion: 1\r\nlanguage: go # lang\r\n"),
+		).toBe(
+			"# mine\r\nversion: 1\r\nlanguage: go # lang\r\nsuites:\r\n  - evals/b\r\n",
+		);
+		expect(await registeredText("version: 1\nlanguage: go\n")).toBe(
+			"version: 1\nlanguage: go\nsuites:\n  - evals/b\n",
+		);
+	});
+	test("a suites: null is replaced through the document, keeping CRLF and its comment", async () => {
+		expect(
+			await registeredText(
+				"version: 1\r\nlanguage: go\r\nsuites: null # none yet\r\ndefaults: {}\r\n",
+			),
+		).toBe(
+			"version: 1\r\nlanguage: go\r\nsuites:\r\n  - evals/b\r\n  # none yet\r\ndefaults: {}\r\n",
+		);
+	});
+	test("a suites that is a YAML alias is refused, naming forge.yaml, rather than replaced", async () => {
+		const project = await readProject(
+			await projectWith(
+				"version: 1\nlanguage: go\ndefaults:\n  judges: &list [evals/a]\nsuites: *list\n",
+			),
+		);
+		const register = () =>
+			registerSuite(project, join(project.root, "evals", "b"));
+		expect(register).toThrow(
+			`suites: is a YAML alias, which registering cannot extend; ${registrationHint("evals/b")} (file: ${project.file})`,
 		);
 	});
 });
