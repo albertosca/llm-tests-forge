@@ -255,7 +255,7 @@
           required: false
           options: []
         - label: Current Location
-          kind: text
+          kind: long_text
           required: false
           options: []
         - label: Are you authorized to work in the US without sponsorship?

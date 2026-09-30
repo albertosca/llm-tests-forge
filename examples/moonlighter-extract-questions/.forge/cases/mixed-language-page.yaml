@@ -96,8 +96,8 @@
           kind: single_select
           required: false
           options:
-          - Ja
-          - Nein
+            - Ja
+            - Nein
         - label: Ich stimme der Verarbeitung meiner Daten gemäß der Datenschutzerklärung zu.
           kind: boolean
           required: false
@@ -195,7 +195,7 @@
             - Ja
             - Nein
         - label: Bevorzugte Arbeitszeiten
-          kind: multi_select
+          kind: single_select
           required: false
           options:
             - Vollzeit
@@ -213,8 +213,8 @@
           kind: single_select
           required: false
           options:
-          - Ja
-          - Nein
+            - Ja
+            - Nein
         - label: Ich habe die Datenschutzhinweise gelesen und akzeptiere diese.
           kind: boolean
           required: false
@@ -316,8 +316,8 @@
           kind: single_select
           required: false
           options:
-          - Ja
-          - Nein
+            - Ja
+            - Nein
         - label: Ich bestätige, dass alle Angaben in dieser Bewerbung wahrheitsgemäß sind.
           kind: boolean
           required: false
