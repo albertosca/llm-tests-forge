@@ -37,6 +37,42 @@ describe("compareVersions", () => {
 		expect(compareVersions("0.4.2", "0.4.1")).toBe("patch");
 		expect(compareVersions("0.5.0", "0.4.1")).toBe("newer");
 	});
+	test("build metadata is parsed and ignored (SemVer 2.0.0 item 10)", () => {
+		expect(compareVersions("0.1.0+build", "0.1.0")).toBe("same");
+		expect(compareVersions("0.1.0", "0.1.0+build.7")).toBe("same");
+		expect(compareVersions("0.1.0-beta.1+b5", "0.1.0-beta.1")).toBe("same");
+		expect(compareVersions("0.1.0+001", "0.1.0+exp-sha.5114f85")).toBe("same");
+		expect(compareVersions("0.2.0+build", "0.1.0")).toBe("newer");
+	});
+	test("a version outside the SemVer 2.0.0 grammar is unreadable: older, never newer, never same", () => {
+		for (const invalid of [
+			"0.1.0-01",
+			"0.1.0-beta..1",
+			"0.1.0-",
+			"0.1.0-beta.",
+			"0.1.0-.beta",
+			"0.1.0-beta_1",
+			"0.1.0+",
+			"0.1.0+build..1",
+			"0.1.0+build+again",
+			"01.1.0",
+			"0.01.0",
+			"0.1.00",
+			"v0.1.0",
+			"0.1",
+			"",
+		]) {
+			expect(compareVersions(invalid, "0.1.0")).toBe("older");
+			expect(compareVersions("0.1.0", invalid)).toBe("older");
+		}
+	});
+	test("the identifiers SemVer 2.0.0 allows still parse", () => {
+		expect(compareVersions("0.1.0-0", "0.1.0-0")).toBe("same");
+		expect(compareVersions("0.1.0-0a", "0.1.0-0a")).toBe("same");
+		expect(compareVersions("0.1.0-x-y.z--1", "0.1.0-x-y.z--1")).toBe("same");
+		expect(compareVersions("0.1.0+01.a-b", "0.1.0")).toBe("same");
+		expect(compareVersions("10.20.30", "10.20.30")).toBe("same");
+	});
 });
 
 describe("isHigherVersion", () => {
@@ -63,6 +99,16 @@ describe("isHigherVersion", () => {
 	test("an unreadable existing stamp is replaceable and an unreadable candidate never wins", () => {
 		expect(isHigherVersion("0.1.0", "garbage")).toBe(true);
 		expect(isHigherVersion("garbage", "0.1.0")).toBe(false);
+	});
+	test("an invalid prerelease is never an upgrade, and build metadata never makes one", () => {
+		for (const invalid of ["0.1.0-01", "0.1.0-beta..1", "0.1.0-"]) {
+			expect(isHigherVersion(invalid, "0.0.1")).toBe(false);
+			expect(isHigherVersion("0.0.1", invalid)).toBe(true);
+		}
+		expect(isHigherVersion("0.1.0+build.2", "0.1.0+build.1")).toBe(false);
+		expect(isHigherVersion("0.1.0+build", "0.1.0")).toBe(false);
+		expect(isHigherVersion("0.1.0", "0.1.0+build")).toBe(false);
+		expect(isHigherVersion("0.1.1+build", "0.1.0")).toBe(true);
 	});
 });
 

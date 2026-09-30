@@ -11,9 +11,26 @@ interface ParsedVersion {
 	prerelease: string[];
 }
 
-/** `major.minor.patch` with an optional `-prerelease`; null when it is not that shape. */
+/** A numeric identifier: zero, or digits with no leading zero. */
+const NUMERIC_IDENTIFIER = "(?:0|[1-9]\\d*)";
+/** A prerelease identifier: numeric, or alphanumerics and hyphens with at least one non-digit. */
+const PRERELEASE_IDENTIFIER = `(?:${NUMERIC_IDENTIFIER}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
+/** A build identifier: any non-empty run of alphanumerics and hyphens, leading zeros included. */
+const BUILD_IDENTIFIER = "[0-9A-Za-z-]+";
+/** The SemVer 2.0.0 grammar, with the core and the prerelease captured. */
+const SEMVER = new RegExp(
+	`^(${NUMERIC_IDENTIFIER})\\.(${NUMERIC_IDENTIFIER})\\.(${NUMERIC_IDENTIFIER})` +
+		`(?:-(${PRERELEASE_IDENTIFIER}(?:\\.${PRERELEASE_IDENTIFIER})*))?` +
+		`(?:\\+${BUILD_IDENTIFIER}(?:\\.${BUILD_IDENTIFIER})*)?$`,
+);
+
+/**
+ * A SemVer 2.0.0 version, or null when it is outside that grammar (a leading
+ * zero, an empty or invalid identifier). Build metadata is parsed and
+ * dropped: it never takes part in precedence.
+ */
 function parseVersion(version: string): ParsedVersion | null {
-	const match = /^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/.exec(version);
+	const match = SEMVER.exec(version);
 	if (!match) return null;
 	return {
 		core: [Number(match[1]), Number(match[2]), Number(match[3])],
