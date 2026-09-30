@@ -5,6 +5,7 @@ import { readSuiteIfPresent, stampSuite } from "../core/files";
 import { registeredSuiteNames } from "../core/project";
 import { resolveSuite } from "../core/resolve";
 import { FORGE_VERSION, versionWarning } from "../core/version";
+import { defaultConfigDirectory, loadProviderKeys } from "../llm/credentials";
 import { casesCommand } from "./commands/cases";
 import { dedupeCommand } from "./commands/dedupe";
 import { describeCommand } from "./commands/describe";
@@ -210,6 +211,11 @@ export interface MainOptions {
 	stdout?: (line: string) => void;
 	/** See `CliContext.startInteractivePass`. */
 	startInteractivePass?: () => InteractivePass;
+	/**
+	 * Where each provider's `api.env` is read from, into `env`; absent ->
+	 * `~/.config`. A seam for tests, to prove when the files are read.
+	 */
+	configDirectory?: string;
 }
 
 /**
@@ -292,6 +298,14 @@ export async function main(
 			write(USAGE);
 			return 0;
 		}
+		// Keys the shell does not export are read from
+		// <configDirectory>/<provider>/api.env; a key already in the
+		// environment wins. After the help check, not before it (bin.ts used
+		// to do this first): asking for help touches no key file at all.
+		await loadProviderKeys({
+			environment: options.env,
+			configDirectory: options.configDirectory ?? defaultConfigDirectory(),
+		});
 		// The verb is what is left first once --suite and its path are taken
 		// out, so `--suite x --help` is answered like `--help`. A first word
 		// that already is one skips the flag parsing, which could refuse it.

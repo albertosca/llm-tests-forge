@@ -5855,6 +5855,65 @@ describe("main(): the suite and the project", () => {
 		}
 	});
 
+	test("cases --drafter -h prints the usage and exits 0: -h is not taken as the drafter's value", async () => {
+		const root = await projectWith("version: 2\n");
+		const lines: string[] = [];
+		expect(
+			await main(["cases", "--drafter", "-h"], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(0);
+		expect(lines).toEqual([USAGE]);
+	});
+
+	/** A config directory whose anthropic/api.env is half garbage around one key. */
+	async function configDirectoryWithMalformedKeyFile(): Promise<string> {
+		const configDirectory = await mkdtemp(join(tmpdir(), "forge-keys-"));
+		await mkdir(join(configDirectory, "anthropic"), { recursive: true });
+		await writeFile(
+			join(configDirectory, "anthropic", "api.env"),
+			"this line has no equals sign\n=no-name\nexport ANTHROPIC_API_KEY=from-file\n\u0000\u0001 binary junk\n",
+		);
+		return configDirectory;
+	}
+
+	test("--help is answered before the provider keys are read: a malformed api.env is never loaded into the environment", async () => {
+		const configDirectory = await configDirectoryWithMalformedKeyFile();
+		const environment: Record<string, string | undefined> = {};
+		const processEnvironmentBefore = { ...process.env };
+		const lines: string[] = [];
+		expect(
+			await main(["--help"], {
+				cwd: configDirectory,
+				env: environment,
+				configDirectory,
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(0);
+		expect(lines).toEqual([USAGE]);
+		expect(environment).toEqual({});
+		expect(process.env).toEqual(processEnvironmentBefore);
+	});
+
+	test("any other command line loads the provider keys from the injected config directory before it runs", async () => {
+		const configDirectory = await configDirectoryWithMalformedKeyFile();
+		const environment: Record<string, string | undefined> = {};
+		expect(
+			await main(["version"], {
+				cwd: configDirectory,
+				env: environment,
+				configDirectory,
+				stdin: async () => "",
+				stdout: () => {},
+			}),
+		).toBe(0);
+		expect(environment).toEqual({ ANTHROPIC_API_KEY: "from-file" });
+	});
+
 	test("describe -- --help and describe -- -h run describe with the flag as the text, in a valid project", async () => {
 		for (const word of ["--help", "-h"]) {
 			const root = await projectWith(
