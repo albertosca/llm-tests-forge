@@ -584,7 +584,9 @@ describe("writeText: a write is all or nothing", () => {
 		};
 		let caught: unknown;
 		try {
-			await writeText(path, "id: s-01\nstatus: rejected\n", dyingHalfWay);
+			await writeText(path, "id: s-01\nstatus: rejected\n", {
+				writeContent: dyingHalfWay,
+			});
 		} catch (error) {
 			caught = error;
 		}
@@ -639,9 +641,12 @@ describe("writeText: a write is all or nothing", () => {
 		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
 		await chmod(directory, 0o555);
 		try {
-			await expect(
-				writeText(join(directory, "new.yaml"), "x: 1\n"),
-			).rejects.toThrow("cannot write: EACCES: permission denied");
+			// The message names the file asked for, never the hidden
+			// temporary file the refusal actually hit.
+			const path = join(directory, "new.yaml");
+			await expect(writeText(path, "x: 1\n")).rejects.toThrow(
+				`cannot write: EACCES: permission denied, open '${path}' (file: ${path})`,
+			);
 		} finally {
 			await chmod(directory, 0o755);
 		}
@@ -671,6 +676,62 @@ describe("writeText: a write is all or nothing", () => {
 			"link.yaml",
 			"real.yaml",
 		]);
+	});
+
+	test("the temporary file is never more readable than the file it replaces, from the moment it holds the text", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "cases.yaml");
+		await writeFile(path, ORIGINAL);
+		await chmod(path, 0o600);
+		const seen: number[] = [];
+		await writeText(path, "x: 1\n", {
+			afterTemporaryWritten: async (temporary) => {
+				seen.push((await stat(temporary)).mode & 0o777);
+			},
+		});
+		// Created with the umask's 0644, it held a 0600 file's full text,
+		// readable by anyone, until the chmod.
+		expect(seen).toEqual([0o600]);
+	});
+
+	test("a dangling symlink gets the file it points at created, relative to the link's own directory, as writing through it always did", async () => {
+		const root = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		await mkdir(join(root, "links"));
+		await mkdir(join(root, "files"));
+		const link = join(root, "links", "cases.yaml");
+		await symlink(join("..", "files", "cases.yaml"), link);
+		await writeText(link, "x: 1\n");
+		expect((await lstat(link)).isSymbolicLink()).toBe(true);
+		expect(await readFile(join(root, "files", "cases.yaml"), "utf8")).toBe(
+			"x: 1\n",
+		);
+		expect(await readdir(join(root, "links"))).toEqual(["cases.yaml"]);
+	});
+
+	test("a chain of symlinks is followed to the file at its end, and every link stays a link", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const real = join(directory, "real.yaml");
+		await writeFile(real, ORIGINAL);
+		await symlink("real.yaml", join(directory, "middle.yaml"));
+		await symlink("middle.yaml", join(directory, "first.yaml"));
+		await writeText(join(directory, "first.yaml"), "x: 1\n");
+		expect(await readFile(real, "utf8")).toBe("x: 1\n");
+		expect((await lstat(join(directory, "first.yaml"))).isSymbolicLink()).toBe(
+			true,
+		);
+		expect((await lstat(join(directory, "middle.yaml"))).isSymbolicLink()).toBe(
+			true,
+		);
+	});
+
+	test("a symlink loop is refused by name instead of followed forever", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		await symlink("second.yaml", join(directory, "first.yaml"));
+		await symlink("first.yaml", join(directory, "second.yaml"));
+		const path = join(directory, "first.yaml");
+		await expect(writeText(path, "x: 1\n")).rejects.toThrow(
+			`cannot write: too many levels of symbolic links (file: ${path})`,
+		);
 	});
 
 	test("a new file in a directory that does not exist yet is created, parents included", async () => {

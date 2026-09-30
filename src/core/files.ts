@@ -7,14 +7,14 @@ import {
 	open,
 	readdir,
 	readFile,
-	realpath,
+	readlink,
 	rename,
 	rm,
 	stat,
 	unlink,
 	writeFile,
 } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import {
 	isMap,
 	isScalar,
@@ -144,6 +144,53 @@ export async function readText(path: string): Promise<string> {
 	});
 }
 
+/** How `writeText` puts the text into a file; the real one is `writeFile`. */
+type WriteContent = (
+	target: string,
+	content: string,
+	mode: number | undefined,
+) => Promise<void>;
+
+/** The two places a test reaches into `writeText`; production passes none. */
+export interface WriteSeams {
+	/** Replaces the write itself: a test fails half-way through with it. */
+	writeContent?: WriteContent;
+	/** Called once the temporary file holds the text, before anything else touches it. */
+	afterTemporaryWritten?: (temporary: string) => Promise<void>;
+}
+
+/**
+ * Creates the file with `mode` from the first byte (the umask can only
+ * narrow it), so a temporary copy of a 0600 file is never world-readable,
+ * not even until the `chmod` that follows.
+ */
+const writeWithMode: WriteContent = (target, content, mode) =>
+	writeFile(target, content, { encoding: "utf8", mode });
+
+/** How many links `followSymlinks` follows before calling it a loop. */
+const MAXIMUM_SYMLINK_HOPS = 40;
+
+/**
+ * The file `path` finally names, following symlinks one at a time, each
+ * relative to its own link's directory. Every path that is not a link is
+ * kept as given, so a failure names the file as the caller spelled it. A
+ * dangling link resolves to the file it points at, which the write then
+ * creates, as writing through the link always did; `realpath` refused it.
+ */
+async function followSymlinks(path: string): Promise<string> {
+	let target = path;
+	for (let hops = 0; ; hops += 1) {
+		const isLink = await lstat(target).then(
+			(entry) => entry.isSymbolicLink(),
+			() => false,
+		);
+		if (!isLink) return target;
+		if (hops === MAXIMUM_SYMLINK_HOPS)
+			throw new Error("too many levels of symbolic links");
+		target = resolve(dirname(target), await readlink(target));
+	}
+}
+
 /**
  * A write whose failure names the file: a name the filesystem refuses, a
  * directory that cannot be written into, a parent that is a file. The raw
@@ -165,26 +212,17 @@ export async function readText(path: string): Promise<string> {
  * replaced file keeps its permissions, and a symlink is followed, so the
  * file it points at is the one replaced and the link stays a link. In a
  * directory that refuses new files, an existing file is written in place,
- * as it always was (not all or nothing there). `writeContent` is the seam
- * a test uses to fail half-way through.
+ * as it always was (not all or nothing there).
  */
 export async function writeText(
 	path: string,
 	text: string,
-	writeContent: (target: string, content: string) => Promise<void> = (
-		target,
-		content,
-	) => writeFile(target, content, "utf8"),
+	seams: WriteSeams = {},
 ): Promise<void> {
+	const writeContent = seams.writeContent ?? writeWithMode;
 	try {
 		await mkdir(dirname(path), { recursive: true });
-		// Resolved only for a symlink: every other path is kept as given, so
-		// a failure names the file as the caller spelled it.
-		const isLink = await lstat(path).then(
-			(entry) => entry.isSymbolicLink(),
-			() => false,
-		);
-		const target = isLink ? await realpath(path) : path;
+		const target = await followSymlinks(path);
 		const existing = await open(target, "r+").catch((error: unknown) => {
 			if (hasCode(error) && error.code === "ENOENT") return null;
 			throw error;
@@ -195,14 +233,20 @@ export async function writeText(
 		const temporary = join(dirname(target), `.forge-write-${randomUUID()}.tmp`);
 		let temporaryWritten = false;
 		try {
-			await writeContent(temporary, text);
+			await writeContent(temporary, text, mode);
 			temporaryWritten = true;
+			await seams.afterTemporaryWritten?.(temporary);
 			if (mode !== undefined) await chmod(temporary, mode);
 			await rename(temporary, target);
 		} catch (error) {
 			// Settled, not awaited bare: a failing cleanup must not replace
 			// the error that says why the write failed.
 			await Promise.allSettled([rm(temporary, { force: true })]);
+			// A refusal to create the temporary file is a refusal to write
+			// the target: the message names the file the caller asked for,
+			// not the hidden one nobody knows about.
+			if (!temporaryWritten && error instanceof Error)
+				error.message = error.message.replaceAll(temporary, target);
 			// A directory the person made read-only still lets its existing
 			// files be rewritten, which is what writing in place always did
 			// there; only the temporary file cannot be created. That one
@@ -213,7 +257,7 @@ export async function writeText(
 				hasCode(error) &&
 				(error.code === "EACCES" || error.code === "EPERM");
 			if (!directoryRefused) throw error;
-			await writeContent(target, text);
+			await writeContent(target, text, mode);
 		}
 	} catch (error) {
 		throw new ForgeError(`cannot write: ${(error as Error).message}`, {
