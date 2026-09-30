@@ -17,6 +17,7 @@ import {
 	RELEASE_TARGETS,
 } from "../../scripts/release/targets";
 import { FORGE_VERSION } from "../../src/core/version";
+import { ISOLATED_HOME } from "../helpers/isolated-home";
 
 const REPOSITORY = resolve(import.meta.dir, "../..");
 const RELEASE_WORKFLOW = join(REPOSITORY, ".github/workflows/release.yml");
@@ -626,6 +627,9 @@ describe("the smoke steps, run here against the source CLI", () => {
 				ASSET: asset,
 				FIXTURE: fixture,
 				GITHUB_REF_NAME: `v${FORGE_VERSION}`,
+				// These steps run the forge CLI: it must not read the real
+				// ~/.config/*/api.env (see tests/helpers/isolated-home.ts).
+				HOME: ISOLATED_HOME,
 			});
 			results.push({ name, ...result });
 			if (result.exitCode !== 0) break;

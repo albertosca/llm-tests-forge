@@ -3,6 +3,7 @@ import { cp, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { FORGE_VERSION } from "../../src/core/version";
+import { ISOLATED_HOME } from "../helpers/isolated-home";
 
 // A frozen copy of the extract-questions example with its committed outputs,
 // so curating the living example under examples/ never changes this test.
@@ -19,7 +20,7 @@ function expectSuccess(result: { exitCode: number; output: string }) {
 function runBinary(binary: string, argumentsList: string[], directory: string) {
 	const result = Bun.spawnSync([binary, ...argumentsList], {
 		cwd: directory,
-		env: { ...process.env, NO_COLOR: "1" },
+		env: { ...process.env, NO_COLOR: "1", HOME: ISOLATED_HOME },
 	});
 	return {
 		exitCode: result.exitCode,

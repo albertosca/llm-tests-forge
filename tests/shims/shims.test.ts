@@ -24,6 +24,7 @@ import {
 	writeSuite,
 } from "../../src/core/files";
 import type { Suite } from "../../src/core/schemas";
+import { ISOLATED_HOME } from "../helpers/isolated-home";
 
 const shims = process.env.FORGE_SHIMS === "1";
 const REPOSITORY = resolve(import.meta.dir, "../..");
@@ -35,7 +36,11 @@ interface Finished {
 	stderr: string;
 }
 
-async function runIn(directory: string, command: string[]): Promise<Finished> {
+async function runIn(
+	directory: string,
+	command: string[],
+	environment: Record<string, string> = {},
+): Promise<Finished> {
 	const child = Bun.spawn(command, {
 		cwd: directory,
 		stdout: "pipe",
@@ -44,6 +49,7 @@ async function runIn(directory: string, command: string[]): Promise<Finished> {
 			...process.env,
 			PROMPTFOO_DISABLE_TELEMETRY: "1",
 			PROMPTFOO_DISABLE_UPDATE: "1",
+			...environment,
 		},
 	});
 	const [stdout, stderr, exitCode] = await Promise.all([
@@ -54,8 +60,12 @@ async function runIn(directory: string, command: string[]): Promise<Finished> {
 	return { exitCode, stdout, stderr };
 }
 
-async function mustRun(directory: string, command: string[]): Promise<void> {
-	const finished = await runIn(directory, command);
+async function mustRun(
+	directory: string,
+	command: string[],
+	environment: Record<string, string> = {},
+): Promise<void> {
+	const finished = await runIn(directory, command, environment);
 	if (finished.exitCode !== 0)
 		throw new Error(
 			`${command.join(" ")} exited ${finished.exitCode} in ${directory}\n${finished.stdout}\n${finished.stderr}`,
@@ -195,11 +205,13 @@ async function withProject(
 		const suite = join(project, "evals", "shout");
 		await writeFiles(project, application);
 		await forgeSuite(suite, target);
-		await mustRun(suite, [
-			process.execPath,
-			join(REPOSITORY, "src/cli/bin.ts"),
-			"emit",
-		]);
+		// The forge CLI alone gets a throwaway HOME, so it reads no real
+		// provider key; the toolchains below keep the real one.
+		await mustRun(
+			suite,
+			[process.execPath, join(REPOSITORY, "src/cli/bin.ts"), "emit"],
+			{ HOME: ISOLATED_HOME },
+		);
 		await body({ project, suite, forge: join(suite, ".forge") });
 	} finally {
 		await rm(project, { recursive: true, force: true });
