@@ -6,26 +6,22 @@ import { plural } from "./text";
 /** Tokens promptfoo's grading prompt adds around the output and the rubric (measured ~200 on 2026-09-15). */
 export const JUDGE_PROMPT_OVERHEAD = 200;
 /**
- * Judge answer size including the reasoning some providers bill as output,
- * measured as `completion + completionDetails.reasoning` over every
- * `llm-rubric` component of a run.
+ * Judge answer size per call, as billed: `completion` for Anthropic (whose
+ * reasoning promptfoo already counts inside it), `completion +
+ * completionDetails.reasoning` for Google, which reports the two apart.
  *
- * 174 was fit to the example run of 2026-09-16 (1042 tokens over 6
- * components). The example has been re-run since, and the committed
- * `examples/moonlighter-classify-email/results.json` now measures
- * [102, 71, 69, 71, 167, 186] = 666 over the same 6 components, a mean of
- * 111; `tests/fixtures/promptfoo-results-0.123.0.json` measures 321 over
- * its 2. The constant stays at 174 on purpose: what moves it is how many
- * rubric cases the judge rejects — a rejection writes an explanation and
- * pays for hidden reasoning tokens (the 4 passing components above wrote
- * 69–102 with no reasoning at all, the 2 rejecting ones 167 and 186 with
- * 44 and 54 of it), and no constant can know that count before the run. A
- * number fit to the cheaper of two observed runs would understate the bill
- * whenever the suite starts failing, which is exactly when the estimate is
- * read. A real tokenizer would replace this constant; the estimate is a
- * guess either way, calibrated rather than exact.
+ * 183 is the mean billed output over the 26 `llm-rubric` components of the
+ * committed runs, measured on 2026-09-29: the classify-email run
+ * (`tests/fixtures/classify-email/results.json`, 6 Anthropic components,
+ * 568 tokens), the extract-questions run
+ * (`tests/fixtures/extract-questions/results.json`, 18 Anthropic
+ * components, 3539 tokens) and `tests/fixtures/promptfoo-results-0.123.0.json`
+ * (2 Google components, 642 tokens): 4749 / 26 = 182.7. The spread is wide
+ * — one component billed 57, another 921 — because how long the judge
+ * explains itself and how much hidden reasoning it pays for depend on the
+ * answer it grades, which no constant can know before the run.
  */
-export const JUDGE_OUTPUT_TOKENS = 174;
+export const JUDGE_OUTPUT_TOKENS = 183;
 
 export interface EstimateLine {
 	model: string;

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T10:46:47.769Z",
+  "generatedAt": "2026-09-30T11:25:57.378Z",
   "ranAt": "2026-09-25T14:48:00.200Z",
   "promptfooVersion": "0.123.0",
   "rows": 84,
@@ -706,10 +706,10 @@
       "model": "anthropic/claude-sonnet-5",
       "role": "judge",
       "inputTokens": 10214,
-      "outputTokens": 5145,
-      "realDollars": 0.071878,
-      "estimatedDollars": 0.046736,
-      "errorPercent": 53.8,
+      "outputTokens": 3539,
+      "realDollars": 0.055818,
+      "estimatedDollars": 0.048356,
+      "errorPercent": 15.4,
       "approximatePrice": false
     }
   ],

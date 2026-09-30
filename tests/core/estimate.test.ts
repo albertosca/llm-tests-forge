@@ -16,6 +16,7 @@ import type {
 	Suite,
 } from "../../src/core/schemas";
 import type { Selection } from "../../src/core/select";
+import { readResults } from "../../src/report/results";
 
 const feature: Feature = {
 	id: "classify-email",
@@ -696,5 +697,38 @@ describe("renderEstimate", () => {
 		expect(dataRow).toBeDefined();
 		expect(totalRow).toBeDefined();
 		expect(totalRow?.indexOf("$")).toBe(dataRow?.indexOf("$"));
+	});
+});
+
+/** The committed runs every calibrated constant is fit to, frozen under tests/fixtures. */
+const CALIBRATION_RUNS = [
+	"tests/fixtures/classify-email/results.json",
+	"tests/fixtures/extract-questions/results.json",
+	"tests/fixtures/promptfoo-results-0.123.0.json",
+];
+
+describe("calibration against the committed runs", () => {
+	test("JUDGE_OUTPUT_TOKENS is the mean billed output of every rubric component, rounded", async () => {
+		const billed: number[] = [];
+		for (const path of CALIBRATION_RUNS) {
+			const results = await readResults(path);
+			for (const resultRow of results.results.results)
+				for (const component of resultRow.gradingResult?.componentResults ?? [])
+					if (component.assertion?.type === "llm-rubric") {
+						// Google reports hidden reasoning apart from the answer;
+						// Anthropic's is already inside `completion`.
+						const apart =
+							component.assertion.provider?.startsWith("google:") ?? false;
+						billed.push(
+							(component.tokensUsed?.completion ?? 0) +
+								(apart
+									? (component.tokensUsed?.completionDetails?.reasoning ?? 0)
+									: 0),
+						);
+					}
+		}
+		expect(billed.length).toBe(26);
+		const mean = billed.reduce((total, tokens) => total + tokens, 0) / 26;
+		expect(JUDGE_OUTPUT_TOKENS).toBe(Math.round(mean));
 	});
 });

@@ -761,6 +761,43 @@ describe("buildReport", () => {
 		]);
 	});
 
+	test("judge reasoning is added to the output only where the provider reports it apart: Google and Vertex, never Anthropic", () => {
+		// promptfoo 0.123.0 maps Anthropic's `output_tokens` to `completion`
+		// and its `thinking_tokens` to `completionDetails.reasoning`, so the
+		// reasoning is already inside `completion`; Google reports the two
+		// apart. Numbers from the committed runs' rubric components.
+		const judged = (provider: string, completion: number, reasoning: number) =>
+			row({
+				case: "r-01",
+				model: "m",
+				gradingResult: {
+					pass: true,
+					componentResults: [
+						{
+							...rubric(true, undefined, provider),
+							tokensUsed: {
+								prompt: 10,
+								completion,
+								completionDetails: { reasoning },
+							},
+						},
+					],
+				},
+			});
+		const report = build([
+			judged("anthropic:messages:claude-sonnet-5", 123, 44),
+			judged("google:gemini-3.5-flash", 55, 243),
+			judged("vertex:gemini-3.5-flash", 72, 272),
+		]);
+		const outputOf = (model: string) =>
+			report.costs.find(
+				(modelCost) => modelCost.role === "judge" && modelCost.model === model,
+			)?.outputTokens;
+		expect(outputOf("anthropic/claude-sonnet-5")).toBe(123);
+		expect(outputOf("google/gemini-3.5-flash")).toBe(55 + 243);
+		expect(outputOf("vertex:gemini-3.5-flash")).toBe(72 + 272);
+	});
+
 	test("a judge whose provider has no row in prices.yaml gets no real dollar figure", () => {
 		const report = build([
 			row({

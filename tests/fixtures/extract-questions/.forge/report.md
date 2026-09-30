@@ -1,4 +1,4 @@
-# llm-tests-forge report — 2026-09-29T10:46:47.769Z
+# llm-tests-forge report — 2026-09-30T11:25:57.378Z
 
 **Pass rate:** 67.9% (57 of 84 runs, 0 errored) · **failing or errored:** 12 · **flaky:** 3 · **judge disagreements:** 0
 
@@ -57,6 +57,6 @@ Coverage: 14 of 14 reviewed scenarios ran.
 | model | role | input | output | real | estimated | error |
 | --- | --- | --- | --- | --- | --- | --- |
 | anthropic/claude-sonnet-4-6 | target | 0 | 0 | — | $0.335070 | — |
-| anthropic/claude-sonnet-5 | judge | 10214 | 5145 | $0.071878 | $0.046736 | +53.8% |
+| anthropic/claude-sonnet-5 | judge | 10214 | 3539 | $0.055818 | $0.048356 | +15.4% |
 
 Target usage: not reported by the shim — target rows show 0 tokens; return tokenUsage from forge_target.py to fill this table
