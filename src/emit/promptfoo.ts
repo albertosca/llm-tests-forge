@@ -403,10 +403,13 @@ export function buildPromptfooConfig(options: {
 			),
 		};
 	});
-	const firstInput = feature.inputs[0]?.name ?? "input";
+	// The target reads its inputs from vars, never from this text: the prompt is what promptfoo's views show for a row, so it names every input.
+	const prompt = feature.inputs
+		.map((input) => `${input.name}: {{${input.name}}}`)
+		.join("\n");
 	return {
 		description: `${feature.id}: forge suite, ${selection.cases.length} cases from ${selection.scenarios.length} scenarios`,
-		prompts: [`{{${firstInput}}}`],
+		prompts: [prompt],
 		providers: suite.target.models.map((model) =>
 			providerFor(model, suite, feature, options.command),
 		),

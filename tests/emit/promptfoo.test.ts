@@ -353,11 +353,29 @@ describe("buildPromptfooConfig", () => {
 			suite,
 			selection,
 		});
-		expect(config.prompts).toEqual(["{{email}}"]);
+		expect(config.prompts).toEqual(["email: {{email}}"]);
 		expect(config.evaluateOptions).toEqual({ repeat: 2 });
 		expect(config.description).toBe(
 			"classify-email: forge suite, 2 cases from 2 scenarios",
 		);
+	});
+	test("the prompt shows every input, one `<name>: {{<name>}}` line each, in the feature's order", () => {
+		const threeInputFeature: Feature = {
+			...jsonFeature,
+			inputs: [
+				{ name: "from", kind: "text" },
+				{ name: "subject", kind: "text" },
+				{ name: "body", kind: "text" },
+			],
+		};
+		const config = buildPromptfooConfig({
+			feature: threeInputFeature,
+			suite,
+			selection,
+		});
+		expect(config.prompts).toEqual([
+			"from: {{from}}\nsubject: {{subject}}\nbody: {{body}}",
+		]);
 	});
 	test("each case becomes a test with its vars and full metadata", () => {
 		const config = buildPromptfooConfig({
