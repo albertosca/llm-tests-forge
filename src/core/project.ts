@@ -212,12 +212,64 @@ function appendToBlockList(
 	entry: string,
 ): string {
 	const line = `${lineEndingOf(text)}${indentationAt(text, lastItem[0])}- ${listItemText(entry, false)}`;
-	return insertAt(text, lineEnd(text, lastItem[1]), line);
+	// A block scalar's range runs past its content to the next line.
+	const contentEnd = text.slice(0, lastItem[1]).trimEnd().length;
+	return insertAt(text, lineEnd(text, contentEnd), line);
 }
 
 /**
- * `text` with `entry` added to a flow list. An empty list gets it inside
- * its brackets. A last item on a line of its own, with the `]` on a later
+ * `text` with `entry` added to an empty flow list: inside its brackets when
+ * `]` shares the line of `[`; otherwise on a line of its own just before the
+ * `]` line, at the indentation of the first line inside the brackets with
+ * content, or two past the key's when there is none (a flow sequence in a
+ * block mapping must be indented further than its key).
+ */
+function appendToEmptyFlowList(
+	text: string,
+	list: Range,
+	item: string,
+): string {
+	const close = list[1] - 1;
+	const closeLine = lineStart(text, close);
+	if (closeLine <= list[0]) return insertAt(text, close, item);
+	const inside = text.slice(lineEnd(text, list[0]), closeLine).split("\n");
+	const firstWithContent = inside.find((line) => line.trim() !== "");
+	const indentation =
+		firstWithContent === undefined
+			? `${indentationAt(text, list[0])}  `
+			: indentationAt(firstWithContent, 0);
+	return insertAt(
+		text,
+		closeLine,
+		`${indentation}${item}${lineEndingOf(text)}`,
+	);
+}
+
+/**
+ * Throws, naming forge.yaml, unless `text` reads back with `suites` exactly
+ * the project's entries followed by `entry`: whatever shape of forge.yaml a
+ * splice did not foresee, it never writes a broken file.
+ */
+export function checkRegisteredText(
+	project: Project,
+	text: string,
+	entry: string,
+): void {
+	const document = parseDocument(text);
+	const suites: unknown =
+		document.errors.length === 0 ? document.toJS()?.suites : undefined;
+	if (
+		JSON.stringify(suites) !== JSON.stringify([...project.config.suites, entry])
+	)
+		throw new ForgeError(
+			`registering ${entry} would write a forge.yaml that does not read back as the listed suites plus this one, so it was left unchanged; ${registrationHint(entry)}`,
+			{ file: project.file },
+		);
+}
+
+/**
+ * `text` with `entry` added to a flow list (an empty one is
+ * `appendToEmptyFlowList`'s). A last item on a line of its own, with the `]` on a later
  * line, is followed by a new line at its indentation; otherwise `, <entry>`
  * follows the last item on its line. A trailing comma stays trailing.
  */
@@ -228,9 +280,9 @@ function appendToFlowList(
 	entry: string,
 ): string {
 	const item = listItemText(entry, true);
+	if (lastItem === null) return appendToEmptyFlowList(text, list, item);
 	// A flow sequence's value ends right after its `]`.
 	const close = list[1] - 1;
-	if (lastItem === null) return insertAt(text, close, item);
 	const valueEnd = lastItem[1];
 	const comma = /^[ \t]*,/.exec(text.slice(valueEnd));
 	const afterComma = comma === null ? null : valueEnd + comma[0].length;
@@ -289,6 +341,7 @@ export function registerSuite(
 			suites.flow === true
 				? appendToFlowList(project.text, list, lastItem, entry)
 				: appendToBlockList(project.text, sourceRange(last), entry);
+		checkRegisteredText(project, text, entry);
 		return { text, entry };
 	}
 	const replacement = document.createNode([entry]);
@@ -301,13 +354,12 @@ export function registerSuite(
 		flowCollectionPadding: false,
 		lineWidth: 0,
 	});
-	return {
-		text:
-			lineEndingOf(project.text) === "\r\n"
-				? printed.replaceAll("\n", "\r\n")
-				: printed,
-		entry,
-	};
+	const text =
+		lineEndingOf(project.text) === "\r\n"
+			? printed.replaceAll("\n", "\r\n")
+			: printed;
+	checkRegisteredText(project, text, entry);
+	return { text, entry };
 }
 
 /** What `init` writes as the project file. */

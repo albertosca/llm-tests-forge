@@ -389,6 +389,31 @@ describe("registerSuite changes only the line it adds", () => {
 			"version: 1\r\nlanguage: go\r\nsuites: [evals/b]   # none yet\r\ndefaults: { }\r\n",
 		);
 	});
+	test("an empty flow list whose `]` has its own line gets the entry on an indented line of its own", async () => {
+		expect(
+			await registeredText("version: 1\nlanguage: go\nsuites: [ # none\n]\n"),
+		).toBe("version: 1\nlanguage: go\nsuites: [ # none\n  evals/b\n]\n");
+		expect(
+			await registeredText("version: 1\r\nlanguage: go\r\nsuites: [\r\n]\r\n"),
+		).toBe("version: 1\r\nlanguage: go\r\nsuites: [\r\n  evals/b\r\n]\r\n");
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites: [\n  # none\n]\n",
+			),
+		).toBe("version: 1\nlanguage: go\nsuites: [\n  # none\n  evals/b\n]\n");
+		// The first line with content inside the brackets sets the indentation.
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites: [\n\n    # none\n  ]\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites: [\n\n    # none\n    evals/b\n  ]\n",
+		);
+		// With nothing inside, the default is the key's indent plus two.
+		expect(
+			await registeredText("  version: 1\n  language: go\n  suites: [\n  ]\n"),
+		).toBe("  version: 1\n  language: go\n  suites: [\n    evals/b\n  ]\n");
+	});
 	test("an entry YAML would misread is quoted for the list's own style", async () => {
 		expect(
 			await registeredText(
@@ -435,6 +460,30 @@ describe("registerSuite changes only the line it adds", () => {
 			),
 		).toBe(
 			"version: 1\r\nlanguage: go\r\nsuites:\r\n  - evals/b\r\n  # none yet\r\ndefaults: {}\r\n",
+		);
+	});
+	test("a block scalar as the last item gets the new line after its content, not after the next key", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites:\n  - >-\n    evals/a\ndefaults: {}\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites:\n  - >-\n    evals/a\n  - evals/b\ndefaults: {}\n",
+		);
+	});
+	test("a splice that would not read back as the old suites plus the new one is refused, naming forge.yaml, and nothing is returned", async () => {
+		// `|+` keeps the blank line after its content as part of the value;
+		// a line inserted after the content takes that blank line away.
+		const project = await readProject(
+			await projectWith(
+				"version: 1\nlanguage: go\nsuites:\n  - |+\n    evals/a\n\ndefaults: {}\n",
+			),
+		);
+		expect(project.config.suites).toEqual(["evals/a\n\n"]);
+		const register = () =>
+			registerSuite(project, join(project.root, "evals", "b"));
+		expect(register).toThrow(
+			`registering evals/b would write a forge.yaml that does not read back as the listed suites plus this one, so it was left unchanged; ${registrationHint("evals/b")} (file: ${project.file})`,
 		);
 	});
 	test("a suites that is a YAML alias is refused, naming forge.yaml, rather than replaced", async () => {

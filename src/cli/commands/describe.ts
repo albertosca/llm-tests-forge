@@ -12,6 +12,7 @@ import {
 } from "../../core/files";
 import {
 	PROJECT_FILE,
+	type Project,
 	registerSuite,
 	registrationHint,
 } from "../../core/project";
@@ -27,6 +28,25 @@ import type { CliContext } from "../context";
  * exactly what was wanted. A still-pending feature is nobody's reviewed
  * work, so re-describing over it stays free.
  */
+/**
+ * What the refusal adds for a suite missing from forge.yaml: a suite made
+ * before init (or copied in) is reviewed but unregistered, and the refusal
+ * is where registering it through describe dead-ends. A forge.yaml that
+ * registering refuses gives its reason here, after the refusal, rather
+ * than in place of it.
+ */
+function unregisteredNote(project: Project, suiteDirectory: string): string {
+	try {
+		const registration = registerSuite(project, suiteDirectory);
+		return registration === null
+			? ""
+			: `. This suite is not registered in ${PROJECT_FILE}: to register it without describing it again, ${registrationHint(registration.entry)}`;
+	} catch (error) {
+		if (!(error instanceof ForgeError)) throw error;
+		return `. This suite may not be registered in ${PROJECT_FILE}: ${error.message}`;
+	}
+}
+
 async function refuseToOverwriteReviewedFeature(
 	context: CliContext,
 	force: boolean,
@@ -34,16 +54,10 @@ async function refuseToOverwriteReviewedFeature(
 	if (force) return;
 	const existing = await readFeatureIfPresent(context.forgeDirectory);
 	if (existing === undefined || existing.status === "pending") return;
-	// A suite made before init (or copied in) is reviewed but unregistered,
-	// and this refusal is where registering it through describe dead-ends.
-	const registration =
-		context.project === null
-			? null
-			: registerSuite(context.project, dirname(context.forgeDirectory));
 	const unregistered =
-		registration === null
+		context.project === null
 			? ""
-			: `. This suite is not registered in ${PROJECT_FILE}: to register it without describing it again, ${registrationHint(registration.entry)}`;
+			: unregisteredNote(context.project, dirname(context.forgeDirectory));
 	throw new ForgeError(
 		`feature "${existing.id}" is already ${existing.status}; describe would overwrite the reviewed description and its invariants — re-run with --force to replace it${unregistered}`,
 		{ file: forgePaths(context.forgeDirectory).feature, id: existing.id },

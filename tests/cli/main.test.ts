@@ -966,6 +966,31 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 		expect(registered.join("\n")).not.toContain("not registered");
 	});
 
+	test("a forge.yaml that registering refuses still gets the refusal for a reviewed suite, with registering's reason after it", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\ndefaults:\n  judges: &list [evals/kept]\nsuites: *list\n",
+		);
+		await cp(
+			"tests/fixtures/extract-questions/.forge",
+			join(root, "evals", "classify", ".forge"),
+			{ recursive: true },
+		);
+		const lines: string[] = [];
+		expect(
+			await main(["describe", "--drafter", MODEL, "anything"], {
+				cwd: join(root, "evals", "classify"),
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(1);
+		const output = lines.join("\n");
+		expect(output).toContain("re-run with --force to replace it.");
+		expect(output).toContain(
+			"This suite may not be registered in forge.yaml: suites: is a YAML alias, which registering cannot extend;",
+		);
+	});
+
 	test("a still-pending feature is not reviewed work, so re-describing over it is allowed", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const { context: first } = await ctxIn(cwd);
