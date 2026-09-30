@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RESPONSE_FUNCTION_REFUSAL } from "./target";
 
 export const Kind = z.enum([
 	"happy",
@@ -177,8 +178,7 @@ const TargetSchema = z
 			context.addIssue({
 				code: "custom",
 				path: ["response"],
-				message:
-					"target.response must be an expression over json, not a function: promptfoo calls any text holding => as a function",
+				message: RESPONSE_FUNCTION_REFUSAL,
 			});
 	});
 

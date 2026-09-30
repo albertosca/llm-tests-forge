@@ -43,17 +43,22 @@ export function shimTarget(
 	};
 }
 
+/** The refusal of a `target.response` holding `=>`, shared by the suite schema and `httpTransform`. */
+export const RESPONSE_FUNCTION_REFUSAL =
+	"target.response must be an expression over json, not a function: promptfoo calls any text holding => as a function";
+
 /**
  * promptfoo's http provider hands the asserts whatever `transformResponse`
  * returns, and an object reaches them as "[object Object]". The expression
  * keeps text as it is and turns anything else into JSON. It must stay an
- * expression: promptfoo calls any transform holding `=>` as a function.
+ * expression: promptfoo calls any transform holding `=>` as a function, and
+ * an empty one would emit `typeof ()`, which is no JavaScript at all.
  */
 export function httpTransform(response: string | undefined): string {
 	const expression = response ?? "json";
+	if (expression.trim() === "")
+		throw new ForgeError("target.response is empty");
 	if (expression.includes("=>"))
-		throw new ForgeError(
-			"target.response must be an expression over json, not a function: promptfoo calls any text holding => as a function",
-		);
+		throw new ForgeError(RESPONSE_FUNCTION_REFUSAL);
 	return `typeof (${expression}) === "string" ? (${expression}) : JSON.stringify(${expression})`;
 }

@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { ForgeError } from "../../src/core/errors";
-import { httpTransform, shimTarget } from "../../src/core/target";
+import {
+	httpTransform,
+	RESPONSE_FUNCTION_REFUSAL,
+	shimTarget,
+} from "../../src/core/target";
 
 describe("shimTarget", () => {
 	test("an explicit entry wins; otherwise each shim kind has its default", () => {
@@ -66,7 +70,16 @@ describe("httpTransform", () => {
 	test("an expression holding => is refused, as promptfoo would call it as a function", () => {
 		expect(() => httpTransform("(json) => json.a")).toThrow(ForgeError);
 		expect(() => httpTransform("json.items.map(x=>x)")).toThrow(
+			RESPONSE_FUNCTION_REFUSAL,
+		);
+		expect(RESPONSE_FUNCTION_REFUSAL).toStartWith(
 			"target.response must be an expression over json",
 		);
+	});
+	test("an empty or whitespace-only expression is refused, as the schema refuses it", () => {
+		for (const response of ["", "   ", "\t\n"]) {
+			expect(() => httpTransform(response)).toThrow(ForgeError);
+			expect(() => httpTransform(response)).toThrow("target.response is empty");
+		}
 	});
 });
