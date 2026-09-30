@@ -2,7 +2,7 @@
 
 The target is [moonlighter](https://github.com/albertosca/moonlighter), a job-application tracker. Its `classify_response` (`packages/email/moonlighter/tracking/classification.py`) takes one email a candidate received and returns a JSON object with `type`, `stage`, `new_stage`, `company`, `job_title` and `summary`, where `type` is one of seven labels. The rule this suite exists to protect is the one that is easiest to get wrong: an automated "we have received your application" is `acknowledgement`, never `screening` and never `interview` — the process has not started. `prompt.txt` in this directory is that function's prompt, copied verbatim, with the untrusted-email block and the stage list replaced by placeholders.
 
-Everything under `.forge/` here was produced by the `llm-tests-forge` commands below and reviewed by hand, then run against the real application. `results.json` is promptfoo's own record of that run and is never hand-edited; `.forge/report.*` are `llm-tests-forge report` read back from it, so their `generatedAt` (`2026-09-29T01:43:25.293Z`, promptfoo 0.123.0) is the clock of the last re-render, not of the run. `.forge/usage.jsonl` is deliberately **not** committed — it is gitignored repository-wide, because it logs every model call the forge itself made on one person's machine.
+Everything under `.forge/` here was produced by the `llm-tests-forge` commands below and reviewed by hand, then run against the real application. `results.json` is promptfoo's own record of that run and is never hand-edited; `.forge/report.*` are `llm-tests-forge report` read back from it: `report.md`'s header dates the run (`2026-09-16T13:41:49.595Z`, promptfoo 0.123.0), while its `Reported` line and `report.json`'s `generatedAt` are the clock of the last re-render. `.forge/usage.jsonl` is deliberately **not** committed — it is gitignored repository-wide, because it logs every model call the forge itself made on one person's machine.
 
 ## Models used, and why Google is absent
 
@@ -65,10 +65,10 @@ The one expected value worth arguing about is `empty-subject-and-minimal-body-03
 
     $ bun ../../src/cli/bin.ts estimate
     estimate: 24 cases, 3 with a rubric; prices dated 2026-09-16
-      target  anthropic/claude-haiku-4-5           48 calls   23036 in    5760 out  $0.051836
-      judge   anthropic/claude-sonnet-5             6 calls    2184 in    1044 out  $0.014808
-      total                                                                         $0.066644
-    note: tokens are estimated as characters / 4; output size is a guess from output.kind
+      target  anthropic/claude-haiku-4-5           48 calls   23036 in    5760 out  $0.036339–$0.062327 (point $0.051836)
+      judge   anthropic/claude-sonnet-5             6 calls    2784 in    1098 out  $0.006862–$0.027964 (point $0.016548)
+      total                                                                         $0.043201–$0.090291 (point $0.068384)
+    note: tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is estimated from output.kind, with no text basis
 
 ## The run
 
@@ -84,7 +84,7 @@ which renders as:
 
 Every scenario ran 6 times (3 cases × `repeat: 2`). Seven of the eight passed 6 times; `empty-subject-and-minimal-body` comes out 4 passed, 2 failed, 0 errored, and both failures are the same case, `empty-subject-and-minimal-body-03`, which `report.md` lists under **Failing or errored cases**. **Flaky cases** is empty this time, which is itself a result and not an improvement: the previous run had `-02` there, and the only thing that changed between the two is which answer the model happened to pick. Both are described below.
 
-The cost table is real on both rows for the first time. The target billed $0.046218 on 23588 in / 4526 out against an estimate of $0.051836 — 10.8% low, because `estimate` counts characters ÷ 4 and Haiku's tokeniser packs these emails slightly tighter. The judge billed $0.011270 against $0.014808 — 23.9% low, and that gap comes from the other side of the estimate: `JUDGE_OUTPUT_TOKENS` was set to 174 from the previous run, where three of the six `llm-rubric` calls rejected and wrote long explanations; here only two did, the six calls came to 666 output tokens instead of 1042, and the same constant now overshoots the real output. The size of that error tracks how many rubric cases fail, which nothing can know before the run — a per-judge constant gets the order of magnitude right and no more.
+The cost table is real on both rows, and both land inside the estimated range. The target billed $0.046218 on 23588 in / 4526 out, inside $0.036339–$0.062327 and 10.8% under the point estimate of $0.051836: `estimate` counts characters ÷ 4, and Haiku's tokeniser packs these emails slightly tighter. That row is not independent evidence for the range, though — the 3.5 to 4.2 characters per token behind it were fit to exactly these 48 rows, the only recorded target usage the repository has. The judge billed $0.010290 on 2305 in / 568 out, inside $0.006862–$0.027964. Its range is wide on purpose: a judge that rejects writes a long explanation and a passing one does not, so how much it writes depends on how many rubric cases fail, which nothing can know before the run; over the committed runs the mean billed judge output went from 95 to 321 tokens a call. Earlier renders of this report showed 666 judge output tokens: the report added Anthropic's reasoning tokens on top of a completion count that already includes them, and 568 is what was billed.
 
 Two kinds of noise on stderr are expected and are not failures: promptfoo 0.123.0 prints `ExperimentalWarning: DecompressInterceptor`, and the Python worker prints an `asyncio` traceback ending in `RuntimeError: Event loop is closed` when it tears down moonlighter's HTTP client after the loop has closed. All 48 rows still carry a result.
 

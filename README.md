@@ -146,7 +146,7 @@ The remaining verbs turn that suite into a run. They read `.forge/suite.yaml`, w
 
     llm-tests-forge estimate
 
-Prices the run before you spend it: cases × target models × `repeat`, plus one judge call per `rubric` case per judge, target model and `repeat`, against `prices.yaml` (which is yours to edit — the output prints the date it carries, and marks with `~` any model it had to price as its closest listed sibling). A model whose provider has no row at all is not priced as anything: its line reads `not priced`, and the total leaves it out and says how many lines it left out. Tokens are counted as characters ÷ 4, so read it as an order of magnitude. It makes no API call.
+Prices the run before you spend it: cases × target models × `repeat`, plus one judge call per `rubric` case per judge, target model and `repeat`, against `prices.yaml` (which is yours to edit — the output prints the date it carries, and marks with `~` any model it had to price as its closest listed sibling). A model whose provider has no row at all is not priced as anything: its line reads `not priced`, and the total leaves it out and says how many lines it left out. Tokens are counted as characters ÷ 4, and every line and the total show a range around that point, `$low–$high (point $point)`: the input re-counted at 3.5 to 4.2 characters per token, the judge's prompt overhead and answer size taken from recorded runs, and the target's output at 0.5× to 1.25× of a size guessed from `output.kind` (or from the reviewed expected values), because nothing of the real answer's text exists before the run. The bands were fit to the few runs committed with this repository, so read the range as a calibrated guess, not a budget. It makes no API call.
 
     llm-tests-forge emit
 
@@ -158,7 +158,7 @@ Promptfoo runs the suite from the suite directory (`bunx` works too); the forge 
 
     llm-tests-forge report results.json [--baseline .forge/report.json]
 
-Reads promptfoo's output into `.forge/report.md` and `.forge/report.json`: pass rate, a per-scenario table, which reviewed scenarios had no case, no matched run, or were not in this suite, cases that passed on one repeat and failed on another, judges that disagreed (with both reasons), and real cost against the estimate. With `--baseline`, an earlier `report.json` is compared and regressions are listed first; pairs the baseline has and this run does not (after a rename, say) are named rather than silently left out of the diff; a `--baseline` written by an older version of the forge is accepted, keys it spelled differently included.
+Reads promptfoo's output into `.forge/report.md` and `.forge/report.json`: pass rate, a per-scenario table, which reviewed scenarios had no case, no matched run, or were not in this suite, cases that passed on one repeat and failed on another, judges that disagreed (with both reasons), and real cost against the estimate's range: within it, or how far above or below its nearer bound, and a line that recorded no tokens says so instead of claiming a match. With `--baseline`, an earlier `report.json` is compared and regressions are listed first; pairs the baseline has and this run does not (after a rename, say) are named rather than silently left out of the diff; a `--baseline` written by an older version of the forge is accepted, keys it spelled differently included.
 
 ### The nine target kinds
 

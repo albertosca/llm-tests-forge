@@ -1,4 +1,5 @@
-# llm-tests-forge report — 2026-09-29T10:46:47.521Z
+# llm-tests-forge report — run 2026-09-16T13:41:49.595Z
+Reported 2026-09-30T11:42:49.006Z.
 
 **Pass rate:** 95.8% (46 of 48 runs, 0 errored) · **failing or errored:** 1 · **flaky:** 0 · **judge disagreements:** 0
 
@@ -35,7 +36,7 @@ Coverage: 8 of 8 reviewed scenarios ran.
 
 | model | role | input | output | real | estimated | error |
 | --- | --- | --- | --- | --- | --- | --- |
-| anthropic/claude-haiku-4-5 | target | 23588 | 4526 | $0.046218 | $0.051836 | -10.8% |
-| anthropic/claude-sonnet-5 | judge | 2305 | 666 | $0.011270 | $0.014808 | -23.9% |
+| anthropic/claude-haiku-4-5 | target | 23588 | 4526 | $0.046218 | $0.036339–$0.062327 | within range |
+| anthropic/claude-sonnet-5 | judge | 2305 | 568 | $0.010290 | $0.006862–$0.027964 | within range |
 
 Target usage: reported by the shim.
