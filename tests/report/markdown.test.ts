@@ -224,6 +224,64 @@ describe("renderReportMarkdown", () => {
 		);
 	});
 
+	// Every subset of the three buckets, each alone and in every pairing, so
+	// a clause that only renders when another one is present cannot pass.
+	for (const [withoutCase, withoutRun, notSelected, sentence] of [
+		[[], [], [], "Coverage: 1 of 4 reviewed scenarios ran."],
+		[["n"], [], [], "Coverage: 1 of 4 reviewed scenarios ran; no case yet: n"],
+		[
+			[],
+			["s"],
+			[],
+			"Coverage: 1 of 4 reviewed scenarios ran; no matched run: s",
+		],
+		[
+			[],
+			[],
+			["r"],
+			"Coverage: 1 of 4 reviewed scenarios ran; not in this suite: r",
+		],
+		[
+			["n"],
+			["s"],
+			[],
+			"Coverage: 1 of 4 reviewed scenarios ran; no case yet: n; no matched run: s",
+		],
+		[
+			["n"],
+			[],
+			["r"],
+			"Coverage: 1 of 4 reviewed scenarios ran; no case yet: n; not in this suite: r",
+		],
+		[
+			[],
+			["s"],
+			["r"],
+			"Coverage: 1 of 4 reviewed scenarios ran; no matched run: s; not in this suite: r",
+		],
+		[
+			["n", "m"],
+			["s"],
+			["r"],
+			"Coverage: 1 of 4 reviewed scenarios ran; no case yet: n, m; no matched run: s; not in this suite: r",
+		],
+	] as const)
+		test(`the coverage sentence for no case yet ${withoutCase.length}, no matched run ${withoutRun.length}, not in this suite ${notSelected.length}`, () => {
+			const markdown = lines({
+				...REPORT,
+				coverage: {
+					reviewedScenarios: 4,
+					withRuns: 1,
+					withoutCase: [...withoutCase],
+					withoutRun: [...withoutRun],
+					notSelected: [...notSelected],
+				},
+			});
+			expect(markdown.filter((line) => line.startsWith("Coverage:"))).toEqual([
+				sentence,
+			]);
+		});
+
 	test("counts every scenario and says which approved ones have no case", () => {
 		const markdown = lines(REPORT);
 		expect(markdown).toContain("## Per scenario");
