@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import {
 	cp,
 	mkdir,
@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse, stringify } from "yaml";
+import * as files from "../../src/core/files";
 import { stampSuite } from "../../src/core/files";
 import { renderStatusLine, suiteStatus } from "../../src/core/status";
 import { FORGE_VERSION } from "../../src/core/version";
@@ -220,6 +221,36 @@ describe("suiteStatus and renderStatusLine", () => {
 		if (status.state !== "error") throw new Error("expected an error suite");
 		expect(status.error).not.toContain("\n");
 		expect(status.error).toContain(scenariosFile);
+	});
+
+	test("each line break of a multi-line message, with the indentation around it, reads as one space", async () => {
+		const directory = await suiteCopy("indented");
+		const scenariosFile = join(directory, ".forge", "scenarios.yaml");
+		// The parser quotes the offending line with its two-space indent,
+		// between blank lines, and puts a caret under it.
+		await writeFile(scenariosFile, "- id: a\n  description: [unclosed\n");
+		const line = renderStatusLine(
+			await suiteStatus("evals/indented", directory, FORGE_VERSION),
+		);
+		expect(line).toBe(
+			`evals/indented   error: invalid YAML: Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 1: description: [unclosed ^ (file: ${scenariosFile})`,
+		);
+	});
+
+	test("a failure that is not a ForgeError is a bug, and propagates rather than showing as a broken suite", async () => {
+		const directory = await suiteCopy("bug");
+		const reader = spyOn(files, "readScenarios").mockImplementation(
+			async () => {
+				throw new TypeError("a bug in the reader");
+			},
+		);
+		try {
+			await expect(
+				suiteStatus("evals/bug", directory, FORGE_VERSION),
+			).rejects.toThrow(new TypeError("a bug in the reader"));
+		} finally {
+			reader.mockRestore();
+		}
 	});
 
 	test("renders a suite with no feature.yaml yet as ok with no feature and zero counts", async () => {

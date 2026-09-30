@@ -33,13 +33,12 @@ export type SuiteStatus =
 			warning: string | null;
 	  };
 
-async function exists(path: string): Promise<boolean> {
-	try {
-		await access(path);
-		return true;
-	} catch {
-		return false;
-	}
+function exists(path: string): Promise<boolean> {
+	return access(path).then(
+		() => true,
+		// Stryker disable next-line ArrowFunction: a handler returning undefined instead of false is read exactly as false by both callers (a negated check and a ternary)
+		() => false,
+	);
 }
 
 const isReviewed = (item: { status: Scenario["status"] }): boolean =>
@@ -114,6 +113,7 @@ export async function suiteStatus(
 		return {
 			entry,
 			state: "error",
+			// Stryker disable next-line MethodExpression: every ForgeError readOk can raise opens with fixed wording and closes with the "(file: …)" suffix its reader adds, so there is no edge whitespace for trim to remove
 			error: error.message.replace(/\s*\n\s*/g, " ").trim(),
 		};
 	}
@@ -142,7 +142,7 @@ export function renderStatusLine(status: SuiteStatus): string {
 	const cases = `${status.cases.approved} cases approved, ${status.cases.pending} pending`;
 	const line = `${status.entry}   ${feature}   ${scenarios} · ${cases} · ${run}`;
 	// The ⚠ replaces the "warning: " prefix; the JSON keeps versionWarning's text as is.
-	return status.warning === null
-		? line
-		: `${line}  ⚠ ${status.warning.replace(/^warning: /, "")}`;
+	if (status.warning === null) return line;
+	// Stryker disable next-line Regex: both of versionWarning's sentences start with "warning: ", so the first occurrence is always at the start and dropping the anchor replaces the same text
+	return `${line}  ⚠ ${status.warning.replace(/^warning: /, "")}`;
 }
