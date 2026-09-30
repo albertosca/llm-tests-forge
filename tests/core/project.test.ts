@@ -338,6 +338,9 @@ describe("registerSuite changes only the line it adds", () => {
 		expect(
 			await registeredText("version: 1\nlanguage: go\nsuites: [evals/a,]\n"),
 		).toBe("version: 1\nlanguage: go\nsuites: [evals/a, evals/b,]\n");
+		expect(
+			await registeredText("version: 1\nlanguage: go\nsuites: [evals/a ,]\n"),
+		).toBe("version: 1\nlanguage: go\nsuites: [evals/a , evals/b,]\n");
 	});
 	test("a multi-line flow list gets its own line at the last item's indent", async () => {
 		expect(
@@ -346,6 +349,14 @@ describe("registerSuite changes only the line it adds", () => {
 			),
 		).toBe(
 			"version: 1\nlanguage: go\nsuites: [\n    evals/a, # first\n    evals/c, # last\n    evals/b\n]\ndefaults: {}\n",
+		);
+		// A comma later on the line, in a comment, is not a trailing comma.
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites: [\n  evals/c # a, b\n]\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites: [\n  evals/c, # a, b\n  evals/b\n]\n",
 		);
 	});
 	test("a multi-line CRLF flow list with a trailing comma keeps the comma style and the comment", async () => {
@@ -393,6 +404,13 @@ describe("registerSuite changes only the line it adds", () => {
 		).toBe(
 			'version: 1\nlanguage: go\nsuites:\n  - evals/a\n  - "evals/b #c"\n',
 		);
+		// A comma needs quotes only inside a flow list.
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites:\n  - evals/a\n",
+				"evals/b,c",
+			),
+		).toBe("version: 1\nlanguage: go\nsuites:\n  - evals/a\n  - evals/b,c\n");
 	});
 	test("a missing suites is added through the document, keeping CRLF", async () => {
 		expect(
@@ -402,6 +420,12 @@ describe("registerSuite changes only the line it adds", () => {
 		);
 		expect(await registeredText("version: 1\nlanguage: go\n")).toBe(
 			"version: 1\nlanguage: go\nsuites:\n  - evals/b\n",
+		);
+		// The printer's own flow padding and line folding would change these.
+		const defaults =
+			"defaults:\n  judges: [google/gemini-3.5-flash, anthropic/claude-haiku-4-5, openai/gpt-5-mini]\n";
+		expect(await registeredText(`version: 1\nlanguage: go\n${defaults}`)).toBe(
+			`version: 1\nlanguage: go\n${defaults}suites:\n  - evals/b\n`,
 		);
 	});
 	test("a suites: null is replaced through the document, keeping CRLF and its comment", async () => {
