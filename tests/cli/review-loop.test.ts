@@ -12,10 +12,10 @@ import type { Case, Feature, Scenario } from "../../src/core/schemas";
  * into a cast, which would silently produce `undefined` at runtime instead
  * of failing the assertion that follows.
  */
-function caseAt(r: ReviewLoopResult, i: number): Case {
-	const d = r.decisions[i];
-	if (!d) throw new Error(`expected a decision at index ${i}`);
-	return d.item as Case;
+function caseAt(result: ReviewLoopResult, index: number): Case {
+	const decision = result.decisions[index];
+	if (!decision) throw new Error(`expected a decision at index ${index}`);
+	return decision.item as Case;
 }
 
 const feature: Feature = {
@@ -61,23 +61,25 @@ describe("runReviewLoop", () => {
 			{ kind: "case", item: withExp },
 		];
 		const printed: string[] = [];
-		const r = await runReviewLoop({
+		const result = await runReviewLoop({
 			items,
 			ask: scripted(["approve", "reject"]),
-			openEditor: async (t) => t,
+			openEditor: async (yamlText) => yamlText,
 			askExpected: async () => ({ label: "x" }),
 			checkExpected: () => null,
 			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
-			print: (l) => printed.push(l),
+			print: (line) => printed.push(line),
 		});
-		expect(r.summary).toEqual({
+		expect(result.summary).toEqual({
 			approved: 1,
 			rejected: 1,
 			edited: 0,
 			skipped: 0,
 		});
-		expect(r.decisions.map((d) => [d.id, d.item.status])).toEqual([
+		expect(
+			result.decisions.map((decision) => [decision.id, decision.item.status]),
+		).toEqual([
 			["s", "approved"],
 			["s-01", "rejected"],
 		]);
@@ -86,10 +88,10 @@ describe("runReviewLoop", () => {
 
 	test("asks for expected before approving a case that has none", async () => {
 		let asked = 0;
-		const r = await runReviewLoop({
+		const result = await runReviewLoop({
 			items: [{ kind: "case", item: noExp }],
 			ask: scripted(["approve"]),
-			openEditor: async (t) => t,
+			openEditor: async (yamlText) => yamlText,
 			askExpected: async () => {
 				asked += 1;
 				return { label: "rejection" };
@@ -100,7 +102,7 @@ describe("runReviewLoop", () => {
 			print: () => {},
 		});
 		expect(asked).toBe(1);
-		expect(caseAt(r, 0).expected).toEqual({
+		expect(caseAt(result, 0).expected).toEqual({
 			label: "rejection",
 		});
 	});
@@ -108,7 +110,7 @@ describe("runReviewLoop", () => {
 	test("asks for expected before editing a case that has none, and the editor sees it filled in", async () => {
 		let asked = 0;
 		let editorSawExpected: unknown;
-		const r = await runReviewLoop({
+		const result = await runReviewLoop({
 			items: [{ kind: "case", item: noExp }],
 			ask: scripted(["edit"]),
 			openEditor: async (yamlText) => {
@@ -126,11 +128,11 @@ describe("runReviewLoop", () => {
 		});
 		expect(asked).toBe(1);
 		expect(editorSawExpected).toEqual({ label: "rejection" });
-		expect(r.summary.edited).toBe(1);
-		expect(caseAt(r, 0).expected).toEqual({
+		expect(result.summary.edited).toBe(1);
+		expect(caseAt(result, 0).expected).toEqual({
 			label: "rejection",
 		});
-		expect(caseAt(r, 0).status).toBe("edited");
+		expect(caseAt(result, 0).status).toBe("edited");
 	});
 
 	test("an invalid edit re-asks the SAME item rather than abandoning it for the next one", async () => {
@@ -145,7 +147,7 @@ describe("runReviewLoop", () => {
 			stringify({ ...withExp, input: { email: "edited" } }),
 		];
 		const printed: string[] = [];
-		const r = await runReviewLoop({
+		const result = await runReviewLoop({
 			items: [
 				{ kind: "case", item: withExp },
 				{ kind: "scenario", item: scn },
@@ -156,28 +158,32 @@ describe("runReviewLoop", () => {
 			checkExpected: () => null,
 			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
-			print: (l) => printed.push(l),
+			print: (line) => printed.push(line),
 		});
 
 		// indexOf/lastIndexOf would collapse the two identical item-1 headers
 		// to the same position, so collect every matching index by hand.
 		const item1Indices = printed
-			.map((l, i) => (l === `--- case ${withExp.id} ---` ? i : -1))
-			.filter((i) => i !== -1);
+			.map((line, index) =>
+				line === `--- case ${withExp.id} ---` ? index : -1,
+			)
+			.filter((index) => index !== -1);
 		const item2Indices = printed
-			.map((l, i) => (l === `--- scenario ${scn.id} ---` ? i : -1))
-			.filter((i) => i !== -1);
+			.map((line, index) =>
+				line === `--- scenario ${scn.id} ---` ? index : -1,
+			)
+			.filter((index) => index !== -1);
 		expect(item1Indices.length).toBe(2);
 		expect(item2Indices.length).toBe(1);
 		expect(Math.max(...item1Indices)).toBeLessThan(Math.min(...item2Indices));
 
-		expect(r.summary).toEqual({
+		expect(result.summary).toEqual({
 			approved: 1,
 			rejected: 0,
 			edited: 1,
 			skipped: 0,
 		});
-		expect(caseAt(r, 0).input.email).toBe("edited");
+		expect(caseAt(result, 0).input.email).toBe("edited");
 	});
 
 	test("a non-ForgeError raised while applying a decision propagates instead of being retried", async () => {
@@ -185,7 +191,7 @@ describe("runReviewLoop", () => {
 			runReviewLoop({
 				items: [{ kind: "case", item: noExp }],
 				ask: scripted(["approve"]),
-				openEditor: async (t) => t,
+				openEditor: async (yamlText) => yamlText,
 				askExpected: async () => {
 					throw new Error("boom");
 				},
@@ -203,52 +209,52 @@ describe("runReviewLoop", () => {
 		// at `current.id` with an anonymous `TypeError` — asserting only
 		// "it threw" would pass in both the buggy and the fixed world, so
 		// this pins the specific class and the message content instead.
-		let err: unknown;
+		let caught: unknown;
 		try {
 			await runReviewLoop({
 				items: [{ kind: "scenario", item: scn }],
 				ask: scripted(["yolo"]),
-				openEditor: async (t) => t,
+				openEditor: async (yamlText) => yamlText,
 				askExpected: async () => ({ label: "x" }),
 				checkExpected: () => null,
 				takenIdsFor: () => new Set(),
 				oracleOf: () => "label",
 				print: () => {},
 			});
-		} catch (e) {
-			err = e;
+		} catch (error) {
+			caught = error;
 		}
-		expect(err).toBeInstanceOf(ForgeError);
-		expect(err).not.toBeInstanceOf(TypeError);
-		expect((err as ForgeError).message).toContain('"yolo"');
-		expect((err as ForgeError).message).toContain(scn.id);
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect(caught).not.toBeInstanceOf(TypeError);
+		expect((caught as ForgeError).message).toContain('"yolo"');
+		expect((caught as ForgeError).message).toContain(scn.id);
 	});
 
 	test("drives a feature item through a failed reject (which re-asks) then an approve", async () => {
 		const printed: string[] = [];
 		const seen: PendingItem[] = [];
-		const r = await runReviewLoop({
+		const result = await runReviewLoop({
 			items: [{ kind: "feature", item: feature }],
 			ask: scripted(["reject", "approve"]),
-			openEditor: async (t) => t,
+			openEditor: async (yamlText) => yamlText,
 			askExpected: async () => ({ label: "x" }),
 			checkExpected: () => null,
 			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
 			onDecided: (decided) => seen.push(decided),
-			print: (l) => printed.push(l),
+			print: (line) => printed.push(line),
 		});
 		// The third kind the callback can be handed, paired the same way.
 		expect(seen).toEqual([
 			{ kind: "feature", item: { ...feature, status: "approved" } },
 		]);
-		expect(r.summary).toEqual({
+		expect(result.summary).toEqual({
 			approved: 1,
 			rejected: 0,
 			edited: 0,
 			skipped: 0,
 		});
-		expect(r.decisions).toEqual([
+		expect(result.decisions).toEqual([
 			{
 				kind: "feature",
 				originalId: feature.id,
@@ -258,8 +264,9 @@ describe("runReviewLoop", () => {
 		]);
 		expect(
 			printed.some(
-				(l) =>
-					l.startsWith("cannot apply:") && l.includes("cannot be rejected"),
+				(line) =>
+					line.startsWith("cannot apply:") &&
+					line.includes("cannot be rejected"),
 			),
 		).toBe(true);
 	});
@@ -272,25 +279,25 @@ describe("runReviewLoop", () => {
 			stringify({ ...withExp, expected: { label: "a" } }),
 		];
 		const printed: string[] = [];
-		const r = await runReviewLoop({
+		const result = await runReviewLoop({
 			items: [{ kind: "case", item: withExp }],
 			ask: scripted(["edit", "edit"]),
 			openEditor: async () => edits.shift() ?? "",
 			askExpected: async () => ({ label: "a" }),
-			checkExpected: (c) =>
-				c.expected?.label === "a"
+			checkExpected: (caseEntry) =>
+				caseEntry.expected?.label === "a"
 					? null
-					: `label "${c.expected?.label}" is not one of the feature's labels`,
+					: `label "${caseEntry.expected?.label}" is not one of the feature's labels`,
 			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
-			print: (l) => printed.push(l),
+			print: (line) => printed.push(line),
 		});
 
 		expect(printed).toContain(
 			`cannot apply: expected does not match the oracle: label "not-a-label" is not one of the feature's labels (id: ${withExp.id})`,
 		);
-		expect(r.summary.edited).toBe(1);
-		expect(caseAt(r, 0).expected).toEqual({ label: "a" });
+		expect(result.summary.edited).toBe(1);
+		expect(caseAt(result, 0).expected).toEqual({ label: "a" });
 	});
 
 	test("an edit renaming an item onto a sibling's id is refused by name and re-asked", async () => {
@@ -302,7 +309,7 @@ describe("runReviewLoop", () => {
 			stringify({ ...withExp, id: "free-id" }),
 		];
 		const printed: string[] = [];
-		const r = await runReviewLoop({
+		const result = await runReviewLoop({
 			items: [{ kind: "case", item: withExp }],
 			ask: scripted(["edit", "edit"]),
 			openEditor: async () => edits.shift() ?? "",
@@ -310,15 +317,15 @@ describe("runReviewLoop", () => {
 			checkExpected: () => null,
 			takenIdsFor: () => new Set([withExp.id, "already-taken"]),
 			oracleOf: () => "label",
-			print: (l) => printed.push(l),
+			print: (line) => printed.push(line),
 		});
 
 		expect(printed).toContain(
 			`cannot apply: id "already-taken" is already used by another item in the same file; pick an id nothing else uses (id: ${withExp.id})`,
 		);
-		expect(r.decisions.map((d) => [d.originalId, d.id])).toEqual([
-			[withExp.id, "free-id"],
-		]);
+		expect(
+			result.decisions.map((decision) => [decision.originalId, decision.id]),
+		).toEqual([[withExp.id, "free-id"]]);
 	});
 
 	test("a refused decision leaves the item printed with the status it still has on disk", async () => {
@@ -329,16 +336,20 @@ describe("runReviewLoop", () => {
 		await runReviewLoop({
 			items: [{ kind: "case", item: withExp }],
 			ask: scripted(["approve"]),
-			openEditor: async (t) => t,
+			openEditor: async (yamlText) => yamlText,
 			askExpected: async () => ({ label: "x" }),
 			checkExpected: () => 'label "x" is not one of the feature\'s labels',
 			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
-			print: (l) => printed.push(l),
+			print: (line) => printed.push(line),
 		});
 
-		expect(printed.filter((l) => l.includes("status: approved"))).toEqual([]);
-		expect(printed.filter((l) => l.includes("status: pending")).length).toBe(2);
+		expect(printed.filter((line) => line.includes("status: approved"))).toEqual(
+			[],
+		);
+		expect(
+			printed.filter((line) => line.includes("status: pending")).length,
+		).toBe(2);
 	});
 
 	test("reports every decision to onDecided as it is taken, under the id the item had on entry, and reports nothing for a skip", async () => {
@@ -361,7 +372,11 @@ describe("runReviewLoop", () => {
 		// The renamed case is reported under "s-01", the id the caller can
 		// still find in the file it read; the skipped case is not reported.
 		expect(
-			seen.map(([d, originalId]) => [d.kind, d.item.id, originalId]),
+			seen.map(([decided, originalId]) => [
+				decided.kind,
+				decided.item.id,
+				originalId,
+			]),
 		).toEqual([
 			["case", "s-42", withExp.id],
 			["scenario", scn.id, scn.id],
@@ -380,17 +395,17 @@ describe("runReviewLoop", () => {
 	});
 
 	test("skip leaves no decision", async () => {
-		const r = await runReviewLoop({
+		const result = await runReviewLoop({
 			items: [{ kind: "scenario", item: scn }],
 			ask: scripted(["skip"]),
-			openEditor: async (t) => t,
+			openEditor: async (yamlText) => yamlText,
 			askExpected: async () => ({ label: "x" }),
 			checkExpected: () => null,
 			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
 			print: () => {},
 		});
-		expect(r.decisions).toEqual([]);
-		expect(r.summary.skipped).toBe(1);
+		expect(result.decisions).toEqual([]);
+		expect(result.summary.skipped).toBe(1);
 	});
 });

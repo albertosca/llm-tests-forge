@@ -11,13 +11,13 @@ function scriptedIo(lines: string[]) {
 	return {
 		io: {
 			stdin: async () => queue.shift() ?? "",
-			stdout: (l: string) => out.push(l),
+			stdout: (line: string) => out.push(line),
 		},
 		out,
 	};
 }
 
-const aCase: Case = {
+const pendingCase: Case = {
 	id: "s-01",
 	scenario: "s",
 	input: { email: "a" },
@@ -45,9 +45,11 @@ describe("askChoice", () => {
 		const { io, out } = scriptedIo(["nonsense", "edit"]);
 		expect(await askChoice("q", CHOICES, io)).toBe("edit");
 		// Re-asked means the question line was printed twice, not once.
-		expect(out.filter((l) => l.startsWith("q [")).length).toBe(2);
+		expect(out.filter((line) => line.startsWith("q [")).length).toBe(2);
 		expect(
-			out.some((l) => l === `please answer one of: ${CHOICES.join(", ")}`),
+			out.some(
+				(line) => line === `please answer one of: ${CHOICES.join(", ")}`,
+			),
 		).toBe(true);
 	});
 });
@@ -58,67 +60,67 @@ const anything = () => null;
 describe("askExpectedFor", () => {
 	test("label oracle asks for and trims a label", async () => {
 		const { io, out } = scriptedIo(["  rejection  "]);
-		const result = await askExpectedFor(aCase, "label", io, anything);
+		const result = await askExpectedFor(pendingCase, "label", io, anything);
 		expect(result).toEqual({ label: "rejection" });
-		expect(out).toEqual([`expected label for ${aCase.id}:`]);
+		expect(out).toEqual([`expected label for ${pendingCase.id}:`]);
 	});
 
 	test("fields oracle parses comma-separated field=value pairs, keeping '=' inside a value", async () => {
 		const { io, out } = scriptedIo(["type=rejection, note=a=b, =dropped"]);
-		const result = await askExpectedFor(aCase, "fields", io, anything);
+		const result = await askExpectedFor(pendingCase, "fields", io, anything);
 		expect(result).toEqual({ fields: { type: "rejection", note: "a=b" } });
 		expect(out).toEqual([
-			`expected fields for ${aCase.id} as field=value, comma separated:`,
+			`expected fields for ${pendingCase.id} as field=value, comma separated:`,
 		]);
 	});
 
 	test("rubric oracle asks for and trims a sentence", async () => {
 		const { io, out } = scriptedIo(["  Output mentions the deadline.  "]);
-		const result = await askExpectedFor(aCase, "rubric", io, anything);
+		const result = await askExpectedFor(pendingCase, "rubric", io, anything);
 		expect(result).toEqual({ rubric: "Output mentions the deadline." });
-		expect(out).toEqual([`rubric sentence for ${aCase.id}:`]);
+		expect(out).toEqual([`rubric sentence for ${pendingCase.id}:`]);
 	});
 });
 
 describe("askExpectedFor: an empty or unusable answer is not an expected value (whole-branch Finding 6)", () => {
 	test("an empty label is re-asked, not written as {label: ''}", async () => {
 		const { io, out } = scriptedIo(["", "rejection"]);
-		const result = await askExpectedFor(aCase, "label", io, anything);
+		const result = await askExpectedFor(pendingCase, "label", io, anything);
 		expect(result).toEqual({ label: "rejection" });
 		expect(out).toEqual([
-			`expected label for ${aCase.id}:`,
+			`expected label for ${pendingCase.id}:`,
 			"an expected label is required; try again",
-			`expected label for ${aCase.id}:`,
+			`expected label for ${pendingCase.id}:`,
 		]);
 	});
 
 	test("an empty fields line is re-asked, not written as {fields: {}} — which any output satisfies", async () => {
 		const { io, out } = scriptedIo(["", "type=rejection"]);
-		const result = await askExpectedFor(aCase, "fields", io, anything);
+		const result = await askExpectedFor(pendingCase, "fields", io, anything);
 		expect(result).toEqual({ fields: { type: "rejection" } });
 		expect(out).toContain("an expected fields is required; try again");
 	});
 
 	test("a line of only separators counts as empty for the fields oracle", async () => {
 		const { io, out } = scriptedIo([" , , ", "type=rejection"]);
-		const result = await askExpectedFor(aCase, "fields", io, anything);
+		const result = await askExpectedFor(pendingCase, "fields", io, anything);
 		expect(result).toEqual({ fields: { type: "rejection" } });
 		expect(out).toContain("an expected fields is required; try again");
 	});
 
 	test("an empty rubric is re-asked, not written as {rubric: ''}", async () => {
 		const { io, out } = scriptedIo(["   ", "Mentions the deadline."]);
-		const result = await askExpectedFor(aCase, "rubric", io, anything);
+		const result = await askExpectedFor(pendingCase, "rubric", io, anything);
 		expect(result).toEqual({ rubric: "Mentions the deadline." });
 		expect(out).toContain("an expected rubric is required; try again");
 	});
 
 	test("an answer the oracle rejects is reported by name and re-asked", async () => {
 		const { io, out } = scriptedIo(["maybe", "rejection"]);
-		const result = await askExpectedFor(aCase, "label", io, (e) =>
-			e.label === "rejection"
+		const result = await askExpectedFor(pendingCase, "label", io, (expected) =>
+			expected.label === "rejection"
 				? null
-				: `label "${e.label}" is not one of the feature's labels`,
+				: `label "${expected.label}" is not one of the feature's labels`,
 		);
 		expect(result).toEqual({ label: "rejection" });
 		expect(out).toContain(
@@ -130,18 +132,19 @@ describe("askExpectedFor: an empty or unusable answer is not an expected value (
 		// An exhausted queue reads as "" forever, which is exactly what a
 		// piped or redirected stdin does after EOF.
 		const { io, out } = scriptedIo([]);
-		let err: unknown;
+		let caught: unknown;
 		try {
-			await askExpectedFor(aCase, "label", io, anything);
-		} catch (e) {
-			err = e;
+			await askExpectedFor(pendingCase, "label", io, anything);
+		} catch (error) {
+			caught = error;
 		}
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toBe(
-			`no usable expected value after 3 attempts: an expected label is required (id: ${aCase.id})`,
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect((caught as ForgeError).message).toBe(
+			`no usable expected value after 3 attempts: an expected label is required (id: ${pendingCase.id})`,
 		);
 		expect(
-			out.filter((l) => l === `expected label for ${aCase.id}:`).length,
+			out.filter((line) => line === `expected label for ${pendingCase.id}:`)
+				.length,
 		).toBe(3);
 	});
 });
@@ -154,16 +157,16 @@ describe("openInEditor", () => {
 	});
 
 	test("a non-zero $EDITOR exit raises a ForgeError naming the editor and the temp file (the `false` binary always exits 1)", async () => {
-		let err: unknown;
+		let caught: unknown;
 		try {
 			await openInEditor("id: s-01\n", { EDITOR: "false" });
-		} catch (e) {
-			err = e;
+		} catch (error) {
+			caught = error;
 		}
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as ForgeError).message).toContain(
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect((caught as ForgeError).message).toContain(
 			'editor "false" exited with 1',
 		);
-		expect((err as ForgeError).details.file).toMatch(/item\.yaml$/);
+		expect((caught as ForgeError).details.file).toMatch(/item\.yaml$/);
 	});
 });

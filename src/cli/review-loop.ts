@@ -20,14 +20,14 @@ export interface ReviewLoopArgs {
 	items: PendingItem[];
 	ask: (question: string, choices: string[]) => Promise<string>;
 	openEditor: (yamlText: string) => Promise<string>;
-	askExpected: (c: Case, oracle: Oracle) => Promise<Expected>;
+	askExpected: (caseEntry: Case, oracle: Oracle) => Promise<Expected>;
 	/**
 	 * The oracle contract, applied to a case's `expected` however it got
 	 * there: typed at the prompt, typed into `$EDITOR`, or already on disk.
 	 * Returns `null` when the value is acceptable, or a sentence naming
 	 * what is wrong with it.
 	 */
-	checkExpected: (c: Case, oracle: Oracle) => string | null;
+	checkExpected: (caseEntry: Case, oracle: Oracle) => string | null;
 	/**
 	 * Every id already present in the file this item lives in, so an edit
 	 * cannot rename it onto one of its siblings.
@@ -39,7 +39,7 @@ export interface ReviewLoopArgs {
 	 * points at does not exist — that is a broken file, and answering it
 	 * with a default oracle asked the person the wrong question instead.
 	 */
-	oracleOf: (c: Case) => Oracle;
+	oracleOf: (caseEntry: Case) => Oracle;
 	/**
 	 * Called once per decision, as it is taken, with the item as decided
 	 * and the id it had on disk when the pass started. The pass reads the
@@ -96,8 +96,13 @@ export interface ReviewLoopResult {
 
 const CHOICES: Decision[] = ["approve", "reject", "edit", "skip"];
 
-function isDecision(x: string): x is Decision {
-	return x === "approve" || x === "reject" || x === "edit" || x === "skip";
+function isDecision(answer: string): answer is Decision {
+	return (
+		answer === "approve" ||
+		answer === "reject" ||
+		answer === "edit" ||
+		answer === "skip"
+	);
 }
 
 /**
@@ -119,9 +124,10 @@ function isDecision(x: string): x is Decision {
  * of this function, rather than being retried like a bad edit would be.
  */
 export async function runReviewLoop(
-	args: ReviewLoopArgs,
+	loopArguments: ReviewLoopArgs,
 ): Promise<ReviewLoopResult> {
-	const render = args.render ?? ((item) => renderItem(item, palette(false)));
+	const render =
+		loopArguments.render ?? ((item) => renderItem(item, palette(false)));
 	const decisions: ReviewLoopResult["decisions"] = [];
 	const summary = { approved: 0, rejected: 0, edited: 0, skipped: 0 };
 
@@ -135,7 +141,7 @@ export async function runReviewLoop(
 	): void => {
 		const decided = pendingItemFor(item);
 		decisions.push({ ...decided, originalId, id: item.id });
-		args.onDecided?.(decided, originalId);
+		loopArguments.onDecided?.(decided, originalId);
 	};
 
 	/**
@@ -147,16 +153,19 @@ export async function runReviewLoop(
 	 */
 	const refuseExpectedOutsideOracle = (item: PendingItem): void => {
 		if (item.kind !== "case") return;
-		const c = item.item;
-		if (c.expected === undefined) return;
-		const problem = args.checkExpected(c, args.oracleOf(c));
+		const caseEntry = item.item;
+		if (caseEntry.expected === undefined) return;
+		const problem = loopArguments.checkExpected(
+			caseEntry,
+			loopArguments.oracleOf(caseEntry),
+		);
 		if (problem !== null)
 			throw new ForgeError(`expected does not match the oracle: ${problem}`, {
-				id: c.id,
+				id: caseEntry.id,
 			});
 	};
 
-	for (const pending of args.items) {
+	for (const pending of loopArguments.items) {
 		// The kind and the item stay paired all the way through, so
 		// narrowing on `current.kind` types `current.item`; a bare
 		// `Feature | Scenario | Case` beside `pending.kind` had every case
@@ -166,9 +175,9 @@ export async function runReviewLoop(
 			// Header and body are two prints, as they always were: callers
 			// and tests read the header as a line of its own.
 			const [header = "", ...body] = render(current).split("\n");
-			args.print(header);
-			args.print(body.join("\n"));
-			const raw = await args.ask(
+			loopArguments.print(header);
+			loopArguments.print(body.join("\n"));
+			const raw = await loopArguments.ask(
 				`${pending.kind} ${current.item.id}:`,
 				CHOICES,
 			);
@@ -186,8 +195,11 @@ export async function runReviewLoop(
 					(answer === "approve" || answer === "edit") &&
 					current.item.expected === undefined
 				) {
-					const oracle = args.oracleOf(current.item);
-					const expected = await args.askExpected(current.item, oracle);
+					const oracle = loopArguments.oracleOf(current.item);
+					const expected = await loopArguments.askExpected(
+						current.item,
+						oracle,
+					);
 					current = {
 						kind: "case",
 						item: withExpected(current.item, expected),
@@ -195,7 +207,7 @@ export async function runReviewLoop(
 				}
 
 				if (answer === "edit") {
-					const editedText = await args.openEditor(
+					const editedText = await loopArguments.openEditor(
 						stringify(current.item, { lineWidth: 0 }),
 					);
 					// `current` is only replaced once the new value has passed
@@ -207,7 +219,7 @@ export async function runReviewLoop(
 							current.item,
 							"edit",
 							parse(editedText),
-							args.takenIdsFor(pending),
+							loopArguments.takenIdsFor(pending),
 						),
 					);
 					refuseExpectedOutsideOracle(edited);
@@ -228,12 +240,12 @@ export async function runReviewLoop(
 				summary[answer === "approve" ? "approved" : "rejected"] += 1;
 				record(pending.item.id, current.item);
 				break;
-			} catch (e) {
-				if (e instanceof ForgeError) {
-					args.print(`cannot apply: ${e.message}`);
+			} catch (error) {
+				if (error instanceof ForgeError) {
+					loopArguments.print(`cannot apply: ${error.message}`);
 					continue;
 				}
-				throw e;
+				throw error;
 			}
 		}
 	}

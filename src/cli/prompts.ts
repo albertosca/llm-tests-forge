@@ -18,7 +18,7 @@ export async function askChoice(
 		io.stdout(`${question} [${choices.join("/")}]`);
 		const raw = (await io.stdin()).trim().toLowerCase();
 		const hit = choices.find(
-			(c) => c === raw || (c.startsWith(raw) && raw.length > 0),
+			(choice) => choice === raw || (choice.startsWith(raw) && raw.length > 0),
 		);
 		if (hit) return hit;
 		if (raw === "") return choices[choices.length - 1] as string; // empty line = last choice (skip)
@@ -38,27 +38,29 @@ const EXPECTED_ATTEMPTS = 3;
 
 /** One round of asking, or `null` when the answer was empty. */
 async function askExpectedOnce(
-	c: Case,
+	caseEntry: Case,
 	oracle: Oracle,
 	io: Io,
 ): Promise<Expected | null> {
 	switch (oracle) {
 		case "label": {
-			io.stdout(`expected label for ${c.id}:`);
+			io.stdout(`expected label for ${caseEntry.id}:`);
 			const label = (await io.stdin()).trim();
 			return label === "" ? null : { label };
 		}
 		case "fields": {
-			io.stdout(`expected fields for ${c.id} as field=value, comma separated:`);
+			io.stdout(
+				`expected fields for ${caseEntry.id} as field=value, comma separated:`,
+			);
 			const fields: Record<string, string> = {};
 			for (const pair of (await io.stdin()).split(",")) {
-				const [k, ...rest] = pair.split("=");
-				if (k?.trim()) fields[k.trim()] = rest.join("=").trim();
+				const [key, ...rest] = pair.split("=");
+				if (key?.trim()) fields[key.trim()] = rest.join("=").trim();
 			}
 			return Object.keys(fields).length === 0 ? null : { fields };
 		}
 		case "rubric": {
-			io.stdout(`rubric sentence for ${c.id}:`);
+			io.stdout(`rubric sentence for ${caseEntry.id}:`);
 			const rubric = (await io.stdin()).trim();
 			return rubric === "" ? null : { rubric };
 		}
@@ -75,13 +77,13 @@ async function askExpectedOnce(
  * scenario.
  */
 export async function askExpectedFor(
-	c: Case,
+	caseEntry: Case,
 	oracle: Oracle,
 	io: Io,
 	check: (expected: Expected) => string | null,
 ): Promise<Expected> {
 	for (let attempt = 1; ; attempt += 1) {
-		const candidate = await askExpectedOnce(c, oracle, io);
+		const candidate = await askExpectedOnce(caseEntry, oracle, io);
 		const problem =
 			candidate === null
 				? `an expected ${oracle} is required`
@@ -90,7 +92,7 @@ export async function askExpectedFor(
 		if (attempt === EXPECTED_ATTEMPTS)
 			throw new ForgeError(
 				`no usable expected value after ${EXPECTED_ATTEMPTS} attempts: ${problem}`,
-				{ id: c.id },
+				{ id: caseEntry.id },
 			);
 		io.stdout(`${problem}; try again`);
 	}
@@ -98,16 +100,16 @@ export async function askExpectedFor(
 
 export async function openInEditor(
 	yamlText: string,
-	env: Record<string, string | undefined> = process.env,
+	environment: Record<string, string | undefined> = process.env,
 ): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "forge-edit-"));
-	const path = join(dir, "item.yaml");
+	const directory = await mkdtemp(join(tmpdir(), "forge-edit-"));
+	const path = join(directory, "item.yaml");
 	await writeFile(path, yamlText, "utf8");
-	const editor = env.EDITOR ?? "vi";
-	const proc = Bun.spawn([editor, path], {
+	const editor = environment.EDITOR ?? "vi";
+	const editorProcess = Bun.spawn([editor, path], {
 		stdio: ["inherit", "inherit", "inherit"],
 	});
-	const code = await proc.exited;
+	const code = await editorProcess.exited;
 	if (code !== 0)
 		throw new ForgeError(`editor "${editor}" exited with ${code}`, {
 			file: path,
