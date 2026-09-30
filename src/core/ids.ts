@@ -1,23 +1,25 @@
 import type { Case } from "./schemas";
 
 export function slugify(text: string): string {
+	// Every run of other characters becomes one dash, so no two dashes are ever
+	// adjacent: trimming one dash from an end trims them all.
 	return text
 		.normalize("NFD")
 		.replace(/\p{M}/gu, "")
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "")
+		.replace(/^-|-$/g, "")
 		.slice(0, 40)
-		.replace(/-+$/g, "");
+		.replace(/-$/, "");
 }
 
 export function nextCaseId(scenarioId: string, existing: Case[]): string {
 	const prefix = `${scenarioId}-`;
-	let max = 0;
-	for (const c of existing) {
-		if (!c.id.startsWith(prefix)) continue;
-		const n = Number.parseInt(c.id.slice(prefix.length), 10);
-		if (Number.isFinite(n) && n > max) max = n;
+	let highest = 0;
+	for (const existingCase of existing) {
+		if (!existingCase.id.startsWith(prefix)) continue;
+		const suffix = Number.parseInt(existingCase.id.slice(prefix.length), 10);
+		if (Number.isFinite(suffix)) highest = Math.max(highest, suffix);
 	}
-	return `${prefix}${String(max + 1).padStart(2, "0")}`;
+	return `${prefix}${String(highest + 1).padStart(2, "0")}`;
 }
