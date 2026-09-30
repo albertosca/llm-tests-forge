@@ -19,21 +19,31 @@ describe("expectedMatchesOracle", () => {
 	});
 
 	test("label: reports a missing expected.label", async () => {
-		const msg = expectedMatchesOracle(
+		const message = expectedMatchesOracle(
 			{ fields: { type: "rejection" } },
 			"label",
 			await feature(),
 		);
-		expect(msg).toBe("oracle is label but expected.label is missing");
+		expect(message).toBe("oracle is label but expected.label is missing");
 	});
 
 	test("label: reports a label outside the feature's labels", async () => {
-		const msg = expectedMatchesOracle(
+		const message = expectedMatchesOracle(
 			{ label: "maybe" },
 			"label",
 			await feature(),
 		);
-		expect(msg).toBe(`label "maybe" is not one of the feature's labels`);
+		expect(message).toBe(`label "maybe" is not one of the feature's labels`);
+	});
+
+	test("label: a feature that declares no labels accepts no label at all", async () => {
+		const withoutLabels: Feature = {
+			...(await feature()),
+			output: { kind: "json", fields: ["type"] },
+		};
+		expect(
+			expectedMatchesOracle({ label: "rejection" }, "label", withoutLabels),
+		).toBe(`label "rejection" is not one of the feature's labels`);
 	});
 
 	test("fields: null when expected.fields is present", async () => {
@@ -47,12 +57,12 @@ describe("expectedMatchesOracle", () => {
 	});
 
 	test("fields: reports a missing expected.fields", async () => {
-		const msg = expectedMatchesOracle(
+		const message = expectedMatchesOracle(
 			{ label: "rejection" },
 			"fields",
 			await feature(),
 		);
-		expect(msg).toBe("oracle is fields but expected.fields is missing");
+		expect(message).toBe("oracle is fields but expected.fields is missing");
 	});
 
 	test("fields: reports an empty expected.fields, which would check nothing", async () => {
@@ -74,11 +84,11 @@ describe("expectedMatchesOracle", () => {
 	});
 
 	test("rubric: reports a missing expected.rubric", async () => {
-		const msg = expectedMatchesOracle(
+		const message = expectedMatchesOracle(
 			{ label: "rejection" },
 			"rubric",
 			await feature(),
 		);
-		expect(msg).toBe("oracle is rubric but expected.rubric is missing");
+		expect(message).toBe("oracle is rubric but expected.rubric is missing");
 	});
 });

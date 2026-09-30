@@ -20,7 +20,7 @@ export function expectedMatchesOracle(
 		case "label":
 			if (expected.label === undefined)
 				return "oracle is label but expected.label is missing";
-			if (!(feature.output.labels ?? []).includes(expected.label))
+			if (!feature.output.labels?.includes(expected.label))
 				return `label "${expected.label}" is not one of the feature's labels`;
 			return null;
 		case "fields":
