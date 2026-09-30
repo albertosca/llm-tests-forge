@@ -3972,11 +3972,11 @@ describe("report", () => {
 		// rubric text is the single character "r", 1 token): perJudgeCalls
 		// is 1 target model * repeat 2 = 2; input tokens per call are the
 		// label output guess (8) + the rubric (1) + JUDGE_PROMPT_OVERHEAD
-		// (200) = 209, so 418 total; output tokens are 2 calls *
+		// (300) = 309, so 618 total; output tokens are 2 calls *
 		// JUDGE_OUTPUT_TOKENS (183) = 366. The suite's one non-rubric case's
 		// label ("acknowledgement", approxTokens 4) is below the label guess
 		// (8), so the guess wins.
-		expect(judge.estimatedDollars).toBe((418 * 1.5 + 366 * 9) / 1_000_000);
+		expect(judge.estimatedDollars).toBe((618 * 1.5 + 366 * 9) / 1_000_000);
 	});
 
 	test("--baseline reads a previous report.json and reports what changed", async () => {

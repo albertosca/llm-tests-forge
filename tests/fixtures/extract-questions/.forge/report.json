@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T11:25:57.378Z",
+  "generatedAt": "2026-09-30T11:29:26.728Z",
   "ranAt": "2026-09-25T14:48:00.200Z",
   "promptfooVersion": "0.123.0",
   "rows": 84,
@@ -708,8 +708,8 @@
       "inputTokens": 10214,
       "outputTokens": 3539,
       "realDollars": 0.055818,
-      "estimatedDollars": 0.048356,
-      "errorPercent": 15.4,
+      "estimatedDollars": 0.051956,
+      "errorPercent": 7.4,
       "approximatePrice": false
     }
   ],

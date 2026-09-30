@@ -1,13 +1,23 @@
 import { describe, expect, test } from "bun:test";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { z } from "zod";
 import {
 	approxTokens,
 	estimateSuite,
 	guessOutputTokens,
+	INPUT_CHARACTERS_PER_TOKEN_HIGH,
+	INPUT_CHARACTERS_PER_TOKEN_LOW,
 	JUDGE_OUTPUT_TOKENS,
+	JUDGE_OUTPUT_TOKENS_HIGH,
+	JUDGE_OUTPUT_TOKENS_LOW,
 	JUDGE_PROMPT_OVERHEAD,
+	JUDGE_PROMPT_OVERHEAD_HIGH,
+	JUDGE_PROMPT_OVERHEAD_LOW,
 	measuredOutputTokens,
 	renderEstimate,
 } from "../../src/core/estimate";
+import { readAllCases } from "../../src/core/files";
 import type {
 	Case,
 	Feature,
@@ -707,28 +717,134 @@ const CALIBRATION_RUNS = [
 	"tests/fixtures/promptfoo-results-0.123.0.json",
 ];
 
+/** What promptfoo recorded the target answering, which `readResults` does not keep. */
+const RecordedOutputsSchema = z.object({
+	results: z.object({
+		results: z.array(
+			z.object({ response: z.object({ output: z.unknown() }).nullish() }),
+		),
+	}),
+});
+
+const asText = (value: unknown): string =>
+	typeof value === "string" ? value : JSON.stringify(value ?? "");
+
+interface JudgeCall {
+	/** Output tokens as billed: Google's reasoning added, Anthropic's already inside. */
+	billedOutput: number;
+	/** Prompt tokens beyond the graded answer and the rubric, both counted as characters/4. */
+	overhead: number;
+}
+
+async function judgeCallsOf(path: string): Promise<JudgeCall[]> {
+	const results = await readResults(path);
+	const recorded = RecordedOutputsSchema.parse(
+		JSON.parse(await readFile(path, "utf8")),
+	);
+	const calls: JudgeCall[] = [];
+	for (const [position, resultRow] of results.results.results.entries()) {
+		const answer = asText(recorded.results.results[position]?.response?.output);
+		for (const component of resultRow.gradingResult?.componentResults ?? []) {
+			if (component.assertion?.type !== "llm-rubric") continue;
+			const apart =
+				component.assertion.provider?.startsWith("google:") ?? false;
+			calls.push({
+				billedOutput:
+					(component.tokensUsed?.completion ?? 0) +
+					(apart
+						? (component.tokensUsed?.completionDetails?.reasoning ?? 0)
+						: 0),
+				overhead:
+					(component.tokensUsed?.prompt ?? 0) -
+					approxTokens(answer) -
+					approxTokens(asText(component.assertion.value)),
+			});
+		}
+	}
+	return calls;
+}
+
+const mean = (values: number[]): number =>
+	values.reduce((total, value) => total + value, 0) / values.length;
+
 describe("calibration against the committed runs", () => {
 	test("JUDGE_OUTPUT_TOKENS is the mean billed output of every rubric component, rounded", async () => {
 		const billed: number[] = [];
-		for (const path of CALIBRATION_RUNS) {
-			const results = await readResults(path);
-			for (const resultRow of results.results.results)
-				for (const component of resultRow.gradingResult?.componentResults ?? [])
-					if (component.assertion?.type === "llm-rubric") {
-						// Google reports hidden reasoning apart from the answer;
-						// Anthropic's is already inside `completion`.
-						const apart =
-							component.assertion.provider?.startsWith("google:") ?? false;
-						billed.push(
-							(component.tokensUsed?.completion ?? 0) +
-								(apart
-									? (component.tokensUsed?.completionDetails?.reasoning ?? 0)
-									: 0),
-						);
-					}
-		}
+		for (const path of CALIBRATION_RUNS)
+			for (const call of await judgeCallsOf(path))
+				billed.push(call.billedOutput);
 		expect(billed.length).toBe(26);
-		const mean = billed.reduce((total, tokens) => total + tokens, 0) / 26;
-		expect(JUDGE_OUTPUT_TOKENS).toBe(Math.round(mean));
+		expect(JUDGE_OUTPUT_TOKENS).toBe(Math.round(mean(billed)));
+	});
+
+	test("each run's mean billed judge output lies within the judge output band", async () => {
+		for (const path of CALIBRATION_RUNS) {
+			const runMean = mean(
+				(await judgeCallsOf(path)).map((call) => call.billedOutput),
+			);
+			expect({ path, low: runMean >= JUDGE_OUTPUT_TOKENS_LOW }).toEqual({
+				path,
+				low: true,
+			});
+			expect({ path, high: runMean <= JUDGE_OUTPUT_TOKENS_HIGH }).toEqual({
+				path,
+				high: true,
+			});
+		}
+	});
+
+	test("every rubric component's prompt overhead lies within the judge overhead band", async () => {
+		for (const path of CALIBRATION_RUNS)
+			for (const call of await judgeCallsOf(path))
+				expect({ path, overhead: call.overhead }).toEqual({
+					path,
+					overhead: Math.min(
+						Math.max(call.overhead, JUDGE_PROMPT_OVERHEAD_LOW),
+						JUDGE_PROMPT_OVERHEAD_HIGH,
+					),
+				});
+	});
+
+	test("every recorded target prompt lies within the characters-per-token band", async () => {
+		// Only runs whose shim reported usage can calibrate anything:
+		// extract-questions records 0 prompt tokens and the promptfoo
+		// fixture none at all.
+		let checked = 0;
+		for (const suiteDirectory of [
+			"tests/fixtures/classify-email",
+			"tests/fixtures/extract-questions",
+		]) {
+			const prompt = await readFile(join(suiteDirectory, "prompt.txt"), "utf8");
+			const caseById = new Map(
+				[...(await readAllCases(join(suiteDirectory, ".forge"))).values()]
+					.flat()
+					.map((testCase) => [testCase.id, testCase]),
+			);
+			const results = await readResults(join(suiteDirectory, "results.json"));
+			for (const resultRow of results.results.results) {
+				const promptTokens = resultRow.tokenUsage?.prompt ?? 0;
+				if (promptTokens <= 0) continue;
+				const caseId = resultRow.metadata?.case;
+				const testCase =
+					typeof caseId === "string" ? caseById.get(caseId) : undefined;
+				if (testCase === undefined) throw new Error(`no case for ${caseId}`);
+				// The same characters approxTokens counts: the prompt file, and
+				// the case's inputs joined by newlines.
+				const characters =
+					prompt.length + Object.values(testCase.input).join("\n").length;
+				expect({ caseId, promptTokens }).toEqual({
+					caseId,
+					promptTokens: Math.min(
+						Math.max(
+							promptTokens,
+							characters / INPUT_CHARACTERS_PER_TOKEN_HIGH,
+						),
+						characters / INPUT_CHARACTERS_PER_TOKEN_LOW,
+					),
+				});
+				checked += 1;
+			}
+		}
+		expect(checked).toBe(48);
 	});
 });

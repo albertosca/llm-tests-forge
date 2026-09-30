@@ -3,8 +3,45 @@ import type { Case, Feature, Prices, Suite } from "./schemas";
 import type { Selection } from "./select";
 import { plural } from "./text";
 
-/** Tokens promptfoo's grading prompt adds around the output and the rubric (measured ~200 on 2026-09-15). */
-export const JUDGE_PROMPT_OVERHEAD = 200;
+/**
+ * Characters per token, the point value `approxTokens` divides by. The
+ * range below is what the recorded runs actually measured around it.
+ */
+const CHARACTERS_PER_TOKEN = 4;
+/**
+ * The characters-per-token band real target prompts fell in. Fit on
+ * 2026-09-29 to the 48 target rows of the classify-email run
+ * (`tests/fixtures/classify-email/results.json`, Claude Haiku 4.5), whose
+ * `prompt.txt` plus joined case input measured 3.54 to 4.17 characters per
+ * recorded prompt token. A lower ratio means more tokens, so `_LOW` gives
+ * the high token count and `_HIGH` the low one. The only run with recorded
+ * target usage: extract-questions records 0.
+ */
+export const INPUT_CHARACTERS_PER_TOKEN_LOW = 3.5;
+export const INPUT_CHARACTERS_PER_TOKEN_HIGH = 4.2;
+/**
+ * The band around the target's output size, which is estimated from the
+ * feature's output kind (or the reviewed expected values) with no text of
+ * the real answer to count. Declared, not fit: the owner set 0.5× to 1.25×
+ * on 2026-09-29. For scale, classify-email's real output averaged 94 tokens
+ * per call against a guess of 120 (0.79×).
+ */
+export const OUTPUT_GUESS_LOW_FACTOR = 0.5;
+export const OUTPUT_GUESS_HIGH_FACTOR = 1.25;
+/**
+ * Tokens promptfoo's grading prompt adds around the graded answer and the
+ * rubric, measured on 2026-09-29 as a rubric component's prompt tokens
+ * minus the answer and the rubric counted as characters/4, over the 26
+ * components of the three frozen runs: Anthropic (classify-email,
+ * extract-questions) 275 to 372, Google (`promptfoo-results-0.123.0.json`)
+ * 172 to 175. The point value is the plan's measured Anthropic midpoint,
+ * 300; on these components the Anthropic per-run means are 286.5
+ * (classify-email) and 330.6 (extract-questions). The band covers both
+ * providers.
+ */
+export const JUDGE_PROMPT_OVERHEAD = 300;
+export const JUDGE_PROMPT_OVERHEAD_LOW = 170;
+export const JUDGE_PROMPT_OVERHEAD_HIGH = 380;
 /**
  * Judge answer size per call, as billed: `completion` for Anthropic (whose
  * reasoning promptfoo already counts inside it), `completion +
@@ -22,6 +59,14 @@ export const JUDGE_PROMPT_OVERHEAD = 200;
  * answer it grades, which no constant can know before the run.
  */
 export const JUDGE_OUTPUT_TOKENS = 183;
+/**
+ * The band a run's mean billed judge output fell in, over the same three
+ * runs: classify-email 94.7, extract-questions 196.6, the Google fixture
+ * 321.0 per call. A single call can go well past it (921 was billed once);
+ * the band bounds the mean over a run, which is what the estimate charges.
+ */
+export const JUDGE_OUTPUT_TOKENS_LOW = 60;
+export const JUDGE_OUTPUT_TOKENS_HIGH = 350;
 
 export interface EstimateLine {
 	model: string;
@@ -46,7 +91,7 @@ export interface Estimate {
 }
 
 export function approxTokens(text: string): number {
-	return Math.ceil(text.length / 4);
+	return Math.ceil(text.length / CHARACTERS_PER_TOKEN);
 }
 
 export function guessOutputTokens(output: Feature["output"]): number {
