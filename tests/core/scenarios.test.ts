@@ -7,8 +7,9 @@ import { ForgeError } from "../../src/core/errors";
 import { enumerateScenarios } from "../../src/core/scenarios";
 import type { Feature, Scenario } from "../../src/core/schemas";
 import { createLlm, type GenerateArgs, type Llm } from "../../src/llm/generate";
+import { fixturePath } from "../helpers/repository";
 
-const FIXTURE = "tests/fixtures/scenarios-response.json";
+const FIXTURE = fixturePath("scenarios-response.json");
 
 async function llmFor(verb: string): Promise<{ llm: Llm; model: string }> {
 	// The fake provider picks by verb; enumerateScenarios always uses verb "scenarios",

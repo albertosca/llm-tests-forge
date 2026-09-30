@@ -14,10 +14,11 @@ import * as files from "../../src/core/files";
 import { stampSuite } from "../../src/core/files";
 import { renderStatusLine, suiteStatus } from "../../src/core/status";
 import { FORGE_VERSION } from "../../src/core/version";
+import { fixturePath, REPOSITORY } from "../helpers/repository";
 
 // A frozen copy of the extract-questions example, so curating the living
 // example under examples/ never changes the counts these tests pin.
-const FIXTURE = "tests/fixtures/extract-questions/.forge";
+const FIXTURE = fixturePath("extract-questions/.forge");
 
 /** A project directory holding a copy of the fixture suite at `evals/<name>`. */
 async function suiteCopy(name: string): Promise<string> {
@@ -346,7 +347,10 @@ describe("suiteStatus and renderStatusLine", () => {
 	});
 
 	test("the guide documents the whole status --json shape", async () => {
-		const guide = await readFile("templates/guide.md", "utf8");
+		const guide = await readFile(
+			join(REPOSITORY, "templates/guide.md"),
+			"utf8",
+		);
 		for (const name of [
 			"suites",
 			"problems",

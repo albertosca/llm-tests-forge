@@ -5,8 +5,9 @@ import { join } from "node:path";
 import { dedupeCases } from "../../src/core/dedupe";
 import type { Case } from "../../src/core/schemas";
 import { createLlm, type Llm } from "../../src/llm/generate";
+import { fixturePath } from "../helpers/repository";
 
-const MODEL = "fake/tests/fixtures/dedupe-response.json";
+const MODEL = `fake/${fixturePath("dedupe-response.json")}`;
 const makeCase = (id: string, status: Case["status"] = "pending"): Case => ({
 	id,
 	scenario: "s",

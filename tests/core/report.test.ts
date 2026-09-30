@@ -1,16 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { ForgeError } from "../../src/core/errors";
 import type { Estimate } from "../../src/core/estimate";
 import { readAllCases, readScenarios } from "../../src/core/files";
 import { buildReport, isoDay, ReportSchema } from "../../src/core/report";
 import type { Case, Prices, Scenario } from "../../src/core/schemas";
 import { type PromptfooResults, readResults } from "../../src/report/results";
+import { fixturePath } from "../helpers/repository";
 
 const NOW = new Date("2026-09-15T20:00:00Z");
-const FIXTURE = resolve("tests/fixtures/promptfoo-results-0.123.0.json");
+const FIXTURE = fixturePath("promptfoo-results-0.123.0.json");
 
 const prices: Prices = {
 	updated: "2026-09-15",
@@ -227,12 +228,10 @@ describe("buildReport", () => {
 	test("the committed example run: 46 of 48 rows pass, two asserts fail, nothing errored", async () => {
 		// A frozen copy of the classify-email example, so curating the living
 		// example under examples/ never changes the counts pinned here.
-		const exampleForge = resolve("tests/fixtures/classify-email/.forge");
+		const exampleForge = fixturePath("classify-email/.forge");
 		const cases = [...(await readAllCases(exampleForge)).values()].flat();
 		const report = buildReport({
-			results: await readResults(
-				resolve("tests/fixtures/classify-email/results.json"),
-			),
+			results: await readResults(fixturePath("classify-email/results.json")),
 			resultsPath: "results.json",
 			scenarios: await readScenarios(exampleForge),
 			cases,
@@ -1031,10 +1030,7 @@ describe("buildReport", () => {
 		// The frozen classify-email report was written by the forge before
 		// the range existed: its costs carry only `estimatedDollars`.
 		const data = JSON.parse(
-			await readFile(
-				resolve("tests/fixtures/classify-email/.forge/report.json"),
-				"utf8",
-			),
+			await readFile(fixturePath("classify-email/.forge/report.json"), "utf8"),
 		);
 		expect(data.costs[0]).not.toHaveProperty("estimatedLowDollars");
 		const parsed = ReportSchema.parse(data);

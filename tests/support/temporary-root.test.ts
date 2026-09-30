@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { REPOSITORY } from "../helpers/repository";
 import {
 	createTemporaryRoot,
 	makeWritable,
@@ -81,7 +82,10 @@ test("a run in a known parent directory leaves no forge-* entry behind", () => {
 			"./tests/support/leaky-fixture.ts",
 			"--config=bunfig.packages.toml",
 		],
-		{ env: { ...process.env, TMPDIR: parent, TMP: parent, TEMP: parent } },
+		{
+			cwd: REPOSITORY,
+			env: { ...process.env, TMPDIR: parent, TMP: parent, TEMP: parent },
+		},
 	);
 	const output = `${child.stdout.toString()}${child.stderr.toString()}`;
 	expect(output).toContain("1 pass");

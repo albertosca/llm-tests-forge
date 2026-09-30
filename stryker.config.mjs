@@ -1,12 +1,17 @@
 import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 // The bun runner passes testFiles to `bun test` verbatim: no glob expansion,
 // and a bare name is a filter, so every file is listed as ./paths. The list
 // is read from disk (recursively) so a new core test joins it on its own;
 // tests/mutation/stryker-config.test.ts fails if this list and the files on
 // disk ever disagree, because a test file missing here leaves its mutants
-// unkilled without any error.
-const coreTests = readdirSync("tests/core", { recursive: true })
+// unkilled without any error. The directory is found from this file, so the
+// list is the same whatever directory imports the config.
+const coreTests = readdirSync(
+	fileURLToPath(new URL("./tests/core", import.meta.url)),
+	{ recursive: true },
+)
 	.filter((name) => name.endsWith(".test.ts"))
 	.map((name) => `./tests/core/${name}`)
 	.sort();

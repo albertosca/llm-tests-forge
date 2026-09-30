@@ -6,8 +6,9 @@ import { describeFeature } from "../../src/core/describe";
 import { ForgeError } from "../../src/core/errors";
 import type { Feature } from "../../src/core/schemas";
 import { createLlm, type Llm } from "../../src/llm/generate";
+import { fixturePath } from "../helpers/repository";
 
-const FAKE = "fake/tests/fixtures/describe-response.json";
+const FAKE = `fake/${fixturePath("describe-response.json")}`;
 const FIXTURE_PATH = join(
 	import.meta.dir,
 	"..",

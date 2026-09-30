@@ -28,6 +28,7 @@ import type {
 } from "../../src/core/schemas";
 import type { Selection } from "../../src/core/select";
 import { readResults } from "../../src/report/results";
+import { fixturePath } from "../helpers/repository";
 
 const feature: Feature = {
 	id: "classify-email",
@@ -800,9 +801,9 @@ describe("renderEstimate", () => {
 
 /** The committed runs every calibrated constant is fit to, frozen under tests/fixtures. */
 const CALIBRATION_RUNS = [
-	"tests/fixtures/classify-email/results.json",
-	"tests/fixtures/extract-questions/results.json",
-	"tests/fixtures/promptfoo-results-0.123.0.json",
+	fixturePath("classify-email/results.json"),
+	fixturePath("extract-questions/results.json"),
+	fixturePath("promptfoo-results-0.123.0.json"),
 ];
 
 /** What promptfoo recorded the target answering, which `readResults` does not keep. */
@@ -899,8 +900,8 @@ describe("calibration against the committed runs", () => {
 		// fixture none at all.
 		let checked = 0;
 		for (const suiteDirectory of [
-			"tests/fixtures/classify-email",
-			"tests/fixtures/extract-questions",
+			fixturePath("classify-email"),
+			fixturePath("extract-questions"),
 		]) {
 			const prompt = await readFile(join(suiteDirectory, "prompt.txt"), "utf8");
 			const caseById = new Map(

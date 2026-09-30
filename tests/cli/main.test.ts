@@ -40,6 +40,7 @@ import {
 	mainWithTestDefaults as main,
 } from "../helpers/main";
 import { projectWith } from "../helpers/project";
+import { fixturePath, REPOSITORY } from "../helpers/repository";
 
 /** An unambiguously old timestamp: any real write resets a file's mtime to
  * "now", which is trivially distinguishable from this regardless of the
@@ -47,7 +48,7 @@ import { projectWith } from "../helpers/project";
  * apart, which a coarse clock could report as equal by coincidence. */
 const LONG_AGO = new Date("2000-01-01T00:00:00Z");
 
-const MODEL = `fake/${resolve("tests/fixtures/cli-responses.json")}`;
+const MODEL = `fake/${fixturePath("cli-responses.json")}`;
 
 async function ctxIn(cwd: string, stdinLines: string[] = []) {
 	const out: string[] = [];
@@ -941,7 +942,7 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 		);
 		for (const name of ["classify", "kept"])
 			await cp(
-				"tests/fixtures/extract-questions/.forge",
+				fixturePath("extract-questions/.forge"),
 				join(root, "evals", name, ".forge"),
 				{ recursive: true },
 			);
@@ -971,7 +972,7 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 			"version: 1\nlanguage: python\ndefaults:\n  judges: &list [evals/kept]\nsuites: *list\n",
 		);
 		await cp(
-			"tests/fixtures/extract-questions/.forge",
+			fixturePath("extract-questions/.forge"),
 			join(root, "evals", "classify", ".forge"),
 			{ recursive: true },
 		);
@@ -4285,7 +4286,7 @@ describe("emit", () => {
 });
 
 describe("report", () => {
-	const RESULTS = resolve("tests/fixtures/promptfoo-results-0.123.0.json");
+	const RESULTS = fixturePath("promptfoo-results-0.123.0.json");
 
 	async function forgeMatchingFixture(cwd: string) {
 		const forgeDirectory = join(cwd, ".forge");
@@ -4561,7 +4562,7 @@ describe("report", () => {
 	/** A working copy of a frozen suite (its .forge, prompt.txt and results.json) to run report in. */
 	async function copyOfFrozenSuite(name: string): Promise<string> {
 		const cwd = await mkdtemp(join(tmpdir(), `forge-cli-${name}-`));
-		await cp(resolve("tests/fixtures", name), cwd, { recursive: true });
+		await cp(fixturePath(name), cwd, { recursive: true });
 		return cwd;
 	}
 
@@ -5929,12 +5930,12 @@ describe("main(): the suite and the project", () => {
 			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
 		);
 		await cp(
-			resolve("tests/fixtures/extract-questions/.forge"),
+			fixturePath("extract-questions/.forge"),
 			join(root, "evals", "a", ".forge"),
 			{ recursive: true },
 		);
 		await cp(
-			resolve("tests/fixtures/extract-questions/prompt.txt"),
+			fixturePath("extract-questions/prompt.txt"),
 			join(root, "evals", "a", "prompt.txt"),
 		);
 		for (const argv of [
@@ -6302,9 +6303,9 @@ describe("main(): the suite and the project", () => {
 
 	test("the usage and the guide say that a describe text of -h or --help goes after --", async () => {
 		expect(USAGE).toContain("a text that is -h or --help goes after --");
-		expect(await readFile("templates/guide.md", "utf8")).toContain(
-			"so a text that is one of them goes after `--`",
-		);
+		expect(
+			await readFile(join(REPOSITORY, "templates/guide.md"), "utf8"),
+		).toContain("so a text that is one of them goes after `--`");
 	});
 
 	test("--version stays a verb-position flag: after another verb it is an unknown option, exit 2, not the version", async () => {

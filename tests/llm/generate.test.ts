@@ -7,9 +7,11 @@ import { z } from "zod";
 import { ForgeError } from "../../src/core/errors";
 import { forgePaths } from "../../src/core/files";
 import { createLlm } from "../../src/llm/generate";
+import { fixturePath } from "../helpers/repository";
 
 const schema = z.object({ answer: z.number() });
-const FAKE = "fake/tests/fixtures/fake-responses.json";
+const FAKE_FILE = fixturePath("fake-responses.json");
+const FAKE = `fake/${FAKE_FILE}`;
 
 function mock(text: string) {
 	return new MockLanguageModelV4({
@@ -155,24 +157,21 @@ describe("createLlm.generate", () => {
 		expect((failure as ForgeError).message).toContain(
 			'no entry for verb "nope"',
 		);
-		expect((failure as ForgeError).details.file).toBe(
-			"tests/fixtures/fake-responses.json",
-		);
+		expect((failure as ForgeError).details.file).toBe(FAKE_FILE);
 		expect((failure as ForgeError).details.rawPath).toBeUndefined();
 	});
 
 	test("fake provider names the file when the responses file has invalid JSON", async () => {
 		const directory = await tmpForge();
 		const llm = createLlm({ forgeDirectory: directory });
-		const malformed = "fake/tests/fixtures/fake-responses-malformed.txt";
+		const malformedFile = fixturePath("fake-responses-malformed.txt");
+		const malformed = `fake/${malformedFile}`;
 		const failure = await llm
 			.generate({ schema, prompt: "p", model: malformed, verb: "probe" })
 			.catch((thrown: unknown) => thrown);
 		expect(failure).toBeInstanceOf(ForgeError);
 		expect((failure as ForgeError).message).toContain("invalid JSON");
-		expect((failure as ForgeError).details.file).toBe(
-			"tests/fixtures/fake-responses-malformed.txt",
-		);
+		expect((failure as ForgeError).details.file).toBe(malformedFile);
 	});
 
 	test("fake provider names the verb when a sequence entry is an empty array", async () => {
@@ -185,9 +184,7 @@ describe("createLlm.generate", () => {
 		expect((failure as ForgeError).message).toContain(
 			'entry for "empty" is empty',
 		);
-		expect((failure as ForgeError).details.file).toBe(
-			"tests/fixtures/fake-responses.json",
-		);
+		expect((failure as ForgeError).details.file).toBe(FAKE_FILE);
 	});
 
 	test("fake provider rejects an entry that is neither a string nor an array of strings", async () => {
@@ -200,23 +197,20 @@ describe("createLlm.generate", () => {
 		expect((failure as ForgeError).message).toContain(
 			'entry for "wrong_type" must be a string or an array of strings',
 		);
-		expect((failure as ForgeError).details.file).toBe(
-			"tests/fixtures/fake-responses.json",
-		);
+		expect((failure as ForgeError).details.file).toBe(FAKE_FILE);
 	});
 
 	test("fake provider names the file when the responses file is missing", async () => {
 		const directory = await tmpForge();
 		const llm = createLlm({ forgeDirectory: directory });
-		const missing = "fake/tests/fixtures/does-not-exist.json";
+		const missingFile = fixturePath("does-not-exist.json");
+		const missing = `fake/${missingFile}`;
 		const failure = await llm
 			.generate({ schema, prompt: "p", model: missing, verb: "probe" })
 			.catch((thrown: unknown) => thrown);
 		expect(failure).toBeInstanceOf(ForgeError);
 		expect((failure as ForgeError).message).toContain("does-not-exist.json");
-		expect((failure as ForgeError).details.file).toBe(
-			"tests/fixtures/does-not-exist.json",
-		);
+		expect((failure as ForgeError).details.file).toBe(missingFile);
 	});
 
 	test("propagates errors other than NoObjectGeneratedError unwrapped", async () => {

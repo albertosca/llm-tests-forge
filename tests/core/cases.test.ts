@@ -8,8 +8,9 @@ import { casesOutputSchema, generateCases } from "../../src/core/cases";
 import { ForgeError } from "../../src/core/errors";
 import type { Case, Feature, Scenario } from "../../src/core/schemas";
 import { createLlm, type GenerateArgs, type Llm } from "../../src/llm/generate";
+import { fixturePath } from "../helpers/repository";
 
-const FIXTURE = "tests/fixtures/cases-response.json";
+const FIXTURE = fixturePath("cases-response.json");
 const scenario: Scenario = {
 	id: "polite-rejection",
 	kind: "happy",

@@ -6,10 +6,11 @@ import { stampSuite } from "../../src/core/files";
 import { FORGE_VERSION } from "../../src/core/version";
 import { mainWithTestDefaults as main } from "../helpers/main";
 import { projectWith } from "../helpers/project";
+import { fixturePath } from "../helpers/repository";
 
 // A frozen copy of the extract-questions example, so curating the living
 // example under examples/ never changes the counts these tests pin.
-const EXAMPLE = "tests/fixtures/extract-questions/.forge";
+const EXAMPLE = fixturePath("extract-questions/.forge");
 
 async function runStatus(
 	cwd: string,

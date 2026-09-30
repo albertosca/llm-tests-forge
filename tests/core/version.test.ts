@@ -1,15 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
 	compareVersions,
 	FORGE_VERSION,
 	isHigherVersion,
 	versionWarning,
 } from "../../src/core/version";
+import { REPOSITORY } from "../helpers/repository";
 
 describe("FORGE_VERSION", () => {
 	test("is package.json's version", async () => {
-		const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+		const packageJson = JSON.parse(
+			await readFile(join(REPOSITORY, "package.json"), "utf8"),
+		);
 		expect(FORGE_VERSION).toBe(packageJson.version);
 	});
 });

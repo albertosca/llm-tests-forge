@@ -1,14 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { cp, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { FORGE_VERSION } from "../../src/core/version";
 import { ISOLATED_HOME } from "../helpers/isolated-home";
+import { fixturePath, REPOSITORY } from "../helpers/repository";
 
 // A frozen copy of the extract-questions example with its committed outputs,
 // so curating the living example under examples/ never changes this test.
-const EXAMPLE = resolve("tests/fixtures/extract-questions");
-const FAKE_MODEL = `fake/${resolve("tests/fixtures/cli-responses.json")}`;
+const EXAMPLE = fixturePath("extract-questions");
+const FAKE_MODEL = `fake/${fixturePath("cli-responses.json")}`;
 
 /** Runs the binary and fails with its own output when the exit code is not 0. */
 function expectSuccess(result: { exitCode: number; output: string }) {
@@ -38,7 +39,7 @@ describe("the compiled binary", () => {
 				"bun",
 				"build",
 				"--compile",
-				resolve("src/cli/bin.ts"),
+				join(REPOSITORY, "src/cli/bin.ts"),
 				"--outfile",
 				binary,
 			],

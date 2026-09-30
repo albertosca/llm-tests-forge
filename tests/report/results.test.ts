@@ -1,18 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { ForgeError } from "../../src/core/errors";
 import { readResults } from "../../src/report/results";
+import { fixturePath } from "../helpers/repository";
 
-const FIXTURE = resolve("tests/fixtures/promptfoo-results-0.123.0.json");
+const FIXTURE = fixturePath("promptfoo-results-0.123.0.json");
 
 describe("readResults", () => {
 	test("reads the real promptfoo 0.123.0 file: 4 rows, metadata, judge tokens, provider label", async () => {
-		const r = await readResults(FIXTURE);
-		expect(r.metadata?.promptfooVersion).toBe("0.123.0");
-		const rows = r.results.results;
-		expect(rows.map((x) => [x.testIdx, x.metadata?.case])).toEqual([
+		const parsed = await readResults(FIXTURE);
+		expect(parsed.metadata?.promptfooVersion).toBe("0.123.0");
+		const rows = parsed.results.results;
+		expect(rows.map((row) => [row.testIdx, row.metadata?.case])).toEqual([
 			[0, "ack-optional-quiz-01"],
 			[1, "ack-optional-quiz-01"],
 			[2, "out-of-scope-newsletter-02"],
@@ -36,10 +37,10 @@ describe("readResults", () => {
 	});
 
 	test("tolerates an error row with an empty gradingResult and no tokenUsage", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "forge-report-"));
-		const f = join(dir, "r.json");
+		const directory = await mkdtemp(join(tmpdir(), "forge-report-"));
+		const file = join(directory, "r.json");
 		await writeFile(
-			f,
+			file,
 			JSON.stringify({
 				results: {
 					results: [
@@ -55,51 +56,55 @@ describe("readResults", () => {
 				},
 			}),
 		);
-		const r = await readResults(f);
-		expect(r.results.results[0]?.error).toBe("boom");
-		expect(r.results.results[0]?.tokenUsage).toBeUndefined();
-		expect(r.results.results[0]?.provider.label).toBeUndefined();
+		const parsed = await readResults(file);
+		expect(parsed.results.results[0]?.error).toBe("boom");
+		expect(parsed.results.results[0]?.tokenUsage).toBeUndefined();
+		expect(parsed.results.results[0]?.provider.label).toBeUndefined();
 	});
 
 	test("names the file when it is missing", async () => {
-		const err = await readResults("/nowhere/results.json").catch(
-			(e: Error) => e,
+		const failure = await readResults("/nowhere/results.json").catch(
+			(thrown: Error) => thrown,
 		);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as Error).message).toContain("/nowhere/results.json");
-		expect((err as Error).message).toContain("file not found");
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as Error).message).toContain("/nowhere/results.json");
+		expect((failure as Error).message).toContain("file not found");
 	});
 
 	test("names the file and the problem when it is not JSON", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "forge-report-"));
-		const f = join(dir, "r.json");
-		await writeFile(f, "{not json");
-		const err = await readResults(f).catch((e: Error) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as Error).message).toContain("invalid JSON");
-		expect((err as Error).message).toContain(f);
+		const directory = await mkdtemp(join(tmpdir(), "forge-report-"));
+		const file = join(directory, "r.json");
+		await writeFile(file, "{not json");
+		const failure = await readResults(file).catch((thrown: Error) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as Error).message).toContain("invalid JSON");
+		expect((failure as Error).message).toContain(file);
 	});
 
 	test("names the file and the path when the shape is wrong", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "forge-report-"));
-		const f = join(dir, "r.json");
+		const directory = await mkdtemp(join(tmpdir(), "forge-report-"));
+		const file = join(directory, "r.json");
 		await writeFile(
-			f,
+			file,
 			JSON.stringify({ results: { results: [{ testIdx: "zero" }] } }),
 		);
-		const err = await readResults(f).catch((e: Error) => e);
-		expect(err).toBeInstanceOf(ForgeError);
-		expect((err as Error).message).toContain("does not match");
-		expect((err as Error).message).toContain("results.results.0.testIdx");
+		const failure = await readResults(file).catch((thrown: Error) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as Error).message).toContain("does not match");
+		expect((failure as Error).message).toContain("results.results.0.testIdx");
 	});
 
 	test("reports why a directory cannot be read instead of calling it missing", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "forge-report-"));
-		const err = await readResults(dir).catch((e: Error) => e);
-		expect(err).toBeInstanceOf(ForgeError);
+		const directory = await mkdtemp(join(tmpdir(), "forge-report-"));
+		const failure = await readResults(directory).catch(
+			(thrown: Error) => thrown,
+		);
+		expect(failure).toBeInstanceOf(ForgeError);
 		// The same sentence `readYamlFile` gives for the same OS code: one
 		// reader of a path should not explain EISDIR differently from another.
-		expect((err as Error).message).toContain("is a directory, expected a file");
-		expect((err as Error).message).toContain(dir);
+		expect((failure as Error).message).toContain(
+			"is a directory, expected a file",
+		);
+		expect((failure as Error).message).toContain(directory);
 	});
 });
