@@ -259,6 +259,7 @@ function outcomeOf(row: PromptfooRow): { outcome: Outcome; reasons: string[] } {
 	const fallback = row.error ? [row.error] : [];
 	if (providerErrored(row)) return { outcome: "errored", reasons: fallback };
 	const reasons: string[] = [];
+	// Stryker disable next-line ArrayDeclaration: any placeholder element in the empty fallback has neither pass nor reason, so the check below skips it exactly as it skips nothing
 	for (const component of row.gradingResult?.componentResults ?? [])
 		if (!component.pass && component.reason !== undefined)
 			reasons.push(component.reason);
@@ -276,7 +277,10 @@ function stabilityOf(parameters: {
 }): Stability {
 	const { runs, passed, failed, errored } = parameters;
 	if (errored === runs) return "errored";
-	if (errored > 0 && failed === 0 && passed > 0) return "partly-errored";
+	// Some runs errored and none failed; since not all of them errored (the
+	// line above), the rest passed. Checking `passed > 0` too would state
+	// the same thing twice.
+	if (errored > 0 && failed === 0) return "partly-errored";
 	if (passed === runs) return "stable";
 	if (passed > 0) return "flaky";
 	return "failing";
@@ -310,6 +314,7 @@ function reviewed(status: Scenario["status"]): boolean {
 }
 
 function rubricComponents(row: PromptfooRow) {
+	// Stryker disable next-line ArrayDeclaration: a placeholder element in the empty fallback has no assertion, so the filter drops it and the result is empty either way
 	return (row.gradingResult?.componentResults ?? []).filter(
 		(component) => component.assertion?.type === "llm-rubric",
 	);
@@ -333,7 +338,10 @@ function matchRows(
 	knownCases: Case[],
 	resultsPath: string,
 ): { matched: MatchedRow[]; unmatched: string[] } {
-	const caseById = new Map(
+	// Keyed by `unknown` so any `metadata.case` can be looked up as it is:
+	// a number, a null or a missing one finds nothing, since every key is a
+	// case id string.
+	const caseById = new Map<unknown, Case>(
 		cases.map((selectedCase) => [selectedCase.id, selectedCase]),
 	);
 	const known = new Set(knownCases.map((knownCase) => knownCase.id));
@@ -341,7 +349,7 @@ function matchRows(
 	const unmatched: string[] = [];
 	for (const [position, row] of results.results.results.entries()) {
 		const id = row.metadata?.case;
-		const kase = typeof id === "string" ? caseById.get(id) : undefined;
+		const kase = caseById.get(id);
 		if (kase) {
 			matched.push({ row, kase, model: modelOf(row), ...outcomeOf(row) });
 			continue;
@@ -460,11 +468,13 @@ function disagreementsOf(matched: MatchedRow[]): Disagreement[] {
 	const out: Disagreement[] = [];
 	for (const matchedRow of matched) {
 		const judges = rubricComponents(matchedRow.row).map((component) => ({
+			// Stryker disable next-line OptionalChaining: rubricComponents keeps only components whose assertion is there (its type is llm-rubric)
 			judge: judgeName(component.assertion?.provider),
 			pass: component.pass,
 			reason: component.reason ?? "",
 		}));
-		if (judges.length < 2) continue;
+		// Fewer than two distinct verdicts is agreement, and it covers a lone
+		// judge (one verdict) and a row with no judge (none) as well.
 		if (new Set(judges.map((judge) => judge.pass)).size < 2) continue;
 		const key = pairKey(matchedRow.model, matchedRow.kase.id);
 		const seen = byPair.get(key);
@@ -590,35 +600,42 @@ function costsOf(parameters: {
 			}),
 		);
 	}
-	const judges = new Map<string, { input: number; output: number }>();
-	for (const matchedRow of matched)
-		for (const component of rubricComponents(matchedRow.row)) {
+	// One entry per rubric call, grouped by judge the same way the targets
+	// are grouped by model above: names sorted, then each one's calls summed.
+	const judgeCalls = matched.flatMap((matchedRow) =>
+		rubricComponents(matchedRow.row).map((component) => {
+			// Stryker disable next-line OptionalChaining: rubricComponents keeps only components whose assertion is there (its type is llm-rubric)
 			const provider = component.assertion?.provider;
-			const name = judgeName(provider);
-			const totals = judges.get(name) ?? { input: 0, output: 0 };
-			totals.input += component.tokensUsed?.prompt ?? 0;
-			totals.output +=
-				(component.tokensUsed?.completion ?? 0) +
-				(reasoningBilledApart(provider)
-					? (component.tokensUsed?.completionDetails?.reasoning ?? 0)
-					: 0);
-			judges.set(name, totals);
-		}
-	for (const [name, totals] of [...judges.entries()].sort((left, right) =>
-		left[0] < right[0] ? -1 : 1,
-	)) {
+			return {
+				name: judgeName(provider),
+				provider,
+				tokens: component.tokensUsed,
+			};
+		}),
+	);
+	for (const name of [...new Set(judgeCalls.map((call) => call.name))].sort()) {
+		const mine = judgeCalls.filter((call) => call.name === name);
+		const inputTokens = sum(mine, (call) => call.tokens?.prompt ?? 0);
+		const outputTokens = sum(
+			mine,
+			(call) =>
+				(call.tokens?.completion ?? 0) +
+				(reasoningBilledApart(call.provider)
+					? (call.tokens?.completionDetails?.reasoning ?? 0)
+					: 0),
+		);
 		const price = priceFor(name, prices);
 		costs.push(
 			costLine({
 				model: name,
 				role: "judge",
-				inputTokens: totals.input,
-				outputTokens: totals.output,
+				inputTokens,
+				outputTokens,
 				// A judge is always priced from the table (promptfoo never
 				// reports its cost), so an unpriced provider has no basis
 				// for a dollar figure at all.
 				realDollars: price.priced
-					? (totals.input * price.input + totals.output * price.output) / 1e6
+					? (inputTokens * price.input + outputTokens * price.output) / 1e6
 					: null,
 				approximatePrice: price.priced && price.approximate,
 				estimate,
@@ -679,7 +696,10 @@ function baselineDiffOf(
  * characters of anything else would show garbage as if it were a date.
  */
 export function isoDay(timestamp: string): string | null {
-	const day = /^(\d{4}-\d{2}-\d{2})(?:T|$)/.exec(timestamp)?.[1];
+	// `match`, not `exec`: exec would coerce a missing value to the text
+	// "undefined" and quietly find no day, hiding a caller that skipped its
+	// own check; match on a missing value throws.
+	const day = timestamp.match(/^(\d{4}-\d{2}-\d{2})(?:T|$)/)?.[1];
 	if (day === undefined || Number.isNaN(Date.parse(timestamp))) return null;
 	return day;
 }

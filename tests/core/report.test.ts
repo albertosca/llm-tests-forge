@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { ForgeError } from "../../src/core/errors";
 import type { Estimate } from "../../src/core/estimate";
 import { readAllCases, readScenarios } from "../../src/core/files";
-import { buildReport, ReportSchema } from "../../src/core/report";
+import { buildReport, isoDay, ReportSchema } from "../../src/core/report";
 import type { Case, Prices, Scenario } from "../../src/core/schemas";
 import { type PromptfooResults, readResults } from "../../src/report/results";
 
@@ -566,7 +566,9 @@ describe("buildReport", () => {
 				},
 			}),
 		]);
-		expect(report.cases[0]?.reasons).toEqual([]);
+		// Strict: a loose toEqual takes [undefined] for [], and an undefined
+		// reason is written to report.json as null.
+		expect(report.cases[0]?.reasons).toStrictEqual([]);
 		expect(report.cases[0]?.stability).toBe("failing");
 	});
 
@@ -1516,5 +1518,444 @@ describe("buildReport", () => {
 				],
 			},
 		]);
+	});
+});
+
+/** A row whose provider itself failed, the way promptfoo 0.123.0 records it. */
+const erroredRow = (caseId: string, model: string): Row =>
+	row({
+		case: caseId,
+		model,
+		success: false,
+		error: "overloaded",
+		failureReason: 2,
+		response: { error: "overloaded" },
+		gradingResult: {},
+	});
+
+/** A priced estimate line for `model` in `role`, costing `dollars` at the point. */
+const estimateLine = (
+	model: string,
+	role: "target" | "judge",
+	dollars: number,
+): Estimate["lines"][number] => ({
+	model,
+	role,
+	calls: 1,
+	inputTokens: 100,
+	inputTokensLow: 90,
+	inputTokensHigh: 120,
+	outputTokens: 10,
+	outputTokensLow: 5,
+	outputTokensHigh: 13,
+	dollars,
+	dollarsLow: dollars / 2,
+	dollarsHigh: dollars * 2,
+	pricedAs: model,
+	approximate: false,
+	priced: true,
+});
+
+const estimateOf = (lines: Estimate["lines"]): Estimate => ({
+	lines,
+	cases: 1,
+	rubricCases: 0,
+	totalDollars: 0,
+	totalDollarsLow: 0,
+	totalDollarsHigh: 0,
+	pricesUpdated: "2026-09-15",
+	notes: [],
+});
+
+describe("buildReport, as a person reads the report", () => {
+	test("a report holding every stability, a disagreement and a baseline diff reads back unchanged as a baseline", () => {
+		const cases = [
+			caseFixture("a-stable", "a"),
+			caseFixture("a-flaky", "a"),
+			caseFixture("a-failing", "a"),
+			caseFixture("a-errored", "a"),
+			caseFixture("a-partly", "a"),
+			caseFixture("r-01", "r"),
+		];
+		const disagreeing = row({
+			case: "r-01",
+			model: "m",
+			success: false,
+			gradingResult: {
+				pass: false,
+				componentResults: [
+					rubric(true, "ok", "google:gemini-3.5-flash"),
+					rubric(false, "no", "anthropic:messages:claude-sonnet-5"),
+				],
+			},
+		});
+		const before = build(
+			[
+				row({ case: "a-stable", model: "m", success: false }),
+				row({ case: "a-failing", model: "m" }),
+				row({ case: "a-stable", model: "m2" }),
+			],
+			{ cases, knownCases: cases },
+		);
+		const report = build(
+			[
+				row({ case: "a-stable", model: "m" }),
+				row({ case: "a-flaky", model: "m" }),
+				row({ case: "a-flaky", model: "m", success: false }),
+				row({ case: "a-failing", model: "m", success: false }),
+				erroredRow("a-errored", "m"),
+				row({ case: "a-partly", model: "m" }),
+				erroredRow("a-partly", "m"),
+				disagreeing,
+			],
+			{ cases, knownCases: cases, baseline: before },
+		);
+		expect(report.cases.map((caseRun) => caseRun.stability)).toEqual([
+			"stable",
+			"flaky",
+			"failing",
+			"errored",
+			"partly-errored",
+			"failing",
+		]);
+		// Only the pairs that never passed cleanly: not the stable one, not the flaky one.
+		expect(report.failingPairs).toEqual([
+			{ case: "a-failing", model: "m" },
+			{ case: "a-errored", model: "m" },
+			{ case: "a-partly", model: "m" },
+			{ case: "r-01", model: "m" },
+		]);
+		expect(report.baseline).toEqual({
+			regressions: [
+				{ case: "a-failing", model: "m", before: "stable", after: "failing" },
+			],
+			fixed: [
+				{ case: "a-stable", model: "m", before: "failing", after: "stable" },
+			],
+			onlyInBaseline: [{ case: "a-stable", model: "m2" }],
+		});
+		expect(report.disagreements).toHaveLength(1);
+		const readBack = ReportSchema.parse(JSON.parse(JSON.stringify(report)));
+		expect(readBack).toEqual(report);
+	});
+
+	test("a report.json whose coverage is null is refused as not a report, rather than crashing the reader", () => {
+		const report = build([row({ case: "a-01", model: "m" })]);
+		const parsed = ReportSchema.safeParse({
+			...JSON.parse(JSON.stringify(report)),
+			coverage: null,
+		});
+		expect(parsed.success).toBe(false);
+	});
+
+	test("a provider that threw leaves no response and no grading, and failureReason alone marks the row errored", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "Request timed out",
+				failureReason: 2,
+				response: undefined,
+				gradingResult: undefined,
+			}),
+		]);
+		expect(report.cases[0]?.stability).toBe("errored");
+		expect(report.cases[0]?.reasons).toEqual(["Request timed out"]);
+		expect(report.disagreements).toEqual([]);
+	});
+
+	test("a failed row with no grading result gives promptfoo's error as its reason", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				error: "Expected output to equal rejection",
+				failureReason: 1,
+				gradingResult: undefined,
+			}),
+		]);
+		expect(report.cases[0]?.stability).toBe("failing");
+		expect(report.cases[0]?.reasons).toEqual([
+			"Expected output to equal rejection",
+		]);
+	});
+
+	test("only the components that failed give reasons: a passing component's reason is not one", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				failureReason: 1,
+				error: "Expected output to equal rejection",
+				gradingResult: {
+					pass: false,
+					componentResults: [
+						{
+							pass: true,
+							reason: "Assertion passed",
+							assertion: { type: "is-json" },
+						},
+						{
+							pass: false,
+							reason: "Expected output to equal rejection",
+							assertion: { type: "equals" },
+						},
+					],
+				},
+			}),
+		]);
+		expect(report.cases[0]?.reasons).toEqual([
+			"Expected output to equal rejection",
+		]);
+	});
+
+	test("a component recorded without its assertion still gives its reason, and is never taken for a judge", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "m",
+				success: false,
+				failureReason: 1,
+				gradingResult: {
+					pass: false,
+					componentResults: [{ pass: false, reason: "no" }],
+				},
+			}),
+		]);
+		expect(report.cases[0]?.reasons).toEqual(["no"]);
+		expect(report.disagreements).toEqual([]);
+		expect(report.costs.map((modelCost) => modelCost.role)).toEqual(["target"]);
+	});
+
+	test("zero matched rows quotes the first metadata.case the file carries, even after rows that carry none", () => {
+		expect(() =>
+			build([
+				row({ case: "x", model: "m", metadata: undefined }),
+				row({ case: "ghost-01", model: "m" }),
+			]),
+		).toThrow(
+			'no result matches a case in .forge/cases (first metadata.case seen: "ghost-01", 2 rows)',
+		);
+	});
+
+	test("scenario stats count passed, failed and errored runs apart", () => {
+		const report = build([
+			row({ case: "a-01", model: "m" }),
+			row({ case: "a-02", model: "m", success: false }),
+			erroredRow("a-01", "m"),
+		]);
+		expect(report.scenarios.find((stat) => stat.scenario === "a")).toEqual({
+			scenario: "a",
+			kind: "happy",
+			run: 3,
+			passed: 1,
+			failed: 1,
+			errored: 1,
+		});
+	});
+
+	test("a model that is both a target and a judge compares each role with its own estimate line", () => {
+		const report = build(
+			[
+				row({
+					case: "r-01",
+					model: "anthropic/claude-haiku-4-5",
+					cost: 0.001,
+					tokenUsage: { prompt: 400, completion: 80, total: 480 },
+					gradingResult: {
+						pass: true,
+						componentResults: [
+							{
+								...rubric(true, "ok", "anthropic:messages:claude-haiku-4-5"),
+								tokensUsed: { prompt: 300, completion: 60 },
+							},
+						],
+					},
+				}),
+			],
+			{
+				estimate: estimateOf([
+					estimateLine("anthropic/claude-haiku-4-5", "target", 0.0005),
+					estimateLine("anthropic/claude-haiku-4-5", "judge", 0.0002),
+				]),
+			},
+		);
+		expect(
+			report.costs.map((modelCost) => [
+				modelCost.role,
+				modelCost.estimatedDollars,
+			]),
+		).toEqual([
+			["target", 0.0005],
+			["judge", 0.0002],
+		]);
+	});
+
+	test("a target that reported no usage gets no error percent against its estimate, not -100%", () => {
+		const report = build([row({ case: "a-01", model: "m", cost: 0 })], {
+			estimate: estimateOf([estimateLine("m", "target", 0.0005)]),
+		});
+		expect(report.targetUsageReported).toBe(false);
+		expect(report.costs[0]?.realDollars).toBeNull();
+		expect(report.costs[0]?.estimatedDollars).toBe(0.0005);
+		expect(report.costs[0]?.errorPercent).toBeNull();
+	});
+
+	test("target costs are listed by model name whatever order the rows came in, each with its own tokens and rate", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "google/gemini-3.5-flash",
+				cost: 0,
+				tokenUsage: { prompt: 1000, completion: 200, total: 1200 },
+			}),
+			row({
+				case: "a-01",
+				model: "anthropic/claude-haiku-4-5",
+				cost: 0,
+				tokenUsage: { prompt: 400, completion: 80, total: 480 },
+			}),
+		]);
+		expect(
+			report.costs.map((modelCost) => [
+				modelCost.model,
+				modelCost.inputTokens,
+				modelCost.outputTokens,
+				modelCost.realDollars,
+			]),
+		).toEqual([
+			["anthropic/claude-haiku-4-5", 400, 80, (400 * 1 + 80 * 5) / 1e6],
+			["google/gemini-3.5-flash", 1000, 200, (1000 * 0.3 + 200 * 2.5) / 1e6],
+		]);
+	});
+
+	test("an errored row that reported no cost neither hides the target's reported cost nor its usage", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "anthropic/claude-haiku-4-5",
+				cost: 0.002,
+				tokenUsage: { prompt: 400, completion: 80, total: 480 },
+			}),
+			{
+				...erroredRow("a-02", "anthropic/claude-haiku-4-5"),
+				cost: 0,
+				tokenUsage: undefined,
+			},
+		]);
+		expect(report.targetUsageReported).toBe(true);
+		expect(report.costs[0]?.realDollars).toBe(0.002);
+	});
+
+	test("a target that reports only a cost, with no token counts, still counts as reporting usage", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "anthropic/claude-haiku-4-5",
+				cost: 0.001,
+				tokenUsage: undefined,
+			}),
+		]);
+		expect(report.targetUsageReported).toBe(true);
+		expect(report.costs[0]?.realDollars).toBe(0.001);
+	});
+
+	test("a target priced from the closest listed model is marked approximate", () => {
+		const report = build([
+			row({
+				case: "a-01",
+				model: "anthropic/claude-haiku-9",
+				cost: 0,
+				tokenUsage: { prompt: 400, completion: 80, total: 480 },
+			}),
+		]);
+		expect(report.costs[0]?.realDollars).toBe((400 * 1 + 80 * 5) / 1e6);
+		expect(report.costs[0]?.approximatePrice).toBe(true);
+	});
+
+	test("a judge priced from the closest listed model is marked approximate", () => {
+		const report = build([
+			row({
+				case: "r-01",
+				model: "m",
+				gradingResult: {
+					pass: true,
+					componentResults: [
+						{
+							...rubric(true, "ok", "anthropic:messages:claude-haiku-9"),
+							tokensUsed: { prompt: 300, completion: 60 },
+						},
+					],
+				},
+			}),
+		]);
+		const judge = report.costs.find((modelCost) => modelCost.role === "judge");
+		expect(judge?.model).toBe("anthropic/claude-haiku-9");
+		expect(judge?.realDollars).toBe((300 * 1 + 60 * 5) / 1e6);
+		expect(judge?.approximatePrice).toBe(true);
+	});
+
+	test("judge costs are listed by judge name, whatever order the rubric calls came in", () => {
+		const judgedBy = (provider: string) =>
+			row({
+				case: "r-01",
+				model: "m",
+				gradingResult: {
+					pass: true,
+					componentResults: [rubric(true, "ok", provider)],
+				},
+			});
+		const report = build([
+			judgedBy("bedrock:judge"),
+			judgedBy("google:gemini-3.5-flash"),
+			judgedBy("anthropic:messages:claude-sonnet-5"),
+		]);
+		expect(
+			report.costs
+				.filter((modelCost) => modelCost.role === "judge")
+				.map((modelCost) => modelCost.model),
+		).toEqual([
+			"anthropic/claude-sonnet-5",
+			"bedrock:judge",
+			"google/gemini-3.5-flash",
+		]);
+	});
+
+	test("a pair that stays unstable, or moves between unstable states, is neither a regression nor a fix", () => {
+		const before = build([
+			row({ case: "a-01", model: "m", success: false }),
+			row({ case: "a-02", model: "m", success: false }),
+		]);
+		const report = build(
+			[
+				row({ case: "a-01", model: "m", success: false }),
+				row({ case: "a-02", model: "m" }),
+				row({ case: "a-02", model: "m", success: false }),
+			],
+			{ baseline: before },
+		);
+		expect(report.cases.map((caseRun) => caseRun.stability)).toEqual([
+			"failing",
+			"flaky",
+		]);
+		expect(report.baseline).toEqual({
+			regressions: [],
+			fixed: [],
+			onlyInBaseline: [],
+		});
+	});
+});
+
+describe("isoDay", () => {
+	test("a date with no time is its own day", () => {
+		expect(isoDay("2026-09-16")).toBe("2026-09-16");
+	});
+
+	test("a five-digit year is not read as the four-digit year inside it", () => {
+		// Date.parse takes "12026-09-16" as the year 12026.
+		expect(isoDay("12026-09-16")).toBeNull();
 	});
 });
