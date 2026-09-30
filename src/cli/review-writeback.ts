@@ -2,25 +2,22 @@ import { expectedMatchesOracle } from "../core/oracle";
 import type { Case, Feature, Oracle } from "../core/schemas";
 
 /**
- * Takes the decision recorded under `id` out of `decided`, so it can be
+ * Takes the decision recorded under `key` out of `decided`, so it can be
  * applied to at most one entry.
  *
  * One decision belongs to one item. `Map.get` alone applied it to every
- * entry sharing that id AND handed each the same object reference, so a
+ * entry sharing that key AND handed each the same object reference, so a
  * file with two entries under one id came back with the second replaced by
  * a YAML alias of the first -- its input, its expected and its own review
  * gone, reported as "1 approved". Removing the entry on first hit makes "at
  * most one" structural: the second entry finds nothing and keeps itself.
- * (Carrying an array index instead would mean threading the file position
- * through `PendingItem` and the loop, which reorders cases; this keeps the
- * guarantee where the write happens.)
  */
-export function takeOnce<T>(
-	decided: Map<string, T>,
-	id: string,
-): T | undefined {
-	const hit = decided.get(id);
-	if (hit !== undefined) decided.delete(id);
+export function takeOnce<Key, Value>(
+	decided: Map<Key, Value>,
+	key: Key,
+): Value | undefined {
+	const hit = decided.get(key);
+	if (hit !== undefined) decided.delete(key);
 	return hit;
 }
 
@@ -28,12 +25,16 @@ export interface ApplyReviewDecisionsArgs {
 	/** One cases file, exactly as it was read off disk. */
 	list: Case[];
 	/**
-	 * The pass's case decisions, keyed by the id each item had on entry.
-	 * Drained as it is applied (see `takeOnce`), which is also what keeps
-	 * one decision from being handed to two files: the caller passes the
-	 * same map for every file it walks.
+	 * The pass's case decisions, keyed by the very entry of a read list the
+	 * pass offered — the object, not its id. Keyed by id, a decision on a
+	 * pending entry landed on the first entry under that id, which could be
+	 * an approved twin: its input and review were overwritten, the offered
+	 * entry stayed pending, and the summary counted it as decided. The
+	 * entry object is its position in the file, so the decision lands on
+	 * exactly what the person was shown. Drained as it is applied (see
+	 * `takeOnce`).
 	 */
-	decidedCases: Map<string, Case>;
+	decidedCases: Map<Case, Case>;
 	/**
 	 * The oracle this pass gave the file's scenario, when it changed one.
 	 * `from` is not read here — it belongs to the line the caller prints.
@@ -69,12 +70,11 @@ export interface ReviewWriteback {
  * pass took, the renames it made, and the oracle it may have changed,
  * folded into the list that was read off disk.
  *
- * Every decision is matched back to the file by the id the item had when
- * the pass started, never by the id it carries now: an edit is allowed to
- * change the id, and matching on the new one found nothing, wrote nothing,
- * and still reported the edit as applied. The list is rebuilt from what was
- * read off disk, so a decision that matched nothing cannot invent an entry
- * to land in.
+ * Every decision is matched back to the entry the pass offered, never by
+ * the id it carries now: an edit is allowed to change the id, and matching
+ * on the new one found nothing, wrote nothing, and still reported the edit
+ * as applied. The list is rebuilt from what was read off disk, so a
+ * decision that matched nothing cannot invent an entry to land in.
  *
  * A scenario's oracle is the contract its cases' `expected` was written
  * against, so changing it in review invalidates them wholesale. Nothing
@@ -85,18 +85,19 @@ export interface ReviewWriteback {
  * becomes under the new oracle.
  */
 export function applyReviewDecisions(
-	args: ApplyReviewDecisionsArgs,
+	writebackArguments: ApplyReviewDecisionsArgs,
 ): ReviewWriteback {
-	const { list, decidedCases, oracleChange, feature } = args;
+	const { list, decidedCases, oracleChange, feature } = writebackArguments;
 	// Read before the decisions are drained out of the map below: after
 	// that, "this file had a decision" is no longer a question the map can
 	// answer.
-	const decided = list.some((c) => decidedCases.has(c.id));
+	const decided = list.some((caseEntry) => decidedCases.has(caseEntry));
 	const renamed = new Map<string, string>();
-	const applied = list.map((c) => {
-		const hit = takeOnce(decidedCases, c.id);
-		if (hit !== undefined && hit.id !== c.id) renamed.set(c.id, hit.id);
-		return hit ?? c;
+	const applied = list.map((caseEntry) => {
+		const hit = takeOnce(decidedCases, caseEntry);
+		if (hit !== undefined && hit.id !== caseEntry.id)
+			renamed.set(caseEntry.id, hit.id);
+		return hit ?? caseEntry;
 	});
 	// An edit may rename a case, and `duplicate_of` is the only field that
 	// names another case by id. Left behind, the pointer dangles: no data
@@ -105,24 +106,30 @@ export function applyReviewDecisions(
 	// Rewritten after every decision landed and in the same write as the
 	// rename, so a decided entry's own pointer follows a rename decided
 	// later in the list and the file is never briefly inconsistent on disk.
-	const followRename = (c: Case): Case => {
-		const to =
-			c.duplicate_of === undefined ? undefined : renamed.get(c.duplicate_of);
-		return to === undefined ? c : { ...c, duplicate_of: to };
+	const followRename = (caseEntry: Case): Case => {
+		const target =
+			caseEntry.duplicate_of === undefined
+				? undefined
+				: renamed.get(caseEntry.duplicate_of);
+		return target === undefined
+			? caseEntry
+			: { ...caseEntry, duplicate_of: target };
 	};
 	let next = applied.map(followRename);
 
 	let reopened = 0;
 	if (oracleChange !== undefined) {
-		next = next.map((c) => {
-			if (c.status !== "approved" && c.status !== "edited") return c;
+		next = next.map((caseEntry) => {
+			if (caseEntry.status !== "approved" && caseEntry.status !== "edited")
+				return caseEntry;
 			if (
-				c.expected !== undefined &&
-				expectedMatchesOracle(c.expected, oracleChange.to, feature) === null
+				caseEntry.expected !== undefined &&
+				expectedMatchesOracle(caseEntry.expected, oracleChange.to, feature) ===
+					null
 			)
-				return c;
+				return caseEntry;
 			reopened += 1;
-			return { ...c, status: "pending" };
+			return { ...caseEntry, status: "pending" };
 		});
 	}
 	return { next, reopened, touched: decided || reopened > 0, renamed };

@@ -2787,7 +2787,58 @@ describe("review: what a rename does to the pointers at it, and what a twin id d
 			await run(["review", "--scenario", "polite-rejection", "--all"], context),
 		).toBe(0);
 		expect(out).toContain(
-			`review: ${join(forgeDirectory, "cases", "polite-rejection.yaml")} holds 2 entries under id "polite-rejection-01"; only the first is offered — fix the file`,
+			`review: ${join(forgeDirectory, "cases", "polite-rejection.yaml")} holds 2 entries under id "polite-rejection-01"; a pass offers only the first pending one — fix the file`,
+		);
+	});
+
+	test("an approved entry and a pending twin under one id: the decision lands on the pending one that was offered, and the approved one survives", async () => {
+		// The decision used to be matched back by id alone, so it replaced
+		// the first entry under that id -- the approved one, whose input and
+		// review were destroyed -- while the offered pending twin stayed
+		// pending, and the summary counted it as decided.
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "already approved" },
+				expected: { label: "rejection" },
+				status: "approved",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "the pending twin" },
+				expected: { label: "acknowledgement" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		const { context, out } = await ctxIn(cwd, ["reject"]);
+		expect(
+			await run(
+				["review", "--scenario", "polite-rejection", "--only", "cases"],
+				context,
+			),
+		).toBe(0);
+		expect(out).toContain(
+			`review: ${join(forgeDirectory, "cases", "polite-rejection.yaml")} holds 2 entries under id "polite-rejection-01"; a pass offers only the first pending one — fix the file`,
+		);
+		expect(out).toContain(
+			"id: polite-rejection-01\nscenario: polite-rejection\ninput:\n  email: the pending twin\nexpected:\n  label: acknowledgement\nstatus: pending\ngenerated_by: hand",
+		);
+		const cases = await readCases(forgeDirectory, "polite-rejection");
+		expect(
+			cases.map((caseEntry) => [caseEntry.input.email, caseEntry.status]),
+		).toEqual([
+			["already approved", "approved"],
+			["the pending twin", "rejected"],
+		]);
+		expect(out.at(-1)).toBe(
+			"review: 0 approved, 1 rejected, 0 edited, 0 skipped, 0 re-opened, 0 still pending",
 		);
 	});
 
@@ -2821,7 +2872,7 @@ describe("review: what a rename does to the pointers at it, and what a twin id d
 			),
 		).toBe(0);
 		expect(out).toContain(
-			`review: ${join(forgeDirectory, "cases", "polite-rejection.yaml")} holds 2 entries under id "polite-rejection-01"; only the first is offered — fix the file`,
+			`review: ${join(forgeDirectory, "cases", "polite-rejection.yaml")} holds 2 entries under id "polite-rejection-01"; a pass offers only the first pending one — fix the file`,
 		);
 	});
 });

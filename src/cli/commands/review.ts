@@ -120,10 +120,11 @@ export async function reviewCommand(
 		casesById.set(id, caseFile?.cases ?? []);
 		if (caseFile !== null) readCaseFiles.set(id, caseFile);
 	}
-	// `pendingItems` places one entry per id, so a file holding two under
-	// the same one offers the first and passes over the second in silence —
-	// and the write-back deliberately applies a decision to at most one
-	// entry, so the twin survives untouched and unreviewed forever. Above
+	// `pendingItems` places one pending entry per id, so a file holding two
+	// under the same one offers the first pending one and passes over the
+	// others in silence — the decision lands on exactly the entry offered
+	// (see the write-back below), and each other twin waits for a later
+	// pass. An approved twin is not offered at all. Above
 	// the --all branch because a twin id is a property of the file, not of
 	// the path that opened it. Nothing here fixes the file; saying it out
 	// loud, before either pass, is what nobody was doing.
@@ -134,7 +135,7 @@ export async function reviewCommand(
 		for (const [caseId, count] of seen)
 			if (count > 1)
 				context.stdout(
-					`review: ${join(paths.casesDir, `${scenarioId}.yaml`)} holds ${count} entries under id "${caseId}"; only the first is offered — fix the file`,
+					`review: ${join(paths.casesDir, `${scenarioId}.yaml`)} holds ${count} entries under id "${caseId}"; a pass offers only the first pending one — fix the file`,
 				);
 	}
 	// The same id in two files is not a twin the per-file warning sees, and
@@ -356,19 +357,23 @@ export async function reviewCommand(
 			);
 
 		/**
-		 * The pass's case decisions for one file, keyed by the id each item had
-		 * on entry. A case's `scenario` names its file and cannot change in
-		 * review, so it is the file a decision belongs to. Keyed by id alone,
-		 * across files, a decision landed in the first file walked that held
-		 * the id: with the same id pending in a later file, that file's case
-		 * was written over an approved case in the earlier one.
+		 * The pass's case decisions for one file, keyed by the entry the pass
+		 * offered — the object read off disk, which is its position in the
+		 * file. Keyed by id, a decision landed on the first entry under that
+		 * id: across files, over an approved case in an earlier file; within
+		 * one file, over an approved twin of the pending entry offered. A
+		 * case's `scenario` names its file and cannot change in review, so it
+		 * is the file a decision belongs to.
 		 */
-		const decidedCasesIn = (id: string): Map<string, Case> =>
+		const decidedCasesIn = (id: string): Map<Case, Case> =>
 			new Map(
-				result.decisions
-					.filter((decision) => decision.kind === "case")
-					.filter((decision) => decision.item.scenario === id)
-					.map((decision) => [decision.originalId, decision.item] as const),
+				result.decisions.flatMap((decision) =>
+					decision.kind === "case" &&
+					decision.offered.kind === "case" &&
+					decision.item.scenario === id
+						? [[decision.offered.item, decision.item] as const]
+						: [],
+				),
 			);
 		let totalReopened = 0;
 		// Decisions belonging to a file the write-back below refused to touch:

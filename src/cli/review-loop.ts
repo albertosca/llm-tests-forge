@@ -77,6 +77,13 @@ interface DecisionIds {
 	 */
 	originalId: string;
 	id: string;
+	/**
+	 * The item exactly as the pass offered it: the very object `items`
+	 * held, which is the entry read off disk. An id can be shared by two
+	 * entries of one file; this object cannot, so the write-back matches a
+	 * case decision to it rather than to `originalId`.
+	 */
+	offered: PendingItem;
 }
 
 export interface ReviewLoopResult {
@@ -137,11 +144,12 @@ export async function runReviewLoop(
 	 * off the decided item once, here, and both the recorded decision and
 	 * the callback are given that one answer. */
 	const record = (
-		originalId: string,
+		offered: PendingItem,
 		item: Feature | Scenario | Case,
 	): void => {
 		const decided = pendingItemFor(item);
-		decisions.push({ ...decided, originalId, id: item.id });
+		const originalId = offered.item.id;
+		decisions.push({ ...decided, originalId, id: item.id, offered });
 		loopArguments.onDecided?.(decided, originalId);
 	};
 
@@ -226,7 +234,7 @@ export async function runReviewLoop(
 					refuseExpectedOutsideOracle(edited);
 					current = edited;
 					summary.edited += 1;
-					record(pending.item.id, current.item);
+					record(pending, current.item);
 					break;
 				}
 
@@ -239,7 +247,7 @@ export async function runReviewLoop(
 				if (answer === "approve") refuseExpectedOutsideOracle(decided);
 				current = decided;
 				summary[answer === "approve" ? "approved" : "rejected"] += 1;
-				record(pending.item.id, current.item);
+				record(pending, current.item);
 				break;
 			} catch (error) {
 				// Ctrl+C inside `$EDITOR` is a request to stop, not a bad

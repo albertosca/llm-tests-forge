@@ -12,45 +12,59 @@ const feature: Feature = {
 };
 
 /** A pending case of scenario `s`, with a label expected the feature accepts. */
-function aCase(over: Partial<Case> & { id: string }): Case {
+function caseWith(overrides: Partial<Case> & { id: string }): Case {
 	return {
 		scenario: "s",
 		input: { email: "e" },
 		expected: { label: "rejection" },
 		status: "pending",
 		generated_by: "hand",
-		...over,
+		...overrides,
 	};
 }
 
+/** The entry at `index`, failing loudly instead of handing back undefined. */
+function entryAt(list: Case[], index: number): Case {
+	const entry = list[index];
+	if (entry === undefined) throw new Error(`no entry at index ${index}`);
+	return entry;
+}
+
 describe("applyReviewDecisions: matching decisions to entries", () => {
-	test("replaces the entry whose id on entry the decision was taken under", () => {
-		const list = [aCase({ id: "s-01" }), aCase({ id: "s-02" })];
+	test("replaces the entry the decision was taken on", () => {
+		const list = [caseWith({ id: "s-01" }), caseWith({ id: "s-02" })];
 		const decidedCases = new Map([
-			["s-01", aCase({ id: "s-01", status: "approved" })],
+			[entryAt(list, 0), caseWith({ id: "s-01", status: "approved" })],
 		]);
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
 			decidedCases,
 			feature,
 		});
-		expect(next.map((c) => c.status)).toEqual(["approved", "pending"]);
+		expect(next.map((caseEntry) => caseEntry.status)).toEqual([
+			"approved",
+			"pending",
+		]);
 		expect(reopened).toBe(0);
 		expect(touched).toBe(true);
 	});
 
-	test("a second entry under the same id keeps itself, decision taken once", () => {
+	test("two entries under the same id: the decision lands on the one it was taken on, the other keeps itself", () => {
 		const list = [
-			aCase({ id: "s-01", input: { email: "the first one" } }),
-			aCase({ id: "s-01", input: { email: "the second one" } }),
+			caseWith({
+				id: "s-01",
+				input: { email: "the approved one" },
+				status: "approved",
+			}),
+			caseWith({ id: "s-01", input: { email: "the pending twin" } }),
 		];
 		const decidedCases = new Map([
 			[
-				"s-01",
-				aCase({
+				entryAt(list, 1),
+				caseWith({
 					id: "s-01",
-					input: { email: "the first one" },
-					status: "approved",
+					input: { email: "the pending twin" },
+					status: "rejected",
 				}),
 			],
 		]);
@@ -59,20 +73,37 @@ describe("applyReviewDecisions: matching decisions to entries", () => {
 			decidedCases,
 			feature,
 		});
-		expect(next.map((c) => c.status)).toEqual(["approved", "pending"]);
-		expect(next.map((c) => c.input.email)).toEqual([
-			"the first one",
-			"the second one",
+		// Matched by id, the decision replaced the approved first entry and
+		// left the offered twin pending.
+		expect(
+			next.map((caseEntry) => [caseEntry.input.email, caseEntry.status]),
+		).toEqual([
+			["the approved one", "approved"],
+			["the pending twin", "rejected"],
 		]);
-		// Taken out of the map on first hit: a later entry under the same id
-		// finds nothing and keeps itself.
+		// Taken out of the map on its hit, as every applied decision is.
 		expect(decidedCases.size).toBe(0);
 	});
 
-	test("nothing matched and no oracle change leaves the list untouched", () => {
-		const list = [aCase({ id: "s-01" }), aCase({ id: "s-02" })];
+	test("an equal entry that is not the one decided is left alone: the match is the entry, not its content", () => {
+		const list = [caseWith({ id: "s-01" }), caseWith({ id: "s-01" })];
 		const decidedCases = new Map([
-			["other-01", aCase({ id: "other-01", status: "approved" })],
+			[entryAt(list, 1), caseWith({ id: "s-01", status: "approved" })],
+		]);
+		const { next } = applyReviewDecisions({ list, decidedCases, feature });
+		expect(next.map((caseEntry) => caseEntry.status)).toEqual([
+			"pending",
+			"approved",
+		]);
+	});
+
+	test("nothing matched and no oracle change leaves the list untouched", () => {
+		const list = [caseWith({ id: "s-01" }), caseWith({ id: "s-02" })];
+		const decidedCases = new Map([
+			[
+				caseWith({ id: "other-01" }),
+				caseWith({ id: "other-01", status: "approved" }),
+			],
 		]);
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
@@ -89,26 +120,26 @@ describe("applyReviewDecisions: matching decisions to entries", () => {
 describe("applyReviewDecisions: duplicate_of follows a rename", () => {
 	test("a decision that renames an entry rewrites the pointers to it, in this list only", () => {
 		const list = [
-			aCase({ id: "s-01" }),
-			aCase({ id: "s-02", duplicate_of: "s-01" }),
-			aCase({ id: "s-03", duplicate_of: "s-99" }),
-			aCase({ id: "s-04" }),
+			caseWith({ id: "s-01" }),
+			caseWith({ id: "s-02", duplicate_of: "s-01" }),
+			caseWith({ id: "s-03", duplicate_of: "s-99" }),
+			caseWith({ id: "s-04" }),
 		];
 		const decidedCases = new Map([
-			["s-01", aCase({ id: "s-01-fixed", status: "edited" })],
+			[entryAt(list, 0), caseWith({ id: "s-01-fixed", status: "edited" })],
 		]);
 		const { next, touched, renamed } = applyReviewDecisions({
 			list,
 			decidedCases,
 			feature,
 		});
-		expect(next.map((c) => c.id)).toEqual([
+		expect(next.map((caseEntry) => caseEntry.id)).toEqual([
 			"s-01-fixed",
 			"s-02",
 			"s-03",
 			"s-04",
 		]);
-		expect(next.map((c) => c.duplicate_of)).toEqual([
+		expect(next.map((caseEntry) => caseEntry.duplicate_of)).toEqual([
 			undefined,
 			"s-01-fixed",
 			"s-99",
@@ -119,10 +150,13 @@ describe("applyReviewDecisions: duplicate_of follows a rename", () => {
 	});
 
 	test("a decided entry's own duplicate_of follows a rename decided in the same list", () => {
-		const list = [aCase({ id: "s-01" }), aCase({ id: "s-02" })];
+		const list = [caseWith({ id: "s-01" }), caseWith({ id: "s-02" })];
 		const decidedCases = new Map([
-			["s-01", aCase({ id: "s-01-fixed", status: "edited" })],
-			["s-02", aCase({ id: "s-02", status: "approved", duplicate_of: "s-01" })],
+			[entryAt(list, 0), caseWith({ id: "s-01-fixed", status: "edited" })],
+			[
+				entryAt(list, 1),
+				caseWith({ id: "s-02", status: "approved", duplicate_of: "s-01" }),
+			],
 		]);
 		const { next } = applyReviewDecisions({ list, decidedCases, feature });
 		expect(next[1]?.duplicate_of).toBe("s-01-fixed");
@@ -130,50 +164,69 @@ describe("applyReviewDecisions: duplicate_of follows a rename", () => {
 
 	test("a rename applied in one list never rewrites a pointer in another list that spells the same id", () => {
 		// Two files, each holding an entry `s-01` (a twin across files, which
-		// the review pass names) and a pointer at it. The decision is taken
-		// once, by whichever list is walked first; the other list keeps
-		// both its entry and its pointer, even when it has a decision of
-		// its own and is written this pass.
-		const listA = [
-			aCase({ id: "s-01" }),
-			aCase({ id: "s-02", duplicate_of: "s-01" }),
+		// the review pass names) and a pointer at it. The decision belongs to
+		// the first list's entry; the other list keeps both its entry and its
+		// pointer, even when it has a decision of its own and is written
+		// this pass.
+		const firstList = [
+			caseWith({ id: "s-01" }),
+			caseWith({ id: "s-02", duplicate_of: "s-01" }),
 		];
-		const listB = [
-			aCase({ id: "s-01" }),
-			aCase({ id: "t-01", duplicate_of: "s-01", status: "pending" }),
+		const secondList = [
+			caseWith({ id: "s-01" }),
+			caseWith({ id: "t-01", duplicate_of: "s-01", status: "pending" }),
 		];
 		const decidedCases = new Map([
-			["s-01", aCase({ id: "s-01-fixed", status: "edited" })],
-			["t-01", aCase({ id: "t-01", duplicate_of: "s-01", status: "approved" })],
+			[entryAt(firstList, 0), caseWith({ id: "s-01-fixed", status: "edited" })],
+			[
+				entryAt(secondList, 1),
+				caseWith({ id: "t-01", duplicate_of: "s-01", status: "approved" }),
+			],
 		]);
-		const a = applyReviewDecisions({ list: listA, decidedCases, feature });
-		const b = applyReviewDecisions({ list: listB, decidedCases, feature });
-		expect(a.next.map((c) => [c.id, c.duplicate_of])).toEqual([
+		const first = applyReviewDecisions({
+			list: firstList,
+			decidedCases,
+			feature,
+		});
+		const second = applyReviewDecisions({
+			list: secondList,
+			decidedCases,
+			feature,
+		});
+		expect(
+			first.next.map((caseEntry) => [caseEntry.id, caseEntry.duplicate_of]),
+		).toEqual([
 			["s-01-fixed", undefined],
 			["s-02", "s-01-fixed"],
 		]);
-		expect(b.next.map((c) => [c.id, c.duplicate_of, c.status])).toEqual([
+		expect(
+			second.next.map((caseEntry) => [
+				caseEntry.id,
+				caseEntry.duplicate_of,
+				caseEntry.status,
+			]),
+		).toEqual([
 			["s-01", undefined, "pending"],
 			["t-01", "s-01", "approved"],
 		]);
-		expect(b.touched).toBe(true);
-		expect([...b.renamed]).toEqual([]);
+		expect(second.touched).toBe(true);
+		expect([...second.renamed]).toEqual([]);
 	});
 });
 
 describe("applyReviewDecisions: an oracle change re-opens what no longer fits", () => {
 	test("re-opens only mismatching approved and edited cases, keeping expected", () => {
 		const list = [
-			aCase({ id: "s-01", status: "approved" }),
-			aCase({ id: "s-02", status: "edited" }),
-			aCase({
+			caseWith({ id: "s-01", status: "approved" }),
+			caseWith({ id: "s-02", status: "edited" }),
+			caseWith({
 				id: "s-03",
 				status: "approved",
 				expected: { rubric: "is polite" },
 			}),
-			aCase({ id: "s-04", status: "approved", expected: undefined }),
-			aCase({ id: "s-05", status: "pending" }),
-			aCase({ id: "s-06", status: "rejected" }),
+			caseWith({ id: "s-04", status: "approved", expected: undefined }),
+			caseWith({ id: "s-05", status: "pending" }),
+			caseWith({ id: "s-06", status: "rejected" }),
 		];
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
@@ -181,7 +234,7 @@ describe("applyReviewDecisions: an oracle change re-opens what no longer fits", 
 			oracleChange: { from: "label", to: "rubric" },
 			feature,
 		});
-		expect(next.map((c) => c.status)).toEqual([
+		expect(next.map((caseEntry) => caseEntry.status)).toEqual([
 			"pending",
 			"pending",
 			"approved",
@@ -198,8 +251,8 @@ describe("applyReviewDecisions: an oracle change re-opens what no longer fits", 
 
 	test("an oracle change whose cases all still fit touches nothing", () => {
 		const list = [
-			aCase({ id: "s-01", status: "approved" }),
-			aCase({ id: "s-02", status: "pending" }),
+			caseWith({ id: "s-01", status: "approved" }),
+			caseWith({ id: "s-02", status: "pending" }),
 		];
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
@@ -207,18 +260,21 @@ describe("applyReviewDecisions: an oracle change re-opens what no longer fits", 
 			oracleChange: { from: "rubric", to: "label" },
 			feature,
 		});
-		expect(next.map((c) => c.status)).toEqual(["approved", "pending"]);
+		expect(next.map((caseEntry) => caseEntry.status)).toEqual([
+			"approved",
+			"pending",
+		]);
 		expect(reopened).toBe(0);
 		expect(touched).toBe(false);
 	});
 
 	test("a re-opened case and a decision in the same file both land", () => {
 		const list = [
-			aCase({ id: "s-01", status: "approved" }),
-			aCase({ id: "s-02", status: "pending" }),
+			caseWith({ id: "s-01", status: "approved" }),
+			caseWith({ id: "s-02", status: "pending" }),
 		];
 		const decidedCases = new Map([
-			["s-02", aCase({ id: "s-02", status: "approved" })],
+			[entryAt(list, 1), caseWith({ id: "s-02", status: "approved" })],
 		]);
 		const { next, reopened, touched } = applyReviewDecisions({
 			list,
@@ -229,7 +285,10 @@ describe("applyReviewDecisions: an oracle change re-opens what no longer fits", 
 		// The decision is applied before the re-open pass, so a case
 		// approved in this very pass is re-opened by the same pass's
 		// oracle change.
-		expect(next.map((c) => c.status)).toEqual(["pending", "pending"]);
+		expect(next.map((caseEntry) => caseEntry.status)).toEqual([
+			"pending",
+			"pending",
+		]);
 		expect(reopened).toBe(2);
 		expect(touched).toBe(true);
 	});

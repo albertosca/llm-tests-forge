@@ -261,6 +261,7 @@ describe("runReviewLoop", () => {
 				originalId: feature.id,
 				id: feature.id,
 				item: { ...feature, status: "approved" },
+				offered: { kind: "feature", item: feature },
 			},
 		]);
 		expect(
