@@ -20,20 +20,12 @@ import { DEFAULT_ENTRY } from "../../core/target";
 import type { CliContext } from "../context";
 
 /**
- * `describe` is the one verb that replaces a whole file rather than
- * appending to it, and `feature.yaml`'s `invariants` are the rules the
- * person adds by hand — the highest-value human input in the pipeline.
- * Overwriting a feature that has been through review is therefore refused
- * by name, before a single token is spent, unless `--force` says that is
- * exactly what was wanted. A still-pending feature is nobody's reviewed
- * work, so re-describing over it stays free.
- */
-/**
  * What the refusal adds for a suite missing from forge.yaml: a suite made
  * before init (or copied in) is reviewed but unregistered, and the refusal
  * is where registering it through describe dead-ends. A forge.yaml that
  * registering refuses gives its reason here, after the refusal, rather
- * than in place of it.
+ * than in place of it; the reason names forge.yaml by its path once, and
+ * the refusal's own suffix names feature.yaml.
  */
 function unregisteredNote(project: Project, suiteDirectory: string): string {
 	try {
@@ -43,10 +35,19 @@ function unregisteredNote(project: Project, suiteDirectory: string): string {
 			: `. This suite is not registered in ${PROJECT_FILE}: to register it without describing it again, ${registrationHint(registration.entry)}`;
 	} catch (error) {
 		if (!(error instanceof ForgeError)) throw error;
-		return `. This suite may not be registered in ${PROJECT_FILE}: ${error.message}`;
+		return `. This suite may not be registered in ${project.file}: ${error.reason}`;
 	}
 }
 
+/**
+ * `describe` is the one verb that replaces a whole file rather than
+ * appending to it, and `feature.yaml`'s `invariants` are the rules the
+ * person adds by hand — the highest-value human input in the pipeline.
+ * Overwriting a feature that has been through review is therefore refused
+ * by name, before a single token is spent, unless `--force` says that is
+ * exactly what was wanted. A still-pending feature is nobody's reviewed
+ * work, so re-describing over it stays free.
+ */
 async function refuseToOverwriteReviewedFeature(
 	context: CliContext,
 	force: boolean,

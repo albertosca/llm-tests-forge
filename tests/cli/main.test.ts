@@ -984,10 +984,17 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 				stdout: (line) => lines.push(line),
 			}),
 		).toBe(1);
-		const output = lines.join("\n");
-		expect(output).toContain("re-run with --force to replace it.");
-		expect(output).toContain(
-			"This suite may not be registered in forge.yaml: suites: is a YAML alias, which registering cannot extend;",
+		// Each file is named once: forge.yaml in the note, feature.yaml at the end.
+		const forgeYaml = join(root, "forge.yaml");
+		const featureYaml = join(
+			root,
+			"evals",
+			"classify",
+			".forge",
+			"feature.yaml",
+		);
+		expect(lines.at(-1)).toBe(
+			`error: feature "extract-job-application-questions" is already approved; describe would overwrite the reviewed description and its invariants — re-run with --force to replace it. This suite may not be registered in ${forgeYaml}: suites: is a YAML alias, which registering cannot extend; add its path to suites: in forge.yaml (for example \`suites: [evals/classify]\`, or, when suites is already a block list, add a \`- evals/classify\` line with the same indentation as the existing entries) (file: ${featureYaml}, id: extract-job-application-questions)`,
 		);
 	});
 

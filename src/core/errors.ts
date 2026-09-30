@@ -6,6 +6,8 @@ export interface ForgeErrorDetails {
 
 export class ForgeError extends Error {
 	readonly details: ForgeErrorDetails;
+	/** The message without the details suffix, for a caller that names the file itself. */
+	readonly reason: string;
 
 	constructor(message: string, details: ForgeErrorDetails = {}) {
 		const parts: string[] = [];
@@ -15,6 +17,7 @@ export class ForgeError extends Error {
 		super(parts.length > 0 ? `${message} (${parts.join(", ")})` : message);
 		this.name = "ForgeError";
 		this.details = details;
+		this.reason = message;
 	}
 }
 
