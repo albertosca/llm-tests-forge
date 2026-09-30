@@ -30,12 +30,17 @@ export const DEFAULT_ENTRY: Record<ShimKind, string> = {
 };
 
 /**
- * The shim's file inside `.forge/`; undefined for exec and http, which have
- * none, so no caller can join a path with an empty entry.
+ * The shim's kind and its file inside `.forge/`; null for exec and http,
+ * which have none, so no caller can join a path with an empty entry.
  */
-export function entryFor(target: Target): string | undefined {
-	if (!isShimKind(target.kind)) return undefined;
-	return target.entry ?? DEFAULT_ENTRY[target.kind];
+export function shimTarget(
+	target: Target,
+): { kind: ShimKind; entry: string } | null {
+	if (!isShimKind(target.kind)) return null;
+	return {
+		kind: target.kind,
+		entry: target.entry ?? DEFAULT_ENTRY[target.kind],
+	};
 }
 
 /**

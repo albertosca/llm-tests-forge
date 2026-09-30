@@ -11,7 +11,7 @@ import {
 	writeText,
 } from "../../core/files";
 import { selectCases } from "../../core/select";
-import { entryFor, isShimKind, type ShimKind } from "../../core/target";
+import { type ShimKind, shimTarget } from "../../core/target";
 import { plural } from "../../core/text";
 import { renderCasesJsonl } from "../../emit/jsonl";
 import {
@@ -72,11 +72,7 @@ export async function emitCommand(
 	);
 	// The shim is written into, and run from, `.forge/`; a path here would
 	// let suite.yaml write a file anywhere on the disk.
-	const targetEntry = entryFor(suite.target);
-	const shim =
-		isShimKind(suite.target.kind) && targetEntry !== undefined
-			? { kind: suite.target.kind, entry: targetEntry }
-			: null;
+	const shim = shimTarget(suite.target);
 	if (shim !== null) {
 		const { entry } = shim;
 		if (entry.includes("/") || entry.includes("\\") || entry.includes(".."))
@@ -123,14 +119,17 @@ export async function emitCommand(
 	}
 	// The command comes before anything is written: an elixir suite with no
 	// mix.exs above it is refused with no half-written .forge/.
-	const locations =
+	const located =
 		shim === null
 			? null
-			: await shimLocations(shim.kind, context.forgeDirectory);
+			: {
+					...shim,
+					locations: await shimLocations(shim.kind, context.forgeDirectory),
+				};
 	const command =
-		shim === null || locations === null
+		located === null
 			? undefined
-			: targetCommand(shim.kind, shim.entry, locations);
+			: targetCommand(located.kind, located.entry, located.locations);
 	const config = buildPromptfooConfig({
 		feature,
 		suite,
@@ -144,12 +143,17 @@ export async function emitCommand(
 	);
 	const httpWarning = httpTargetModelWarning(suite);
 	if (httpWarning !== null) context.stdout(`emit: ${httpWarning}`);
-	if (shim === null || locations === null) return;
+	if (located === null) return;
 	// Each file on its own: rust and go share the entry `forge_target`, so a
 	// directory that exists may hold the other language's files, or miss one.
 	const kept: string[] = [];
 	const written: string[] = [];
-	for (const file of shimFiles(feature, shim.kind, shim.entry, locations)) {
+	for (const file of shimFiles(
+		feature,
+		located.kind,
+		located.entry,
+		located.locations,
+	)) {
 		const path = join(context.forgeDirectory, file.path);
 		if (await exists(path)) {
 			kept.push(path);
@@ -163,7 +167,7 @@ export async function emitCommand(
 		context.stdout(`emit: ${keptPart}`);
 		return;
 	}
-	const wrotePart = `wrote ${written.join(", ")}; ${FILL_IN[shim.kind]}`;
+	const wrotePart = `wrote ${written.join(", ")}; ${FILL_IN[located.kind]}`;
 	context.stdout(
 		`emit: ${keptPart === "" ? wrotePart : `${keptPart}; ${wrotePart}`}`,
 	);

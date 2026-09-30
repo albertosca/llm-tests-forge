@@ -9,7 +9,7 @@ import type {
 	Suite,
 } from "../core/schemas";
 import type { Selection } from "../core/select";
-import { entryFor, httpTransform } from "../core/target";
+import { DEFAULT_ENTRY, httpTransform } from "../core/target";
 import { toPromptfooProvider } from "./providers";
 
 export interface PromptfooAssert {
@@ -221,14 +221,6 @@ export function httpTargetModelWarning(suite: Suite): string | null {
 	return `warning: target.kind is http and target.models lists ${target.models.length} models, but ${TARGET_MODEL_PLACEHOLDER} appears nowhere in target.url, target.headers or target.body, so every provider sends the same request`;
 }
 
-/** The entry of a python, javascript or typescript target; a kind without one is a caller's bug. */
-function shimEntry(target: Suite["target"]): string {
-	const entry = entryFor(target);
-	if (entry === undefined)
-		throw new ForgeError(`target.kind ${target.kind} has no shim entry`);
-	return entry;
-}
-
 function providerFor(
 	model: string,
 	suite: Suite,
@@ -239,7 +231,7 @@ function providerFor(
 	switch (target.kind) {
 		case "python":
 			return {
-				id: `file://${shimEntry(target)}`,
+				id: `file://${target.entry ?? DEFAULT_ENTRY[target.kind]}`,
 				label: model,
 				config: target.python
 					? { model, pythonExecutable: target.python }
@@ -248,7 +240,7 @@ function providerFor(
 		case "javascript":
 		case "typescript":
 			return {
-				id: `file://${shimEntry(target)}`,
+				id: `file://${target.entry ?? DEFAULT_ENTRY[target.kind]}`,
 				label: model,
 				config: { model },
 			};

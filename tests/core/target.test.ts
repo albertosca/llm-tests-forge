@@ -1,43 +1,56 @@
 import { describe, expect, test } from "bun:test";
 import { ForgeError } from "../../src/core/errors";
-import { entryFor, httpTransform } from "../../src/core/target";
+import { httpTransform, shimTarget } from "../../src/core/target";
 
-describe("entryFor", () => {
+describe("shimTarget", () => {
 	test("an explicit entry wins; otherwise each shim kind has its default", () => {
 		expect(
-			entryFor({ kind: "python", models: ["m/x"], entry: "mine.py" }),
-		).toBe("mine.py");
-		expect(entryFor({ kind: "python", models: ["m/x"] })).toBe(
-			"forge_target.py",
-		);
-		expect(entryFor({ kind: "javascript", models: ["m/x"] })).toBe(
-			"forge_target.mjs",
-		);
-		expect(entryFor({ kind: "typescript", models: ["m/x"] })).toBe(
-			"forge_target.ts",
-		);
-		expect(entryFor({ kind: "elixir", models: ["m/x"] })).toBe(
-			"forge_target.exs",
-		);
-		expect(entryFor({ kind: "ruby", models: ["m/x"] })).toBe("forge_target.rb");
-		expect(entryFor({ kind: "rust", models: ["m/x"] })).toBe("forge_target");
-		expect(entryFor({ kind: "go", models: ["m/x"] })).toBe("forge_target");
+			shimTarget({ kind: "python", models: ["m/x"], entry: "mine.py" }),
+		).toEqual({ kind: "python", entry: "mine.py" });
+		expect(shimTarget({ kind: "python", models: ["m/x"] })).toEqual({
+			kind: "python",
+			entry: "forge_target.py",
+		});
+		expect(shimTarget({ kind: "javascript", models: ["m/x"] })).toEqual({
+			kind: "javascript",
+			entry: "forge_target.mjs",
+		});
+		expect(shimTarget({ kind: "typescript", models: ["m/x"] })).toEqual({
+			kind: "typescript",
+			entry: "forge_target.ts",
+		});
+		expect(shimTarget({ kind: "elixir", models: ["m/x"] })).toEqual({
+			kind: "elixir",
+			entry: "forge_target.exs",
+		});
+		expect(shimTarget({ kind: "ruby", models: ["m/x"] })).toEqual({
+			kind: "ruby",
+			entry: "forge_target.rb",
+		});
+		expect(shimTarget({ kind: "rust", models: ["m/x"] })).toEqual({
+			kind: "rust",
+			entry: "forge_target",
+		});
+		expect(shimTarget({ kind: "go", models: ["m/x"] })).toEqual({
+			kind: "go",
+			entry: "forge_target",
+		});
 	});
-	test("exec and http have no entry, even when the suite names one", () => {
+	test("exec and http have no shim, even when the suite names an entry", () => {
 		expect(
-			entryFor({ kind: "exec", models: ["m/x"], command: "./run" }),
-		).toBeUndefined();
+			shimTarget({ kind: "exec", models: ["m/x"], command: "./run" }),
+		).toBeNull();
 		expect(
-			entryFor({ kind: "http", models: ["m/x"], url: "http://x" }),
-		).toBeUndefined();
+			shimTarget({ kind: "http", models: ["m/x"], url: "http://x" }),
+		).toBeNull();
 		expect(
-			entryFor({
+			shimTarget({
 				kind: "http",
 				models: ["m/x"],
 				url: "http://x",
 				entry: "ignored.py",
 			}),
-		).toBeUndefined();
+		).toBeNull();
 	});
 });
 
