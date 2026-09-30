@@ -259,7 +259,10 @@ const VERBS_EXEMPT_FROM_SUITE_GUARD = new Set([
 	"version",
 ]);
 
-/** Answered before any forge.yaml is read, so a broken one never hides them. */
+/**
+ * Answered before any forge.yaml or provider key file is read, so a broken
+ * one never hides them and asking touches no key file.
+ */
 const INFORMATION_VERBS = new Set([
 	"help",
 	"--version",
@@ -298,14 +301,6 @@ export async function main(
 			write(USAGE);
 			return 0;
 		}
-		// Keys the shell does not export are read from
-		// <configDirectory>/<provider>/api.env; a key already in the
-		// environment wins. After the help check, not before it (bin.ts used
-		// to do this first): asking for help touches no key file at all.
-		await loadProviderKeys({
-			environment: options.env,
-			configDirectory: options.configDirectory ?? defaultConfigDirectory(),
-		});
 		// The verb is what is left first once --suite and its path are taken
 		// out, so `--suite x --help` is answered like `--help`. A first word
 		// that already is one skips the flag parsing, which could refuse it.
@@ -315,6 +310,16 @@ export async function main(
 			? { rest: argv, suite: undefined }
 			: takeSuiteFlag(argv);
 		const information = rest[0] !== undefined && INFORMATION_VERBS.has(rest[0]);
+		// Keys the shell does not export are read from
+		// <configDirectory>/<provider>/api.env; a key already in the
+		// environment wins. Only for a verb that may need one: help, version
+		// and guide (bin.ts used to load keys before anything) touch no key
+		// file at all, as `--help` answered above does not.
+		if (!information)
+			await loadProviderKeys({
+				environment: options.env,
+				configDirectory: options.configDirectory ?? defaultConfigDirectory(),
+			});
 		// `init` reads no forge.yaml through the resolution: it creates one, and
 		// a broken one must not stop it from updating AGENTS.md.
 		const initializing = rest[0] === "init";

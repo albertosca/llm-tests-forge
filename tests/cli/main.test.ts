@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { constants } from "node:fs";
 import {
 	chmod,
 	cp,
 	mkdir,
 	mkdtemp,
+	open,
 	readdir,
 	readFile,
 	stat,
@@ -6058,19 +6060,78 @@ describe("main(): the suite and the project", () => {
 		expect(process.env).toEqual(processEnvironmentBefore);
 	});
 
-	test("any other command line loads the provider keys from the injected config directory before it runs", async () => {
+	test("a verb that may call a model loads the provider keys from the injected config directory before it runs", async () => {
 		const configDirectory = await configDirectoryWithMalformedKeyFile();
 		const environment: Record<string, string | undefined> = {};
-		expect(
-			await main(["version"], {
+		// Outside any project `status` has nothing to report; what matters
+		// here is only that the keys were loaded on the way to it.
+		await main(["status"], {
+			cwd: configDirectory,
+			env: environment,
+			configDirectory,
+			stdin: async () => "",
+			stdout: () => {},
+		});
+		expect(environment).toEqual({ ANTHROPIC_API_KEY: "from-file" });
+	});
+
+	test("help, version and guide are answered before any key file is opened", async () => {
+		// Every provider's api.env is a FIFO: opening one for reading blocks
+		// until a writer comes, so a verb that reads the key files hangs.
+		// Afterwards, a non-blocking open for writing succeeds only when a
+		// reader is waiting on the FIFO — that is, only if it was opened.
+		const configDirectory = await mkdtemp(join(tmpdir(), "forge-keys-"));
+		const fifos: string[] = [];
+		for (const provider of ["anthropic", "google", "openai"]) {
+			await mkdir(join(configDirectory, provider));
+			const fifo = join(configDirectory, provider, "api.env");
+			expect(Bun.spawnSync(["mkfifo", fifo]).exitCode).toBe(0);
+			fifos.push(fifo);
+		}
+		/** The FIFOs some reader is blocked on, unblocking each one found. */
+		const openedFifos = async (): Promise<string[]> => {
+			const opened: string[] = [];
+			for (const fifo of fifos) {
+				const handle = await open(
+					fifo,
+					constants.O_WRONLY | constants.O_NONBLOCK,
+				).catch(() => null);
+				if (handle === null) continue;
+				opened.push(fifo);
+				await handle.write("\n");
+				await handle.close();
+			}
+			return opened;
+		};
+		for (const argv of [
+			["help"],
+			["version"],
+			["--version"],
+			["-V"],
+			["guide"],
+			["--suite", "evals/x", "version"],
+		]) {
+			const answered = main(argv, {
 				cwd: configDirectory,
-				env: environment,
+				env: {},
 				configDirectory,
 				stdin: async () => "",
 				stdout: () => {},
-			}),
-		).toBe(0);
-		expect(environment).toEqual({ ANTHROPIC_API_KEY: "from-file" });
+			});
+			const outcome = await Promise.race([
+				answered,
+				new Promise<string>((resolve) =>
+					setTimeout(() => resolve("still waiting"), 1000),
+				),
+			]);
+			const opened = await openedFifos();
+			expect({ argv, outcome, opened }).toEqual({
+				argv,
+				outcome: 0,
+				opened: [],
+			});
+			await answered;
+		}
 	});
 
 	test("describe -- --help and describe -- -h run describe with the flag as the text, in a valid project", async () => {
