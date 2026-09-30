@@ -142,27 +142,36 @@ const TargetSchema = z
 		/** An expression over `json` naming the part of the http response that is the output. */
 		response: z.string().optional(),
 	})
+	// Each issue's `code` is left as zod's "custom". Zod keeps whatever code it
+	// is given (probed with zod 4.6.5), and the forge reports an issue by its
+	// path and message alone (describeIssue in files.ts, and review.ts), never
+	// by its code, so an empty code reads the same to a person. Hence the
+	// StringLiteral disables below.
 	.superRefine((target, context) => {
 		if (target.kind === "exec" && target.command === undefined)
 			context.addIssue({
+				// Stryker disable next-line StringLiteral: the code is never read, see above.
 				code: "custom",
 				path: ["command"],
 				message: "target.command is required when target.kind is exec",
 			});
 		if (target.kind === "http" && target.url === undefined)
 			context.addIssue({
+				// Stryker disable next-line StringLiteral: the code is never read, see above.
 				code: "custom",
 				path: ["url"],
 				message: "target.url is required when target.kind is http",
 			});
 		if (target.url !== undefined && !/^https?:\/\//i.test(target.url))
 			context.addIssue({
+				// Stryker disable next-line StringLiteral: the code is never read, see above.
 				code: "custom",
 				path: ["url"],
 				message: "target.url must start with http:// or https://",
 			});
 		if (target.body === null)
 			context.addIssue({
+				// Stryker disable next-line StringLiteral: the code is never read, see above.
 				code: "custom",
 				path: ["body"],
 				message:
@@ -170,12 +179,14 @@ const TargetSchema = z
 			});
 		if (target.response !== undefined && target.response.trim() === "")
 			context.addIssue({
+				// Stryker disable next-line StringLiteral: the code is never read, see above.
 				code: "custom",
 				path: ["response"],
 				message: "target.response is empty",
 			});
 		if (target.response?.includes("=>"))
 			context.addIssue({
+				// Stryker disable next-line StringLiteral: the code is never read, see above.
 				code: "custom",
 				path: ["response"],
 				message: RESPONSE_FUNCTION_REFUSAL,

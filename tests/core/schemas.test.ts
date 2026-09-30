@@ -4,9 +4,25 @@ import {
 	CaseSchema,
 	FeatureSchema,
 	PricesSchema,
+	ProjectConfigSchema,
 	ScenarioSchema,
 	SuiteSchema,
 } from "../../src/core/schemas";
+import { RESPONSE_FUNCTION_REFUSAL } from "../../src/core/target";
+
+describe("ProjectConfigSchema", () => {
+	test("defaults may name several target models", () => {
+		const config = {
+			version: 1,
+			language: "python",
+			suites: [],
+			defaults: { target_models: ["anthropic/claude-haiku-4-5", "m/x"] },
+		} as const;
+		expect(
+			ProjectConfigSchema.parse(config).defaults.target_models,
+		).toStrictEqual(["anthropic/claude-haiku-4-5", "m/x"]);
+	});
+});
 
 const feature = {
 	id: "classify-email",
@@ -50,6 +66,31 @@ describe("FeatureSchema", () => {
 				output: { kind: "label", labels: ["a", "b"] },
 			}).success,
 		).toBe(true);
+	});
+	test("a label output without labels is refused with a message saying what is missing", () => {
+		const result = FeatureSchema.safeParse({
+			...feature,
+			output: { kind: "label" },
+		});
+		expect(
+			result.error?.issues.map((issue) => [
+				issue.path.join("."),
+				issue.message,
+			]),
+		).toStrictEqual([
+			["output", "output.kind 'label' requires a non-empty labels list"],
+		]);
+	});
+	test("a feature may take several inputs, a json one among them, and give text", () => {
+		const severalInputs = {
+			...feature,
+			inputs: [
+				{ name: "email", kind: "text" },
+				{ name: "application", kind: "json" },
+			],
+			output: { kind: "text" },
+		} satisfies Feature;
+		expect(FeatureSchema.parse(severalInputs)).toStrictEqual(severalInputs);
 	});
 });
 
@@ -178,6 +219,90 @@ describe("SuiteSchema.target.kind", () => {
 			}),
 		).toThrow("target.url must start with http:// or https://");
 	});
+	test("a target with several models, several judges and every optional field filled in parses as written", () => {
+		const judges = ["google/gemini-3.5-flash", "anthropic/claude-sonnet-5"];
+		const models = ["m/x", "m/y"];
+		const exec = SuiteSchema.parse({
+			target: { kind: "exec", models, command: "python run.py" },
+			judges,
+		});
+		expect(exec.target.models).toStrictEqual(models);
+		expect(exec.target.command).toBe("python run.py");
+		expect(exec.judges).toStrictEqual(judges);
+		const http = SuiteSchema.parse({
+			target: {
+				kind: "http",
+				models,
+				url: "https://localhost:1/classify",
+				method: "POST",
+				response: "json.output.label",
+			},
+			judges,
+		});
+		expect(http.target.method).toBe("POST");
+		expect(http.target.response).toBe("json.output.label");
+	});
+	test("each target refusal is reported at the field it is about", () => {
+		const judges = ["google/gemini-3.5-flash"];
+		const models = ["m/x"];
+		const refusals = (target: Record<string, unknown>) =>
+			SuiteSchema.safeParse({ target, judges }).error?.issues.map((issue) => [
+				issue.path.join("."),
+				issue.message,
+			]);
+		expect(refusals({ kind: "exec", models })).toStrictEqual([
+			["target.command", "target.command is required when target.kind is exec"],
+		]);
+		expect(refusals({ kind: "http", models })).toStrictEqual([
+			["target.url", "target.url is required when target.kind is http"],
+		]);
+		expect(
+			refusals({ kind: "http", models, url: "localhost:1/x" }),
+		).toStrictEqual([
+			["target.url", "target.url must start with http:// or https://"],
+		]);
+		expect(
+			refusals({
+				kind: "http",
+				models,
+				url: "http://localhost:1/x",
+				body: null,
+			}),
+		).toStrictEqual([
+			[
+				"target.body",
+				"target.body is null; remove the key to send one field per input",
+			],
+		]);
+		expect(
+			refusals({
+				kind: "http",
+				models,
+				url: "http://localhost:1/x",
+				response: " ",
+			}),
+		).toStrictEqual([["target.response", "target.response is empty"]]);
+		expect(
+			refusals({
+				kind: "http",
+				models,
+				url: "http://localhost:1/x",
+				response: "(json) => json.a",
+			}),
+		).toStrictEqual([["target.response", RESPONSE_FUNCTION_REFUSAL]]);
+	});
+	test("a url that only holds a scheme further along, not at its start, is refused", () => {
+		expect(() =>
+			SuiteSchema.parse({
+				target: {
+					kind: "http",
+					models: ["m/x"],
+					url: "www.example.com/login?next=https://example.com",
+				},
+				judges: ["google/gemini-3.5-flash"],
+			}),
+		).toThrow("target.url must start with http:// or https://");
+	});
 	test("the url scheme is matched without regard to case", () => {
 		const parsed = SuiteSchema.parse({
 			target: { kind: "http", models: ["m/x"], url: "HTTP://localhost:1/x" },
@@ -271,10 +396,29 @@ describe("PricesSchema", () => {
 		const result = PricesSchema.safeParse({ ...good, models: {} });
 		expect(result.success).toBe(false);
 	});
+	test("an empty models table is refused with a message saying so", () => {
+		expect(
+			PricesSchema.safeParse({ ...good, models: {} }).error?.issues.map(
+				(issue) => issue.message,
+			),
+		).toStrictEqual(["models must list at least one model"]);
+	});
+	test("a table with no sources reads as one with an empty source list", () => {
+		const { sources: _sources, ...withoutSources } = good;
+		expect(PricesSchema.parse(withoutSources).sources).toStrictEqual([]);
+	});
 	test("rejects an updated field that is not YYYY-MM-DD", () => {
 		expect(
 			PricesSchema.safeParse({ ...good, updated: "15/09/2026" }).success,
 		).toBe(false);
+	});
+	test("updated is the date alone: text before or after it is refused, and the message says the format", () => {
+		for (const updated of ["2026-09-15T10:00:00Z", "on 2026-09-15"])
+			expect(
+				PricesSchema.safeParse({ ...good, updated }).error?.issues.map(
+					(issue) => issue.message,
+				),
+			).toStrictEqual(["updated must be YYYY-MM-DD"]);
 	});
 	test("rejects a negative price", () => {
 		expect(
