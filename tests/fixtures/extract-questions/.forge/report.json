@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T11:29:26.728Z",
+  "generatedAt": "2026-09-30T11:38:44.601Z",
   "ranAt": "2026-09-25T14:48:00.200Z",
   "promptfooVersion": "0.123.0",
   "rows": 84,
@@ -699,6 +699,8 @@
       "outputTokens": 0,
       "realDollars": null,
       "estimatedDollars": 0.33507,
+      "estimatedLowDollars": 0.224493,
+      "estimatedHighDollars": 0.405348,
       "errorPercent": null,
       "approximatePrice": false
     },
@@ -709,6 +711,8 @@
       "outputTokens": 3539,
       "realDollars": 0.055818,
       "estimatedDollars": 0.051956,
+      "estimatedLowDollars": 0.02204,
+      "estimatedHighDollars": 0.08671,
       "errorPercent": 7.4,
       "approximatePrice": false
     }

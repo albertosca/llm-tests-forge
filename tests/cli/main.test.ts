@@ -29,6 +29,7 @@ import {
 	writeSuite,
 } from "../../src/core/files";
 import { readProject } from "../../src/core/project";
+import { ReportSchema } from "../../src/core/report";
 import { FORGE_VERSION } from "../../src/core/version";
 import { projectWith } from "../helpers/project";
 
@@ -4130,6 +4131,92 @@ describe("report", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["report", RESULTS], context)).toBe(1);
 		expect(out.at(-1)).toContain("pending");
+	});
+
+	/** A working copy of a frozen suite (its .forge, prompt.txt and results.json) to run report in. */
+	async function copyOfFrozenSuite(name: string): Promise<string> {
+		const cwd = await mkdtemp(join(tmpdir(), `forge-cli-${name}-`));
+		await cp(resolve("tests/fixtures", name), cwd, { recursive: true });
+		return cwd;
+	}
+
+	/** The error cell of each cost row in report.md, keyed by model. */
+	function errorCells(markdown: string): Map<string, string> {
+		const costTable = markdown.slice(markdown.indexOf("## Cost"));
+		const cells = new Map<string, string>();
+		for (const line of costTable.split("\n").slice(4)) {
+			if (!line.startsWith("| ")) break;
+			const columns = line.split(" | ");
+			cells.set(columns[0]?.slice(2) ?? "", columns.at(-1)?.slice(0, -2) ?? "");
+		}
+		return cells;
+	}
+
+	for (const [name, expected] of [
+		[
+			"classify-email",
+			{
+				"anthropic/claude-haiku-4-5": "within range",
+				"anthropic/claude-sonnet-5": "within range",
+			},
+		],
+		[
+			"extract-questions",
+			{
+				// The shim recorded no target usage: 0 is not within range.
+				"anthropic/claude-sonnet-4-6": "no recorded tokens",
+				"anthropic/claude-sonnet-5": "within range",
+			},
+		],
+	] as const)
+		test(`the committed ${name} run lands every priced line with recorded tokens within the estimated range`, async () => {
+			const cwd = await copyOfFrozenSuite(name);
+			const { context } = await ctxIn(cwd);
+			expect(await run(["report", join(cwd, "results.json")], context)).toBe(0);
+			const json = ReportSchema.parse(
+				JSON.parse(await readFile(join(cwd, ".forge", "report.json"), "utf8")),
+			);
+			for (const modelCost of json.costs) {
+				const low = modelCost.estimatedLowDollars;
+				const high = modelCost.estimatedHighDollars;
+				const real = modelCost.realDollars;
+				expect([modelCost.model, low === null, high === null]).toEqual([
+					modelCost.model,
+					false,
+					false,
+				]);
+				if (modelCost.inputTokens + modelCost.outputTokens === 0) continue;
+				expect({ model: modelCost.model, low, real, high }).toEqual({
+					model: modelCost.model,
+					low,
+					real: Math.min(Math.max(real ?? -1, low ?? 0), high ?? 0),
+					high,
+				});
+			}
+			expect(
+				Object.fromEntries(
+					errorCells(await readFile(join(cwd, ".forge", "report.md"), "utf8")),
+				),
+			).toEqual(expected);
+		});
+
+	test("the report.json the forge wrote before the estimate range loads as --baseline", async () => {
+		// The frozen classify-email report predates the range: its costs
+		// carry no estimatedLowDollars or estimatedHighDollars.
+		const cwd = await copyOfFrozenSuite("classify-email");
+		const previous = join(cwd, "previous.json");
+		await cp(join(cwd, ".forge", "report.json"), previous);
+		expect(await readFile(previous, "utf8")).not.toContain(
+			"estimatedLowDollars",
+		);
+		const { context, out } = await ctxIn(cwd);
+		expect(
+			await run(
+				["report", join(cwd, "results.json"), "--baseline", previous],
+				context,
+			),
+		).toBe(0);
+		expect(out).toContain("report: since baseline: 0 regressions, 0 fixed");
 	});
 
 	test("a baseline in the shape the previous version wrote is still accepted", async () => {

@@ -230,6 +230,53 @@ function perModel(report: Report): string[] {
 	];
 }
 
+type ModelCost = Report["costs"][number];
+
+/** A line's estimated range, or null for a line not estimated or a report older than the range. */
+function estimateRange(
+	modelCost: ModelCost,
+): { low: number; high: number } | null {
+	const { estimatedLowDollars: low, estimatedHighDollars: high } = modelCost;
+	return low === null || high === null ? null : { low, high };
+}
+
+function estimatedCell(modelCost: ModelCost): string {
+	const range = estimateRange(modelCost);
+	if (range !== null) return `${money(range.low)}–${money(range.high)}`;
+	return modelCost.estimatedDollars === null
+		? NONE
+		: money(modelCost.estimatedDollars);
+}
+
+/** How far outside the range a real figure sits, as a share of the nearer bound. */
+const outside = (distance: number, bound: number): string =>
+	`${((distance / bound) * 100).toFixed(1)}%`;
+
+/**
+ * Against a range, the real figure is either within it or a percentage past
+ * its nearer bound. A line whose real tokens are all 0 recorded nothing to
+ * compare — a shim that never reported usage, a judge promptfoo never
+ * counted — and a range starting near $0 would otherwise call that zero
+ * "within range". A report written before the range keeps the signed
+ * percentage against its point estimate.
+ */
+function errorCell(modelCost: ModelCost): string {
+	const range = estimateRange(modelCost);
+	if (range === null)
+		return modelCost.errorPercent === null
+			? NONE
+			: signed(modelCost.errorPercent);
+	if (modelCost.inputTokens === 0 && modelCost.outputTokens === 0)
+		return "no recorded tokens";
+	const real = modelCost.realDollars;
+	if (real === null) return NONE;
+	if (real < range.low) return `−${outside(range.low - real, range.low)} below`;
+	if (real <= range.high) return "within range";
+	return range.high === 0
+		? "above range"
+		: `+${outside(real - range.high, range.high)} above`;
+}
+
 function cost(report: Report): string[] {
 	const out = [
 		"## Cost",
@@ -242,10 +289,8 @@ function cost(report: Report): string[] {
 				String(modelCost.inputTokens),
 				String(modelCost.outputTokens),
 				modelCost.realDollars === null ? NONE : money(modelCost.realDollars),
-				modelCost.estimatedDollars === null
-					? NONE
-					: money(modelCost.estimatedDollars),
-				modelCost.errorPercent === null ? NONE : signed(modelCost.errorPercent),
+				estimatedCell(modelCost),
+				errorCell(modelCost),
 			]),
 		),
 		"",

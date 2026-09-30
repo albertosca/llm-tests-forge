@@ -204,6 +204,8 @@ describe("buildReport", () => {
 				// priced as anything -- not even approximately.
 				realDollars: null,
 				estimatedDollars: null,
+				estimatedLowDollars: null,
+				estimatedHighDollars: null,
 				errorPercent: null,
 				approximatePrice: false,
 			},
@@ -214,6 +216,8 @@ describe("buildReport", () => {
 				outputTokens: 55 + 243 + (72 + 272),
 				realDollars: 0.001763,
 				estimatedDollars: null,
+				estimatedLowDollars: null,
+				estimatedHighDollars: null,
 				errorPercent: null,
 				approximatePrice: false,
 			},
@@ -859,6 +863,8 @@ describe("buildReport", () => {
 				outputTokens: 80,
 				realDollars: 0.001,
 				estimatedDollars: null,
+				estimatedLowDollars: null,
+				estimatedHighDollars: null,
 				errorPercent: null,
 				approximatePrice: false,
 			},
@@ -936,12 +942,16 @@ describe("buildReport", () => {
 			{ estimate },
 		);
 		expect(report.costs[0]?.estimatedDollars).toBe(0.0005);
+		expect(report.costs[0]?.estimatedLowDollars).toBe(0.0003);
+		expect(report.costs[0]?.estimatedHighDollars).toBe(0.0008);
 		expect(report.costs[0]?.errorPercent).toBe(100);
 
 		const other = build([row({ case: "a-01", model: "m", cost: 0.001 })], {
 			estimate,
 		});
 		expect(other.costs[0]?.estimatedDollars).toBeNull();
+		expect(other.costs[0]?.estimatedLowDollars).toBeNull();
+		expect(other.costs[0]?.estimatedHighDollars).toBeNull();
 		expect(other.costs[0]?.errorPercent).toBeNull();
 	});
 
@@ -988,7 +998,32 @@ describe("buildReport", () => {
 			{ estimate },
 		);
 		expect(report.costs[0]?.estimatedDollars).toBeNull();
+		expect(report.costs[0]?.estimatedLowDollars).toBeNull();
+		expect(report.costs[0]?.estimatedHighDollars).toBeNull();
 		expect(report.costs[0]?.errorPercent).toBeNull();
+	});
+
+	test("a report.json written before the estimate range still loads as a baseline, its range null", async () => {
+		// The frozen classify-email report was written by the forge before
+		// the range existed: its costs carry only `estimatedDollars`.
+		const data = JSON.parse(
+			await readFile(
+				resolve("tests/fixtures/classify-email/.forge/report.json"),
+				"utf8",
+			),
+		);
+		expect(data.costs[0]).not.toHaveProperty("estimatedLowDollars");
+		const parsed = ReportSchema.parse(data);
+		expect(
+			parsed.costs.map((modelCost) => [
+				modelCost.estimatedDollars,
+				modelCost.estimatedLowDollars,
+				modelCost.estimatedHighDollars,
+			]),
+		).toEqual([
+			[0.051836, null, null],
+			[0.014808, null, null],
+		]);
 	});
 
 	test("an estimate of zero dollars gives no error percent to divide by", () => {

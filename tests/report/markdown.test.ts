@@ -90,6 +90,8 @@ const REPORT: Report = {
 			outputTokens: 80,
 			realDollars: 0.001,
 			estimatedDollars: 0.0005,
+			estimatedLowDollars: 0.0003,
+			estimatedHighDollars: 0.0008,
 			errorPercent: 100,
 			approximatePrice: false,
 		},
@@ -100,6 +102,8 @@ const REPORT: Report = {
 			outputTokens: 642,
 			realDollars: 0.001763,
 			estimatedDollars: null,
+			estimatedLowDollars: null,
+			estimatedHighDollars: null,
 			errorPercent: null,
 			approximatePrice: true,
 		},
@@ -225,7 +229,7 @@ describe("renderReportMarkdown", () => {
 		const markdown = lines(REPORT);
 		expect(markdown).toContain("## Cost");
 		expect(markdown).toContain(
-			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.001000 | $0.000500 | +100.0% |",
+			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.001000 | $0.000300–$0.000800 | +25.0% above |",
 		);
 		expect(markdown).toContain(
 			"| google/gemini-3.5-flash ~ | judge | 526 | 642 | $0.001763 | — | — |",
@@ -364,13 +368,15 @@ describe("renderReportMarkdown", () => {
 					outputTokens: 0,
 					realDollars: null,
 					estimatedDollars: 0.051836,
+					estimatedLowDollars: 0.03,
+					estimatedHighDollars: 0.07,
 					errorPercent: null,
 					approximatePrice: false,
 				},
 			],
 		});
 		expect(markdown).toContain(
-			"| anthropic/claude-haiku-4-5 | target | 0 | 0 | — | $0.051836 | — |",
+			"| anthropic/claude-haiku-4-5 | target | 0 | 0 | — | $0.030000–$0.070000 | no recorded tokens |",
 		);
 		expect(markdown).toContain(
 			"Target usage: not reported by the shim — target rows show 0 tokens; return tokenUsage from forge_target.py to fill this table",
@@ -458,6 +464,8 @@ describe("renderReportMarkdown", () => {
 					outputTokens: 0,
 					realDollars: 0,
 					estimatedDollars: null,
+					estimatedLowDollars: null,
+					estimatedHighDollars: null,
 					errorPercent: null,
 					approximatePrice: true,
 				},
@@ -474,8 +482,11 @@ describe("renderReportMarkdown", () => {
 		expect(lines(REPORT)).not.toContain("## Per model");
 	});
 
-	test("an error percent below the estimate keeps its sign", () => {
-		const markdown = lines({
+	/** The cost row one target line renders as, given its dollar figures and tokens. */
+	const costRow = (
+		figures: Partial<Report["costs"][number]>,
+	): string | undefined =>
+		lines({
 			...REPORT,
 			costs: [
 				{
@@ -483,15 +494,74 @@ describe("renderReportMarkdown", () => {
 					role: "target",
 					inputTokens: 400,
 					outputTokens: 80,
-					realDollars: 0.00025,
+					realDollars: 0.0005,
 					estimatedDollars: 0.0005,
-					errorPercent: -50,
+					estimatedLowDollars: 0.0003,
+					estimatedHighDollars: 0.0008,
+					errorPercent: 0,
 					approximatePrice: false,
+					...figures,
 				},
 			],
-		});
-		expect(markdown).toContain(
+		}).find((line) => line.startsWith("| anthropic/claude-haiku-4-5 |"));
+
+	test("a real cost inside the estimated range, bounds included, says within range", () => {
+		for (const realDollars of [0.0003, 0.0005, 0.0008])
+			expect(costRow({ realDollars })).toBe(
+				`| anthropic/claude-haiku-4-5 | target | 400 | 80 | $${realDollars.toFixed(6)} | $0.000300–$0.000800 | within range |`,
+			);
+	});
+
+	test("a real cost below the range says how far below its low bound, with a minus sign", () => {
+		expect(costRow({ realDollars: 0.00025 })).toBe(
+			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.000250 | $0.000300–$0.000800 | −16.7% below |",
+		);
+	});
+
+	test("a real cost above a range of zero cannot be a percentage of it", () => {
+		expect(
+			costRow({
+				realDollars: 0.0001,
+				estimatedDollars: 0,
+				estimatedLowDollars: 0,
+				estimatedHighDollars: 0,
+			}),
+		).toBe(
+			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.000100 | $0.000000–$0.000000 | above range |",
+		);
+	});
+
+	test("a priced line with no recorded tokens never claims within range, even with a real figure", () => {
+		// A judge whose tokens promptfoo never recorded prices to $0, which
+		// a range starting at $0 would otherwise call within range.
+		expect(
+			costRow({
+				inputTokens: 0,
+				outputTokens: 0,
+				realDollars: 0,
+				estimatedLowDollars: 0,
+			}),
+		).toBe(
+			"| anthropic/claude-haiku-4-5 | target | 0 | 0 | $0.000000 | $0.000000–$0.000800 | no recorded tokens |",
+		);
+	});
+
+	test("a report written before the range keeps its point estimate and its signed error", () => {
+		expect(
+			costRow({
+				realDollars: 0.00025,
+				estimatedLowDollars: null,
+				estimatedHighDollars: null,
+				errorPercent: -50,
+			}),
+		).toBe(
 			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.000250 | $0.000500 | -50.0% |",
+		);
+	});
+
+	test("a range with no real figure to compare says nothing about it", () => {
+		expect(costRow({ realDollars: null })).toBe(
+			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | — | $0.000300–$0.000800 | — |",
 		);
 	});
 	test("a case whose id contains ` @ ` is listed once, in the table its stability names", () => {

@@ -64,7 +64,16 @@ export const ModelCostSchema = z.object({
 	outputTokens: z.number(),
 	/** Null when the target never reported usage: no figure exists, and 0 would read as free. */
 	realDollars: z.number().nullable(),
+	/** The estimate's point figure; null when the line was not estimated or not priced. */
 	estimatedDollars: z.number().nullable(),
+	/**
+	 * The estimate's calibrated range around the point. Null on the same
+	 * lines as `estimatedDollars`, and defaulted to null so a `report.json`
+	 * written before the range existed still loads as a `--baseline`.
+	 */
+	estimatedLowDollars: z.number().nullable().default(null),
+	estimatedHighDollars: z.number().nullable().default(null),
+	/** Real against the point estimate, in percent. */
 	errorPercent: z.number().nullable(),
 	approximatePrice: z.boolean(),
 });
@@ -499,6 +508,12 @@ function costLine(parameters: {
 		// rather than pricing the model at nothing.
 		estimatedDollars: matchingLine?.priced
 			? round(matchingLine.dollars, 6)
+			: null,
+		estimatedLowDollars: matchingLine?.priced
+			? round(matchingLine.dollarsLow, 6)
+			: null,
+		estimatedHighDollars: matchingLine?.priced
+			? round(matchingLine.dollarsHigh, 6)
 			: null,
 		errorPercent:
 			realDollars !== null && matchingLine && matchingLine.dollars > 0
