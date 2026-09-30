@@ -22,6 +22,7 @@ const REPOSITORY = resolve(import.meta.dir, "../..");
 const RELEASE_WORKFLOW = join(REPOSITORY, ".github/workflows/release.yml");
 const LINT_WORKFLOW = join(REPOSITORY, ".github/workflows/lint.yml");
 const CI_WORKFLOW = join(REPOSITORY, ".github/workflows/ci.yml");
+const MUTATION_WORKFLOW = join(REPOSITORY, ".github/workflows/mutation.yml");
 
 const StepSchema = z.object({
 	name: z.string().optional(),
@@ -772,9 +773,62 @@ describe("the Ruby lint in CI", () => {
 	});
 });
 
+describe("the mutation workflow", () => {
+	const TriggersSchema = z.object({
+		workflow_dispatch: z.unknown(),
+		schedule: z.array(z.object({ cron: z.string() })),
+		pull_request: z.object({ paths: z.array(z.string()) }),
+	});
+
+	test("it runs on demand, weekly, and on pull requests touching the core, its tests or the Stryker config", async () => {
+		const mutation = await readWorkflow(MUTATION_WORKFLOW);
+		const triggers = TriggersSchema.parse(mutation.on);
+		expect(Object.keys(triggers).sort()).toEqual([
+			"pull_request",
+			"schedule",
+			"workflow_dispatch",
+		]);
+		expect(triggers.schedule).toHaveLength(1);
+		expect(triggers.pull_request.paths).toEqual([
+			"src/core/**",
+			"tests/core/**",
+			"stryker.config.mjs",
+		]);
+	});
+
+	test("its one job installs from the lockfile with bun and node, runs bun run mutation, and uploads reports/mutation/", async () => {
+		const mutation = await readWorkflow(MUTATION_WORKFLOW);
+		expect(mutation.permissions).toEqual({ contents: "read" });
+		const jobs = Object.values(mutation.jobs);
+		expect(jobs).toHaveLength(1);
+		const steps = jobs[0]?.steps ?? [];
+		expect(steps.map((step) => step.uses ?? step.run)).toEqual([
+			"actions/checkout@v4",
+			"oven-sh/setup-bun@v2",
+			"actions/setup-node@v4",
+			"bun install --frozen-lockfile",
+			"bun run mutation",
+			"actions/upload-artifact@v4",
+		]);
+		expect(steps[1]?.with).toEqual({ "bun-version": "1.4.2" });
+		expect(steps[5]?.with).toEqual({
+			name: "mutation-report",
+			path: "reports/mutation/",
+		});
+	});
+
+	test("the mutation script is stryker run, and never part of check", async () => {
+		const manifest = JSON.parse(
+			await readFile(join(REPOSITORY, "package.json"), "utf8"),
+		);
+		expect(manifest.scripts.mutation).toBe("stryker run");
+		expect(manifest.scripts.check).not.toContain("mutation");
+	});
+});
+
 const actionlint = Bun.which("actionlint");
 test.skipIf(actionlint === null)(
-	`actionlint accepts release.yml, lint.yml and ci.yml${actionlint === null ? " (skipped: actionlint is not installed on this machine)" : ""}`,
+	`actionlint accepts release.yml, lint.yml, ci.yml and mutation.yml${actionlint === null ? " (skipped: actionlint is not installed on this machine)" : ""}`,
 	() => {
 		const child = Bun.spawnSync(
 			[
@@ -782,6 +836,7 @@ test.skipIf(actionlint === null)(
 				RELEASE_WORKFLOW,
 				LINT_WORKFLOW,
 				CI_WORKFLOW,
+				MUTATION_WORKFLOW,
 			],
 			{ cwd: REPOSITORY },
 		);
