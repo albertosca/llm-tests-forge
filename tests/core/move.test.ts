@@ -432,4 +432,83 @@ describe("moveCase", () => {
 			'case "old-01" is already in scenario "old" (id: old-01)',
 		);
 	});
+
+	test("an edited case is a review given, re-opened like an approved one when the destination's oracle refuses its expected", () => {
+		const result = moveCase({
+			caseId: "old-01",
+			from,
+			to: makeScenario("dest", "rubric"),
+			fromCases: [makeCase("old-01", "old", { status: "edited" })],
+			toCases: [],
+			feature,
+		});
+		expect(result.reopened).toBe(
+			"oracle is rubric but expected.rubric is missing",
+		);
+		expect(result.moved.status).toBe("pending");
+	});
+
+	test("an approved case with no expected has nothing to re-check, and stays approved", () => {
+		const result = moveCase({
+			caseId: "old-01",
+			from,
+			to: makeScenario("dest", "rubric"),
+			fromCases: [makeCase("old-01", "old", { expected: undefined })],
+			toCases: [],
+			feature,
+		});
+		expect(result.reopened).toBeNull();
+		expect(result.moved.status).toBe("approved");
+	});
+
+	test("a sibling pointing at another case keeps its duplicate_of when a different case moves", () => {
+		const result = moveCase({
+			caseId: "old-02",
+			from,
+			to: destination,
+			fromCases: [
+				makeCase("old-01", "old"),
+				makeCase("old-02", "old"),
+				makeCase("old-03", "old", { duplicate_of: "old-01" }),
+			],
+			toCases: [],
+			feature,
+		});
+		expect(result.fromCases[1]).toStrictEqual(
+			makeCase("old-03", "old", { duplicate_of: "old-01" }),
+		);
+	});
+});
+
+describe("renameScenario: what is renumbered and what points where", () => {
+	test("only the scenario's own cases are renumbered: a foreign case carrying the prefix is not reported", () => {
+		const result = renameScenario({
+			from: "old",
+			to: "new",
+			scenarios: [makeScenario("old"), makeScenario("elsewhere")],
+			cases: [makeCase("old-01", "old"), makeCase("old-02", "elsewhere")],
+			suite: null,
+		});
+		expect([...result.renamedIds]).toStrictEqual([["old-01", "new-01"]]);
+	});
+
+	test("a duplicate_of naming a case that keeps its hand-written id keeps pointing at it", () => {
+		const result = renameScenario({
+			from: "old",
+			to: "new",
+			scenarios: [makeScenario("old")],
+			cases: [
+				makeCase("hand", "old"),
+				makeCase("old-01", "old", { duplicate_of: "hand" }),
+			],
+			suite: null,
+		});
+		expect(result.cases).toStrictEqual([
+			makeCase("hand", "new"),
+			makeCase("new-01", "new", {
+				input: { email: "old-01" },
+				duplicate_of: "hand",
+			}),
+		]);
+	});
 });

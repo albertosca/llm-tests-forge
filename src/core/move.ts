@@ -86,6 +86,9 @@ export function renameScenario(
 				{ id: oldId },
 			);
 	}
+	// Read through a view whose keys may be undefined: a case with no
+	// duplicate_of then looks up undefined, which the map never holds.
+	const renamedPointers: ReadonlyMap<string | undefined, string> = renamedIds;
 	const cases = request.cases.map((kase) => {
 		if (kase.scenario !== from) return kase;
 		const next = {
@@ -93,10 +96,7 @@ export function renameScenario(
 			scenario: destination,
 			id: renamedIds.get(kase.id) ?? kase.id,
 		};
-		const pointer =
-			kase.duplicate_of === undefined
-				? undefined
-				: renamedIds.get(kase.duplicate_of);
+		const pointer = renamedPointers.get(kase.duplicate_of);
 		return pointer === undefined ? next : { ...next, duplicate_of: pointer };
 	});
 	const nextSuite =
