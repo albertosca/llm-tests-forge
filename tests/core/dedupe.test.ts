@@ -83,4 +83,51 @@ describe("dedupeCases", () => {
 		expect(calls).toBe(0);
 		expect(out).toEqual([makeCase("s-01")]);
 	});
+
+	test("two cases are enough to ask: the model reads each id, input and expected, a long input on one line", async () => {
+		const prompts: string[] = [];
+		const recording: Llm = {
+			async generate(request) {
+				prompts.push(request.prompt);
+				return {
+					object: request.schema.parse({
+						duplicates: [{ id: "s-02", duplicate_of: "s-01" }],
+					}),
+					usage: { inputTokens: 0, outputTokens: 0 },
+				};
+			},
+		};
+		const long = Array(3)
+			.fill("a long email body that runs past any line width")
+			.join(" ");
+		const cases = [
+			{ ...makeCase("s-01"), input: { email: long } },
+			makeCase("s-02"),
+		];
+		const out = await dedupeCases({
+			cases,
+			model: "anthropic/x",
+			llm: recording,
+		});
+		expect(out.map((deduped) => deduped.duplicate_of)).toStrictEqual([
+			undefined,
+			"s-01",
+		]);
+		expect(prompts).toHaveLength(1);
+		expect(prompts[0]).toContain(
+			[
+				"<cases>",
+				"- id: s-01",
+				"  input:",
+				`    email: ${long}`,
+				"  expected:",
+				"    label: x",
+				"- id: s-02",
+				"  input:",
+				"    email: s-02",
+				"  expected:",
+				"    label: x",
+			].join("\n"),
+		);
+	});
 });

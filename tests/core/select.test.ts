@@ -114,6 +114,8 @@ describe("selectCases", () => {
 		expect(selection.blockers).toEqual([
 			"case a-01 has no expected (/p/.forge/cases/a.yaml)",
 		]);
+		// The review prompt asks for the missing expected.
+		expect(selection.reviewable).toBe(1);
 	});
 	test("include narrows to the named scenarios, in include order", () => {
 		const selection = selectCases({
@@ -231,6 +233,17 @@ describe("selectCases", () => {
 			feature,
 		});
 		expect(pending.reviewable).toBe(1);
+		const pendingScenario = selectCases({
+			suite: suite(["a"]),
+			scenarios: [scenario("a", "pending")],
+			casesByScenario: new Map(),
+			paths,
+			feature,
+		});
+		expect(pendingScenario.blockers).toEqual([
+			"scenario a is pending (/p/.forge/scenarios.yaml)",
+		]);
+		expect(pendingScenario.reviewable).toBe(1);
 		const rejected = selectCases({
 			suite: suite(["a"]),
 			scenarios: [scenario("a", "rejected")],

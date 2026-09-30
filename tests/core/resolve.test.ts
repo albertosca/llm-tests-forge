@@ -70,10 +70,13 @@ describe("resolveSuite", () => {
 		);
 	});
 
-	test("--suite with no forge.yaml above is a usage error", async () => {
+	test("--suite with no forge.yaml above is a usage error that says where it looked", async () => {
 		const outside = await mkdtemp(join(tmpdir(), "forge-outside-"));
 		await expect(
 			resolveSuite({ cwd: outside, suite: "x" }),
 		).rejects.toBeInstanceOf(UsageError);
+		await expect(resolveSuite({ cwd: outside, suite: "x" })).rejects.toThrow(
+			`--suite needs a forge.yaml; none found above ${outside}`,
+		);
 	});
 });
