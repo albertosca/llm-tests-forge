@@ -232,6 +232,36 @@ describe("upsertAgentsBlock", () => {
 		expect(upsertAgentsBlock("AGENTS.md", "  ")).toBe(`${block}\n`);
 		expect(planAgentsBlock("AGENTS.md", " \r\n").replaced).toBe(false);
 	});
+	test("a pair in a blockquote is replaced in place with the quote prefix on every line, and a second run changes nothing", () => {
+		const prefixed = (prefix: string, ending: string) =>
+			block
+				.split("\n")
+				.map((line) => `${prefix}${line}`)
+				.join(ending);
+		const existing = `Intro.\n\n> ${AGENTS_START}\n> old\n> ${AGENTS_END}\n\nAfter.\n`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`Intro.\n\n${prefixed("> ", "\n")}\n\nAfter.\n`);
+		expect(upsertAgentsBlock("AGENTS.md", planned.text)).toBe(planned.text);
+		// Nested, indented, without a space, and CRLF.
+		const nested = `  > >${AGENTS_START}\r\n  > >${AGENTS_END}\r\n`;
+		const once = upsertAgentsBlock("AGENTS.md", nested);
+		expect(once).toBe(`${prefixed("  > >", "\r\n")}\r\n`);
+		expect(upsertAgentsBlock("AGENTS.md", once)).toBe(once);
+	});
+	test("a pair whose markers stand at different blockquote depths is refused, naming both lines", () => {
+		expect(() =>
+			upsertAgentsBlock("AGENTS.md", `> ${AGENTS_START}\nold\n${AGENTS_END}\n`),
+		).toThrow(
+			"AGENTS.md line 3 closes the llm-tests-forge block opened on line 1 at a different blockquote depth",
+		);
+	});
+	test("markers inside a fence inside a blockquote are quoted text, not the block", () => {
+		const existing = `> \`\`\`\n> ${AGENTS_START}\n> ${AGENTS_END}\n> \`\`\`\n`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(false);
+		expect(planned.text).toBe(`${existing}\n${block}\n`);
+	});
 	test("the block says the project uses llm-tests-forge and points at status and guide", () => {
 		expect(block).toStartWith(AGENTS_START);
 		expect(block).toEndWith(AGENTS_END);

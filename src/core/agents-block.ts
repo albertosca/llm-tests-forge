@@ -35,11 +35,25 @@ interface Fence {
 	length: number;
 }
 
-/** A code fence opener or closer: three or more backticks or tildes, indented at most three spaces (four is indented code). */
+/** The spaces, tabs and `>` before a marker: its indentation and blockquote prefix. */
+function markerPrefix(line: string): string {
+	return /^[ \t>]*/.exec(line)?.[0] ?? "";
+}
+
+/** How many blockquotes deep a marker with this prefix stands. */
+function quoteDepth(prefix: string): number {
+	return prefix.split(">").length - 1;
+}
+
+/**
+ * A code fence opener or closer: three or more backticks or tildes, indented
+ * at most three spaces (four is indented code), inside any blockquotes.
+ */
 function fenceOf(
 	line: string,
 ): { character: string; length: number; rest: string } | null {
-	const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line.replace(/\r$/, ""));
+	const unquoted = line.replace(/\r$/, "").replace(/^(?: {0,3}> ?)*/, "");
+	const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(unquoted);
 	const run = match?.[1];
 	if (match === null || run === undefined) return null;
 	return { character: run.charAt(0), length: run.length, rest: match[2] ?? "" };
@@ -86,6 +100,7 @@ function unclosedFenceStart(lines: string[]): number | null {
 function findBlocks(file: string, lines: string[]): MarkedBlock[] {
 	const blocks: MarkedBlock[] = [];
 	let openAt: number | null = null;
+	let openDepth = 0;
 	let fence: Fence | null = null;
 	const honorFencesBefore = unclosedFenceStart(lines) ?? lines.length;
 	for (const [index, line] of lines.entries()) {
@@ -94,14 +109,20 @@ function findBlocks(file: string, lines: string[]): MarkedBlock[] {
 			fence = nextFence(fence, line);
 			if (before !== null || fence !== null) continue;
 		}
-		const marker = line.trim();
+		const prefix = markerPrefix(line);
+		const marker = line.slice(prefix.length).trim();
 		if (marker === AGENTS_START) {
 			if (openAt !== null) break;
 			openAt = index;
+			openDepth = quoteDepth(prefix);
 		} else if (marker === AGENTS_END) {
 			if (openAt === null)
 				throw new ForgeError(
 					`${file} line ${index + 1} closes an llm-tests-forge block that was never opened`,
+				);
+			if (quoteDepth(prefix) !== openDepth)
+				throw new ForgeError(
+					`${file} line ${index + 1} closes the llm-tests-forge block opened on line ${openAt + 1} at a different blockquote depth`,
 				);
 			blocks.push({ startIndex: openAt, endIndex: index });
 			openAt = null;
@@ -120,7 +141,7 @@ function findBlocks(file: string, lines: string[]): MarkedBlock[] {
  * replaced in place when it has exactly one. `replaced` says whether a real
  * marker pair was found. The file's own line endings (LF or CRLF) are kept,
  * in the block too, and a replaced block keeps the start marker's
- * indentation on every line. Pure.
+ * indentation and blockquote prefix on every line. Pure.
  */
 export function planAgentsBlock(
 	file: string,
@@ -153,16 +174,13 @@ export function planAgentsBlock(
 	const startLine = lines[only.startIndex] ?? "";
 	const startCarriage = startLine.endsWith("\r") ? "\r" : "";
 	const endCarriage = lines[only.endIndex]?.endsWith("\r") ? "\r" : "";
-	// A pair under a list item, or in indented code, stays there: every
-	// line of the block takes the start marker's leading whitespace.
-	const indentation = startLine.slice(
-		0,
-		startLine.length - startLine.trimStart().length,
-	);
+	// A pair under a list item, in indented code or in a blockquote stays
+	// there: every line of the block takes the start marker's prefix.
+	const prefix = markerPrefix(startLine);
 	const blockLines = block.split("\n");
 	const replacement = blockLines.map(
 		(line, position) =>
-			indentation +
+			prefix +
 			line +
 			(position < blockLines.length - 1 ? startCarriage : endCarriage),
 	);
