@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import {
 	chmod,
 	lstat,
@@ -26,6 +26,8 @@ import {
 	readScenarios,
 	readSuite,
 	readYamlFile,
+	removeFile,
+	rewriteSuiteInclude,
 	stampSuite,
 	suiteExample,
 	writeCases,
@@ -405,7 +407,9 @@ describe("readYamlFile: the real cause of a read failure", () => {
 				(error: Error) => error,
 			);
 			await chmod(target, 0o600);
-			expect((caught as Error).message).toContain("permission denied");
+			expect((caught as Error).message).toBe(
+				`permission denied (file: ${target})`,
+			);
 		},
 	);
 	test("a missing file still says 'file not found'", async () => {
@@ -580,7 +584,9 @@ describe("writeText: a write is all or nothing", () => {
 		// half a file behind.
 		const dyingHalfWay = async (target: string, text: string) => {
 			await writeFile(target, text.slice(0, text.length / 2));
-			throw new Error("ENOSPC: no space left on device");
+			throw Object.assign(new Error("ENOSPC: no space left on device"), {
+				code: "ENOSPC",
+			});
 		};
 		let caught: unknown;
 		try {
@@ -740,5 +746,304 @@ describe("writeText: a write is all or nothing", () => {
 		await writeText(path, "x: 1\n");
 		expect(await readFile(path, "utf8")).toBe("x: 1\n");
 		expect(await readdir(join(directory, "cases"))).toEqual(["new.yaml"]);
+	});
+
+	test("a failure after the temporary file holds the text is never retried in place: the file keeps its old text, and the message names both files as the OS did", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "cases.yaml");
+		await writeFile(path, ORIGINAL);
+		let temporaryPath = "";
+		// A rename the filesystem refuses once the text is safely in the
+		// temporary file: writing in place now would give up all or nothing.
+		const renameRefused = async (temporary: string) => {
+			temporaryPath = temporary;
+			throw Object.assign(
+				new Error(
+					`EACCES: permission denied, rename '${temporary}' -> '${path}'`,
+				),
+				{ code: "EACCES" },
+			);
+		};
+		const caught = await writeText(path, "x: 1\n", {
+			afterTemporaryWritten: renameRefused,
+		}).catch((error: unknown) => error);
+		expect((caught as ForgeError).message).toBe(
+			`cannot write: EACCES: permission denied, rename '${temporaryPath}' -> '${path}' (file: ${path})`,
+		);
+		expect(await readFile(path, "utf8")).toBe(ORIGINAL);
+		expect(await readdir(directory)).toEqual(["cases.yaml"]);
+	});
+
+	test("a new file whose temporary copy is refused half-way is never written in place: nothing is left", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "new.yaml");
+		const refusedHalfWay = async (target: string, text: string) => {
+			await writeFile(target, text.slice(0, text.length / 2));
+			throw Object.assign(new Error("EACCES: permission denied, write"), {
+				code: "EACCES",
+			});
+		};
+		await expect(
+			writeText(path, "id: s-01\nstatus: rejected\n", {
+				writeContent: refusedHalfWay,
+			}),
+		).rejects.toThrow(
+			`cannot write: EACCES: permission denied, write (file: ${path})`,
+		);
+		expect(await readdir(directory)).toEqual([]);
+	});
+
+	test("a directory that refuses new files with EPERM, as some filesystems word it, still has its existing file rewritten in place", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "cases.yaml");
+		await writeFile(path, ORIGINAL);
+		const newFilesRefused = async (
+			target: string,
+			text: string,
+			mode: number | undefined,
+		) => {
+			if (target !== path)
+				throw Object.assign(
+					new Error(`EPERM: operation not permitted, open '${target}'`),
+					{ code: "EPERM" },
+				);
+			await writeFile(target, text, { mode });
+		};
+		await writeText(path, "x: 1\n", { writeContent: newFilesRefused });
+		expect(await readFile(path, "utf8")).toBe("x: 1\n");
+		expect(await readdir(directory)).toEqual(["cases.yaml"]);
+	});
+
+	test("the replaced file keeps permissions the umask would have narrowed", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "cases.yaml");
+		await writeFile(path, ORIGINAL);
+		await chmod(path, 0o666);
+		const previousUmask = process.umask(0o022);
+		try {
+			await writeText(path, "x: 1\n");
+		} finally {
+			process.umask(previousUmask);
+		}
+		expect((await stat(path)).mode & 0o777).toBe(0o666);
+	});
+});
+
+describe("readFailure: every cause in the person's words", () => {
+	test("EACCES and EPERM both read as permission denied, whatever the OS message says", () => {
+		expect(
+			readFailure(
+				Object.assign(new Error("EACCES: permission denied, open 'a'"), {
+					code: "EACCES",
+				}),
+			),
+		).toBe("permission denied");
+		expect(
+			readFailure(
+				Object.assign(new Error("EPERM: operation not permitted, open 'a'"), {
+					code: "EPERM",
+				}),
+			),
+		).toBe("permission denied");
+	});
+
+	test("a thrown value that is not an Error is quoted as it is, never read as undefined", () => {
+		expect(readFailure("the disk went away")).toBe(
+			"cannot read: the disk went away",
+		);
+		expect(readFailure(null)).toBe("cannot read: null");
+	});
+});
+
+describe("readYamlFile: every problem in a list is named", () => {
+	test("an item with an id is named by it with the path inside it, one with none by its index, one after another", async () => {
+		const forgeDirectory = await tmpForge();
+		await mkdir(join(forgeDirectory, "cases"), { recursive: true });
+		const path = join(forgeDirectory, "cases", "c.yaml");
+		await writeFile(
+			path,
+			"- id: c-01\n  scenario: c\n  input: {email: 3}\n  expected: {label: a, rubric: b}\n  status: pending\n  generated_by: t\n-\n- just text\n",
+		);
+		await expect(readCases(forgeDirectory, "c")).rejects.toThrow(
+			`does not match schema: item "c-01" (index 0).input.email: Invalid input: expected string, received number; item "c-01" (index 0).expected: expected must carry exactly one of label, fields, rubric; 1: Invalid input: expected object, received null; 2: Invalid input: expected object, received string (file: ${path})`,
+		);
+	});
+
+	test("an item whose id is not text is named by its index, never by that id", async () => {
+		const forgeDirectory = await tmpForge();
+		await mkdir(forgeDirectory, { recursive: true });
+		const path = forgePaths(forgeDirectory).scenarios;
+		await writeFile(
+			path,
+			"- id: 7\n  kind: happy\n  oracle: label\n  description: a\n  status: weird\n",
+		);
+		await expect(readScenarios(forgeDirectory)).rejects.toThrow(
+			`does not match schema: 0.id: Invalid input: expected string, received number; 0.status: Invalid option: expected one of "pending"|"approved"|"rejected"|"edited" (file: ${path})`,
+		);
+	});
+});
+
+describe("files the forge writes and lists", () => {
+	test("a long description is written on one line, never folded", async () => {
+		const forgeDirectory = await tmpForge();
+		const description = `A reply that ${"politely ".repeat(12)}declines the offer.`;
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "s",
+				kind: "happy",
+				oracle: "label",
+				description,
+				status: "pending",
+			},
+		]);
+		expect(
+			await readFile(forgePaths(forgeDirectory).scenarios, "utf8"),
+		).toContain(`  description: ${description}\n`);
+	});
+
+	test("only .yaml files in cases/ are scenarios: notes and a left-over temporary file are not", async () => {
+		const forgeDirectory = await tmpForge();
+		const casesDirectory = forgePaths(forgeDirectory).casesDir;
+		await mkdir(casesDirectory, { recursive: true });
+		for (const name of [
+			"b.yaml",
+			"notes.txt",
+			".forge-write-0000.tmp",
+			"a.yaml",
+		])
+			await writeFile(join(casesDirectory, name), "[]\n");
+		expect(await listCaseScenarios(forgeDirectory)).toStrictEqual(["a", "b"]);
+	});
+
+	test("a cases file's fingerprint is its size and last modification time", async () => {
+		const forgeDirectory = await tmpForge();
+		await writeCases(forgeDirectory, "s", []);
+		const information = await stat(
+			join(forgePaths(forgeDirectory).casesDir, "s.yaml"),
+		);
+		expect(await caseFileFingerprint(forgeDirectory, "s")).toStrictEqual({
+			modifiedAtInMilliseconds: information.mtimeMs,
+			sizeInBytes: information.size,
+		});
+	});
+
+	test("the suite example shown when there is none reads in full", () => {
+		expect(suiteExample(undefined)).toBe(
+			[
+				"target:",
+				"  kind: python                    # python | javascript | typescript | elixir | ruby | rust | go | exec | http",
+				"  entry: forge_target.py          # optional: the shim emit writes next to this file",
+				"  python: .venv/bin/python        # optional: interpreter that can import your application",
+				"  models: [anthropic/claude-haiku-4-5]",
+				"judges: [google/gemini-3.5-flash]",
+				"repeat: 2",
+				"include: []                       # scenario ids; empty means every approved scenario",
+			].join("\n"),
+		);
+	});
+});
+
+describe("removeFile", () => {
+	test("removes the file", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-remove-"));
+		await writeFile(join(directory, "old.yaml"), "[]\n");
+		await removeFile(join(directory, "old.yaml"), "nothing else to do");
+		expect(await readdir(directory)).toEqual([]);
+	});
+
+	test("a removal that fails names the file, the OS's reason and what is left to do by hand", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-remove-"));
+		const path = join(directory, "old.yaml");
+		await expect(
+			removeFile(path, "new.yaml is already written; delete old.yaml by hand"),
+		).rejects.toThrow(
+			`cannot remove: ENOENT: no such file or directory, unlink '${path}'; new.yaml is already written; delete old.yaml by hand (file: ${path})`,
+		);
+	});
+});
+
+describe("rewriteSuiteInclude", () => {
+	const SUITE = `# my suite
+target:
+  kind: python
+  models: [anthropic/claude-haiku-4-5]
+judges: [google/gemini-3.5-flash]
+include: [old, keep, old] # the ones that matter
+`;
+
+	test("every entry naming the scenario is renamed, the rest of the file as written", () => {
+		expect(
+			rewriteSuiteInclude({
+				path: "suite.yaml",
+				text: SUITE,
+				from: "old",
+				to: "new",
+				occurrences: 2,
+			}),
+		).toBe(SUITE.replace("[old, keep, old]", "[new, keep, new]"));
+	});
+
+	test("an entry reached through an alias is refused by name, not reported as renamed", () => {
+		expect(() =>
+			rewriteSuiteInclude({
+				path: "suite.yaml",
+				text: `${SUITE.replace("judges: [google/gemini-3.5-flash]", "judges: [&first old]").replace("[old, keep, old]", "[*first, keep, old]")}`,
+				from: "old",
+				to: "new",
+				occurrences: 2,
+			}),
+		).toThrow(
+			'suite.include names "old" 2 time(s) but only 1 can be rewritten in place: the rest come through a YAML alias; edit suite.yaml by hand (file: suite.yaml, id: old)',
+		);
+	});
+});
+
+describe("stampSuite, in the files people write", () => {
+	async function suiteWith(text: string): Promise<{
+		forgeDirectory: string;
+		path: string;
+	}> {
+		const forgeDirectory = await tmpForge();
+		await mkdir(forgeDirectory, { recursive: true });
+		const path = join(forgeDirectory, "suite.yaml");
+		await writeFile(path, text);
+		return { forgeDirectory, path };
+	}
+
+	test("a suite with no stamp gets the installed version, even one outside semver, and its kind is left as it is", async () => {
+		const { forgeDirectory, path } = await suiteWith(
+			"target:\n  kind: typescript\n  models: [anthropic/claude-haiku-4-5]\njudges: [google/gemini-3.5-flash]\n",
+		);
+		expect(await stampSuite(forgeDirectory, "0.4")).toBe(true);
+		expect(await readFile(path, "utf8")).toBe(
+			'forge_version: "0.4"\ntarget:\n  kind: typescript\n  models: [anthropic/claude-haiku-4-5]\njudges: [google/gemini-3.5-flash]\n',
+		);
+	});
+
+	test("a forge_version that aliases another value is replaced by the stamp, and the anchor stays", async () => {
+		const text =
+			"target:\n  kind: python\n  entry: &entry forge_target.py\n  models: [anthropic/claude-haiku-4-5]\njudges: [google/gemini-3.5-flash]\nforge_version: *entry\n";
+		const { forgeDirectory, path } = await suiteWith(text);
+		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(true);
+		expect(await readFile(path, "utf8")).toBe(
+			text.replace("forge_version: *entry", "forge_version: 0.4.1"),
+		);
+	});
+
+	test("a header comment stays at the top of the file, above the stamp, whatever shape the first key has", async () => {
+		// A key that is a list is legal YAML; reading it, the yaml library
+		// warns that it stringifies the key, which is noise here.
+		const warning = spyOn(process, "emitWarning").mockImplementation(() => {});
+		try {
+			const { forgeDirectory, path } = await suiteWith(
+				"# my suite\n? [odd, key]\n: 1\ntarget:\n  kind: python\n  models: [anthropic/claude-haiku-4-5]\njudges: [google/gemini-3.5-flash]\n",
+			);
+			expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(true);
+			expect(await readFile(path, "utf8")).toBe(
+				"# my suite\nforge_version: 0.4.1\n? [odd, key]\n: 1\ntarget:\n  kind: python\n  models: [anthropic/claude-haiku-4-5]\njudges: [google/gemini-3.5-flash]\n",
+			);
+		} finally {
+			warning.mockRestore();
+		}
 	});
 });

@@ -76,6 +76,7 @@ export function forgePaths(forgeDirectory: string): ForgePaths {
 async function exists(path: string): Promise<boolean> {
 	return access(path).then(
 		() => true,
+		// Stryker disable next-line ArrowFunction: every caller reads the result as `!(await exists(...))`, where undefined is false.
 		() => false,
 	);
 }
@@ -85,6 +86,7 @@ function hasCode(error: unknown): error is { code: string } {
 		typeof error === "object" &&
 		error !== null &&
 		"code" in error &&
+		// Stryker disable next-line ConditionalExpression: every caller compares the code with a string literal (`===`, or readFailure's `switch`), which a code of another type never equals, so a non-string code reads as no code either way.
 		typeof (error as { code: unknown }).code === "string"
 	);
 }
@@ -109,8 +111,15 @@ export function readFailure(error: unknown): string {
 		case "EPERM":
 			return "permission denied";
 		default:
-			return `cannot read: ${(error as Error).message}`;
+			return `cannot read: ${messageOf(error)}`;
 	}
+}
+
+/** What a failure says: its message, or the thrown value itself when it carries none. */
+function messageOf(error: unknown): string {
+	return typeof error === "object" && error !== null && "message" in error
+		? String(error.message)
+		: String(error);
 }
 
 /**
@@ -123,16 +132,22 @@ export function readFailure(error: unknown): string {
  * keeps the plain `path: message` form.
  */
 function describeIssue(issue: core.$ZodIssue, data: unknown): string {
-	const index = issue.path[0];
-	const item =
-		typeof index === "number" && Array.isArray(data) ? data[index] : undefined;
-	const id =
-		typeof item === "object" && item !== null && "id" in item
-			? (item as { id: unknown }).id
-			: undefined;
-	if (typeof index === "number" && typeof id === "string") {
-		const rest = issue.path.slice(1).join(".");
-		return `item "${id}" (index ${index})${rest ? `.${rest}` : ""}: ${issue.message}`;
+	if (Array.isArray(data)) {
+		const items: unknown[] = data;
+		for (const [index, item] of items.entries())
+			if (
+				index === issue.path[0] &&
+				typeof item === "object" &&
+				item !== null &&
+				"id" in item &&
+				typeof item.id === "string"
+			) {
+				const inside = issue.path
+					.slice(1)
+					.map((step) => `.${String(step)}`)
+					.join("");
+				return `item "${item.id}" (index ${index})${inside}: ${issue.message}`;
+			}
 	}
 	return `${issue.path.join(".")}: ${issue.message}`;
 }
@@ -165,6 +180,7 @@ export interface WriteSeams {
  * not even until the `chmod` that follows.
  */
 const writeWithMode: WriteContent = (target, content, mode) =>
+	// Stryker disable next-line StringLiteral: Bun's writeFile takes an empty encoding for its default, utf8 (probed with accented, emoji and CJK text: the same bytes).
 	writeFile(target, content, { encoding: "utf8", mode });
 
 /** How many links `followSymlinks` follows before calling it a loop. */
@@ -182,6 +198,7 @@ async function followSymlinks(path: string): Promise<string> {
 	for (let hops = 0; ; hops += 1) {
 		const isLink = await lstat(target).then(
 			(entry) => entry.isSymbolicLink(),
+			// Stryker disable next-line ArrowFunction: read only as `!isLink` on the next line, where undefined is false.
 			() => false,
 		);
 		if (!isLink) return target;
@@ -241,6 +258,7 @@ export async function writeText(
 		} catch (error) {
 			// Settled, not awaited bare: a failing cleanup must not replace
 			// the error that says why the write failed.
+			// Stryker disable next-line ObjectLiteral,BooleanLiteral: without force, rm refuses a temporary file never created with ENOENT, which allSettled swallows; one that exists is removed either way.
 			await Promise.allSettled([rm(temporary, { force: true })]);
 			// A refusal to create the temporary file is a refusal to write
 			// the target: the message names the file the caller asked for,
@@ -543,8 +561,10 @@ export function rewriteSuiteInclude(options: {
 }): string {
 	const { path, text, from, to: replacement, occurrences } = options;
 	const document = parseDocument(text);
+	// Stryker disable next-line BooleanLiteral: keepScalar only changes what a scalar value comes back as, and a scalar include is not a sequence either way.
 	const include = document.get("include", true);
 	let rewritten = 0;
+	// Stryker disable next-line ArrayDeclaration: an element added to the empty list would be a string, which isScalar refuses, so nothing more is rewritten.
 	for (const item of isSeq(include) ? include.items : [])
 		if (isScalar(item) && item.value === from) {
 			item.value = replacement;
@@ -586,16 +606,19 @@ export async function stampSuite(
 		document.set("forge_version", stamp);
 		const node = document.get("forge_version", true);
 		// An empty stamp was written `""`: the new one is a plain scalar.
+		// Stryker disable next-line StringLiteral: yaml writes a scalar with an empty type in its default style, plain for any one-line text, and the stamp is FORGE_VERSION (the one caller, src/cli/main.ts, passes it) or an existing stamp that parses as semver (probed: only a text holding a line break prints differently).
 		if (isScalar(node)) node.type = "PLAIN";
 	} else {
-		const entries: YAMLMap<unknown, unknown> = contents;
 		const stampKey = new Scalar("forge_version");
-		const firstKey = entries.items[0]?.key;
-		// A header comment stays at the top of the file, above the stamp.
-		if (isScalar(firstKey) && firstKey.commentBefore) {
-			stampKey.commentBefore = firstKey.commentBefore;
-			firstKey.commentBefore = undefined;
+		// A header comment stays at the top of the file, above the stamp,
+		// whatever shape the first key has. `slice` reaches the first entry
+		// with no guard; an empty map, which SuiteSchema's required
+		// `target` rules out, would only skip it.
+		for (const { key } of contents.items.slice(0, 1)) {
+			stampKey.commentBefore = key.commentBefore;
+			key.commentBefore = undefined;
 		}
+		const entries: YAMLMap<unknown, unknown> = contents;
 		entries.items.unshift(new Pair(stampKey, new Scalar(stamp)));
 	}
 	if (legacyKind) document.setIn(["target", "kind"], "python");
