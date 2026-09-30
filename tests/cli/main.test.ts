@@ -6205,15 +6205,20 @@ describe("main(): the suite and the project", () => {
 			}
 			return opened;
 		};
-		for (const argv of [
-			["help"],
-			["version"],
-			["--version"],
-			["-V"],
-			["guide"],
-			["--suite", "evals/x", "version"],
-		]) {
-			const answered = main(argv, {
+		for (const [argv, code] of [
+			[["help"], 0],
+			[["version"], 0],
+			[["--version"], 0],
+			[["-V"], 0],
+			[["guide"], 0],
+			[["--suite", "evals/x", "version"], 0],
+			// No verb the CLI knows: answered with the usage, exit 2, and no
+			// key file either.
+			[["--drafter", "x", "version"], 2],
+			[["nonsense"], 2],
+			[[], 2],
+		] as const) {
+			const answered = main([...argv], {
 				cwd: configDirectory,
 				env: {},
 				configDirectory,
@@ -6229,7 +6234,7 @@ describe("main(): the suite and the project", () => {
 			const opened = await openedFifos();
 			expect({ argv, outcome, opened }).toEqual({
 				argv,
-				outcome: 0,
+				outcome: code,
 				opened: [],
 			});
 			await answered;

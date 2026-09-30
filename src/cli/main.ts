@@ -321,8 +321,9 @@ export async function main(
 		// <configDirectory>/<provider>/api.env; a key already in the
 		// environment wins. Only for a verb that may need one: help, version
 		// and guide (bin.ts used to load keys before anything) touch no key
-		// file at all, as `--help` answered above does not.
-		if (!information)
+		// file at all, as `--help` answered above does not, and neither does
+		// a command line naming no verb, which `run` answers with the usage.
+		if (!information && Object.hasOwn(COMMANDS, rest[0] ?? ""))
 			await loadProviderKeys({
 				environment: options.env,
 				configDirectory: options.configDirectory,
