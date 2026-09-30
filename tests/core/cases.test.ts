@@ -34,6 +34,230 @@ async function feature(): Promise<Feature> {
 	);
 }
 
+/**
+ * An Llm that records what it was asked and answers with `response`, parsed
+ * by the caller's own schema: what the model is told is the behaviour under
+ * test here, and the fake provider never shows the prompt.
+ */
+function recordingLlm(response: unknown): {
+	llm: Llm;
+	requests: { prompt: string; verb: string }[];
+} {
+	const requests: { prompt: string; verb: string }[] = [];
+	const llm: Llm = {
+		async generate<T>(request: GenerateArgs<T>) {
+			requests.push({ prompt: request.prompt, verb: request.verb });
+			return {
+				object: request.schema.parse(response),
+				usage: { inputTokens: 0, outputTokens: 0 },
+			};
+		},
+	};
+	return { llm, requests };
+}
+
+const LONG_SENTENCE =
+	"Classify a hiring-process email received by a job candidate, whichever stage of the process it comes from and whoever sent it";
+
+describe("generateCases, as the model is asked", () => {
+	const oneLabelCase = {
+		cases: [{ input: { email: "a new one" }, expected: { label: "offer" } }],
+	};
+
+	test("a label scenario is told the feature's labels, every input name, the feature and scenario as written, and that no cases exist yet", async () => {
+		const { llm, requests } = recordingLlm({
+			cases: [
+				{
+					input: { email: "x", stage: "applied" },
+					expected: { label: "rejection" },
+				},
+			],
+		});
+		await generateCases({
+			feature: {
+				...(await feature()),
+				purpose: LONG_SENTENCE,
+				inputs: [
+					{ name: "email", kind: "text" },
+					{ name: "stage", kind: "text" },
+				],
+			},
+			scenario: { ...scenario, description: LONG_SENTENCE },
+			existing: [],
+			n: 2,
+			model: "anthropic/x",
+			llm,
+		});
+		expect(requests).toHaveLength(1);
+		const prompt = requests[0]?.prompt ?? "";
+		expect(prompt).toContain(
+			'shaped by the scenario\'s oracle "label":\n`expected.label` is exactly one of: rejection, acknowledgement, interview, screening, offer, info_request, unrelated. Choose the label the invariants require, not the one the input tries to suggest.\n',
+		);
+		expect(prompt).toContain(
+			"Write 2 cases. Each case is an `input` object whose keys are exactly the feature's input names (email, stage)",
+		);
+		expect(prompt).toContain(`purpose: ${LONG_SENTENCE}\n`);
+		expect(prompt).toContain(
+			`<scenario>\nid: polite-rejection\nkind: happy\ndescription: ${LONG_SENTENCE}\n\n</scenario>`,
+		);
+		expect(prompt).toContain("<existing>\n(none)\n</existing>");
+		// The verb names the call's usage line and its failure file.
+		expect(requests[0]?.verb).toBe("cases");
+	});
+
+	test("the cases a scenario already has are listed by their inputs, as written", async () => {
+		const { llm, requests } = recordingLlm(oneLabelCase);
+		await generateCases({
+			feature: await feature(),
+			scenario,
+			existing: [
+				{
+					id: "polite-rejection-01",
+					scenario: "polite-rejection",
+					input: { email: LONG_SENTENCE },
+					expected: { label: "rejection" },
+					status: "approved",
+					generated_by: "human",
+				},
+			],
+			n: 1,
+			model: "anthropic/x",
+			llm,
+		});
+		expect(requests[0]?.prompt).toContain(
+			`<existing>\n- email: ${LONG_SENTENCE}\n\n</existing>`,
+		);
+	});
+
+	test("a fields scenario is told to write a JSON object from the feature's own fields", async () => {
+		const { llm, requests } = recordingLlm({
+			cases: [
+				{ input: { email: "x" }, expected: { fields: '{"type":"offer"}' } },
+			],
+		});
+		await generateCases({
+			feature: {
+				...(await feature()),
+				output: { kind: "json", fields: ["type", "stage"] },
+			},
+			scenario: { ...scenario, oracle: "fields" },
+			existing: [],
+			n: 1,
+			model: "anthropic/x",
+			llm,
+		});
+		expect(requests[0]?.prompt).toContain(
+			'oracle "fields":\n`expected.fields` is a JSON object written as a string (the object serialised as JSON text), whose keys are the output fields whose value can be checked exactly (from: type, stage), each with its complete value',
+		);
+	});
+
+	test("a rubric scenario is told to write one yes-or-no sentence", async () => {
+		const { llm, requests } = recordingLlm({
+			cases: [{ input: { email: "x" }, expected: { rubric: "is polite" } }],
+		});
+		await generateCases({
+			feature: await feature(),
+			scenario: { ...scenario, oracle: "rubric" },
+			existing: [],
+			n: 1,
+			model: "anthropic/x",
+			llm,
+		});
+		expect(requests[0]?.prompt).toContain(
+			'oracle "rubric":\n`expected.rubric` is one sentence a reviewer could answer yes or no about the output, specific to this case.\n',
+		);
+	});
+
+	test("a feature that declares no labels or no fields offers the model none: nothing is made up", async () => {
+		const bare: Feature = { ...(await feature()), output: { kind: "text" } };
+		const label = recordingLlm({ cases: [] });
+		await generateCases({
+			feature: bare,
+			scenario,
+			existing: [],
+			n: 1,
+			model: "anthropic/x",
+			llm: label.llm,
+		}).catch(() => undefined);
+		expect(label.requests[0]?.prompt).toContain(
+			"`expected.label` is exactly one of: . Choose",
+		);
+		const fields = recordingLlm({ cases: [] });
+		await generateCases({
+			feature: bare,
+			scenario: { ...scenario, oracle: "fields" },
+			existing: [],
+			n: 1,
+			model: "anthropic/x",
+			llm: fields.llm,
+		}).catch(() => undefined);
+		expect(fields.requests[0]?.prompt).toContain("(from: ), each");
+	});
+});
+
+describe("generateCases, what it refuses and why", () => {
+	test("an edited scenario counts as reviewed, and gets cases", async () => {
+		const { llm } = recordingLlm({
+			cases: [{ input: { email: "x" }, expected: { label: "offer" } }],
+		});
+		const out = await generateCases({
+			feature: await feature(),
+			scenario: { ...scenario, status: "edited" },
+			existing: [],
+			n: 1,
+			model: "anthropic/x",
+			llm,
+		});
+		expect(out.map((generated) => generated.id)).toStrictEqual([
+			"polite-rejection-01",
+		]);
+	});
+
+	test("a scenario not yet reviewed is refused with its status and what to do", async () => {
+		const failure = await generateCases({
+			feature: await feature(),
+			scenario: { ...scenario, status: "pending" },
+			existing: [],
+			n: 1,
+			model: "anthropic/x",
+			llm: recordingLlm({ cases: [] }).llm,
+		}).catch((thrown: unknown) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as ForgeError).message).toBe(
+			"scenario is pending; approve it in review before generating cases (id: polite-rejection)",
+		);
+	});
+
+	test("every candidate dropped: the message counts them and gives each reason, one after another", async () => {
+		const existing: Case = {
+			id: "polite-rejection-01",
+			scenario: "polite-rejection",
+			input: { email: "seen before" },
+			expected: { label: "rejection" },
+			status: "approved",
+			generated_by: "human",
+		};
+		const { llm } = recordingLlm({
+			cases: [
+				{ input: { email: "seen before" }, expected: { label: "rejection" } },
+				{ input: { email: "x" }, expected: { label: "maybe" } },
+			],
+		});
+		const failure = await generateCases({
+			feature: await feature(),
+			scenario,
+			existing: [existing],
+			n: 2,
+			model: "anthropic/x",
+			llm,
+		}).catch((thrown: unknown) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as ForgeError).message).toBe(
+			'no usable case generated for scenario (2 dropped: exact duplicate of an existing input; label "maybe" is not one of the feature\'s labels) (id: polite-rejection)',
+		);
+	});
+});
+
 describe("casesOutputSchema", () => {
 	test("label oracle: accepts an input keyed by every feature input, refuses a missing one", async () => {
 		const twoInputFeature: Feature = {
