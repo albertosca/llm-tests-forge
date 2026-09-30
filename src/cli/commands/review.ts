@@ -255,16 +255,16 @@ export async function reviewCommand(
 	>();
 	/** Case ids this pass has decided, per file, for `takenIdsFor`. */
 	const decidedIdsIn = new Map<string, Set<string>>();
-	const io = { stdin: context.stdin, stdout: context.stdout };
 	// Color only for a person at a terminal: a redirected or piped run, and
 	// every test, keeps the plain text it always had.
 	const paint = palette(colorEnabled(process.env, process.stdout.isTTY));
-	// Arms "Ctrl+C ends the input" for the reader behind `context.stdin`,
-	// right before the first question this pass asks. `--all` returns
-	// above without ever reaching here, so it never arms it: it asks
-	// nothing, and an interrupt during its model calls should exit as it
-	// always did, not be mistaken for the middle of a review pass.
-	context.onInteractivePass?.();
+	// Arms "Ctrl+C ends the input" right before the first question this
+	// pass asks, and hands over the only reader the questions accept.
+	// `--all` returns above without ever reaching here, so it never arms
+	// it: it asks nothing, and an interrupt during its model calls should
+	// exit as it always did, not be mistaken for the middle of a review pass.
+	const pass = context.startInteractivePass();
+	const io = { stdin: pass.read, stdout: context.stdout };
 	const result = await runReviewLoop({
 		items,
 		ask: (question, choices) => askChoice(paint.prompt(question), choices, io),

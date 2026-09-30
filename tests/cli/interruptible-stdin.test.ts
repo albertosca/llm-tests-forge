@@ -57,6 +57,29 @@ describe("createInterruptibleReader", () => {
 		expect(exits).toEqual([130]);
 	});
 
+	test("startInteractivePass arms the handler, and the reader it hands over reads through the same input", async () => {
+		const source = pendingLines();
+		const printed: string[] = [];
+		const exits: number[] = [];
+		const reader = createInterruptibleReader({
+			readLine: source.readLine,
+			stdout: (line) => printed.push(line),
+			exit: (code) => exits.push(code),
+		});
+		const pass = reader.startInteractivePass();
+		const first = pass.read();
+		source.answer("approve");
+		expect(await first).toBe("approve");
+		const second = pass.read();
+		reader.interrupt();
+		expect(await second).toBe("");
+		expect(await reader.read()).toBe("");
+		expect(exits).toEqual([]);
+		expect(printed).toEqual([
+			"interrupted: no more answers; the decisions already taken are written",
+		]);
+	});
+
 	test("armed: an interrupt with no read pending ends the input", async () => {
 		const printed: string[] = [];
 		const exits: number[] = [];
@@ -65,7 +88,7 @@ describe("createInterruptibleReader", () => {
 			stdout: (line) => printed.push(line),
 			exit: (code) => exits.push(code),
 		});
-		reader.armEndOfInputOnInterrupt();
+		reader.startInteractivePass();
 		reader.interrupt();
 		expect(printed).toEqual([
 			"interrupted: no more answers; the decisions already taken are written",
@@ -83,7 +106,7 @@ describe("createInterruptibleReader", () => {
 			stdout: (line) => printed.push(line),
 			exit: (code) => exits.push(code),
 		});
-		reader.armEndOfInputOnInterrupt();
+		reader.startInteractivePass();
 		const answer = reader.read();
 		reader.interrupt();
 		expect(await answer).toBe("");
@@ -103,7 +126,7 @@ describe("createInterruptibleReader", () => {
 			stdout: (line) => printed.push(line),
 			exit: (code) => exits.push(code),
 		});
-		reader.armEndOfInputOnInterrupt();
+		reader.startInteractivePass();
 		const answer = reader.read();
 		source.answer("edit");
 		expect(await answer).toBe("edit");
@@ -126,7 +149,7 @@ describe("createInterruptibleReader", () => {
 			stdout: () => {},
 			exit: (code) => exits.push(code),
 		});
-		reader.armEndOfInputOnInterrupt();
+		reader.startInteractivePass();
 		const answer = reader.read();
 		reader.interrupt();
 		await answer;

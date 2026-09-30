@@ -19,6 +19,7 @@ import { reviewCommand } from "./commands/review";
 import { scenariosCommand } from "./commands/scenarios";
 import { statusCommand } from "./commands/status";
 import { type CliContext, createContext } from "./context";
+import type { InteractivePass } from "./interruptible-stdin";
 
 export const USAGE = `usage: llm-tests-forge <verb> [options]
   init [--language l]                                 detect the language -> forge.yaml + the llm-tests-forge block in AGENTS.md
@@ -207,7 +208,8 @@ export interface MainOptions {
 	env: Record<string, string | undefined>;
 	stdin: () => Promise<string>;
 	stdout?: (line: string) => void;
-	onInteractivePass?: () => void;
+	/** See `CliContext.startInteractivePass`. */
+	startInteractivePass?: () => InteractivePass;
 }
 
 /**
@@ -315,7 +317,7 @@ export async function main(
 			drafter: drafterFlag(rest),
 			env: options.env,
 			stdin: options.stdin,
-			onInteractivePass: options.onInteractivePass,
+			startInteractivePass: options.startInteractivePass,
 			forgeDirectory: resolution.forgeDirectory,
 			project: resolution.project,
 		});

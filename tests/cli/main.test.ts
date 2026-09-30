@@ -16,6 +16,7 @@ import { join, resolve } from "node:path";
 import { parse } from "yaml";
 import type { CliContext } from "../../src/cli/context";
 import { createContext } from "../../src/cli/context";
+import { createInterruptibleReader } from "../../src/cli/interruptible-stdin";
 import { COMMANDS, drafterFlag, main, run, USAGE } from "../../src/cli/main";
 import { ForgeError } from "../../src/core/errors";
 import {
@@ -1671,7 +1672,7 @@ describe("review: a write-back guard skips just the files it cannot trust, and s
 	});
 });
 
-describe("review: onInteractivePass arms end-of-input only for the interactive path", () => {
+describe("review: startInteractivePass arms end-of-input only for the interactive path", () => {
 	test("the interactive path calls it exactly once, before the loop asks its first question", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
@@ -1688,12 +1689,18 @@ describe("review: onInteractivePass arms end-of-input only for the interactive p
 
 		let interactivePassCalls = 0;
 		const out: string[] = [];
+		const reader = createInterruptibleReader({
+			readLine: async () => "approve",
+			stdout: () => {},
+			exit: () => {},
+		});
 		const context = createContext({
 			cwd,
 			drafter: MODEL,
-			stdin: async () => "approve",
-			onInteractivePass: () => {
+			stdin: reader.read,
+			startInteractivePass: () => {
 				interactivePassCalls += 1;
+				return reader.startInteractivePass();
 			},
 		});
 		context.stdout = (line) => out.push(line);
@@ -1724,12 +1731,18 @@ describe("review: onInteractivePass arms end-of-input only for the interactive p
 
 		let interactivePassCalls = 0;
 		const out: string[] = [];
+		const reader = createInterruptibleReader({
+			readLine: async () => "",
+			stdout: () => {},
+			exit: () => {},
+		});
 		const context = createContext({
 			cwd,
 			drafter: MODEL,
-			stdin: async () => "",
-			onInteractivePass: () => {
+			stdin: reader.read,
+			startInteractivePass: () => {
 				interactivePassCalls += 1;
+				return reader.startInteractivePass();
 			},
 		});
 		context.stdout = (line) => out.push(line);

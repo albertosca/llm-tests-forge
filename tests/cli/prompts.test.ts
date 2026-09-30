@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createInterruptibleReader } from "../../src/cli/interruptible-stdin";
 import {
 	askChoice,
 	askExpectedFor,
@@ -13,12 +14,21 @@ import type { Case } from "../../src/core/schemas";
 
 const CHOICES = ["approve", "reject", "edit", "skip"];
 
+/**
+ * Scripted answers, read through a started interactive pass: the questions
+ * accept nothing else (see tests/cli/interactive-reader.types.ts).
+ */
 function scriptedIo(lines: string[]) {
 	const queue = [...lines];
 	const out: string[] = [];
+	const reader = createInterruptibleReader({
+		readLine: async () => queue.shift() ?? "",
+		stdout: () => {},
+		exit: () => {},
+	});
 	return {
 		io: {
-			stdin: async () => queue.shift() ?? "",
+			stdin: reader.startInteractivePass().read,
 			stdout: (line: string) => out.push(line),
 		},
 		out,

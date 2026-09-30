@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ForgeError, type ForgeErrorDetails } from "../core/errors";
 import type { Case, Expected, Oracle } from "../core/schemas";
+import type { InteractiveReader } from "./interruptible-stdin";
 
 /**
  * `$EDITOR` ended by Ctrl+C rather than closed. It is a `ForgeError` so
@@ -18,8 +19,14 @@ export class EditorInterruptedError extends ForgeError {
 	}
 }
 
+/**
+ * What a review question reads and prints through. `stdin` is an
+ * `InteractiveReader`, not a plain function: only a started interactive
+ * pass makes one, so asking a question through a reader nobody armed does
+ * not compile (see `src/cli/interruptible-stdin.ts`).
+ */
 export type Io = {
-	stdin: () => Promise<string>;
+	stdin: InteractiveReader;
 	stdout: (line: string) => void;
 };
 

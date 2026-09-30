@@ -3,6 +3,10 @@ import { UsageError } from "../core/errors";
 import type { readSuiteIfPresent } from "../core/files";
 import type { Project } from "../core/project";
 import { createLlm, type Llm } from "../llm/generate";
+import {
+	createInterruptibleReader,
+	type InteractivePass,
+} from "./interruptible-stdin";
 
 export interface CliContext {
 	/** The directory the command was run from. */
@@ -17,14 +21,15 @@ export interface CliContext {
 	/**
 	 * Called once, right before an interactive pass starts asking
 	 * questions — the one signal that arms "Ctrl+C ends the input"
-	 * instead of exiting immediately (see `interruptible-stdin.ts`).
+	 * instead of exiting immediately (see `interruptible-stdin.ts`) — and
+	 * the only source of the `InteractiveReader` the pass's questions
+	 * read through, so a pass that skips it does not compile.
 	 * `reviewCommand` calls it right before its review loop, on the
 	 * interactive path only: `--all` asks nothing and never arms it.
-	 * Undefined for a context nothing ever interrupts (most tests never
-	 * need to supply it); `bin.ts` wires it to the real reader's
-	 * `armEndOfInputOnInterrupt`.
+	 * `bin.ts` wires it to the real reader; a context built without one
+	 * gets a reader over `stdin` that nothing ever interrupts.
 	 */
-	onInteractivePass?: () => void;
+	startInteractivePass: () => InteractivePass;
 	/**
 	 * How the version warning reads suite.yaml; absent -> the real reader.
 	 * A seam for tests, to prove which failures the warning swallows.
@@ -48,8 +53,8 @@ export interface CreateContextOptions {
 	 * test supplies its own scripted one.
 	 */
 	stdin: () => Promise<string>;
-	/** See `CliContext.onInteractivePass`. */
-	onInteractivePass?: () => void;
+	/** See `CliContext.startInteractivePass`; absent -> a reader over `stdin`. */
+	startInteractivePass?: () => InteractivePass;
 }
 
 export function createContext(options: CreateContextOptions): CliContext {
@@ -75,6 +80,14 @@ export function createContext(options: CreateContextOptions): CliContext {
 		},
 		stdout: (line) => console.log(line),
 		stdin: options.stdin,
-		onInteractivePass: options.onInteractivePass,
+		// Nothing wires an interrupt to the default reader, so its `stdout`
+		// and `exit` are never called; they are the real ones all the same.
+		startInteractivePass:
+			options.startInteractivePass ??
+			createInterruptibleReader({
+				readLine: options.stdin,
+				stdout: console.log,
+				exit: process.exit,
+			}).startInteractivePass,
 	};
 }

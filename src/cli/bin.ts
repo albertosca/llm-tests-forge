@@ -24,7 +24,7 @@ await loadProviderKeys({
 });
 
 // A Ctrl+C exits 130, as it always did, unless `reviewCommand` has armed
-// end-of-input mode for its interactive pass (via `onInteractivePass`
+// end-of-input mode for its interactive pass (via `startInteractivePass`
 // below): then the first interrupt ends the input instead of killing the
 // process, so the pass finishes normally and writes what was already
 // decided. See interruptible-stdin.ts.
@@ -40,6 +40,6 @@ process.exit(
 		cwd: process.cwd(),
 		env: process.env,
 		stdin: reader.read,
-		onInteractivePass: reader.armEndOfInputOnInterrupt,
+		startInteractivePass: reader.startInteractivePass,
 	}),
 );
