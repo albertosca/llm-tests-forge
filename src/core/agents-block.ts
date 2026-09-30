@@ -23,9 +23,8 @@ interface MarkedBlock {
 	endIndex: number;
 }
 
-/** "1", "1 and 3", "1, 3 and 5". */
+/** "1 and 3", "1, 3 and 5": two numbers or more, the only lists it is given. */
 function listLineNumbers(numbers: number[]): string {
-	if (numbers.length === 1) return `${numbers[0]}`;
 	const last = numbers[numbers.length - 1];
 	return `${numbers.slice(0, -1).join(", ")} and ${last}`;
 }
@@ -37,11 +36,16 @@ interface Fence {
 	depth: number;
 }
 
-/** The blockquote markers a line starts with, each up to three spaces in and one space after. */
-const QUOTE_MARKERS = /^(?: {0,3}> ?)*/;
+/**
+ * The blockquote markers a line starts with, each up to three spaces in and
+ * one space after. It matches at the start of every line (with nothing when
+ * the line has no marker), so it needs no `^`: the first match is always there.
+ */
+const QUOTE_MARKERS = /(?: {0,3}> ?)*/;
 
 /** How many blockquotes deep `line` stands. */
 function lineQuoteDepth(line: string): number {
+	// Stryker disable next-line OptionalChaining,StringLiteral: QUOTE_MARKERS matches the empty string, so exec never returns null and the default is never read
 	return quoteDepth(QUOTE_MARKERS.exec(line)?.[0] ?? "");
 }
 
@@ -50,10 +54,13 @@ const LIST_MARKER = /[-*+]|\d{1,9}[.)]/g;
 
 /**
  * What stands before a marker: indentation, blockquote `>`s and list item
- * markers (each followed by whitespace), in any order.
+ * markers (each followed by whitespace), in any order. Like QUOTE_MARKERS,
+ * it matches at the start of every line, so it needs no `^`; and a marker's
+ * whitespace past the first character is taken by the `[ \t>]` alternative.
  */
 function markerPrefix(line: string): string {
-	return /^(?:[ \t>]|(?:[-*+]|\d{1,9}[.)])[ \t]+)*/.exec(line)?.[0] ?? "";
+	// Stryker disable next-line OptionalChaining,StringLiteral: the pattern matches the empty string, so exec never returns null and the default is never read
+	return /(?:[ \t>]|(?:[-*+]|\d{1,9}[.)])[ \t])*/.exec(line)?.[0] ?? "";
 }
 
 /**
@@ -68,21 +75,25 @@ function continuationPrefix(prefix: string): string {
 
 /** How many blockquotes deep a marker with this prefix stands. */
 function quoteDepth(prefix: string): number {
+	// Stryker disable next-line ArithmeticOperator: a depth is only ever compared with another depth (openDepth in findBlocks, fence.depth in fenceBefore), so a constant offset cancels
 	return prefix.split(">").length - 1;
 }
 
 /**
  * A code fence opener or closer: three or more backticks or tildes, indented
- * at most three spaces (four is indented code), inside any blockquotes.
+ * at most three spaces (four is indented code), inside any blockquotes. The
+ * rest of the line is the info string (any character, a line separator or a
+ * carriage return too) or, on a closer, nothing but whitespace.
  */
 function fenceOf(
 	line: string,
 ): { character: string; length: number; rest: string } | null {
-	const unquoted = line.replace(/\r$/, "").replace(QUOTE_MARKERS, "");
-	const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(unquoted);
-	const run = match?.[1];
-	if (match === null || run === undefined) return null;
-	return { character: run.charAt(0), length: run.length, rest: match[2] ?? "" };
+	const unquoted = line.replace(QUOTE_MARKERS, "");
+	const match = /^ {0,3}(`{3,}|~{3,})(.*)/s.exec(unquoted);
+	if (match === null) return null;
+	// Stryker disable next-line StringLiteral: both groups take part in every match, so neither default is ever read
+	const [, run = "", rest = ""] = match;
+	return { character: run.charAt(0), length: run.length, rest };
 }
 
 /**
@@ -116,19 +127,37 @@ function nextFence(open: Fence | null, line: string): Fence | null {
 }
 
 /**
- * The index of the line that opens a fence which never closes, or null when
- * every fence closes. CommonMark would call the rest of the file code, but a
- * person never meant that: from this line on, the text is plain.
+ * The index of the last line that opens or closes a fence (0 when none
+ * does): fences before it are honored, and from it on the text is plain.
+ * When that line opens a fence which never closes, CommonMark would call the
+ * rest of the file code, but a person never meant that. When it closes one,
+ * nothing after it is fenced anyway. A line that ends a quoted fence by its
+ * depth and opens another counts as the new fence's opener.
  */
-function unclosedFenceStart(lines: string[]): number | null {
+function lastFenceChange(lines: string[]): number {
 	let fence: Fence | null = null;
-	let openedAt = 0;
+	let changedAt = 0;
 	for (const [index, line] of lines.entries()) {
 		const next = nextFence(fence, line);
-		if (fence === null && next !== null) openedAt = index;
+		// nextFence hands back the same fence while it stays open, so a
+		// different one means this line opened or closed a fence.
+		if (next !== fence) changedAt = index;
 		fence = next;
 	}
-	return fence === null ? null : openedAt;
+	return changedAt;
+}
+
+/**
+ * For each line, whether a fence is open after it: its opener, or a line
+ * inside it. A closer reads as plain text, which is harmless: like an
+ * opener, it can never be a marker, whose text starts with `<`.
+ */
+function fencedLines(lines: string[]): boolean[] {
+	let fence: Fence | null = null;
+	return lines.map((line) => {
+		fence = nextFence(fence, line);
+		return fence !== null;
+	});
 }
 
 /**
@@ -144,14 +173,9 @@ function findBlocks(file: string, lines: string[]): MarkedBlock[] {
 	const blocks: MarkedBlock[] = [];
 	let openAt: number | null = null;
 	let openDepth = 0;
-	let fence: Fence | null = null;
-	const honorFencesBefore = unclosedFenceStart(lines) ?? lines.length;
+	const fenced = fencedLines(lines.slice(0, lastFenceChange(lines)));
 	for (const [index, line] of lines.entries()) {
-		if (index < honorFencesBefore) {
-			const before = fenceBefore(fence, line);
-			fence = nextFence(fence, line);
-			if (before !== null || fence !== null) continue;
-		}
+		if (fenced[index]) continue;
 		const prefix = markerPrefix(line);
 		const marker = line.slice(prefix.length).trim();
 		if (marker === AGENTS_START) {
@@ -203,20 +227,22 @@ export function planAgentsBlock(
 		};
 	const lines = existing.split("\n");
 	const blocks = findBlocks(file, lines);
-	if (blocks.length === 0) {
+	const [only, ...extra] = blocks;
+	if (only === undefined) {
 		const kept = existing.replace(/(\r?\n)+$/, "");
 		return {
 			text: `${kept}${ending}${ending}${block.split("\n").join(ending)}${ending}`,
 			replaced: false,
 		};
 	}
-	const [only, ...extra] = blocks;
-	if (only === undefined || extra.length > 0)
+	if (extra.length > 0)
 		throw new ForgeError(
 			`${file} has ${blocks.length} llm-tests-forge blocks (lines ${listLineNumbers(blocks.map((found) => found.startIndex + 1))}); keep one and run init again`,
 		);
+	// Stryker disable next-line StringLiteral: findBlocks read startIndex from these very lines, so the default is never read
 	const startLine = lines[only.startIndex] ?? "";
 	const startCarriage = startLine.endsWith("\r") ? "\r" : "";
+	// Stryker disable next-line OptionalChaining: findBlocks read endIndex from these very lines, so the line is always there
 	const endCarriage = lines[only.endIndex]?.endsWith("\r") ? "\r" : "";
 	// A pair indented, in a blockquote or in a list item stays there: the
 	// first line takes the start marker's prefix, the rest its continuation.

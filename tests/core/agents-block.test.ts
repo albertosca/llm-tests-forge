@@ -328,4 +328,86 @@ describe("upsertAgentsBlock", () => {
 		expect(block).toContain("llm-tests-forge status");
 		expect(block).toContain("llm-tests-forge guide");
 	});
+	test("the block an agent reads, in full", () => {
+		expect(block.split("\n")).toStrictEqual([
+			AGENTS_START,
+			"This project keeps LLM regression suites made with llm-tests-forge.",
+			"Run `llm-tests-forge status` to see which suites exist and what is pending.",
+			"Run `llm-tests-forge guide` before creating or changing a suite: it is the manual, and approving is the person's job.",
+			PER_PROJECT_INVOCATIONS,
+			AGENTS_END,
+		]);
+	});
+	test("trailing blank lines before an appended block become exactly one", () => {
+		expect(upsertAgentsBlock("AGENTS.md", "# Agents\n\n\n")).toBe(
+			`# Agents\n\n${block}\n`,
+		);
+		expect(upsertAgentsBlock("AGENTS.md", "# Agents\r\n\r\n\r\n")).toBe(
+			`# Agents\r\n\r\n${block.split("\n").join("\r\n")}\r\n`,
+		);
+	});
+});
+
+describe("upsertAgentsBlock: what opens and closes a code fence", () => {
+	const block = agentsBlock();
+	const quotedPair = `${AGENTS_START}\nquoted\n${AGENTS_END}\n`;
+	const realPair = `${AGENTS_START}\nold\n${AGENTS_END}\n`;
+	test("a pair between two closed fences is replaced, and what each fence quotes stays", () => {
+		const fenced = `\`\`\`\n${quotedPair}\`\`\`\n`;
+		const existing = `${fenced}${realPair}${fenced}`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`${fenced}${block}\n${fenced}`);
+	});
+	test("a closer longer than its opener closes it", () => {
+		const existing = `\`\`\`\n${quotedPair}\`\`\`\`\n${realPair}`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`\`\`\`\n${quotedPair}\`\`\`\`\n${block}\n`);
+	});
+	test("a run of the other character never closes a fence, however long", () => {
+		for (const [opener, other] of [
+			["````", "~~~~~"],
+			["~~~", "```"],
+		]) {
+			const existing = `${opener}\n${other}\n${quotedPair}${opener}\n`;
+			const planned = planAgentsBlock("AGENTS.md", existing);
+			expect(planned.replaced).toBe(false);
+			expect(planned.text).toBe(`${existing}\n${block}\n`);
+		}
+	});
+	test("a closer may be followed by spaces, but a line with other text after the run leaves the fence open", () => {
+		const withText = `\`\`\`\n\`\`\` not yet\n${quotedPair}\`\`\`\n`;
+		expect(planAgentsBlock("AGENTS.md", withText).replaced).toBe(false);
+		const withSpaces = `\`\`\`\n${quotedPair}\`\`\` \t \n${realPair}`;
+		expect(planAgentsBlock("AGENTS.md", withSpaces).text).toBe(
+			`\`\`\`\n${quotedPair}\`\`\` \t \n${block}\n`,
+		);
+	});
+	test("backticks after other text on a line open no fence", () => {
+		const existing = `Use \`\`\` inline.\n${realPair}and \`\`\`\n`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`Use \`\`\` inline.\n${block}\nand \`\`\`\n`);
+	});
+	test("an info string may hold any character, a line separator or a lone carriage return too: the fence still quotes the pair", () => {
+		for (const info of ["js x", "js x", "js\rx"]) {
+			const existing = `\`\`\`${info}\n${quotedPair}\`\`\`\n`;
+			const planned = planAgentsBlock("AGENTS.md", existing);
+			expect(planned.replaced).toBe(false);
+			expect(planned.text).toBe(`${existing}\n${block}\n`);
+		}
+	});
+	test("a stray unclosed fence right after a closed one leaves the closed one protecting what it quotes", () => {
+		const existing = `Text.\n\`\`\`\n${quotedPair}\`\`\`\n\`\`\`\nstray\n`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(false);
+		expect(planned.text).toBe(`${existing}\n${block}\n`);
+	});
+	test("a fence closed by the end of its blockquote protects what it quotes, even when that line opens a stray fence", () => {
+		const existing = `> \`\`\`\n> ${AGENTS_START}\n> ${AGENTS_END}\n\`\`\`\nstray\n`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(false);
+		expect(planned.text).toBe(`${existing}\n${block}\n`);
+	});
 });
