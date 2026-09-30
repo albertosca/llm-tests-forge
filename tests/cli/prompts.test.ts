@@ -7,6 +7,7 @@ import {
 	askChoice,
 	askExpectedFor,
 	EditorInterruptedError,
+	InputEndedError,
 	openInEditor,
 } from "../../src/cli/prompts";
 import { ForgeError } from "../../src/core/errors";
@@ -32,6 +33,7 @@ function scriptedIo(lines: string[]) {
 			stdout: (line: string) => out.push(line),
 		},
 		out,
+		reader,
 	};
 }
 
@@ -164,6 +166,22 @@ describe("askExpectedFor: an empty or unusable answer is not an expected value (
 			out.filter((line) => line === `expected label for ${pendingCase.id}:`)
 				.length,
 		).toBe(3);
+	});
+});
+
+describe("askExpectedFor: a Ctrl+C while an expected value is asked for", () => {
+	test("ends the question at once with InputEndedError naming the case: no 'try again', no re-asking", async () => {
+		const { io, out, reader } = scriptedIo(["never read"]);
+		reader.interrupt();
+		let caught: unknown;
+		try {
+			await askExpectedFor(pendingCase, "label", io, anything);
+		} catch (error) {
+			caught = error;
+		}
+		expect(caught).toBeInstanceOf(InputEndedError);
+		expect((caught as InputEndedError).details.id).toBe(pendingCase.id);
+		expect(out).toEqual([`expected label for ${pendingCase.id}:`]);
 	});
 });
 

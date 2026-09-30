@@ -44,6 +44,12 @@ const interactiveBrand: unique symbol = Symbol("interactive reader");
  */
 export type InteractiveReader = (() => Promise<string>) & {
 	readonly [interactiveBrand]: true;
+	/**
+	 * Whether a Ctrl+C has ended the input. Every read then answers "",
+	 * which a question that re-asks an empty answer must not mistake for
+	 * one: it asks this instead of printing "try again".
+	 */
+	readonly inputEnded: () => boolean;
 };
 
 /** What `startInteractivePass()` hands the review: the armed reader. */
@@ -86,6 +92,7 @@ export function createInterruptibleReader(dependencies: {
 	const interactiveRead: InteractiveReader = Object.assign(
 		(): Promise<string> => read(),
 		brand,
+		{ inputEnded: (): boolean => ended },
 	);
 	let writing = false;
 	let exitAfterWriting = false;

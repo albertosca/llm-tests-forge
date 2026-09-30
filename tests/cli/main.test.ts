@@ -1765,6 +1765,67 @@ describe("review: startInteractivePass arms end-of-input only for the interactiv
 		]);
 	});
 
+	test("a Ctrl+C while an expected value is asked for ends the pass like the prompt and the editor: no 'try again', no 'cannot apply', nothing re-shown", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				status: "pending",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "two" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+		const out: string[] = [];
+		const exits: number[] = [];
+		let reads = 0;
+		const reader = createInterruptibleReader({
+			// "approve" for the first case, then a Ctrl+C while its expected
+			// label is being asked for.
+			readLine: () => {
+				reads += 1;
+				if (reads === 1) return Promise.resolve("approve");
+				queueMicrotask(() => reader.interrupt());
+				return new Promise<string>(() => {});
+			},
+			stdout: (line) => out.push(line),
+			exit: (code) => exits.push(code),
+		});
+		const context = createContext({
+			cwd,
+			drafter: MODEL,
+			stdin: reader.read,
+			startInteractivePass: reader.startInteractivePass,
+		});
+		context.stdout = (line) => out.push(line);
+
+		expect(
+			await run(
+				["review", "--scenario", "polite-rejection", "--only", "cases"],
+				context,
+			),
+		).toBe(0);
+		expect(exits).toEqual([]);
+		expect(out.some((line) => line.includes("try again"))).toBe(false);
+		expect(out.some((line) => line.startsWith("cannot apply:"))).toBe(false);
+		expect(
+			out.filter((line) => line === "--- case polite-rejection-01 ---"),
+		).toHaveLength(1);
+		expect(out).not.toContain("--- case polite-rejection-02 ---");
+		expect(out.at(-1)).toBe(
+			"review: 0 approved, 0 rejected, 0 edited, 2 skipped, 0 re-opened, 2 still pending",
+		);
+	});
+
 	test("the write-back and its report run inside the pass's whileWriting, where a second Ctrl+C lets the write finish", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);

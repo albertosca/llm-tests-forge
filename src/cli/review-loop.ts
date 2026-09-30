@@ -15,7 +15,7 @@ import type {
 	Scenario,
 } from "../core/schemas";
 import { palette, renderItem } from "./colors";
-import { EditorInterruptedError } from "./prompts";
+import { ReviewInterruptedError } from "./prompts";
 
 export interface ReviewLoopArgs {
 	items: PendingItem[];
@@ -250,13 +250,13 @@ export async function runReviewLoop(
 				record(pending, current.item);
 				break;
 			} catch (error) {
-				// Ctrl+C inside `$EDITOR` is a request to stop, not a bad
-				// edit: retrying re-rendered the item and asked the person
-				// who had just pressed it to go on. The item on screen and
-				// every later one are skipped, as a Ctrl+C at the prompt skips
-				// them, and the pass ends here so the caller writes what was
-				// decided.
-				if (error instanceof EditorInterruptedError) {
+				// Ctrl+C inside `$EDITOR`, or while an expected value is
+				// asked for, is a request to stop, not a bad answer: retrying
+				// re-rendered the item and asked the person who had just
+				// pressed it to go on. The item on screen and every later one
+				// are skipped, as a Ctrl+C at the prompt skips them, and the
+				// pass ends here so the caller writes what was decided.
+				if (error instanceof ReviewInterruptedError) {
 					summary.skipped += loopArguments.items.length - position;
 					return { decisions, summary };
 				}

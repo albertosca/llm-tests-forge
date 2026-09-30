@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parse, stringify } from "yaml";
-import { EditorInterruptedError } from "../../src/cli/prompts";
+import { EditorInterruptedError, InputEndedError } from "../../src/cli/prompts";
 import type { ReviewLoopResult } from "../../src/cli/review-loop";
 import { runReviewLoop } from "../../src/cli/review-loop";
 import { ForgeError } from "../../src/core/errors";
@@ -441,6 +441,41 @@ describe("runReviewLoop", () => {
 			false,
 		);
 		expect(asked).toBe(2);
+	});
+
+	test("the input ending while an expected value is asked for skips the item on screen and every later one: no 'cannot apply', no re-render", async () => {
+		const printed: string[] = [];
+		const result = await runReviewLoop({
+			items: [
+				{ kind: "case", item: noExp },
+				{ kind: "scenario", item: scn },
+			],
+			ask: scripted(["approve", "approve"]),
+			openEditor: async (yamlText) => yamlText,
+			askExpected: async (caseEntry) => {
+				throw new InputEndedError("the input ended", { id: caseEntry.id });
+			},
+			checkExpected: () => null,
+			takenIdsFor: () => new Set(),
+			oracleOf: () => "label",
+			print: (line) => printed.push(line),
+		});
+		expect(result.summary).toEqual({
+			approved: 0,
+			rejected: 0,
+			edited: 0,
+			skipped: 2,
+		});
+		expect(result.decisions).toEqual([]);
+		expect(
+			printed.filter((line) => line === `--- case ${noExp.id} ---`),
+		).toHaveLength(1);
+		expect(
+			printed.filter((line) => line === `--- scenario ${scn.id} ---`),
+		).toHaveLength(0);
+		expect(printed.some((line) => line.startsWith("cannot apply:"))).toBe(
+			false,
+		);
 	});
 
 	test("skip leaves no decision", async () => {

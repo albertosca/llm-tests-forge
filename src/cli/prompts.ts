@@ -6,16 +6,34 @@ import type { Case, Expected, Oracle } from "../core/schemas";
 import type { InteractiveReader } from "./interruptible-stdin";
 
 /**
- * `$EDITOR` ended by Ctrl+C rather than closed. It is a `ForgeError` so
- * nothing above the review loop mistakes it for a bug, but the loop does
- * not treat it as a bad edit to retry: the person asked to stop, so the
- * item is skipped and the pass ends (see `runReviewLoop`). The constructor
- * is written out for the coverage reason `UsageError` gives.
+ * A Ctrl+C reached the pass while it was doing something other than
+ * asking approve/reject/edit/skip. It is a `ForgeError` so nothing above
+ * the review loop mistakes it for a bug, but the loop does not treat it as
+ * a bad answer to retry: the person asked to stop, so the item on screen
+ * and every later one are skipped and the pass ends (see `runReviewLoop`).
+ * The constructors are written out for the coverage reason `UsageError`
+ * gives.
  */
-export class EditorInterruptedError extends ForgeError {
+export class ReviewInterruptedError extends ForgeError {
+	constructor(message: string, details: ForgeErrorDetails = {}) {
+		super(message, details);
+		this.name = "ReviewInterruptedError";
+	}
+}
+
+/** `$EDITOR` ended by Ctrl+C rather than closed. */
+export class EditorInterruptedError extends ReviewInterruptedError {
 	constructor(message: string, details: ForgeErrorDetails = {}) {
 		super(message, details);
 		this.name = "EditorInterruptedError";
+	}
+}
+
+/** The input ended (a Ctrl+C) while an expected value was being asked for. */
+export class InputEndedError extends ReviewInterruptedError {
+	constructor(message: string, details: ForgeErrorDetails = {}) {
+		super(message, details);
+		this.name = "InputEndedError";
 	}
 }
 
@@ -110,6 +128,13 @@ export async function askExpectedFor(
 				? `an expected ${oracle} is required`
 				: check(candidate);
 		if (candidate !== null && problem === null) return candidate;
+		// After a Ctrl+C every read answers "": re-asking printed "try
+		// again" three times and failed as if the person had typed nothing.
+		if (io.stdin.inputEnded())
+			throw new InputEndedError(
+				"the input ended while an expected value was asked for",
+				{ id: caseEntry.id },
+			);
 		if (attempt === EXPECTED_ATTEMPTS)
 			throw new ForgeError(
 				`no usable expected value after ${EXPECTED_ATTEMPTS} attempts: ${problem}`,
