@@ -168,6 +168,11 @@ export async function run(
 		if (verb !== "status" && verb !== "guide")
 			await warnAboutSuiteVersion(context);
 		await command(rest, context);
+		// Only after the verb returned: one that throws midway (emit whose
+		// shim write fails after promptfooconfig.yaml) leaves suite.yaml
+		// unstamped. A verb that succeeds having written nothing (review with
+		// nothing pending) still stamps; the owner accepted that on
+		// 2026-09-29. tests/cli/stamp.test.ts pins both.
 		if (STAMPING_VERBS.has(verb ?? "")) await stampAfterSuccess(context);
 		return 0;
 	} catch (error) {
