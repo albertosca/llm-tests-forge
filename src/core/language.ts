@@ -19,6 +19,7 @@ const MANIFESTS: { manifest: string; language: Language }[] = [
 async function fileExists(path: string): Promise<boolean> {
 	return stat(path).then(
 		(found) => found.isFile(),
+		// Stryker disable next-line ArrowFunction: every caller reads the result as a condition (`if`, or the ternary on `typed`), where undefined is false too.
 		() => false,
 	);
 }

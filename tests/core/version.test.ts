@@ -138,6 +138,31 @@ describe("isHigherVersion", () => {
 		expect(isHigherVersion("0.1.0", "0.1.0+build")).toBe(false);
 		expect(isHigherVersion("0.1.1+build", "0.1.0")).toBe(true);
 	});
+	test("prerelease identifiers order in both directions: equal ones pass to the next, alphanumerics by ASCII, and any alphanumeric above any number", () => {
+		for (const [higher, lower] of [
+			// Equal numeric identifiers leave it to the next one.
+			["1.0.0-1.2", "1.0.0-1.1"],
+			// Alphanumerics compare in ASCII order, uppercase before lowercase.
+			["1.0.0-beta", "1.0.0-alpha"],
+			["1.0.0-alpha", "1.0.0-Beta"],
+			// An alphanumeric is above a number, however long the number, and
+			// whether it starts with a digit or a hyphen.
+			["1.0.0-a", "1.0.0-12345"],
+			["1.0.0-1a", "1.0.0-2"],
+			["1.0.0--x", "1.0.0-1"],
+		] as const) {
+			expect({
+				higher,
+				lower,
+				higherWins: isHigherVersion(higher, lower),
+			}).toEqual({ higher, lower, higherWins: true });
+			expect({
+				higher,
+				lower,
+				lowerWins: isHigherVersion(lower, higher),
+			}).toEqual({ higher, lower, lowerWins: false });
+		}
+	});
 });
 
 describe("versionWarning", () => {

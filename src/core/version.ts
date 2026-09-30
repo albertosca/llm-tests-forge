@@ -34,6 +34,7 @@ function parseVersion(version: string): ParsedVersion | null {
 	const match = SEMVER.exec(version);
 	if (!match) return null;
 	return {
+		// Stryker disable next-line StringLiteral: the three core groups take part in every match, so no default is ever read
 		core: [match[1] ?? "", match[2] ?? "", match[3] ?? ""],
 		prerelease: match[4] === undefined ? [] : match[4].split("."),
 	};
@@ -47,35 +48,56 @@ function parseVersion(version: string): ParsedVersion | null {
  */
 function compareDigits(left: string, right: string): number {
 	if (left.length !== right.length) return left.length - right.length;
-	if (left === right) return 0;
-	return left < right ? -1 : 1;
+	return compareText(left, right);
+}
+
+/** 1, 0 or -1 as `left` sorts after, with or before `right` in ASCII order. */
+function compareText(left: string, right: string): number {
+	return Number(left > right) - Number(left < right);
+}
+
+/**
+ * Two prerelease identifiers: numeric ones compare as numbers and sit below
+ * alphanumeric ones, which compare in ASCII order. Negative, zero or
+ * positive, as `left` is lower, equal or higher.
+ */
+function compareIdentifiers(left: string, right: string): number {
+	const leftNumeric = /^\d+$/.test(left);
+	const rightNumeric = /^\d+$/.test(right);
+	if (leftNumeric && rightNumeric) return compareDigits(left, right);
+	if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+	return compareText(left, right);
 }
 
 /**
  * Semver precedence of two prereleases: a release (no identifiers) is above
- * any prerelease of it, numeric identifiers compare as numbers and sit below
- * alphanumeric ones, and a longer list wins when the shared part is equal.
- * Negative when `left` is lower, positive when higher, 0 when equal.
+ * any prerelease of it, identifiers compare one by one, and a longer list
+ * wins when the shared part is equal. Negative when `left` is lower,
+ * positive when higher, 0 when equal.
  */
 function comparePrerelease(left: string[], right: string[]): number {
 	if (left.length === 0 || right.length === 0)
 		return right.length - left.length;
 	const shared = Math.min(left.length, right.length);
 	for (let position = 0; position < shared; position++) {
-		const leftIdentifier = left[position] ?? "";
-		const rightIdentifier = right[position] ?? "";
-		const leftNumeric = /^\d+$/.test(leftIdentifier);
-		const rightNumeric = /^\d+$/.test(rightIdentifier);
-		if (leftNumeric && rightNumeric) {
-			const difference = compareDigits(leftIdentifier, rightIdentifier);
-			if (difference !== 0) return difference;
-		} else if (leftNumeric !== rightNumeric) {
-			return leftNumeric ? -1 : 1;
-		} else if (leftIdentifier !== rightIdentifier) {
-			return leftIdentifier < rightIdentifier ? -1 : 1;
-		}
+		const difference = compareIdentifiers(
+			// Stryker disable next-line StringLiteral: position stays below both lengths, so neither default is ever read
+			left[position] ?? "",
+			// Stryker disable next-line StringLiteral: position stays below both lengths, so neither default is ever read
+			right[position] ?? "",
+		);
+		if (difference !== 0) return difference;
 	}
 	return left.length - right.length;
+}
+
+/** The full SemVer precedence of two parsed versions, core then prerelease. */
+function compareParsed(left: ParsedVersion, right: ParsedVersion): number {
+	for (const position of [0, 1, 2] as const) {
+		const difference = compareDigits(left.core[position], right.core[position]);
+		if (difference !== 0) return difference;
+	}
+	return comparePrerelease(left.prerelease, right.prerelease);
 }
 
 /**
@@ -118,14 +140,7 @@ export function isHigherVersion(candidate: string, existing: string): boolean {
 	const lower = parseVersion(existing);
 	if (higher === null) return false;
 	if (lower === null) return true;
-	for (const position of [0, 1, 2] as const) {
-		const difference = compareDigits(
-			higher.core[position],
-			lower.core[position],
-		);
-		if (difference !== 0) return difference > 0;
-	}
-	return comparePrerelease(higher.prerelease, lower.prerelease) > 0;
+	return compareParsed(higher, lower) > 0;
 }
 
 /** The warning a suite's stamp earns against the installed version, or null. */
