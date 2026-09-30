@@ -519,4 +519,112 @@ describe("registerSuite changes only the line it adds", () => {
 			`suites: is a YAML alias, which registering cannot extend; ${registrationHint("evals/b")} (file: ${project.file})`,
 		);
 	});
+	test("a last item whose value starts on the line after its dash gets the new line at the list's own indentation", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites:\n  - evals/c\n  -\n    evals/a\ndefaults: {}\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites:\n  - evals/c\n  -\n    evals/a\n  - evals/b\ndefaults: {}\n",
+		);
+	});
+	test("a long entry is written on one line, in a block list as in a flow list", async () => {
+		const long = `evals/${"a long name ".repeat(9)}z`;
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites:\n  - evals/a\n",
+				long,
+			),
+		).toBe(`version: 1\nlanguage: go\nsuites:\n  - evals/a\n  - ${long}\n`);
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites: [evals/a]\n",
+				long,
+			),
+		).toBe(`version: 1\nlanguage: go\nsuites: [evals/a, ${long}]\n`);
+	});
+	test("a forge.yaml written as one flow mapping, its list starting a line, is extended inside the brackets", async () => {
+		const head = "{version: 1, language: go, suites:\n";
+		expect(await registeredText(`${head}[]}\n`)).toBe(`${head}[evals/b]}\n`);
+		expect(await registeredText(`${head}[evals/a\n]}\n`)).toBe(
+			`${head}[evals/a, evals/b\n]}\n`,
+		);
+	});
+	test("a project whose text no longer lists the suites it was read with is refused, never written with the new entry alone", async () => {
+		const project = await readProject(
+			await projectWith("version: 1\nlanguage: go\nsuites: [evals/a]\n"),
+		);
+		const changed = { ...project, text: "version: 1\nlanguage: go\n" };
+		expect(() =>
+			registerSuite(changed, join(project.root, "evals", "b")),
+		).toThrow(
+			`registering evals/b would write a forge.yaml that does not read back as the listed suites plus this one, so it was left unchanged; ${registrationHint("evals/b")} (file: ${project.file})`,
+		);
+	});
+});
+
+describe("which directories are suites of the project", () => {
+	test("an entry that climbs to the project's parent, however it is spelled, is a problem, not a suite", async () => {
+		const project = await readProject(
+			await projectWith(
+				"version: 1\nlanguage: go\nsuites:\n  - ..\n  - ../\n  - evals/../..\n  - evals/a\n",
+			),
+		);
+		expect(project.suites.map((suite) => suite.entry)).toEqual(["evals/a"]);
+		expect(project.problems).toEqual(
+			["..", "../", "evals/../.."].map((entry) => ({
+				entry,
+				reason: `suite "${entry}" climbs out of the project`,
+			})),
+		);
+	});
+	test("registerSuite refuses the project's parent itself, as it refuses a sibling", async () => {
+		const project = await readProject(
+			await projectWith("version: 1\nlanguage: go\n"),
+		);
+		const parent = join(project.root, "..");
+		expect(() => registerSuite(project, parent)).toThrow(
+			`${parent} is outside the project at ${project.root}; a suite must live inside it`,
+		);
+	});
+	test("the project root itself registers as the entry `.`", async () => {
+		const project = await readProject(
+			await projectWith("version: 1\nlanguage: go\nsuites: []\n"),
+		);
+		expect(registerSuite(project, project.root)).toEqual({
+			entry: ".",
+			text: "version: 1\nlanguage: go\nsuites: [.]\n",
+		});
+	});
+	test("a symlink to any listed suite is that suite; another existing directory is a new one", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: go\nsuites:\n  - evals/a\n  - evals/b\n",
+		);
+		for (const name of ["a", "b", "c"])
+			await mkdir(join(root, "evals", name), { recursive: true });
+		await symlink(join(root, "evals", "b"), join(root, "evals", "link"));
+		const project = await readProject(root);
+		expect(registerSuite(project, join(root, "evals", "link"))).toBeNull();
+		expect(registerSuite(project, join(root, "evals", "c"))?.entry).toBe(
+			"evals/c",
+		);
+	});
+});
+
+describe("projectFileText", () => {
+	test("the project file init writes, in full", () => {
+		expect(projectFileText("go")).toBe(
+			[
+				"# llm-tests-forge project file. `llm-tests-forge guide` explains every key.",
+				"version: 1",
+				"language: go",
+				"suites: []",
+				"defaults:",
+				"  # drafter: google/gemini-3.5-flash",
+				"  # target_models: [anthropic/claude-haiku-4-5]",
+				"  # judges: [google/gemini-3.5-flash]",
+				"",
+			].join("\n"),
+		);
+	});
 });

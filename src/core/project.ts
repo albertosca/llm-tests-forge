@@ -13,6 +13,7 @@ import {
 	isAlias,
 	isNode,
 	isSeq,
+	type Node,
 	parseDocument,
 	type Range,
 	stringify,
@@ -48,12 +49,11 @@ export interface Project {
 }
 
 async function fileExists(path: string): Promise<boolean> {
-	try {
-		await access(path);
-		return true;
-	} catch {
-		return false;
-	}
+	return access(path).then(
+		() => true,
+		// Stryker disable next-line ArrowFunction: the one caller reads the result as an `if` condition, where undefined is false too.
+		() => false,
+	);
 }
 
 /** The nearest directory at or above `startDirectory` that holds a forge.yaml, or null. */
@@ -66,12 +66,12 @@ export async function findProjectRoot(
 	return parent === directory ? null : findProjectRoot(parent);
 }
 
-/** The form two entries are compared in: normalized, without a trailing slash. */
+/**
+ * The form two entries are compared in: normalized, without a trailing
+ * slash. Joining "." does both, and leaves "/" itself as it is.
+ */
 export function comparableEntry(entry: string): string {
-	const normalized = posix.normalize(entry);
-	return normalized.length > 1 && normalized.endsWith("/")
-		? normalized.slice(0, -1)
-		: normalized;
+	return posix.join(entry, ".");
 }
 
 /** The message for a suite path written with a backslash, in forge.yaml or on --suite. */
@@ -82,6 +82,7 @@ export function backslashProblem(entry: string): string {
 /** Why `entry` cannot be a suite of this project, or null when it can. */
 function entryProblem(entry: string, seen: Set<string>): string | null {
 	if (entry.includes("\\")) return backslashProblem(entry);
+	// Stryker disable next-line LogicalOperator: where the mutation run happens (POSIX), isAbsolute is posix.isAbsolute; the `||` adds a drive path such as C:/evals on Windows only.
 	if (isAbsolute(entry) || posix.isAbsolute(entry))
 		return `suite "${entry}" is an absolute path; list it relative to forge.yaml`;
 	const comparable = comparableEntry(entry);
@@ -186,34 +187,39 @@ function insertAt(text: string, position: number, addition: string): string {
 	return text.slice(0, position) + addition + text.slice(position);
 }
 
-/** Where a node parsed from text stands in it; every parsed node has this. */
-function sourceRange(node: unknown): Range {
-	if (!isNode(node) || !node.range) throw new Error("node has no range");
-	return node.range;
-}
-
-/** `entry` as one item of a flow or a block list, quoted when that context would misread it. */
-function listItemText(entry: string, flow: boolean): string {
-	const printed = stringify([entry], {
-		collectionStyle: flow ? "flow" : "block",
-		flowCollectionPadding: false,
-		lineWidth: 0,
-	}).trimEnd();
-	return flow ? printed.slice(1, -1) : printed.slice(2);
+/** Where a node parsed from text stands in it. */
+function sourceRange(node: Node): Range {
+	// Stryker disable next-line ArrayDeclaration: every node the parser builds has a range, so the fallback is never read
+	return node.range ?? [0, 0, 0];
 }
 
 /**
- * `text` with `- <entry>` on a line of its own after the last item of a
- * block list, at that item's indentation, with the file's line ending.
+ * `entry` as one item of a flow or a block list, quoted when that context
+ * would misread it. A block list is the printer's default style.
  */
-function appendToBlockList(
-	text: string,
-	lastItem: Range,
-	entry: string,
-): string {
-	const line = `${lineEndingOf(text)}${indentationAt(text, lastItem[0])}- ${listItemText(entry, false)}`;
-	// A block scalar's range runs past its content to the next line.
-	const contentEnd = text.slice(0, lastItem[1]).trimEnd().length;
+function listItemText(entry: string, flow: boolean): string {
+	if (flow)
+		return stringify([entry], {
+			collectionStyle: "flow",
+			flowCollectionPadding: false,
+			lineWidth: 0,
+		})
+			.trimEnd()
+			.slice(1, -1);
+	return stringify([entry], { lineWidth: 0 }).trimEnd().slice(2);
+}
+
+/**
+ * `text` with `- <entry>` on a line of its own after the block list's last
+ * item, with the file's line ending, at the indentation of the list's first
+ * dash: every dash of a block list stands there, while an item's value may
+ * start on the line after its dash, further in.
+ */
+function appendToBlockList(text: string, list: Range, entry: string): string {
+	const line = `${lineEndingOf(text)}${indentationAt(text, list[0])}- ${listItemText(entry, false)}`;
+	// The list's value ends with its last item's; a block scalar's runs past
+	// its content to the next line.
+	const contentEnd = text.slice(0, list[1]).trimEnd().length;
 	return insertAt(text, lineEnd(text, contentEnd), line);
 }
 
@@ -287,7 +293,8 @@ function appendToFlowList(
 	const comma = /^[ \t]*,/.exec(text.slice(valueEnd));
 	const afterComma = comma === null ? null : valueEnd + comma[0].length;
 	const ownLine =
-		lineStart(text, lastItem[0]) > list[0] && lineStart(text, close) > valueEnd;
+		lineStart(text, lastItem[0]) > list[0] &&
+		lineStart(text, close) > lineStart(text, valueEnd);
 	if (!ownLine)
 		return afterComma === null
 			? insertAt(text, valueEnd, `, ${item}`)
@@ -336,11 +343,15 @@ export function registerSuite(
 	if (isSeq(suites)) {
 		const list = sourceRange(suites);
 		const last = suites.items.at(-1);
-		const lastItem = last === undefined ? null : sourceRange(last);
 		const text =
 			suites.flow === true
-				? appendToFlowList(project.text, list, lastItem, entry)
-				: appendToBlockList(project.text, sourceRange(last), entry);
+				? appendToFlowList(
+						project.text,
+						list,
+						isNode(last) ? sourceRange(last) : null,
+						entry,
+					)
+				: appendToBlockList(project.text, list, entry);
 		checkRegisteredText(project, text, entry);
 		return { text, entry };
 	}
