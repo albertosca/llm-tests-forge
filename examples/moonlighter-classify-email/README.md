@@ -2,7 +2,7 @@
 
 The target is [moonlighter](https://github.com/albertosca/moonlighter), a job-application tracker. Its `classify_response` (`packages/email/moonlighter/tracking/classification.py`) takes one email a candidate received and returns a JSON object with `type`, `stage`, `new_stage`, `company`, `job_title` and `summary`, where `type` is one of seven labels. The rule this suite exists to protect is the one that is easiest to get wrong: an automated "we have received your application" is `acknowledgement`, never `screening` and never `interview` — the process has not started. `prompt.txt` in this directory is that function's prompt, copied verbatim, with the untrusted-email block and the stage list replaced by placeholders.
 
-Everything under `.forge/` here was produced by the `llm-tests-forge` commands below and reviewed by hand, then run against the real application. `results.json` is promptfoo's own record of that run and is never hand-edited; `.forge/report.*` are `llm-tests-forge report` read back from it: `report.md`'s header dates the run (`2026-09-16T13:41:49.595Z`, promptfoo 0.123.0), while its `Reported` line and `report.json`'s `generatedAt` are the clock of the last re-render. `.forge/usage.jsonl` is deliberately **not** committed — it is gitignored repository-wide, because it logs every model call the forge itself made on one person's machine.
+Everything under `.forge/` here was produced by the `llm-tests-forge` commands below and reviewed by hand, then run against the real application. `results.json` is promptfoo's own record of that run and is never hand-edited; `.forge/report.*` are `llm-tests-forge report` read back from it: `report.md`'s header dates the run (`2026-09-30T16:27:10.834Z`, promptfoo 0.123.0), while its `Reported` line and `report.json`'s `generatedAt` are the clock of the last re-render. `.forge/usage.jsonl` is deliberately **not** committed — it is gitignored repository-wide, because it logs every model call the forge itself made on one person's machine.
 
 ## Models used, and why Google is absent
 
@@ -39,7 +39,7 @@ The judge is deliberately not the model under test.
 
 ## What review actually changed
 
-**The feature.** `describe` got it right on the first try and needed no hand fix: `output.kind: json`, `label_field: type`, the seven labels, one `email` text input, and four invariants lifted from the prompt — including the acknowledgement rule. Approved as generated.
+**The feature.** `describe` got it right on the first try and needed no hand fix: `output.kind: json`, `label_field: type`, the seven labels, three text inputs, `from`, `subject` and `body`, and four invariants lifted from the prompt — including the acknowledgement rule. Approved as generated.
 
 **The scenarios.** 13 generated, 8 kept, covering all six kinds with one `rubric` oracle and seven `label`.
 
@@ -65,15 +65,15 @@ The one expected value worth arguing about is `empty-subject-and-minimal-body-03
 
     $ bun ../../src/cli/bin.ts estimate
     estimate: 24 cases, 3 with a rubric; prices dated 2026-09-16
-      target  anthropic/claude-haiku-4-5           48 calls   23036 in    5760 out  $0.036339–$0.062327 (point $0.051836)
+      target  anthropic/claude-haiku-4-5           48 calls   22792 in    5760 out  $0.036106–$0.062048 (point $0.051592)
       judge   anthropic/claude-sonnet-5             6 calls    2784 in    1098 out  $0.006862–$0.027964 (point $0.016548)
-      total                                                                         $0.043201–$0.090291 (point $0.068384)
+      total                                                                         $0.042968–$0.090012 (point $0.068140)
     note: tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is estimated from output.kind, with no text basis
 
 ## The run
 
     $ bunx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml -o results.json --no-cache --no-progress-bar -j 2
-    ✓ 46 passed (95.83%)  ·  ✗ 2 failed (4.17%)  ·  0 errors (0%)  ·  Duration: 43s (concurrency: 2)
+    ✓ 46 passed (95.83%)  ·  ✗ 2 failed (4.17%)  ·  0 errors (0%)  ·  Duration: 42s (concurrency: 2)
 
     $ bun ../../src/cli/bin.ts report results.json
     report: 48 of 48 rows matched; pass rate 95.8%; 1 failing or errored; 0 flaky; 0 judge disagreements
@@ -84,31 +84,30 @@ which renders as:
 
 Every scenario ran 6 times (3 cases × `repeat: 2`). Seven of the eight passed 6 times; `empty-subject-and-minimal-body` comes out 4 passed, 2 failed, 0 errored, and both failures are the same case, `empty-subject-and-minimal-body-03`, which `report.md` lists under **Failing or errored cases**. **Flaky cases** is empty this time, which is itself a result and not an improvement: the previous run had `-02` there, and the only thing that changed between the two is which answer the model happened to pick. Both are described below.
 
-The cost table is real on both rows, and both land inside the estimated range. The target billed $0.046218 on 23588 in / 4526 out, inside $0.036339–$0.062327 and 10.8% under the point estimate of $0.051836: `estimate` counts characters ÷ 4, and Haiku's tokeniser packs these emails slightly tighter. That row is not independent evidence for the range, though — the 3.5 to 4.2 characters per token behind it were fit to exactly these 48 rows, the only recorded target usage the repository has. The judge billed $0.010290 on 2305 in / 568 out, inside $0.006862–$0.027964. Its range is wide on purpose: a judge that rejects writes a long explanation and a passing one does not, so how much it writes depends on how many rubric cases fail, which nothing can know before the run; over the committed runs the mean billed judge output went from 95 to 321 tokens a call. Earlier renders of this report showed 666 judge output tokens: the report added Anthropic's reasoning tokens on top of a completion count that already includes them, and 568 is what was billed.
+The cost table is real on both rows, and both land inside the estimated range, so the run was within the estimate. The target billed $0.046391 on 23606 in / 4557 out, inside $0.036106–$0.062048 and 10.1% under the point estimate of $0.051592: the input came out 3.6% above the characters ÷ 4 count, and what pulled the cost under the point was the output, since `estimate` has no text to go on and assumes 5760 output tokens where Haiku's short JSON answers used 4557. That row is not independent evidence for the range, though — the 3.5 to 4.2 characters per token behind it were fit to the 48 rows of an earlier run, the only recorded target usage the repository has. The judge billed $0.010612 on 2296 in / 602 out, inside $0.006862–$0.027964. Its range is wide on purpose: a judge that rejects writes a long explanation and a passing one does not, so how much it writes depends on how many rubric cases fail, which nothing can know before the run; over the committed runs the mean billed judge output went from 95 to 321 tokens a call. Earlier renders of this report showed 666 judge output tokens: the report added Anthropic's reasoning tokens on top of a completion count that already includes them, and 602 is what was billed.
 
 Two kinds of noise on stderr are expected and are not failures: promptfoo 0.123.0 prints `ExperimentalWarning: DecompressInterceptor`, and the Python worker prints an `asyncio` traceback ending in `RuntimeError: Event loop is closed` when it tears down moonlighter's HTTP client after the loop has closed. All 48 rows still carry a result.
 
-### This is the third run, and the first one was wrong
+### This is the fourth run, and the first one was wrong
 
 The first run of this suite reported 48 of 48 passing, and that number was an artefact of the shim. `run_application` rebuilt moonlighter's `{from_, subject, body}` by splitting the `email` input on the first blank line, which suited neither shape the cases are written in: 21 of the 24 carry the body's first line on a `Body:` marker, which the split swallowed into the header block, and the three `empty-subject-and-minimal-body` cases have no blank line at all, so their body arrived **empty**. Those three are the suite's only `rubric` cases, so every judge call in the first run graded a `From:` header with nothing behind it — moonlighter's own summaries for them read "Email is empty".
 
-The shim was fixed to parse the header lines one at a time (see `parse_email`), and the second run was the repeat with the real bodies: 45 of 48, three failures where the first run had none. A worse-looking number and a better measurement — they only became visible once the classifier could see the words "update", "following up" and "thanks". No case file was touched.
+The shim was fixed to parse the header lines one at a time, and the second run was the repeat with the real bodies: 45 of 48, three failures where the first run had none. A worse-looking number and a better measurement — they only became visible once the classifier could see the words "update", "following up" and "thanks". No case file was touched.
 
-The run above is the third, and the only thing that changed in the shim since the second is that it now captures moonlighter's token counts. Everything else about the suite is byte-identical, so the difference between 45 and 46 passing is the models, not the harness — which is the point of `repeat: 2` and of the flaky section.
+The third run only added token capture to the shim. The run above is the fourth, and what changed is the input contract: the feature now has three text inputs, `from`, `subject` and `body`, so `run_application` passes them to moonlighter's `classify_response` as they are and no longer parses an email string, which also removes the guesswork that had been the shim's second limitation. The suite still reads 46 of 48 and the same case fails, so the parsing was not hiding a difference in the result — the point of `repeat: 2` and of the flaky section is that the remaining movement between runs is the models, not the harness.
 
 ### The failures
 
 They are worth reading, because they are what the suite is for:
 
-- **`empty-subject-and-minimal-body-03`, both repeats of both runs that had a body.** The rubric asks for `company` to be null on a one-word email with no identifying details; moonlighter answered `company: "Harbor Oak Recruiting"`, inferred from the sender's domain. The judge scored it 0 and 0 here (0 and 0.3 in the previous run) with that reason every time. This is the case flagged during review as the one worth arguing about — whether inferring a company from a recruiting domain is correct behaviour is a real question about moonlighter, not a defect in the case, so it stays as generated.
+- **`empty-subject-and-minimal-body-03`, both repeats of every run that had a body.** The rubric asks for `company` to be null on a one-word email with no identifying details; moonlighter answered `company: "Harbor Oak Recruiting"`, inferred from the sender's domain. The judge scored it 0 and 0 here (0 and 0.3 in the previous run) with that reason every time. This is the case flagged during review as the one worth arguing about — whether inferring a company from a recruiting domain is correct behaviour is a real question about moonlighter, not a defect in the case, so it stays as generated.
 - **`empty-subject-and-minimal-body-02`, flaky in the previous run, clean in this one.** On the body "following up", moonlighter answered `unrelated` twice here and scored 1 both times; in the previous run the same input got `unrelated` once and `screening` once, and `llm-tests-forge report` listed it under **flaky** for exactly that reason. Nothing was fixed in between. A one-word email is genuinely ambiguous, the rubric's demand that it not be called `screening` is the stricter reading, and a case that passes today having failed yesterday is worth no more trust than one that fails today.
 
-## Two honest limitations of the shim
+## One honest limitation of the shim
 
-`.forge/forge_target.py` is the generated shim with `run_application` filled in. It calls `classify_response` directly, so the suite measures the real application, not a copy of its prompt. Two things are worth knowing about it:
+`.forge/forge_target.py` is the generated shim with `run_application` filled in. It calls `classify_response` directly, so the suite measures the real application, not a copy of its prompt. One thing is worth knowing about it:
 
 1. **It reads the token counts by rebinding a name on somebody else's module.** moonlighter hands usage to no caller: `make_api_caller`'s inner `_call` passes the counts straight to `record_call`, which `moonlighter.core.llm` imported at module level. So `run_application` swaps that module attribute for a wrapper, calls the classifier, and puts the original back in `finally` — which is how the target row of `report.md`'s cost table got real numbers. The swap is process-wide, so it is only safe as long as no two classifications overlap inside one interpreter: overlapping ones would cross-count and could leave the wrapper installed. They do not here, and not by luck — promptfoo's `persistent_wrapper.py` reads one `CALL|` line from stdin, runs it to completion, and only then reads the next, so `-j 2` is two worker processes and never two calls in one. All 48 rows of the run above came back with their own plausible counts (338 to 629 prompt tokens, none zero, none doubled). A `usage` return value from moonlighter, or a per-call context variable, would remove the caveat rather than rely on it.
-2. **It has to guess at the email's shape.** The forge carries one `email` string and moonlighter wants three fields, so `parse_email` reads leading `From:`/`Subject:` lines, skips blank lines, drops a `Body:` marker if one is there, and treats the rest as the body. That covers both shapes these cases use, but it is a parser written against the cases it has seen. Giving the feature `from`, `subject` and `body` as three separate inputs would remove the guessing entirely.
 
 ## Rerunning it
 

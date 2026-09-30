@@ -1,5 +1,5 @@
-# llm-tests-forge report — run 2026-09-16T13:41:49.595Z
-Reported 2026-09-30T11:42:49.006Z.
+# llm-tests-forge report — run 2026-09-30T16:27:10.834Z
+Reported 2026-09-30T16:28:12.541Z.
 
 **Pass rate:** 95.8% (46 of 48 runs, 0 errored) · **failing or errored:** 1 · **flaky:** 0 · **judge disagreements:** 0
 
@@ -7,7 +7,7 @@ Reported 2026-09-30T11:42:49.006Z.
 
 | case | model | runs | passed | failed | errored | reasons |
 | --- | --- | --- | --- | --- | --- | --- |
-| empty-subject-and-minimal-body-03 | anthropic/claude-haiku-4-5 | 2 | 0 | 2 | 0 | The rubric requires both job_title and company to be null or empty, but the output sets company to 'Harbor Oak Recruiting' instead of null, so it fails the requirement.; The rubric requires both job_title and company to be null/empty, but while job_title is null, company is set to 'Harbor Oak Recruiting' rather than null or empty. |
+| empty-subject-and-minimal-body-03 | anthropic/claude-haiku-4-5 | 2 | 0 | 2 | 0 | The rubric requires both job_title and company to be null/empty, but while job_title is null, company is set to 'Harbor Oak Recruiting' rather than null or empty.; The output sets job_title to null, but company is set to 'Harbor Oak Recruiting' rather than null or empty, so it does not satisfy the rubric requirement that both fields be null/empty. |
 
 ## Flaky cases
 
@@ -36,7 +36,7 @@ Coverage: 8 of 8 reviewed scenarios ran.
 
 | model | role | input | output | real | estimated | error |
 | --- | --- | --- | --- | --- | --- | --- |
-| anthropic/claude-haiku-4-5 | target | 23588 | 4526 | $0.046218 | $0.036339–$0.062327 | within range |
-| anthropic/claude-sonnet-5 | judge | 2305 | 568 | $0.010290 | $0.006862–$0.027964 | within range |
+| anthropic/claude-haiku-4-5 | target | 23606 | 4557 | $0.046391 | $0.036106–$0.062048 | within range |
+| anthropic/claude-sonnet-5 | judge | 2296 | 602 | $0.010612 | $0.006862–$0.027964 | within range |
 
 Target usage: reported by the shim.

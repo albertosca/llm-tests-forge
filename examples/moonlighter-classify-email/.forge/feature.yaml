@@ -1,9 +1,15 @@
 id: classify-hiring-process-email
 purpose: Classify a hiring-process email received by a job candidate.
 inputs:
-  - name: email
+  - name: from
     kind: text
-    notes: Contains the email From, Subject, and Body.
+    notes: The sender, as the From header shows it.
+  - name: subject
+    kind: text
+    notes: The Subject header; may be empty.
+  - name: body
+    kind: text
+    notes: The email body, without headers.
 output:
   kind: json
   fields:
