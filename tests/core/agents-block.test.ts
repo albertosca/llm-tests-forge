@@ -261,6 +261,8 @@ describe("upsertAgentsBlock", () => {
 		const planned = planAgentsBlock("AGENTS.md", existing);
 		expect(planned.replaced).toBe(false);
 		expect(planned.text).toBe(`${existing}\n${block}\n`);
+		const nested = `>>\`\`\`\n>> ${AGENTS_START}\n>> ${AGENTS_END}\n>>\`\`\`\n`;
+		expect(planAgentsBlock("AGENTS.md", nested).replaced).toBe(false);
 	});
 	test("the block says the project uses llm-tests-forge and points at status and guide", () => {
 		expect(block).toStartWith(AGENTS_START);

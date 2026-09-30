@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
 import {
+	checkRegisteredText,
 	findProjectRoot,
 	projectFileText,
 	readProject,
@@ -485,6 +486,26 @@ describe("registerSuite changes only the line it adds", () => {
 		expect(register).toThrow(
 			`registering evals/b would write a forge.yaml that does not read back as the listed suites plus this one, so it was left unchanged; ${registrationHint("evals/b")} (file: ${project.file})`,
 		);
+	});
+	test("checkRegisteredText refuses text with a YAML error or no document, even when what it can read looks right", async () => {
+		const project = await readProject(
+			await projectWith("version: 1\nlanguage: go\n"),
+		);
+		const refusal = `registering evals/b would write a forge.yaml that does not read back as the listed suites plus this one, so it was left unchanged; ${registrationHint("evals/b")} (file: ${project.file})`;
+		// A duplicate key is an error, though `suites` itself reads as wanted.
+		const duplicated =
+			"version: 1\nlanguage: go\nsuites: [evals/b]\nsuites: [evals/b]\n";
+		expect(() => checkRegisteredText(project, duplicated, "evals/b")).toThrow(
+			refusal,
+		);
+		expect(() => checkRegisteredText(project, "", "evals/b")).toThrow(refusal);
+		expect(() =>
+			checkRegisteredText(
+				project,
+				"version: 1\nlanguage: go\nsuites: [evals/b]\n",
+				"evals/b",
+			),
+		).not.toThrow();
 	});
 	test("a suites that is a YAML alias is refused, naming forge.yaml, rather than replaced", async () => {
 		const project = await readProject(
