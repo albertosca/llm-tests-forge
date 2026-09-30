@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
 	chmod,
+	lstat,
 	mkdir,
 	mkdtemp,
 	readdir,
 	readFile,
+	stat,
+	symlink,
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -29,6 +32,7 @@ import {
 	writeFeature,
 	writeScenarios,
 	writeSuite,
+	writeText,
 } from "../../src/core/files";
 import type { Case, Scenario } from "../../src/core/schemas";
 import { LANGUAGES, SuiteSchema } from "../../src/core/schemas";
@@ -561,5 +565,75 @@ judges: [google/gemini-3.5-flash]
 		await mkdir(forgeDirectory, { recursive: true });
 		expect(await stampSuite(forgeDirectory, "0.4.1")).toBe(false);
 		expect(await readdir(forgeDirectory)).toEqual([]);
+	});
+});
+
+describe("writeText: a write is all or nothing", () => {
+	const ORIGINAL = "id: s-01\nstatus: approved\n# a comment the person wrote\n";
+
+	test("a write that fails half-way leaves the original byte-identical and no temporary file behind", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "cases.yaml");
+		await writeFile(path, ORIGINAL);
+		// Writes half of the new text to wherever it is pointed, then dies —
+		// a full disk, a killed process. Pointed at the file itself, it left
+		// half a file behind.
+		const dyingHalfWay = async (target: string, text: string) => {
+			await writeFile(target, text.slice(0, text.length / 2));
+			throw new Error("ENOSPC: no space left on device");
+		};
+		let caught: unknown;
+		try {
+			await writeText(path, "id: s-01\nstatus: rejected\n", dyingHalfWay);
+		} catch (error) {
+			caught = error;
+		}
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect((caught as ForgeError).message).toBe(
+			`cannot write: ENOSPC: no space left on device (file: ${path})`,
+		);
+		expect(await readFile(path, "utf8")).toBe(ORIGINAL);
+		expect(await readdir(directory)).toEqual(["cases.yaml"]);
+	});
+
+	test("a replace that cannot land (the path is a non-empty directory) removes its temporary file", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "cases.yaml");
+		await mkdir(join(path, "inside"), { recursive: true });
+		await expect(writeText(path, "x: 1\n")).rejects.toThrow("cannot write:");
+		expect(await readdir(directory)).toEqual(["cases.yaml"]);
+	});
+
+	test("the replaced file keeps its permissions", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "cases.yaml");
+		await writeFile(path, ORIGINAL);
+		await chmod(path, 0o600);
+		await writeText(path, "x: 1\n");
+		expect(await readFile(path, "utf8")).toBe("x: 1\n");
+		expect((await stat(path)).mode & 0o777).toBe(0o600);
+	});
+
+	test("a file reached through a symlink is replaced where it lives, and the link stays a link", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const real = join(directory, "real.yaml");
+		const link = join(directory, "link.yaml");
+		await writeFile(real, ORIGINAL);
+		await symlink(real, link);
+		await writeText(link, "x: 1\n");
+		expect((await lstat(link)).isSymbolicLink()).toBe(true);
+		expect(await readFile(real, "utf8")).toBe("x: 1\n");
+		expect((await readdir(directory)).sort()).toEqual([
+			"link.yaml",
+			"real.yaml",
+		]);
+	});
+
+	test("a new file in a directory that does not exist yet is created, parents included", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "cases", "new.yaml");
+		await writeText(path, "x: 1\n");
+		expect(await readFile(path, "utf8")).toBe("x: 1\n");
+		expect(await readdir(join(directory, "cases"))).toEqual(["new.yaml"]);
 	});
 });

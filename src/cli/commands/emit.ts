@@ -1,5 +1,5 @@
-import { access, mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { access } from "node:fs/promises";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { ForgeError, UsageError } from "../../core/errors";
 import {
@@ -8,6 +8,7 @@ import {
 	readFeature,
 	readScenarios,
 	readSuite,
+	writeText,
 } from "../../core/files";
 import { selectCases } from "../../core/select";
 import { entryFor, isShimKind, type ShimKind } from "../../core/target";
@@ -114,7 +115,7 @@ export async function emitCommand(
 			},
 		);
 	if (format === "jsonl") {
-		await writeFile(paths.casesJsonl, renderCasesJsonl({ selection }), "utf8");
+		await writeText(paths.casesJsonl, renderCasesJsonl({ selection }));
 		context.stdout(
 			`emit: wrote ${paths.casesJsonl} (${plural(selection.cases.length, "case")})`,
 		);
@@ -137,7 +138,7 @@ export async function emitCommand(
 		featureFile: paths.feature,
 		command,
 	});
-	await writeFile(paths.promptfooConfig, renderPromptfooConfig(config), "utf8");
+	await writeText(paths.promptfooConfig, renderPromptfooConfig(config));
 	context.stdout(
 		`emit: wrote ${paths.promptfooConfig} (${plural(selection.cases.length, "case")}, ${plural(selection.scenarios.length, "scenario")}, ${plural(suite.target.models.length, "target model")}, ${plural(suite.judges.length, "judge")})`,
 	);
@@ -154,8 +155,7 @@ export async function emitCommand(
 			kept.push(path);
 			continue;
 		}
-		await mkdir(dirname(path), { recursive: true });
-		await writeFile(path, file.content, "utf8");
+		await writeText(path, file.content);
 		written.push(path);
 	}
 	const keptPart = kept.length > 0 ? `kept existing ${kept.join(", ")}` : "";

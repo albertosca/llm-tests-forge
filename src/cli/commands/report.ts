@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { ForgeError, UsageError } from "../../core/errors";
 import { estimateSuite } from "../../core/estimate";
@@ -8,6 +8,7 @@ import {
 	readFeature,
 	readScenarios,
 	readSuite,
+	writeText,
 } from "../../core/files";
 import { buildReport, type Report, ReportSchema } from "../../core/report";
 import { selectCases } from "../../core/select";
@@ -106,12 +107,8 @@ export async function reportCommand(
 		baseline,
 		now: new Date(),
 	});
-	await writeFile(paths.reportMd, renderReportMarkdown(report), "utf8");
-	await writeFile(
-		paths.reportJson,
-		`${JSON.stringify(report, null, 2)}\n`,
-		"utf8",
-	);
+	await writeText(paths.reportMd, renderReportMarkdown(report));
+	await writeText(paths.reportJson, `${JSON.stringify(report, null, 2)}\n`);
 	context.stdout(
 		`report: ${report.matched} of ${report.rows} rows matched; pass rate ${(report.passRate * 100).toFixed(1)}%; ${report.failing.length} failing or errored; ${report.flaky.length} flaky; ${plural(report.disagreements.length, "judge disagreement")}`,
 	);

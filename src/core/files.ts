@@ -1,13 +1,20 @@
+import { randomUUID } from "node:crypto";
 import {
 	access,
+	chmod,
+	lstat,
 	mkdir,
+	open,
 	readdir,
 	readFile,
+	realpath,
+	rename,
+	rm,
 	stat,
 	unlink,
 	writeFile,
 } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import {
 	isMap,
 	isScalar,
@@ -142,15 +149,77 @@ export async function readText(path: string): Promise<string> {
  * directory that cannot be written into, a parent that is a file. The raw
  * `ENAMETOOLONG: name too long, open '...'` used to surface with no verb
  * owning it.
+ *
+ * All or nothing: the text goes to a temporary file beside the target,
+ * which then replaces it in one rename. Writing in place, a full disk or a
+ * killed process left half a file — a reviewed cases file cut off in the
+ * middle of an entry. The temporary file is hidden, of fixed length (so a
+ * name near the filesystem's limit is not pushed over it), and does not
+ * end in `.yaml`, so no listing of the suite mistakes it for one of its
+ * files; it is removed when anything fails.
+ *
+ * A rename would replace a read-only file, so the target is first opened
+ * for writing, without truncating it: a file the person made read-only, a
+ * directory, or a name the filesystem refuses fails there, with the same
+ * message the in-place write gave, before anything is written. The
+ * replaced file keeps its permissions, and a symlink is followed, so the
+ * file it points at is the one replaced and the link stays a link. In a
+ * directory that refuses new files, an existing file is written in place,
+ * as it always was (not all or nothing there). `writeContent` is the seam
+ * a test uses to fail half-way through.
  */
-export async function writeText(path: string, text: string): Promise<void> {
-	await mkdir(join(path, ".."), { recursive: true })
-		.then(() => writeFile(path, text, "utf8"))
-		.catch((error: unknown) => {
-			throw new ForgeError(`cannot write: ${(error as Error).message}`, {
-				file: path,
-			});
+export async function writeText(
+	path: string,
+	text: string,
+	writeContent: (target: string, content: string) => Promise<void> = (
+		target,
+		content,
+	) => writeFile(target, content, "utf8"),
+): Promise<void> {
+	try {
+		await mkdir(dirname(path), { recursive: true });
+		// Resolved only for a symlink: every other path is kept as given, so
+		// a failure names the file as the caller spelled it.
+		const isLink = await lstat(path).then(
+			(entry) => entry.isSymbolicLink(),
+			() => false,
+		);
+		const target = isLink ? await realpath(path) : path;
+		const existing = await open(target, "r+").catch((error: unknown) => {
+			if (hasCode(error) && error.code === "ENOENT") return null;
+			throw error;
 		});
+		const mode =
+			existing === null ? undefined : (await existing.stat()).mode & 0o7777;
+		await existing?.close();
+		const temporary = join(dirname(target), `.forge-write-${randomUUID()}.tmp`);
+		let temporaryWritten = false;
+		try {
+			await writeContent(temporary, text);
+			temporaryWritten = true;
+			if (mode !== undefined) await chmod(temporary, mode);
+			await rename(temporary, target);
+		} catch (error) {
+			// Settled, not awaited bare: a failing cleanup must not replace
+			// the error that says why the write failed.
+			await Promise.allSettled([rm(temporary, { force: true })]);
+			// A directory the person made read-only still lets its existing
+			// files be rewritten, which is what writing in place always did
+			// there; only the temporary file cannot be created. That one
+			// case is written in place, as before, rather than refused.
+			const directoryRefused =
+				!temporaryWritten &&
+				existing !== null &&
+				hasCode(error) &&
+				(error.code === "EACCES" || error.code === "EPERM");
+			if (!directoryRefused) throw error;
+			await writeContent(target, text);
+		}
+	} catch (error) {
+		throw new ForgeError(`cannot write: ${(error as Error).message}`, {
+			file: path,
+		});
+	}
 }
 
 /**
@@ -486,7 +555,7 @@ export async function stampSuite(
 		entries.items.unshift(new Pair(stampKey, new Scalar(stamp)));
 	}
 	if (legacyKind) document.setIn(["target", "kind"], "python");
-	await writeFile(
+	await writeText(
 		forgePaths(forgeDirectory).suite,
 		document.toString({ flowCollectionPadding: false, lineWidth: 0 }),
 	);

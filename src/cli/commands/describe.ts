@@ -1,4 +1,4 @@
-import { access, readFile, writeFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { describeFeature } from "../../core/describe";
@@ -8,6 +8,7 @@ import {
 	readFeatureIfPresent,
 	writeFeature,
 	writeSuite,
+	writeText,
 } from "../../core/files";
 import {
 	PROJECT_FILE,
@@ -102,7 +103,7 @@ async function registerInProject(context: CliContext): Promise<void> {
 	if (project === null) return;
 	const registration = registerSuite(project, dirname(context.forgeDirectory));
 	if (registration !== null) {
-		await writeFile(project.file, registration.text);
+		await writeText(project.file, registration.text);
 		context.stdout(
 			`describe: registered ${registration.entry} in ${project.file}`,
 		);
