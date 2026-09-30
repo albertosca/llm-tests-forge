@@ -1,10 +1,10 @@
 - id: automated-receipt-vs-actual-screening-01
   scenario: automated-receipt-vs-actual-screening
   input:
-    email: |-
-      From: careers-noreply@brightpath.com
-      Subject: Application Received - Data Analyst Position
-      Body: Dear Maria Gonzalez,
+    from: careers-noreply@brightpath.com
+    subject: Application Received - Data Analyst Position
+    body: |-
+      Dear Maria Gonzalez,
 
       Thank you for applying to the Data Analyst position at BrightPath Solutions. This email confirms that your application has been successfully received in our system.
 
@@ -21,10 +21,10 @@
 - id: automated-receipt-vs-actual-screening-02
   scenario: automated-receipt-vs-actual-screening
   input:
-    email: |-
-      From: talent-updates@finlogix.io
-      Subject: We've Got Your Application - Senior Backend Engineer
-      Body: Hi Devon Carter,
+    from: talent-updates@finlogix.io
+    subject: We've Got Your Application - Senior Backend Engineer
+    body: |-
+      Hi Devon Carter,
 
       This is an automated message to let you know that your application for the Senior Backend Engineer role at Finlogix has been received and logged into our applicant tracking system.
 
@@ -42,10 +42,10 @@
 - id: automated-receipt-vs-actual-screening-03
   scenario: automated-receipt-vs-actual-screening
   input:
-    email: |-
-      From: hr-system@quantumcore.com
-      Subject: Application Confirmation & Next Step - Product Manager Role
-      Body: Dear Priya Nair,
+    from: hr-system@quantumcore.com
+    subject: Application Confirmation & Next Step - Product Manager Role
+    body: |-
+      Dear Priya Nair,
 
       Thank you for submitting your application for the Product Manager position at QuantumCore Technologies. This confirms we have successfully received your resume and cover letter.
 

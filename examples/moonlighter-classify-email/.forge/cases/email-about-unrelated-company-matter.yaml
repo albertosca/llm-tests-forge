@@ -1,10 +1,10 @@
 - id: email-about-unrelated-company-matter-01
   scenario: email-about-unrelated-company-matter
   input:
-    email: |-
-      From: Marcus Bell <marcus.bell@northfield-logistics.com>
-      Subject: Updated Remote Work Policy - Effective March 1st
-      Body: Hi team,
+    from: Marcus Bell <marcus.bell@northfield-logistics.com>
+    subject: Updated Remote Work Policy - Effective March 1st
+    body: |-
+      Hi team,
 
       As part of our Q1 operational review, HR has finalized updates to the remote work policy. Starting March 1st, all employees must log their in-office days through the new Workday portal, and remote work will be capped at three days per week unless approved by a director. Please review the attached PDF and sign the acknowledgement form by Friday.
 
@@ -20,10 +20,10 @@
 - id: email-about-unrelated-company-matter-02
   scenario: email-about-unrelated-company-matter
   input:
-    email: |-
-      From: Priya Ramaswamy <priya.r@summitware.com>
-      Subject: Vendor Inquiry - Cloud Storage Renewal
-      Body: Hello,
+    from: Priya Ramaswamy <priya.r@summitware.com>
+    subject: Vendor Inquiry - Cloud Storage Renewal
+    body: |-
+      Hello,
 
       Our current contract with DataVault Cloud Storage expires at the end of this quarter, and I wanted to check whether your team has evaluated alternative vendors like Backblaze or Wasabi for cost comparison. We're trying to finalize the procurement decision before the next budget cycle closes.
 
@@ -40,10 +40,10 @@
 - id: email-about-unrelated-company-matter-03
   scenario: email-about-unrelated-company-matter
   input:
-    email: |-
-      From: Daniel Okafor <daniel.okafor@brightpath-solutions.com>
-      Subject: Office Relocation Update - New Address Starting April 15
-      Body: Hi everyone,
+    from: Daniel Okafor <daniel.okafor@brightpath-solutions.com>
+    subject: Office Relocation Update - New Address Starting April 15
+    body: |-
+      Hi everyone,
 
       As many of you know, we've been planning our move to the new office space at 450 Harbor View Drive. I'm writing to confirm that the relocation will officially happen the weekend of April 12-14, with all staff expected to report to the new location starting April 15.
 

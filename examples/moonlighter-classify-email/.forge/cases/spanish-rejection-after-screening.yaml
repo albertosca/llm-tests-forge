@@ -1,10 +1,10 @@
 - id: spanish-rejection-after-screening-01
   scenario: spanish-rejection-after-screening
   input:
-    email: |-
-      From: Marta Gil <marta.gil@nexosoft.es>
-      Subject: Actualización sobre tu candidatura en NexoSoft
-      Body: Estimado Andrés,
+    from: Marta Gil <marta.gil@nexosoft.es>
+    subject: Actualización sobre tu candidatura en NexoSoft
+    body: |-
+      Estimado Andrés,
 
       Gracias por tu tiempo durante la llamada de screening que mantuvimos la semana pasada para el puesto de Analista de Datos Junior en NexoSoft. Después de revisar cuidadosamente tu perfil junto con el equipo de selección, hemos decidido no avanzar con tu candidatura en esta etapa del proceso.
 
@@ -23,10 +23,10 @@
 - id: spanish-rejection-after-screening-02
   scenario: spanish-rejection-after-screening
   input:
-    email: |-
-      From: seleccion@construbaires.com.ar
-      Subject: Resultado de tu proceso de selección - Construbaires
-      Body: Hola Lucía,
+    from: seleccion@construbaires.com.ar
+    subject: Resultado de tu proceso de selección - Construbaires
+    body: |-
+      Hola Lucía,
 
       Esperamos que te encuentres bien. Te escribimos para informarte sobre el estado de tu postulación al puesto de Coordinadora de Compras en Construbaires.
 
@@ -45,10 +45,10 @@
 - id: spanish-rejection-after-screening-03
   scenario: spanish-rejection-after-screening
   input:
-    email: |-
-      From: rrhh@vitalfarma.mx
-      Subject: Tu proceso con Vitalfarma
-      Body: Estimado Ricardo Núñez,
+    from: rrhh@vitalfarma.mx
+    subject: Tu proceso con Vitalfarma
+    body: |-
+      Estimado Ricardo Núñez,
 
       Te escribo en nombre del equipo de Vitalfarma para comunicarte una decisión respecto a tu candidatura para el puesto de Representante Médico Zona Norte.
 

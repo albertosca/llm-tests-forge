@@ -1,7 +1,10 @@
 # Written by llm-tests-forge emit; edit suite.yaml and re-run instead of editing this file.
 description: "classify-hiring-process-email: forge suite, 24 cases from 8 scenarios"
 prompts:
-  - "{{email}}"
+  - |-
+    from: {{from}}
+    subject: {{subject}}
+    body: {{body}}
 providers:
   - id: file://forge_target.py
     label: anthropic/claude-haiku-4-5
@@ -18,10 +21,10 @@ tests:
       kind: happy
       oracle: label
     vars:
-      email: |-
-        From: Priya Nair <priya.nair@brightwave.io>
-        Subject: Interview Invitation - Senior Backend Engineer
-        Body: Hi Marcus,
+      from: Priya Nair <priya.nair@brightwave.io>
+      subject: Interview Invitation - Senior Backend Engineer
+      body: |-
+        Hi Marcus,
 
         Thank you for your patience throughout our process. We'd love to move forward with a video interview for the Senior Backend Engineer position at Brightwave. Would you be available this Thursday, March 14th at 2:00 PM PST for a 45-minute call with our engineering lead, Tom Reyes? We'll send a Zoom link once you confirm.
 
@@ -48,10 +51,10 @@ tests:
       kind: happy
       oracle: label
     vars:
-      email: |-
-        From: Daniel Kessler <d.kessler@northfieldlaw.com>
-        Subject: Next Steps - Associate Attorney Role
-        Body: Dear Ms. Alvarez,
+      from: Daniel Kessler <d.kessler@northfieldlaw.com>
+      subject: Next Steps - Associate Attorney Role
+      body: |-
+        Dear Ms. Alvarez,
 
         We were impressed with your application for the Associate Attorney position at Northfield & Kessler LLP. I'd like to schedule a phone interview with you and our hiring partner, Susan Ortiz, next week. Could you let me know your availability on either Tuesday, April 9th or Wednesday, April 10th between 10 AM and 4 PM Eastern? The call should take about 30 minutes.
 
@@ -78,10 +81,10 @@ tests:
       kind: happy
       oracle: label
     vars:
-      email: |-
-        From: Aiko Tanaka <aiko.tanaka@lumenhealth.com>
-        Subject: Let's Set Up a Time to Chat - Product Manager Position
-        Body: Hi Sam,
+      from: Aiko Tanaka <aiko.tanaka@lumenhealth.com>
+      subject: Let's Set Up a Time to Chat - Product Manager Position
+      body: |-
+        Hi Sam,
 
         Thanks again for applying to the Product Manager role at Lumen Health. I'm reaching out to schedule an initial interview so I can learn more about your background and share details about the team. Are you free for a 30-minute video call sometime Monday the 21st or Tuesday the 22nd? Just let me know a couple of time slots that work and I'll book it through Google Meet.
 
@@ -106,10 +109,10 @@ tests:
       kind: happy
       oracle: label
     vars:
-      email: |-
-        From: Jennifer Alvarez <jennifer.alvarez@brightpath-tech.com>
-        Subject: Offer of Employment - Senior Data Analyst Position
-        Body: Dear Marcus,
+      from: Jennifer Alvarez <jennifer.alvarez@brightpath-tech.com>
+      subject: Offer of Employment - Senior Data Analyst Position
+      body: |-
+        Dear Marcus,
 
         On behalf of BrightPath Technologies, I am delighted to formally offer you the position of Senior Data Analyst, reporting to our Director of Analytics, David Chen.
 
@@ -147,10 +150,10 @@ tests:
       kind: happy
       oracle: label
     vars:
-      email: |-
-        From: Robert Kim <rkim@nortonfinancial.com>
-        Subject: Your Offer Letter - Financial Analyst, Norton Financial Group
-        Body: Hi Priya,
+      from: Robert Kim <rkim@nortonfinancial.com>
+      subject: Your Offer Letter - Financial Analyst, Norton Financial Group
+      body: |-
+        Hi Priya,
 
         Congratulations! It is my pleasure to extend an official offer for you to join Norton Financial Group as a Financial Analyst within our Corporate Strategy division.
 
@@ -188,10 +191,10 @@ tests:
       kind: happy
       oracle: label
     vars:
-      email: |-
-        From: Angela Torres <atorres@meridianhealthcare.org>
-        Subject: Formal Offer - Registered Nurse, Meridian Healthcare
-        Body: Dear Samuel,
+      from: Angela Torres <atorres@meridianhealthcare.org>
+      subject: Formal Offer - Registered Nurse, Meridian Healthcare
+      body: |-
+        Dear Samuel,
 
         It is with great pleasure that I extend to you this formal offer of employment for the position of Registered Nurse in our Cardiac Care Unit at Meridian Healthcare.
 
@@ -229,10 +232,9 @@ tests:
       kind: happy
       oracle: label
     vars:
-      email: |-
-        From: Priya Nair <priya.nair@brightwave-tech.com>
-        Subject: Update on your application for Senior Backend Engineer
-
+      from: Priya Nair <priya.nair@brightwave-tech.com>
+      subject: Update on your application for Senior Backend Engineer
+      body: |-
         Hi Marcus,
 
         Thank you for taking the time to speak with our engineering team last week and for completing the system design interview. We really enjoyed learning about your experience with distributed systems.
@@ -264,10 +266,9 @@ tests:
       kind: happy
       oracle: label
     vars:
-      email: |-
-        From: careers@harborstonelegal.com
-        Subject: Your Interview Feedback - Paralegal Position
-
+      from: careers@harborstonelegal.com
+      subject: Your Interview Feedback - Paralegal Position
+      body: |-
         Dear Angela Ferris,
 
         Thank you for meeting with our hiring panel on June 3rd to discuss the Paralegal position at Harborstone Legal Group. Your professionalism and legal research skills came through clearly during the conversation.
@@ -296,10 +297,9 @@ tests:
       kind: happy
       oracle: label
     vars:
-      email: |-
-        From: David Kim <d.kim@meridianfinancialgroup.com>
-        Subject: Following up after your second-round interview
-
+      from: David Kim <d.kim@meridianfinancialgroup.com>
+      subject: Following up after your second-round interview
+      body: |-
         Hello Sarah,
 
         I wanted to personally follow up after your conversation with our VP of Operations last Thursday regarding the Financial Analyst role at Meridian Financial Group.
@@ -329,10 +329,9 @@ tests:
       kind: edge
       oracle: rubric
     vars:
-      email: |-
-        From: Priya Nandakumar <priya.nandakumar@brightsteel.com>
-        Subject: 
-        Body: update
+      from: Priya Nandakumar <priya.nandakumar@brightsteel.com>
+      subject: ""
+      body: update
     assert:
       - type: llm-rubric
         value: Does the output classify type as 'unrelated' or 'acknowledgement' rather than 'interview' or 'screening', given the body contains no actionable request or hiring stage information?
@@ -344,10 +343,9 @@ tests:
       kind: edge
       oracle: rubric
     vars:
-      email: |-
-        From: careers@vantagepoint-tech.io
-        Subject: 
-        Body: following up
+      from: careers@vantagepoint-tech.io
+      subject: ""
+      body: following up
     assert:
       - type: llm-rubric
         value: Does the output avoid classifying this as 'offer', 'interview', or 'screening', and instead select a label like 'unrelated' or 'acknowledgement' since no concrete hiring action or stage is mentioned?
@@ -359,10 +357,9 @@ tests:
       kind: edge
       oracle: rubric
     vars:
-      email: |-
-        From: Marcus Delgado <m.delgado@harboroak-recruiting.com>
-        Subject: 
-        Body: thanks
+      from: Marcus Delgado <m.delgado@harboroak-recruiting.com>
+      subject: ""
+      body: thanks
     assert:
       - type: llm-rubric
         value: Does the output set job_title and company to null or empty given the email body offers no identifying details about the position or organization?
@@ -374,10 +371,10 @@ tests:
       kind: ambiguous
       oracle: label
     vars:
-      email: |-
-        From: careers-noreply@brightpath.com
-        Subject: Application Received - Data Analyst Position
-        Body: Dear Maria Gonzalez,
+      from: careers-noreply@brightpath.com
+      subject: Application Received - Data Analyst Position
+      body: |-
+        Dear Maria Gonzalez,
 
         Thank you for applying to the Data Analyst position at BrightPath Solutions. This email confirms that your application has been successfully received in our system.
 
@@ -405,10 +402,10 @@ tests:
       kind: ambiguous
       oracle: label
     vars:
-      email: |-
-        From: talent-updates@finlogix.io
-        Subject: We've Got Your Application - Senior Backend Engineer
-        Body: Hi Devon Carter,
+      from: talent-updates@finlogix.io
+      subject: We've Got Your Application - Senior Backend Engineer
+      body: |-
+        Hi Devon Carter,
 
         This is an automated message to let you know that your application for the Senior Backend Engineer role at Finlogix has been received and logged into our applicant tracking system.
 
@@ -436,10 +433,10 @@ tests:
       kind: ambiguous
       oracle: label
     vars:
-      email: |-
-        From: hr-system@quantumcore.com
-        Subject: Application Confirmation & Next Step - Product Manager Role
-        Body: Dear Priya Nair,
+      from: hr-system@quantumcore.com
+      subject: Application Confirmation & Next Step - Product Manager Role
+      body: |-
+        Dear Priya Nair,
 
         Thank you for submitting your application for the Product Manager position at QuantumCore Technologies. This confirms we have successfully received your resume and cover letter.
 
@@ -469,10 +466,10 @@ tests:
       kind: adversarial
       oracle: label
     vars:
-      email: |-
-        From: careers@nimbusdata.io
-        Subject: We've received your application - Data Analyst
-        Body: Hi Priya,
+      from: careers@nimbusdata.io
+      subject: We've received your application - Data Analyst
+      body: |-
+        Hi Priya,
 
         Thank you for applying to the Data Analyst position at Nimbus Data. This is an automated message confirming that your application has been received and will be reviewed by our hiring team.
 
@@ -500,10 +497,10 @@ tests:
       kind: adversarial
       oracle: label
     vars:
-      email: |-
-        From: hr@brightwave-tech.com
-        Subject: Update on your application - Backend Engineer
-        Body: Dear Marcus,
+      from: hr@brightwave-tech.com
+      subject: Update on your application - Backend Engineer
+      body: |-
+        Dear Marcus,
 
         Thank you for taking the time to interview with Brightwave Technologies for the Backend Engineer role. After careful consideration, we have decided to move forward with other candidates whose experience more closely matches our current needs.
 
@@ -531,10 +528,10 @@ tests:
       kind: adversarial
       oracle: label
     vars:
-      email: |-
-        From: recruiting@fenwickpartners.com
-        Subject: Next Steps - Product Manager Role
-        Body: Hello Elena,
+      from: recruiting@fenwickpartners.com
+      subject: Next Steps - Product Manager Role
+      body: |-
+        Hello Elena,
 
         I'm Sarah from the recruiting team at Fenwick Partners. We enjoyed reviewing your resume for the Product Manager position and would like to schedule a 30-minute phone screen with our recruiter this week to learn more about your background and answer any questions you might have.
 
@@ -563,10 +560,10 @@ tests:
       kind: out_of_scope
       oracle: label
     vars:
-      email: |-
-        From: Marcus Bell <marcus.bell@northfield-logistics.com>
-        Subject: Updated Remote Work Policy - Effective March 1st
-        Body: Hi team,
+      from: Marcus Bell <marcus.bell@northfield-logistics.com>
+      subject: Updated Remote Work Policy - Effective March 1st
+      body: |-
+        Hi team,
 
         As part of our Q1 operational review, HR has finalized updates to the remote work policy. Starting March 1st, all employees must log their in-office days through the new Workday portal, and remote work will be capped at three days per week unless approved by a director. Please review the attached PDF and sign the acknowledgement form by Friday.
 
@@ -593,10 +590,10 @@ tests:
       kind: out_of_scope
       oracle: label
     vars:
-      email: |-
-        From: Priya Ramaswamy <priya.r@summitware.com>
-        Subject: Vendor Inquiry - Cloud Storage Renewal
-        Body: Hello,
+      from: Priya Ramaswamy <priya.r@summitware.com>
+      subject: Vendor Inquiry - Cloud Storage Renewal
+      body: |-
+        Hello,
 
         Our current contract with DataVault Cloud Storage expires at the end of this quarter, and I wanted to check whether your team has evaluated alternative vendors like Backblaze or Wasabi for cost comparison. We're trying to finalize the procurement decision before the next budget cycle closes.
 
@@ -623,10 +620,10 @@ tests:
       kind: out_of_scope
       oracle: label
     vars:
-      email: |-
-        From: Daniel Okafor <daniel.okafor@brightpath-solutions.com>
-        Subject: Office Relocation Update - New Address Starting April 15
-        Body: Hi everyone,
+      from: Daniel Okafor <daniel.okafor@brightpath-solutions.com>
+      subject: Office Relocation Update - New Address Starting April 15
+      body: |-
+        Hi everyone,
 
         As many of you know, we've been planning our move to the new office space at 450 Harbor View Drive. I'm writing to confirm that the relocation will officially happen the weekend of April 12-14, with all staff expected to report to the new location starting April 15.
 
@@ -655,10 +652,10 @@ tests:
       kind: language
       oracle: label
     vars:
-      email: |-
-        From: Marta Gil <marta.gil@nexosoft.es>
-        Subject: Actualización sobre tu candidatura en NexoSoft
-        Body: Estimado Andrés,
+      from: Marta Gil <marta.gil@nexosoft.es>
+      subject: Actualización sobre tu candidatura en NexoSoft
+      body: |-
+        Estimado Andrés,
 
         Gracias por tu tiempo durante la llamada de screening que mantuvimos la semana pasada para el puesto de Analista de Datos Junior en NexoSoft. Después de revisar cuidadosamente tu perfil junto con el equipo de selección, hemos decidido no avanzar con tu candidatura en esta etapa del proceso.
 
@@ -688,10 +685,10 @@ tests:
       kind: language
       oracle: label
     vars:
-      email: |-
-        From: seleccion@construbaires.com.ar
-        Subject: Resultado de tu proceso de selección - Construbaires
-        Body: Hola Lucía,
+      from: seleccion@construbaires.com.ar
+      subject: Resultado de tu proceso de selección - Construbaires
+      body: |-
+        Hola Lucía,
 
         Esperamos que te encuentres bien. Te escribimos para informarte sobre el estado de tu postulación al puesto de Coordinadora de Compras en Construbaires.
 
@@ -720,10 +717,10 @@ tests:
       kind: language
       oracle: label
     vars:
-      email: |-
-        From: rrhh@vitalfarma.mx
-        Subject: Tu proceso con Vitalfarma
-        Body: Estimado Ricardo Núñez,
+      from: rrhh@vitalfarma.mx
+      subject: Tu proceso con Vitalfarma
+      body: |-
+        Estimado Ricardo Núñez,
 
         Te escribo en nombre del equipo de Vitalfarma para comunicarte una decisión respecto a tu candidatura para el puesto de Representante Médico Zona Norte.
 

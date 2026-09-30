@@ -1,10 +1,9 @@
 - id: rejection-after-interview-01
   scenario: rejection-after-interview
   input:
-    email: |-
-      From: Priya Nair <priya.nair@brightwave-tech.com>
-      Subject: Update on your application for Senior Backend Engineer
-
+    from: Priya Nair <priya.nair@brightwave-tech.com>
+    subject: Update on your application for Senior Backend Engineer
+    body: |-
       Hi Marcus,
 
       Thank you for taking the time to speak with our engineering team last week and for completing the system design interview. We really enjoyed learning about your experience with distributed systems.
@@ -25,10 +24,9 @@
 - id: rejection-after-interview-02
   scenario: rejection-after-interview
   input:
-    email: |-
-      From: careers@harborstonelegal.com
-      Subject: Your Interview Feedback - Paralegal Position
-
+    from: careers@harborstonelegal.com
+    subject: Your Interview Feedback - Paralegal Position
+    body: |-
       Dear Angela Ferris,
 
       Thank you for meeting with our hiring panel on June 3rd to discuss the Paralegal position at Harborstone Legal Group. Your professionalism and legal research skills came through clearly during the conversation.
@@ -47,10 +45,9 @@
 - id: rejection-after-interview-03
   scenario: rejection-after-interview
   input:
-    email: |-
-      From: David Kim <d.kim@meridianfinancialgroup.com>
-      Subject: Following up after your second-round interview
-
+    from: David Kim <d.kim@meridianfinancialgroup.com>
+    subject: Following up after your second-round interview
+    body: |-
       Hello Sarah,
 
       I wanted to personally follow up after your conversation with our VP of Operations last Thursday regarding the Financial Analyst role at Meridian Financial Group.

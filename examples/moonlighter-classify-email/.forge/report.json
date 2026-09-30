@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-30T11:42:49.006Z",
-  "ranAt": "2026-09-16T13:41:49.595Z",
+  "generatedAt": "2026-09-30T16:28:12.541Z",
+  "ranAt": "2026-09-30T16:27:10.834Z",
   "promptfooVersion": "0.123.0",
   "rows": 48,
   "matched": 48,
@@ -138,8 +138,8 @@
       "errored": 0,
       "stability": "failing",
       "reasons": [
-        "The rubric requires both job_title and company to be null or empty, but the output sets company to 'Harbor Oak Recruiting' instead of null, so it fails the requirement.",
-        "The rubric requires both job_title and company to be null/empty, but while job_title is null, company is set to 'Harbor Oak Recruiting' rather than null or empty."
+        "The rubric requires both job_title and company to be null/empty, but while job_title is null, company is set to 'Harbor Oak Recruiting' rather than null or empty.",
+        "The output sets job_title to null, but company is set to 'Harbor Oak Recruiting' rather than null or empty, so it does not satisfy the rubric requirement that both fields be null/empty."
       ]
     },
     {
@@ -363,25 +363,25 @@
     {
       "model": "anthropic/claude-haiku-4-5",
       "role": "target",
-      "inputTokens": 23588,
-      "outputTokens": 4526,
-      "realDollars": 0.046218,
-      "estimatedDollars": 0.051836,
-      "estimatedLowDollars": 0.036339,
-      "estimatedHighDollars": 0.062327,
-      "errorPercent": -10.8,
+      "inputTokens": 23606,
+      "outputTokens": 4557,
+      "realDollars": 0.046391,
+      "estimatedDollars": 0.051592,
+      "estimatedLowDollars": 0.036106,
+      "estimatedHighDollars": 0.062048,
+      "errorPercent": -10.1,
       "approximatePrice": false
     },
     {
       "model": "anthropic/claude-sonnet-5",
       "role": "judge",
-      "inputTokens": 2305,
-      "outputTokens": 568,
-      "realDollars": 0.01029,
+      "inputTokens": 2296,
+      "outputTokens": 602,
+      "realDollars": 0.010612,
       "estimatedDollars": 0.016548,
       "estimatedLowDollars": 0.006862,
       "estimatedHighDollars": 0.027964,
-      "errorPercent": -37.8,
+      "errorPercent": -35.9,
       "approximatePrice": false
     }
   ],

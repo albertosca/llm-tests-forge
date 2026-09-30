@@ -1,10 +1,10 @@
 - id: formal-job-offer-letter-01
   scenario: formal-job-offer-letter
   input:
-    email: |-
-      From: Jennifer Alvarez <jennifer.alvarez@brightpath-tech.com>
-      Subject: Offer of Employment - Senior Data Analyst Position
-      Body: Dear Marcus,
+    from: Jennifer Alvarez <jennifer.alvarez@brightpath-tech.com>
+    subject: Offer of Employment - Senior Data Analyst Position
+    body: |-
+      Dear Marcus,
 
       On behalf of BrightPath Technologies, I am delighted to formally offer you the position of Senior Data Analyst, reporting to our Director of Analytics, David Chen.
 
@@ -31,10 +31,10 @@
 - id: formal-job-offer-letter-02
   scenario: formal-job-offer-letter
   input:
-    email: |-
-      From: Robert Kim <rkim@nortonfinancial.com>
-      Subject: Your Offer Letter - Financial Analyst, Norton Financial Group
-      Body: Hi Priya,
+    from: Robert Kim <rkim@nortonfinancial.com>
+    subject: Your Offer Letter - Financial Analyst, Norton Financial Group
+    body: |-
+      Hi Priya,
 
       Congratulations! It is my pleasure to extend an official offer for you to join Norton Financial Group as a Financial Analyst within our Corporate Strategy division.
 
@@ -62,10 +62,10 @@
 - id: formal-job-offer-letter-03
   scenario: formal-job-offer-letter
   input:
-    email: |-
-      From: Angela Torres <atorres@meridianhealthcare.org>
-      Subject: Formal Offer - Registered Nurse, Meridian Healthcare
-      Body: Dear Samuel,
+    from: Angela Torres <atorres@meridianhealthcare.org>
+    subject: Formal Offer - Registered Nurse, Meridian Healthcare
+    body: |-
+      Dear Samuel,
 
       It is with great pleasure that I extend to you this formal offer of employment for the position of Registered Nurse in our Cardiac Care Unit at Meridian Healthcare.
 
