@@ -154,9 +154,10 @@ jobs:
           expected="$FIXTURE/.forge"
           actual="smoke-work/fixture/.forge"
           diff --strip-trailing-cr "$expected/promptfooconfig.yaml" "$actual/promptfooconfig.yaml"
-          # The report differs only in when it was generated and when the run was recorded.
+          # The report differs only in when it was generated: report.json's generatedAt and
+          # report.md's "Reported" line. The header dates the run, which the fixture fixes.
           without_timestamps() {
-            sed -e '/^  "generatedAt": /d' -e '/^  "ranAt": /d' -e '/^# llm-tests-forge report /d' "$1"
+            sed -e '/^  "generatedAt": /d' -e '/^  "ranAt": /d' -e '/^Reported /d' "$1"
           }
           for name in report.json report.md; do
             diff --strip-trailing-cr <(without_timestamps "$expected/$name") <(without_timestamps "$actual/$name")

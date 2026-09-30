@@ -323,10 +323,15 @@ function unmatched(report: Report): string[] {
  * The decisive numbers first, then one section per question the person
  * actually asks of a run: what broke since last time, what is unstable,
  * where the judges disagree, what the suite covers, and what it cost.
+ *
+ * The header dates the run, not the report: re-running `report` over the
+ * same results.json (to add a baseline, after an upgrade) must not make an
+ * old run look fresh. When the report was written goes on the next line.
  */
 export function renderReportMarkdown(report: Report): string {
 	return [
-		`# llm-tests-forge report — ${report.generatedAt}`,
+		`# llm-tests-forge report — run ${report.ranAt ?? "time unknown"}`,
+		`Reported ${report.generatedAt}.`,
 		"",
 		headline(report),
 		"",

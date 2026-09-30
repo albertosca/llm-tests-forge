@@ -121,11 +121,20 @@ const REPORT: Report = {
 const lines = (report: Report) => renderReportMarkdown(report).split("\n");
 
 describe("renderReportMarkdown", () => {
-	test("puts the decisive numbers in the first two lines", () => {
+	test("the header names when the run happened, and the next line when it was reported", () => {
 		const markdown = lines(REPORT);
-		expect(markdown[0]).toBe(
-			"# llm-tests-forge report — 2026-09-15T20:00:00.000Z",
-		);
+		expect(markdown.slice(0, 2)).toEqual([
+			"# llm-tests-forge report — run 2026-09-15T19:07:12.028Z",
+			"Reported 2026-09-15T20:00:00.000Z.",
+		]);
+		expect(lines({ ...REPORT, ranAt: null }).slice(0, 2)).toEqual([
+			"# llm-tests-forge report — run time unknown",
+			"Reported 2026-09-15T20:00:00.000Z.",
+		]);
+	});
+
+	test("puts the decisive numbers right under the header", () => {
+		const markdown = lines(REPORT);
 		expect(markdown).toContain(
 			"**Pass rate:** 50.0% (3 of 6 runs, 0 errored) · **failing or errored:** 1 · **flaky:** 1 · **judge disagreements:** 1 · **regressions since baseline:** 1",
 		);
