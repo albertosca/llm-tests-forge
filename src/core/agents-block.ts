@@ -119,20 +119,26 @@ function findBlocks(file: string, lines: string[]): MarkedBlock[] {
  * file is missing, appended after a blank line when it has no block,
  * replaced in place when it has exactly one. `replaced` says whether a real
  * marker pair was found. The file's own line endings (LF or CRLF) are kept,
- * in the block too. Pure.
+ * in the block too, and a replaced block keeps the start marker's
+ * indentation on every line. Pure.
  */
 export function planAgentsBlock(
 	file: string,
 	existing: string | null,
 ): { text: string; replaced: boolean } {
 	const block = agentsBlock();
-	if (existing === null || existing.trim() === "")
-		return { text: `${block}\n`, replaced: false };
+	if (existing === null) return { text: `${block}\n`, replaced: false };
+	// The ending of the last line break; LF when there is none.
+	const lastBreak = existing.lastIndexOf("\n");
+	const ending = existing.charAt(lastBreak - 1) === "\r" ? "\r\n" : "\n";
+	if (existing.trim() === "")
+		return {
+			text: `${block.split("\n").join(ending)}${ending}`,
+			replaced: false,
+		};
 	const lines = existing.split("\n");
 	const blocks = findBlocks(file, lines);
 	if (blocks.length === 0) {
-		const lastBreak = existing.lastIndexOf("\n");
-		const ending = existing.charAt(lastBreak - 1) === "\r" ? "\r\n" : "\n";
 		const kept = existing.replace(/(\r?\n)+$/, "");
 		return {
 			text: `${kept}${ending}${ending}${block.split("\n").join(ending)}${ending}`,
@@ -144,12 +150,21 @@ export function planAgentsBlock(
 		throw new ForgeError(
 			`${file} has ${blocks.length} llm-tests-forge blocks (lines ${listLineNumbers(blocks.map((found) => found.startIndex + 1))}); keep one and run init again`,
 		);
-	const startCarriage = lines[only.startIndex]?.endsWith("\r") ? "\r" : "";
+	const startLine = lines[only.startIndex] ?? "";
+	const startCarriage = startLine.endsWith("\r") ? "\r" : "";
 	const endCarriage = lines[only.endIndex]?.endsWith("\r") ? "\r" : "";
+	// A pair under a list item, or in indented code, stays there: every
+	// line of the block takes the start marker's leading whitespace.
+	const indentation = startLine.slice(
+		0,
+		startLine.length - startLine.trimStart().length,
+	);
 	const blockLines = block.split("\n");
 	const replacement = blockLines.map(
 		(line, position) =>
-			line + (position < blockLines.length - 1 ? startCarriage : endCarriage),
+			indentation +
+			line +
+			(position < blockLines.length - 1 ? startCarriage : endCarriage),
 	);
 	return {
 		text: [

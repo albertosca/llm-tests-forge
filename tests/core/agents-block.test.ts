@@ -187,6 +187,51 @@ describe("upsertAgentsBlock", () => {
 			upsertAgentsBlock("AGENTS.md", `a\r\n${AGENTS_START}\r\n${AGENTS_END}`),
 		).toBe(`a\r\n${crlfBlock}`);
 	});
+	test("a pair indented under a list item is replaced with every line at the start marker's indentation", () => {
+		const indented = (indentation: string, ending: string) =>
+			block
+				.split("\n")
+				.map((line) => `${indentation}${line}`)
+				.join(ending);
+		expect(
+			upsertAgentsBlock(
+				"AGENTS.md",
+				`- Tools:\n  ${AGENTS_START}\n  old\n    ${AGENTS_END}\n- Next.\n`,
+			),
+		).toBe(`- Tools:\n${indented("  ", "\n")}\n- Next.\n`);
+		expect(
+			upsertAgentsBlock(
+				"AGENTS.md",
+				`1. Tools:\r\n\t ${AGENTS_START}\r\n${AGENTS_END}\r\n`,
+			),
+		).toBe(`1. Tools:\r\n${indented("\t ", "\r\n")}\r\n`);
+		const once = `- Tools:\n${indented("  ", "\n")}\n- Next.\n`;
+		expect(upsertAgentsBlock("AGENTS.md", once)).toBe(once);
+	});
+	test("a pair indented four spaces, as indented code, keeps its indentation", () => {
+		expect(
+			upsertAgentsBlock(
+				"AGENTS.md",
+				`Text.\n\n    ${AGENTS_START}\n    ${AGENTS_END}`,
+			),
+		).toBe(
+			`Text.\n\n${block
+				.split("\n")
+				.map((line) => `    ${line}`)
+				.join("\n")}`,
+		);
+	});
+	test("a whitespace-only file takes the block with its own line ending", () => {
+		expect(upsertAgentsBlock("AGENTS.md", " \r\n")).toBe(
+			`${block.split("\n").join("\r\n")}\r\n`,
+		);
+		expect(upsertAgentsBlock("AGENTS.md", "\r\n\r\n")).toBe(
+			`${block.split("\n").join("\r\n")}\r\n`,
+		);
+		expect(upsertAgentsBlock("AGENTS.md", " \n")).toBe(`${block}\n`);
+		expect(upsertAgentsBlock("AGENTS.md", "  ")).toBe(`${block}\n`);
+		expect(planAgentsBlock("AGENTS.md", " \r\n").replaced).toBe(false);
+	});
 	test("the block says the project uses llm-tests-forge and points at status and guide", () => {
 		expect(block).toStartWith(AGENTS_START);
 		expect(block).toEndWith(AGENTS_END);
