@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse, stringify } from "yaml";
+import { stampSuite } from "../../src/core/files";
 import { renderStatusLine, suiteStatus } from "../../src/core/status";
 import { FORGE_VERSION } from "../../src/core/version";
 
@@ -23,6 +24,9 @@ async function suiteCopy(name: string): Promise<string> {
 	const directory = join(root, "evals", name);
 	await mkdir(directory, { recursive: true });
 	await cp(FIXTURE, join(directory, ".forge"), { recursive: true });
+	// The fixture is frozen at the version that wrote it; a suite the installed
+	// forge wrote itself carries the installed version, whatever that is.
+	await stampSuite(join(directory, ".forge"), FORGE_VERSION);
 	return directory;
 }
 
@@ -169,7 +173,7 @@ describe("suiteStatus and renderStatusLine", () => {
 		await writeFile(
 			suiteFile,
 			(await readFile(suiteFile, "utf8")).replace(
-				"forge_version: 0.1.0",
+				/^forge_version: .*$/m,
 				"forge_version: 0.0.1",
 			),
 		);

@@ -74,7 +74,7 @@ async function fakeUvTool(
 		"  shift",
 		"done",
 		behavior === "writes-wheel"
-			? `touch "$out_directory/llm_tests_forge-${FORGE_VERSION}-py3-none-$FORGE_WHEEL_PLATFORM.whl"`
+			? `touch "$out_directory/llm_tests_forge-${pep440Version(FORGE_VERSION)}-py3-none-$FORGE_WHEEL_PLATFORM.whl"`
 			: "",
 		"exit 0",
 		"",

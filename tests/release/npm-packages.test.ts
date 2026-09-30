@@ -71,7 +71,7 @@ describe("the npm manifests", () => {
 		await writeFile(
 			path,
 			text.replace(
-				'"@llm-tests-forge/linux-arm64": "0.1.0"',
+				`"@llm-tests-forge/linux-arm64": "${FORGE_VERSION}"`,
 				'"@llm-tests-forge/linux-arm64": "0.0.9"',
 			),
 		);

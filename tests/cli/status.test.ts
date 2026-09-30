@@ -3,6 +3,7 @@ import { cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { main } from "../../src/cli/main";
+import { stampSuite } from "../../src/core/files";
 import { FORGE_VERSION } from "../../src/core/version";
 import { projectWith } from "../helpers/project";
 
@@ -27,6 +28,9 @@ async function runStatus(
 async function copyExample(directory: string): Promise<void> {
 	await mkdir(directory, { recursive: true });
 	await cp(EXAMPLE, join(directory, ".forge"), { recursive: true });
+	// The fixture is frozen at the version that wrote it; a suite the installed
+	// forge wrote itself carries the installed version, whatever that is.
+	await stampSuite(join(directory, ".forge"), FORGE_VERSION);
 }
 
 async function exampleDate(directory: string): Promise<string> {
@@ -151,7 +155,7 @@ describe("status through main()", () => {
 		const suiteDirectory = join(root, "evals", "a");
 		const suiteFile = join(suiteDirectory, ".forge", "suite.yaml");
 		const outdated = (await readFile(suiteFile, "utf8")).replace(
-			"forge_version: 0.1.0",
+			/^forge_version: .*$/m,
 			"forge_version: 0.0.1",
 		);
 		await writeFile(suiteFile, outdated);

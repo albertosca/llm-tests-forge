@@ -20,7 +20,7 @@ import {
 	RELEASE_TARGETS,
 } from "../../scripts/release/targets";
 import { stampVersion } from "../../scripts/release/version";
-import { wheelFileName } from "../../scripts/release/wheels";
+import { pep440Version, wheelFileName } from "../../scripts/release/wheels";
 import { ForgeError, UsageError } from "../../src/core/errors";
 import { FORGE_VERSION } from "../../src/core/version";
 
@@ -64,7 +64,7 @@ async function rootCopy(version = FORGE_VERSION): Promise<string> {
  * package test in tests/packages/pypi.test.ts).
  */
 async function fakeTools(
-	wheelVersion = FORGE_VERSION,
+	wheelVersion = pep440Version(FORGE_VERSION),
 ): Promise<{ uvCommand: string; gemCommand: string }> {
 	const directory = await mkdtemp(join(tmpdir(), "forge-assemble-tools-"));
 	const uvCommand = join(directory, "uv");
