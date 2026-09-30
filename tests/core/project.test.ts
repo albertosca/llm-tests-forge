@@ -564,6 +564,31 @@ describe("registerSuite changes only the line it adds", () => {
 });
 
 describe("which directories are suites of the project", () => {
+	test("a Windows path is absolute on every platform: a drive path or a UNC share is refused, since forge.yaml is shared", async () => {
+		const project = await readProject(
+			await projectWith(
+				"version: 1\nlanguage: go\nsuites:\n  - C:/evals\n  - //server/share/evals\n  - C:\\evals\n  - evals/a\n",
+			),
+		);
+		expect(project.suites.map((suite) => suite.entry)).toEqual(["evals/a"]);
+		expect(project.problems).toEqual([
+			{
+				entry: "C:/evals",
+				reason:
+					'suite "C:/evals" is an absolute path; list it relative to forge.yaml',
+			},
+			{
+				entry: "//server/share/evals",
+				reason:
+					'suite "//server/share/evals" is an absolute path; list it relative to forge.yaml',
+			},
+			{
+				entry: "C:\\evals",
+				reason:
+					'suite "C:\\evals" uses a backslash; write paths with forward slashes',
+			},
+		]);
+	});
 	test("an entry that climbs to the project's parent, however it is spelled, is a problem, not a suite", async () => {
 		const project = await readProject(
 			await projectWith(

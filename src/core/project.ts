@@ -8,6 +8,7 @@ import {
 	relative,
 	resolve,
 	sep,
+	win32,
 } from "node:path";
 import {
 	isAlias,
@@ -82,8 +83,10 @@ export function backslashProblem(entry: string): string {
 /** Why `entry` cannot be a suite of this project, or null when it can. */
 function entryProblem(entry: string, seen: Set<string>): string | null {
 	if (entry.includes("\\")) return backslashProblem(entry);
-	// Stryker disable next-line LogicalOperator: where the mutation run happens (POSIX), isAbsolute is posix.isAbsolute; the `||` adds a drive path such as C:/evals on Windows only.
-	if (isAbsolute(entry) || posix.isAbsolute(entry))
+	// A forge.yaml is shared across platforms, so an entry absolute on any of
+	// them is refused on all. Windows' rule is the wider one: it takes /evals
+	// and //server/share as absolute, as POSIX does, and adds C:/evals.
+	if (win32.isAbsolute(entry))
 		return `suite "${entry}" is an absolute path; list it relative to forge.yaml`;
 	const comparable = comparableEntry(entry);
 	if (comparable === ".." || comparable.startsWith("../"))
