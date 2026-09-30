@@ -596,12 +596,56 @@ describe("writeText: a write is all or nothing", () => {
 		expect(await readdir(directory)).toEqual(["cases.yaml"]);
 	});
 
-	test("a replace that cannot land (the path is a non-empty directory) removes its temporary file", async () => {
+	test("a path that is a directory is refused before anything is written, as writing in place refused it", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
 		const path = join(directory, "cases.yaml");
 		await mkdir(join(path, "inside"), { recursive: true });
-		await expect(writeText(path, "x: 1\n")).rejects.toThrow("cannot write:");
+		await expect(writeText(path, "x: 1\n")).rejects.toThrow(
+			`cannot write: EISDIR: illegal operation on a directory, open '${path}'`,
+		);
 		expect(await readdir(directory)).toEqual(["cases.yaml"]);
+	});
+
+	test("a file the person made read-only is refused, not replaced by the rename", async () => {
+		if (process.getuid?.() === 0) return;
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "cases.yaml");
+		await writeFile(path, ORIGINAL);
+		await chmod(path, 0o444);
+		await expect(writeText(path, "x: 1\n")).rejects.toThrow(
+			`cannot write: EACCES: permission denied, open '${path}'`,
+		);
+		expect(await readFile(path, "utf8")).toBe(ORIGINAL);
+		expect(await readdir(directory)).toEqual(["cases.yaml"]);
+	});
+
+	test("in a directory that refuses new files, an existing file is still rewritten in place", async () => {
+		if (process.getuid?.() === 0) return;
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "cases.yaml");
+		await writeFile(path, ORIGINAL);
+		await chmod(directory, 0o555);
+		try {
+			await writeText(path, "x: 1\n");
+		} finally {
+			await chmod(directory, 0o755);
+		}
+		expect(await readFile(path, "utf8")).toBe("x: 1\n");
+		expect(await readdir(directory)).toEqual(["cases.yaml"]);
+	});
+
+	test("in a directory that refuses new files, a new file is refused", async () => {
+		if (process.getuid?.() === 0) return;
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		await chmod(directory, 0o555);
+		try {
+			await expect(
+				writeText(join(directory, "new.yaml"), "x: 1\n"),
+			).rejects.toThrow("cannot write: EACCES: permission denied");
+		} finally {
+			await chmod(directory, 0o755);
+		}
+		expect(await readdir(directory)).toEqual([]);
 	});
 
 	test("the replaced file keeps its permissions", async () => {
