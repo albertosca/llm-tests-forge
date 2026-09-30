@@ -409,9 +409,22 @@ export async function reviewCommand(
 				? await writeBackSkipReason(context.forgeDirectory, id, before)
 				: null;
 			if (skipReason !== null) {
+				// Name only what this file actually lost: a file touched by the
+				// oracle change alone held no decision of this pass, and "its
+				// decisions were not written" sent the person looking for some.
+				// The oracle change itself did land, in scenarios.yaml, so it is
+				// still announced — just without a count nobody applied.
+				const lost = [
+					...(decidedCaseCount > 0 ? ["its decisions were not written"] : []),
+					...(reopened > 0 ? ["its cases were not re-opened"] : []),
+				];
 				context.stdout(
-					`review: cases/${id}.yaml ${skipReason} during the pass; its decisions were not written`,
+					`review: cases/${id}.yaml ${skipReason} during the pass; ${lost.join(" and ")}`,
 				);
+				if (oracleChange !== undefined)
+					context.stdout(
+						`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to} (written to scenarios.yaml)`,
+					);
 				totalDecisionsNotWritten += decidedCaseCount;
 				continue;
 			}

@@ -2407,9 +2407,18 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		context.stdout = (line) => out.push(line);
 		await editOracleToRubric(cwd, out, context);
 
+		// The file held no decision of this pass, only the re-opens the
+		// oracle change would have made: the line used to say "its decisions
+		// were not written" and leave the oracle change itself unannounced.
 		expect(out).toContain(
-			"review: cases/polite-rejection.yaml changed on disk during the pass; its decisions were not written",
+			"review: cases/polite-rejection.yaml changed on disk during the pass; its cases were not re-opened",
 		);
+		expect(out).toContain(
+			"review: scenario polite-rejection changed oracle label → rubric (written to scenarios.yaml)",
+		);
+		expect(
+			out.some((line) => line.includes("its decisions were not written")),
+		).toBe(false);
 		expect(out.some((line) => line.includes("case(s) re-opened"))).toBe(false);
 		// Nothing was re-opened on disk: both cases are still approved, and
 		// the one pending scenario was decided, so nothing is pending.
@@ -2420,6 +2429,75 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		]);
 		expect(out.at(-1)).toBe(
 			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 0 still pending",
+		);
+	});
+
+	test("a changed cases file holding both a decision and re-opens names both losses, and the oracle change is still on the record", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		const casesOnDisk = [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "approved" as const,
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "two" },
+				expected: { rubric: "Declines politely." },
+				status: "pending" as const,
+				generated_by: "hand",
+			},
+		];
+		await writeCases(forgeDirectory, "polite-rejection", casesOnDisk);
+		const casesPath = join(forgeDirectory, "cases", "polite-rejection.yaml");
+		const answers = ["edit", "approve"];
+		const out: string[] = [];
+		const context = createContext({
+			cwd,
+			drafter: MODEL,
+			// "edit" turns the scenario's oracle into rubric; before the case's
+			// "approve", the cases file is rewritten by "someone else".
+			stdin: async () => {
+				const answer = answers.shift() ?? "";
+				if (answer === "approve") {
+					await writeCases(forgeDirectory, "polite-rejection", casesOnDisk);
+					await utimes(casesPath, LONG_AGO, LONG_AGO);
+				}
+				return answer;
+			},
+		});
+		context.stdout = (line) => out.push(line);
+		await editOracleToRubric(cwd, out, context);
+
+		expect(out).toContain(
+			"review: cases/polite-rejection.yaml changed on disk during the pass; its decisions were not written and its cases were not re-opened",
+		);
+		expect(out).toContain(
+			"review: scenario polite-rejection changed oracle label → rubric (written to scenarios.yaml)",
+		);
+		expect((await readScenarios(forgeDirectory))[0]?.oracle).toBe("rubric");
+		const onDisk = await readCases(forgeDirectory, "polite-rejection");
+		expect(onDisk.map((caseEntry) => caseEntry.status)).toEqual([
+			"approved",
+			"pending",
+		]);
+		expect(out.at(-1)).toBe(
+			"review: 1 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 1 still pending; 1 decision(s) not written",
 		);
 	});
 
