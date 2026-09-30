@@ -10,12 +10,12 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { main } from "../../src/cli/main";
 import {
 	AGENTS_END,
 	AGENTS_START,
 	agentsBlock,
 } from "../../src/core/agents-block";
+import { mainWithTestDefaults as main } from "../helpers/main";
 import { projectWith } from "../helpers/project";
 
 async function directoryWith(files: string[]): Promise<string> {

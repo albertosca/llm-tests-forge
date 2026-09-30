@@ -8,18 +8,19 @@ import {
 	open,
 	readdir,
 	readFile,
+	realpath,
 	stat,
 	unlink,
 	utimes,
 	writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse } from "yaml";
 import type { CliContext } from "../../src/cli/context";
 import { createContext } from "../../src/cli/context";
 import { createInterruptibleReader } from "../../src/cli/interruptible-stdin";
-import { COMMANDS, drafterFlag, main, run, USAGE } from "../../src/cli/main";
+import { COMMANDS, drafterFlag, run, USAGE } from "../../src/cli/main";
 import { ForgeError } from "../../src/core/errors";
 import {
 	readCases,
@@ -34,6 +35,10 @@ import {
 import { readProject } from "../../src/core/project";
 import { ReportSchema } from "../../src/core/report";
 import { FORGE_VERSION } from "../../src/core/version";
+import {
+	EMPTY_CONFIG_DIRECTORY,
+	mainWithTestDefaults as main,
+} from "../helpers/main";
 import { projectWith } from "../helpers/project";
 
 /** An unambiguously old timestamp: any real write resets a file's mtime to
@@ -6073,6 +6078,29 @@ describe("main(): the suite and the project", () => {
 			stdout: () => {},
 		});
 		expect(environment).toEqual({ ANTHROPIC_API_KEY: "from-file" });
+	});
+
+	test("tests never read the real ~/.config: a main() call left to the test defaults loads no key", async () => {
+		const root = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const environment: Record<string, string | undefined> = {};
+		await main(["status"], {
+			cwd: root,
+			env: environment,
+			stdin: async () => "",
+			stdout: () => {},
+		});
+		// Key names only: a failure here must not print a real key.
+		expect(Object.keys(environment)).toEqual([]);
+	});
+
+	test("the test default config directory is an empty directory under the run's TMPDIR, never under the home directory", async () => {
+		const temporaryRoot = await realpath(tmpdir());
+		const resolved = await realpath(EMPTY_CONFIG_DIRECTORY);
+		expect(resolved.startsWith(`${temporaryRoot}/`)).toBe(true);
+		expect(resolved.startsWith(`${await realpath(homedir())}/.config`)).toBe(
+			false,
+		);
+		expect(await readdir(resolved)).toEqual([]);
 	});
 
 	test("help, version and guide are answered before any key file is opened", async () => {

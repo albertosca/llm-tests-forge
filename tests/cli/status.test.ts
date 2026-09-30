@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { main } from "../../src/cli/main";
 import { stampSuite } from "../../src/core/files";
 import { FORGE_VERSION } from "../../src/core/version";
+import { mainWithTestDefaults as main } from "../helpers/main";
 import { projectWith } from "../helpers/project";
 
 // A frozen copy of the extract-questions example, so curating the living

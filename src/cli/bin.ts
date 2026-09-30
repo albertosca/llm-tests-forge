@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { defaultConfigDirectory } from "../llm/credentials";
 import { createInterruptibleReader } from "./interruptible-stdin";
 import { main } from "./main";
 
@@ -27,13 +28,14 @@ const reader = createInterruptibleReader({
 });
 process.on("SIGINT", reader.interrupt);
 
-// Provider keys are loaded by `main()` into `env`, after it has answered
-// `--help`; see main.ts.
+// Provider keys are loaded by `main()` into `env` from ~/.config, for a
+// verb that may need one (never for help, version or guide); see main.ts.
 process.exit(
 	await main(process.argv.slice(2), {
 		cwd: process.cwd(),
 		env: process.env,
 		stdin: reader.read,
 		startInteractivePass: reader.startInteractivePass,
+		configDirectory: defaultConfigDirectory(),
 	}),
 );

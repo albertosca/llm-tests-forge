@@ -5,7 +5,7 @@ import { readSuiteIfPresent, stampSuite } from "../core/files";
 import { registeredSuiteNames } from "../core/project";
 import { resolveSuite } from "../core/resolve";
 import { FORGE_VERSION, versionWarning } from "../core/version";
-import { defaultConfigDirectory, loadProviderKeys } from "../llm/credentials";
+import { loadProviderKeys } from "../llm/credentials";
 import { casesCommand } from "./commands/cases";
 import { dedupeCommand } from "./commands/dedupe";
 import { describeCommand } from "./commands/describe";
@@ -209,13 +209,20 @@ export interface MainOptions {
 	env: Record<string, string | undefined>;
 	stdin: () => Promise<string>;
 	stdout?: (line: string) => void;
-	/** See `CliContext.startInteractivePass`. */
-	startInteractivePass?: () => InteractivePass;
 	/**
-	 * Where each provider's `api.env` is read from, into `env`; absent ->
-	 * `~/.config`. A seam for tests, to prove when the files are read.
+	 * The interactive pass of the reader behind `stdin`, the one Ctrl+C is
+	 * wired to (see `CliContext.startInteractivePass`). Required, not
+	 * defaulted: `createContext`'s fallback arms a reader nothing
+	 * interrupts, so an entry point that forgot this compiled and lost a
+	 * review to the first Ctrl+C.
 	 */
-	configDirectory?: string;
+	startInteractivePass: () => InteractivePass;
+	/**
+	 * Where each provider's `api.env` is read from, into `env`: bin.ts
+	 * passes `~/.config`. Required, so no caller — a test above all — reads
+	 * the real one by leaving it out.
+	 */
+	configDirectory: string;
 }
 
 /**
@@ -318,7 +325,7 @@ export async function main(
 		if (!information)
 			await loadProviderKeys({
 				environment: options.env,
-				configDirectory: options.configDirectory ?? defaultConfigDirectory(),
+				configDirectory: options.configDirectory,
 			});
 		// `init` reads no forge.yaml through the resolution: it creates one, and
 		// a broken one must not stop it from updating AGENTS.md.
