@@ -303,6 +303,81 @@ describe("estimateSuite", () => {
 			"~ marks a model priced as the closest listed model",
 		);
 	});
+	test("one approximate model among exactly priced ones still gets the note saying what ~ means", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "label")],
+			cases: [caseOf("a-01", "a", "x", { label: "rejection" })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5", "anthropic/claude-haiku-9"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines.map((line) => line.approximate)).toEqual([
+			false,
+			true,
+		]);
+		expect(estimate.notes).toContain(
+			"~ marks a model priced as the closest listed model",
+		);
+	});
+	test("a case's inputs are counted as the prompt joins them, one line each", () => {
+		// "abcd" and "efgh" joined by a newline are 9 characters, 3 tokens;
+		// glued together they would be 8 characters, 2 tokens.
+		const twoInputs: Case = {
+			...caseOf("a-01", "a", "abcd", { label: "rejection" }),
+			input: { email: "abcd", subject: "efgh" },
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection: {
+				scenarios: [scenarioOf("a", "label")],
+				cases: [twoInputs],
+				blockers: [],
+				reviewable: 0,
+			},
+			feature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.inputTokens).toBe(3);
+	});
+	test("a label mean exactly at the label guess counts as the measured mean, and the note says so", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("a", "label")],
+			// approxTokens("x".repeat(32)) = 8, exactly the label guess.
+			cases: [caseOf("a-01", "a", "x".repeat(40), { label: "x".repeat(32) })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const estimate = estimateSuite({
+			suite: suite(
+				["anthropic/claude-haiku-4-5"],
+				["google/gemini-3.5-flash"],
+				1,
+			),
+			selection,
+			feature,
+			prices,
+			promptTokens: 0,
+		});
+		expect(estimate.lines[0]?.outputTokens).toBe(8);
+		expect(estimate.notes).toContain(
+			"tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is the mean of 1 reviewed expected value",
+		);
+	});
 	test("a model whose provider has no row at all is not priced, and the total is the priced line alone", () => {
 		const selection: Selection = {
 			scenarios: [scenarioOf("a", "label")],

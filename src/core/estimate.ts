@@ -277,6 +277,7 @@ const pricedSum = (
 	lines: EstimateLine[],
 	amountOf: (line: EstimateLine) => number,
 ): number =>
+	// Stryker disable next-line MethodExpression: an unpriced line is priced at priceFor's 0/0 rates, so every dollar figure on it is 0 and summing it changes nothing; the filter states the intent, the totals cannot tell it apart
 	lines
 		.filter((line) => line.priced)
 		.reduce((sum, line) => sum + amountOf(line), 0);
@@ -332,6 +333,7 @@ export function estimateSuite(parameters: {
 	// rubric (the characters band) and promptfoo's own grading prompt (the
 	// overhead band).
 	const rubricTokens = rubricCases.map((testCase) =>
+		// Stryker disable next-line OptionalChaining,StringLiteral: selectCases admits a case only with an expected value its scenario's oracle accepts, so every case of a rubric scenario reaching here carries a rubric; the fallback exists for the optional type alone
 		approxTokens(testCase.expected?.rubric ?? ""),
 	);
 	const perRubricCase = (perCase: (tokens: number) => number): number =>
