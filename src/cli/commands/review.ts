@@ -332,157 +332,217 @@ export async function reviewCommand(
 		render: (item) => renderItem(item, paint),
 	});
 
+	/**
+	 * The pass's case decisions for one file, keyed by the entry the pass
+	 * offered — the object read off disk, which is its position in the
+	 * file. Keyed by id, a decision landed on the first entry under that
+	 * id: across files, over an approved case in an earlier file; within
+	 * one file, over an approved twin of the pending entry offered. A
+	 * case's `scenario` names its file and cannot change in review, so it
+	 * is the file a decision belongs to.
+	 */
+	const decidedCasesIn = (id: string): Map<Case, Case> =>
+		new Map(
+			result.decisions.flatMap((decision) =>
+				decision.kind === "case" &&
+				decision.offered.kind === "case" &&
+				decision.item.scenario === id
+					? [[decision.offered.item, decision.item] as const]
+					: [],
+			),
+		);
+	/**
+	 * What the write-back has done so far, so a write that fails part-way
+	 * can say which files landed and which did not: the error used to name
+	 * only the file that failed, and after a second Ctrl+C that was all the
+	 * person saw before the process ended.
+	 */
+	const written: string[] = [];
+	const processedCaseFiles = new Set<string>();
+	let attempting = "";
+	const writing = async (
+		label: string,
+		write: () => Promise<void>,
+	): Promise<void> => {
+		attempting = label;
+		await write();
+		written.push(label);
+		attempting = "";
+	};
+	/** The cases files this write-back would still have written. */
+	const caseFilesNotReached = (): string[] =>
+		[...readCaseFiles]
+			.filter(
+				([id, { cases: list }]) =>
+					!processedCaseFiles.has(id) &&
+					applyReviewDecisions({
+						list,
+						decidedCases: decidedCasesIn(id),
+						oracleChange: oracleChanges.get(id),
+						feature,
+					}).touched,
+			)
+			.map(([id]) => `cases/${id}.yaml`);
+	const scenariosDecided = result.decisions.some(
+		(decision) => decision.kind === "scenario",
+	);
+
 	// Everything from the first write to the summary line runs guarded: a
 	// second Ctrl+C in here lets it finish, then exits 130, rather than
 	// stopping between two files. Before this point a second Ctrl+C still
 	// exits at once, and nothing has been written.
 	await pass.whileWriting(async () => {
-		const decidedFeature = result.decisions.find(
-			(decision) => decision.kind === "feature",
-		);
-		if (decidedFeature)
-			await writeFeature(context.forgeDirectory, decidedFeature.item);
-
-		const decidedScenarios = new Map(
-			result.decisions
-				.filter((decision) => decision.kind === "scenario")
-				.map((decision) => [decision.originalId, decision.item] as const),
-		);
-		if (decidedScenarios.size > 0)
-			await writeScenarios(
-				context.forgeDirectory,
-				scenariosAsRead.map(
-					(scenario) => takeOnce(decidedScenarios, scenario.id) ?? scenario,
-				),
+		try {
+			const decidedFeature = result.decisions.find(
+				(decision) => decision.kind === "feature",
 			);
-
-		/**
-		 * The pass's case decisions for one file, keyed by the entry the pass
-		 * offered — the object read off disk, which is its position in the
-		 * file. Keyed by id, a decision landed on the first entry under that
-		 * id: across files, over an approved case in an earlier file; within
-		 * one file, over an approved twin of the pending entry offered. A
-		 * case's `scenario` names its file and cannot change in review, so it
-		 * is the file a decision belongs to.
-		 */
-		const decidedCasesIn = (id: string): Map<Case, Case> =>
-			new Map(
-				result.decisions.flatMap((decision) =>
-					decision.kind === "case" &&
-					decision.offered.kind === "case" &&
-					decision.item.scenario === id
-						? [[decision.offered.item, decision.item] as const]
-						: [],
-				),
-			);
-		let totalReopened = 0;
-		// Decisions belonging to a file the write-back below refused to touch:
-		// counted so the summary can say how many of "N approved" and the rest
-		// never actually reached disk, instead of reporting them as landed.
-		let totalDecisionsNotWritten = 0;
-		for (const [id, { cases: list, fingerprint: before }] of readCaseFiles) {
-			const oracleChange = oracleChanges.get(id);
-			const decidedCases = decidedCasesIn(id);
-			// Read before `applyReviewDecisions` below drains `decidedCases` via
-			// `takeOnce`: by the time the write-back guard needs this count, the
-			// map it would read is already empty, regardless of how many
-			// decisions this file actually had.
-			const decidedCaseCount = decidedCases.size;
-			if (decidedCaseCount === 0 && oracleChange === undefined) continue;
-			// An oracle change against a file holding nothing re-opens nothing
-			// and writes nothing; the pass below reports it, together with the
-			// scenarios that have no file at all, so one change is announced
-			// once rather than as both a count of zero and a "no cases yet".
-			if (list.length === 0) continue;
-			const { next, reopened, touched } = applyReviewDecisions({
-				list,
-				decidedCases,
-				oracleChange,
-				feature,
-			});
-			// The file this pass is about to overwrite may have been removed, or
-			// replaced with something else entirely, while a person was answering
-			// it — by hand, or by another process. Compared against the
-			// fingerprint taken when this pass read the file, not just checked for
-			// existence: a file removed and then recreated with different content
-			// is back by the time this runs, and existence alone would miss that
-			// it is not the file this pass read. Decided before anything about
-			// this file is announced: a file the guard skips re-opened nothing on
-			// disk, so its re-opens are not counted, and its decisions go back
-			// into "still pending" through `totalDecisionsNotWritten`.
-			const skipReason = touched
-				? await writeBackSkipReason(context.forgeDirectory, id, before)
-				: null;
-			if (skipReason !== null) {
-				// Name only what this file actually lost: a file touched by the
-				// oracle change alone held no decision of this pass, and "its
-				// decisions were not written" sent the person looking for some.
-				// The oracle change itself did land, in scenarios.yaml, so it is
-				// still announced — just without a count nobody applied.
-				const lost = [
-					...(decidedCaseCount > 0 ? ["its decisions were not written"] : []),
-					...(reopened > 0 ? ["its cases were not re-opened"] : []),
-				];
-				context.stdout(
-					`review: cases/${id}.yaml ${skipReason} during the pass; ${lost.join(" and ")}`,
+			if (decidedFeature)
+				await writing("feature.yaml", () =>
+					writeFeature(context.forgeDirectory, decidedFeature.item),
 				);
-				if (oracleChange !== undefined)
+
+			const decidedScenarios = new Map(
+				result.decisions
+					.filter((decision) => decision.kind === "scenario")
+					.map((decision) => [decision.originalId, decision.item] as const),
+			);
+			if (decidedScenarios.size > 0)
+				await writing("scenarios.yaml", () =>
+					writeScenarios(
+						context.forgeDirectory,
+						scenariosAsRead.map(
+							(scenario) => takeOnce(decidedScenarios, scenario.id) ?? scenario,
+						),
+					),
+				);
+
+			let totalReopened = 0;
+			// Decisions belonging to a file the write-back below refused to touch:
+			// counted so the summary can say how many of "N approved" and the rest
+			// never actually reached disk, instead of reporting them as landed.
+			let totalDecisionsNotWritten = 0;
+			for (const [id, { cases: list, fingerprint: before }] of readCaseFiles) {
+				processedCaseFiles.add(id);
+				const oracleChange = oracleChanges.get(id);
+				const decidedCases = decidedCasesIn(id);
+				// Read before `applyReviewDecisions` below drains `decidedCases` via
+				// `takeOnce`: by the time the write-back guard needs this count, the
+				// map it would read is already empty, regardless of how many
+				// decisions this file actually had.
+				const decidedCaseCount = decidedCases.size;
+				if (decidedCaseCount === 0 && oracleChange === undefined) continue;
+				// An oracle change against a file holding nothing re-opens nothing
+				// and writes nothing; the pass below reports it, together with the
+				// scenarios that have no file at all, so one change is announced
+				// once rather than as both a count of zero and a "no cases yet".
+				if (list.length === 0) continue;
+				const { next, reopened, touched } = applyReviewDecisions({
+					list,
+					decidedCases,
+					oracleChange,
+					feature,
+				});
+				// The file this pass is about to overwrite may have been removed, or
+				// replaced with something else entirely, while a person was answering
+				// it — by hand, or by another process. Compared against the
+				// fingerprint taken when this pass read the file, not just checked for
+				// existence: a file removed and then recreated with different content
+				// is back by the time this runs, and existence alone would miss that
+				// it is not the file this pass read. Decided before anything about
+				// this file is announced: a file the guard skips re-opened nothing on
+				// disk, so its re-opens are not counted, and its decisions go back
+				// into "still pending" through `totalDecisionsNotWritten`.
+				const skipReason = touched
+					? await writeBackSkipReason(context.forgeDirectory, id, before)
+					: null;
+				if (skipReason !== null) {
+					// Name only what this file actually lost: a file touched by the
+					// oracle change alone held no decision of this pass, and "its
+					// decisions were not written" sent the person looking for some.
+					// The oracle change itself did land, in scenarios.yaml, so it is
+					// still announced — just without a count nobody applied.
+					const lost = [
+						...(decidedCaseCount > 0 ? ["its decisions were not written"] : []),
+						...(reopened > 0 ? ["its cases were not re-opened"] : []),
+					];
 					context.stdout(
-						`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to} (written to scenarios.yaml)`,
+						`review: cases/${id}.yaml ${skipReason} during the pass; ${lost.join(" and ")}`,
 					);
-				totalDecisionsNotWritten += decidedCaseCount;
-				continue;
+					if (oracleChange !== undefined)
+						context.stdout(
+							`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to} (written to scenarios.yaml)`,
+						);
+					totalDecisionsNotWritten += decidedCaseCount;
+					continue;
+				}
+				if (oracleChange !== undefined) {
+					context.stdout(
+						// What to do next, not just what happened: a re-opened case keeps
+						// the expected it was approved with, which the new oracle no
+						// longer accepts, so approving it again is refused until it is
+						// edited. Nothing said so, and the next pass looked broken. At
+						// zero there is nothing to edit, so the instruction is left off
+						// rather than sending someone to look for cases that do not exist.
+						`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to}; ${reopened} case(s) re-opened${reopened > 0 ? " — edit each to give it an expected the new oracle accepts" : ""}`,
+					);
+					totalReopened += reopened;
+				}
+				if (touched)
+					await writing(`cases/${id}.yaml`, () =>
+						writeCases(context.forgeDirectory, id, next),
+					);
 			}
-			if (oracleChange !== undefined) {
+			// The pass above walks the cases files, so a scenario whose oracle this
+			// pass changed before `cases` ever ran for it said nothing at all — and
+			// the change is exactly the one that decides what every case generated
+			// afterwards has to look like. There is no count to report and nothing
+			// to re-open; the line exists so the change is on the record.
+			for (const [id, change] of oracleChanges) {
+				if ((casesById.get(id) ?? []).length > 0) continue;
 				context.stdout(
-					// What to do next, not just what happened: a re-opened case keeps
-					// the expected it was approved with, which the new oracle no
-					// longer accepts, so approving it again is refused until it is
-					// edited. Nothing said so, and the next pass looked broken. At
-					// zero there is nothing to edit, so the instruction is left off
-					// rather than sending someone to look for cases that do not exist.
-					`review: scenario ${oracleChange.id} changed oracle ${oracleChange.from} → ${oracleChange.to}; ${reopened} case(s) re-opened${reopened > 0 ? " — edit each to give it an expected the new oracle accepts" : ""}`,
+					`review: scenario ${change.id} changed oracle ${change.from} → ${change.to}; no cases yet`,
 				);
-				totalReopened += reopened;
 			}
-			if (touched) await writeCases(context.forgeDirectory, id, next);
-		}
-		// The pass above walks the cases files, so a scenario whose oracle this
-		// pass changed before `cases` ever ran for it said nothing at all — and
-		// the change is exactly the one that decides what every case generated
-		// afterwards has to look like. There is no count to report and nothing
-		// to re-open; the line exists so the change is on the record.
-		for (const [id, change] of oracleChanges) {
-			if ((casesById.get(id) ?? []).length > 0) continue;
+			const summary = result.summary;
+			// `skipped` counts the items a person answered "skip" to; it is not the
+			// same set as "still pending", which also holds everything --only
+			// filtered out of this pass. Every decision that lands leaves its item
+			// approved, rejected or edited, so what stays pending is what was
+			// pending on entry minus the decisions taken, plus back the decisions
+			// the write-back refused (their items are as the pass found them) —
+			// plus the cases an oracle change re-opened, which are pending now
+			// whether or not they were on entry, and which the line reports on
+			// their own so the total adds up.
+			const stillPending =
+				pendingOnDisk -
+				result.decisions.length +
+				totalDecisionsNotWritten +
+				totalReopened;
+			// The counts above stay exactly what the loop decided, even for a
+			// decision the write-back above refused: "2 approved" is true of the
+			// pass regardless of whether both landed. This clause is what says some
+			// of them did not reach disk, without pretending they were never taken.
+			const notWrittenSuffix =
+				totalDecisionsNotWritten > 0
+					? `; ${totalDecisionsNotWritten} decision(s) not written`
+					: "";
 			context.stdout(
-				`review: scenario ${change.id} changed oracle ${change.from} → ${change.to}; no cases yet`,
+				`review: ${summary.approved} approved, ${summary.rejected} rejected, ${summary.edited} edited, ${summary.skipped} skipped, ${totalReopened} re-opened, ${stillPending} still pending${notWrittenSuffix}`,
+			);
+		} catch (error) {
+			// Only a failed write is annotated; any other failure is not
+			// about what reached disk.
+			if (!(error instanceof ForgeError) || attempting === "") throw error;
+			const notWritten = [
+				attempting,
+				...(scenariosDecided && attempting === "feature.yaml"
+					? ["scenarios.yaml"]
+					: []),
+				...caseFilesNotReached(),
+			];
+			throw new ForgeError(
+				`${error.message}; the write-back stopped there: already written: ${written.length > 0 ? written.join(", ") : "nothing"}; not written: ${notWritten.join(", ")}`,
 			);
 		}
-		const summary = result.summary;
-		// `skipped` counts the items a person answered "skip" to; it is not the
-		// same set as "still pending", which also holds everything --only
-		// filtered out of this pass. Every decision that lands leaves its item
-		// approved, rejected or edited, so what stays pending is what was
-		// pending on entry minus the decisions taken, plus back the decisions
-		// the write-back refused (their items are as the pass found them) —
-		// plus the cases an oracle change re-opened, which are pending now
-		// whether or not they were on entry, and which the line reports on
-		// their own so the total adds up.
-		const stillPending =
-			pendingOnDisk -
-			result.decisions.length +
-			totalDecisionsNotWritten +
-			totalReopened;
-		// The counts above stay exactly what the loop decided, even for a
-		// decision the write-back above refused: "2 approved" is true of the
-		// pass regardless of whether both landed. This clause is what says some
-		// of them did not reach disk, without pretending they were never taken.
-		const notWrittenSuffix =
-			totalDecisionsNotWritten > 0
-				? `; ${totalDecisionsNotWritten} decision(s) not written`
-				: "";
-		context.stdout(
-			`review: ${summary.approved} approved, ${summary.rejected} rejected, ${summary.edited} edited, ${summary.skipped} skipped, ${totalReopened} re-opened, ${stillPending} still pending${notWrittenSuffix}`,
-		);
 	});
 }

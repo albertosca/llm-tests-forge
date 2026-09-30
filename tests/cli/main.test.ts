@@ -1682,6 +1682,80 @@ describe("review: a write-back guard skips just the files it cannot trust, and s
 	});
 });
 
+describe("review: a write-back that fails part-way names what landed and what did not", () => {
+	test("a second Ctrl+C, then the middle of three cases files cannot be written: no exit 130, and the error lists the file written, the one that failed and the one never reached", async () => {
+		if (process.getuid?.() === 0) return;
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		const scenarioIds = ["huge-signature", "polite-rejection", "zero-reply"];
+		await writeScenarios(
+			forgeDirectory,
+			scenarioIds.map((id) => ({
+				id,
+				kind: "happy" as const,
+				oracle: "label" as const,
+				description: "d",
+				status: "approved" as const,
+			})),
+		);
+		for (const id of scenarioIds)
+			await writeCases(forgeDirectory, id, [
+				{
+					id: `${id}-01`,
+					scenario: id,
+					input: { email: id },
+					expected: { label: "rejection" },
+					status: "pending",
+					generated_by: "hand",
+				},
+			]);
+		const readOnly = join(forgeDirectory, "cases", "polite-rejection.yaml");
+		await chmod(readOnly, 0o444);
+
+		const out: string[] = [];
+		const exits: number[] = [];
+		const reader = createInterruptibleReader({
+			readLine: async () => "approve",
+			stdout: (line) => out.push(line),
+			exit: (code) => exits.push(code),
+		});
+		const context = createContext({
+			cwd,
+			drafter: MODEL,
+			stdin: reader.read,
+			startInteractivePass: () => {
+				const pass = reader.startInteractivePass();
+				return {
+					read: pass.read,
+					// Two Ctrl+C as soon as the write-back has begun: the first
+					// ends the input, the second is held until the write ends.
+					whileWriting: <Result>(work: () => Promise<Result>) => {
+						const writing = pass.whileWriting(work);
+						reader.interrupt();
+						reader.interrupt();
+						return writing;
+					},
+				};
+			},
+		});
+		context.stdout = (line) => out.push(line);
+		try {
+			expect(await run(["review", "--only", "cases"], context)).toBe(1);
+		} finally {
+			await chmod(readOnly, 0o644);
+		}
+		expect(exits).toEqual([]);
+		expect(out.at(-1)).toBe(
+			`error: cannot write: EACCES: permission denied, open '${readOnly}' (file: ${readOnly}); the write-back stopped there: already written: cases/huge-signature.yaml; not written: cases/polite-rejection.yaml, cases/zero-reply.yaml`,
+		);
+		const statuses = [];
+		for (const id of scenarioIds)
+			statuses.push((await readCases(forgeDirectory, id))[0]?.status);
+		expect(statuses).toEqual(["approved", "pending", "pending"]);
+	});
+});
+
 describe("review: startInteractivePass arms end-of-input only for the interactive path", () => {
 	test("the interactive path calls it exactly once, before the loop asks its first question", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
