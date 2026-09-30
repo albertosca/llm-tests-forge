@@ -19,8 +19,9 @@ export default {
 	coverageAnalysis: "perTest",
 	mutate: ["src/core/**/*.ts"],
 	bun: { testFiles: coreTests },
-	// 86 is the floor measured on 2026-09-29 (86.18%); raise it as survivors die.
-	thresholds: { high: 90, low: 80, break: 86 },
+	// Every mutant in src/core is killed or disabled with its reason (100.00%
+	// on 2026-09-30), so one new survivor or uncovered mutant fails the run.
+	thresholds: { high: 90, low: 80, break: 100 },
 	reporters: ["clear-text", "json"],
 	// TypeScript 7 (the Go port) has no JS API, so Stryker's tsconfig rewrite
 	// (ts.parseConfigFileTextToJson) crashes. This tsconfig has no extends or
