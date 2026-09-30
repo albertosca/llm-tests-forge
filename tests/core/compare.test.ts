@@ -14,6 +14,16 @@ describe("sameInput", () => {
 		expect(sameInput({ email: "x" }, { email: "x", subject: "y" })).toBe(false);
 	});
 
+	test("one differing value among several shared keys is enough to be a different input", () => {
+		expect(
+			sameInput({ email: "x", subject: "y" }, { email: "x", subject: "z" }),
+		).toBe(false);
+	});
+
+	test("the same key count under different names is not the same input", () => {
+		expect(sameInput({ email: "x" }, { subject: "x" })).toBe(false);
+	});
+
 	test("key order does not matter", () => {
 		expect(
 			sameInput({ email: "x", subject: "y" }, { subject: "y", email: "x" }),

@@ -2,14 +2,19 @@
  * Whether two input objects carry the same key/value pairs, regardless of
  * key order -- the shared duplicate check `generateCases` and `importCases`
  * both run against a candidate's input before accepting it.
+ *
+ * Equal key counts plus every left value found, equal, under the same key
+ * on the right means the key sets are equal too: every value is a string,
+ * so a key the right side lacks reads as `undefined` and never matches.
+ * Comparing sorted key lists as well would check the same thing twice.
  */
 export function sameInput(
-	a: Record<string, string>,
-	b: Record<string, string>,
+	left: Record<string, string>,
+	right: Record<string, string>,
 ): boolean {
-	const ka = Object.keys(a).sort();
-	const kb = Object.keys(b).sort();
+	const leftKeys = Object.keys(left);
 	return (
-		ka.length === kb.length && ka.every((k, i) => k === kb[i] && a[k] === b[k])
+		leftKeys.length === Object.keys(right).length &&
+		leftKeys.every((key) => left[key] === right[key])
 	);
 }
