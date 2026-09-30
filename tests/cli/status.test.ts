@@ -6,7 +6,9 @@ import { main } from "../../src/cli/main";
 import { FORGE_VERSION } from "../../src/core/version";
 import { projectWith } from "../helpers/project";
 
-const EXAMPLE = "examples/moonlighter-extract-questions/.forge";
+// A frozen copy of the extract-questions example, so curating the living
+// example under examples/ never changes the counts these tests pin.
+const EXAMPLE = "tests/fixtures/extract-questions/.forge";
 
 async function runStatus(
 	cwd: string,

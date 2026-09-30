@@ -1,0 +1,306 @@
+- id: required-marker-missing-01
+  scenario: required-marker-missing
+  input:
+    page: |-
+      Horizon Robotics Careers
+      Home | About Us | Open Positions | Contact
+
+      Software Engineer, Backend
+      San Francisco, CA · Full-time · Engineering
+
+      At Horizon Robotics we build autonomous delivery systems that are reshaping urban logistics. Our backend team owns the services that coordinate thousands of robots in real time. You will work closely with hardware, ML, and product teams to ship reliable, low-latency systems.
+
+      What you'll do:
+      - Design and maintain distributed services in Go and Python
+      - Own on-call rotations for critical infrastructure
+      - Collaborate with the robotics fleet team on real-time telemetry
+
+      What we're looking for:
+      - 3+ years of backend experience
+      - Familiarity with Kubernetes and gRPC
+      - Strong communication skills
+
+      We use cookies to improve your experience on this site. Accept All | Manage Preferences
+
+      Apply for this position
+
+      Full Name
+      Type here...
+
+      Email Address
+      hello@example.com...
+
+      Phone Number
+      Type here...
+
+      LinkedIn Profile URL
+      Type here...
+
+      How did you hear about us?
+      Select an option...
+
+      Are you legally authorized to work in the United States?
+      Yes
+      No
+
+      Years of Experience
+      Type here...
+
+      Cover Letter
+      Start typing...
+
+      Resume
+      Upload File
+
+      I agree to the Terms of Service and Privacy Policy
+
+      Submit Application
+
+      © 2024 Horizon Robotics, Inc. All rights reserved.
+      Privacy Policy | Terms of Service | Do Not Sell My Info
+  expected:
+    fields:
+      questions:
+        - label: Full Name
+          kind: text
+          required: false
+          options: []
+        - label: Email Address
+          kind: text
+          required: false
+          options: []
+        - label: Phone Number
+          kind: text
+          required: false
+          options: []
+        - label: LinkedIn Profile URL
+          kind: text
+          required: false
+          options: []
+        - label: How did you hear about us?
+          kind: long_text
+          required: false
+          options: []
+        - label: Are you legally authorized to work in the United States?
+          kind: single_select
+          required: false
+          options:
+            - Yes
+            - No
+        - label: Years of Experience
+          kind: text
+          required: false
+          options: []
+        - label: Cover Letter
+          kind: long_text
+          required: false
+          options: []
+        - label: Resume
+          kind: file
+          required: false
+          options: []
+        - label: I agree to the Terms of Service and Privacy Policy
+          kind: boolean
+          required: false
+          options: []
+  status: edited
+  generated_by: anthropic/claude-sonnet-5
+- id: required-marker-missing-02
+  scenario: required-marker-missing
+  input:
+    page: |-
+      Bright Path Marketing Group
+      Careers at Bright Path
+
+      Marketing Coordinator
+      Austin, TX · Full-time
+
+      Bright Path Marketing Group helps mid-size businesses grow through creative digital campaigns. We are looking for a Marketing Coordinator to support our client accounts team with content creation, campaign tracking, and reporting.
+
+      Responsibilities include coordinating social media calendars, drafting email newsletters, and assisting with paid ad campaign setup. The ideal candidate is organized, detail-oriented, and comfortable juggling multiple projects.
+
+      Benefits: health insurance, 401k matching, flexible PTO, hybrid work schedule.
+
+      This site uses cookies. By continuing to browse, you accept our cookie policy.
+
+      Application Form
+
+      Full Name
+      Type here...
+
+      Email
+      hello@example.com...
+
+      Portfolio Link
+      Type here...
+
+      Available Start Date
+      Type here...
+
+      How many years of marketing experience do you have?
+      Type here...
+
+      Are you willing to relocate?
+      Yes
+      No
+
+      Cover Letter
+      Start typing...
+
+      Resume
+      Upload File
+
+      I have read and agree to the company's data privacy policy
+
+      Submit
+
+      Bright Path Marketing Group is an equal opportunity employer.
+      Follow us: LinkedIn | Instagram | Twitter
+  expected:
+    fields:
+      questions:
+        - label: Full Name
+          kind: text
+          required: false
+          options: []
+        - label: Email
+          kind: text
+          required: false
+          options: []
+        - label: Portfolio Link
+          kind: text
+          required: false
+          options: []
+        - label: Available Start Date
+          kind: text
+          required: false
+          options: []
+        - label: How many years of marketing experience do you have?
+          kind: text
+          required: false
+          options: []
+        - label: Are you willing to relocate?
+          kind: single_select
+          required: false
+          options:
+            - Yes
+            - No
+        - label: Cover Letter
+          kind: long_text
+          required: false
+          options: []
+        - label: Resume
+          kind: file
+          required: false
+          options: []
+        - label: I have read and agree to the company's data privacy policy
+          kind: boolean
+          required: false
+          options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: required-marker-missing-01
+- id: required-marker-missing-03
+  scenario: required-marker-missing
+  input:
+    page: |-
+      Delta Analytics Internship Program
+      Delta Analytics | Careers | Students
+
+      Data Analyst Intern (Summer 2025)
+      Remote or New York, NY · Internship · 12 weeks
+
+      Delta Analytics partners with nonprofits to turn data into actionable insight. Our summer internship program pairs students with real client projects, mentorship from senior analysts, and weekly workshops on statistics and visualization tools.
+
+      Who should apply:
+      - Currently enrolled in an undergraduate or graduate program
+      - Coursework or project experience in statistics, computer science, or a related field
+      - Interest in social impact work
+
+      This internship is paid and includes a stipend for relocation if applicable.
+
+      By using this site you agree to our use of cookies and similar technologies.
+
+      Apply Now
+
+      Full Name
+      Type here...
+
+      Email
+      hello@example.com...
+
+      University
+      Type here...
+
+      Expected Graduation Date
+      Type here...
+
+      Preferred Internship Location
+      Select an option...
+
+      Which programming languages are you proficient in?
+      Python
+      R
+      SQL
+      Java
+      C++
+
+      Describe a time you used data to solve a problem
+      Start typing...
+
+      Upload Transcript
+      Upload File
+
+      I certify that the information provided is accurate
+
+      Submit Application
+
+      Delta Analytics is committed to building a diverse and inclusive team.
+      © 2024 Delta Analytics
+  expected:
+    fields:
+      questions:
+        - label: Full Name
+          kind: text
+          required: false
+          options: []
+        - label: Email
+          kind: text
+          required: false
+          options: []
+        - label: University
+          kind: text
+          required: false
+          options: []
+        - label: Expected Graduation Date
+          kind: text
+          required: false
+          options: []
+        - label: Preferred Internship Location
+          kind: long_text
+          required: false
+          options: []
+        - label: Which programming languages are you proficient in?
+          kind: multi_select
+          required: false
+          options:
+            - Python
+            - R
+            - SQL
+            - Java
+            - C++
+        - label: Describe a time you used data to solve a problem
+          kind: long_text
+          required: false
+          options: []
+        - label: Upload Transcript
+          kind: file
+          required: false
+          options: []
+        - label: I certify that the information provided is accurate
+          kind: boolean
+          required: false
+          options: []
+  status: edited
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: required-marker-missing-01

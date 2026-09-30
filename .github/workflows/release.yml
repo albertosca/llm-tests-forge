@@ -103,7 +103,9 @@ jobs:
             asset: llm-tests-forge-windows-x64.exe
     env:
       ASSET: ${{ matrix.asset }}
-      FIXTURE: examples/moonlighter-extract-questions
+      # A frozen copy of the extract-questions example with its committed
+      # outputs: the release never depends on an example someone is curating.
+      FIXTURE: tests/fixtures/extract-questions
     defaults:
       run:
         shell: bash

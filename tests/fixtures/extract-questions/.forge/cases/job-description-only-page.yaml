@@ -1,0 +1,128 @@
+- id: job-description-only-page-01
+  scenario: job-description-only-page
+  input:
+    page: |-
+      Senior Backend Engineer
+      Acme Cloud Systems — Remote (US)
+
+      About the Role
+      We are looking for a Senior Backend Engineer to join our platform team. You will design and build scalable services that power our core product used by over 2 million customers worldwide.
+
+      What You'll Do
+      - Architect and implement distributed systems in Go and Python
+      - Own the reliability of critical payment processing pipelines
+      - Mentor junior engineers and review pull requests
+      - Collaborate with product managers to scope new features
+      - Participate in on-call rotation for production incidents
+
+      What We're Looking For
+      - 6+ years of backend software engineering experience
+      - Deep knowledge of distributed systems, databases, and caching
+      - Experience with Kubernetes and cloud infrastructure (AWS or GCP)
+      - Strong communication skills and a collaborative mindset
+      - Bachelor's degree in Computer Science or equivalent experience
+
+      Why Join Acme Cloud Systems
+      We offer competitive compensation, comprehensive health benefits, unlimited PTO, and a fully remote work culture. Our engineering team spans twelve countries and we pride ourselves on asynchronous, thoughtful collaboration.
+
+      Our Values
+      We believe in ownership, transparency, and continuous learning. Every engineer at Acme has the autonomy to propose and drive projects that matter.
+
+      Equal Opportunity Employer
+      Acme Cloud Systems is an equal opportunity employer and does not discriminate on the basis of race, religion, gender, sexual orientation, age, or disability status.
+
+      This site uses cookies to improve your experience. Accept All | Manage Preferences
+
+      Home | About Us | Careers | Contact | Privacy Policy
+  expected:
+    fields:
+      questions: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: job-description-only-page-02
+  scenario: job-description-only-page
+  input:
+    page: |-
+      Retail Store Associate — Downtown Seattle Location
+      BrightWay Markets
+
+      Job Summary
+      BrightWay Markets is hiring a Retail Store Associate to support daily operations at our flagship Seattle store. This is a part-time position with flexible scheduling, ideal for students or anyone seeking supplemental income.
+
+      Responsibilities
+      - Greet customers and assist with product location
+      - Operate the point-of-sale register accurately
+      - Restock shelves and maintain store cleanliness
+      - Process returns and exchanges according to policy
+      - Assist with inventory counts weekly
+
+      Qualifications
+      - Must be at least 16 years old
+      - Prior retail experience preferred but not required
+      - Ability to stand for extended periods and lift up to 25 lbs
+      - Friendly, customer-first attitude
+      - Availability on weekends is a plus
+
+      Compensation and Benefits
+      Starting pay is $19.50/hour with opportunities for raises based on performance reviews. Employees receive a 20% discount on all store merchandise and access to a flexible scheduling app.
+
+      About BrightWay Markets
+      Founded in 1998, BrightWay Markets operates 42 grocery stores across the Pacific Northwest, focused on locally sourced produce and community partnerships.
+
+      Follow us on Instagram @brightwaymarkets for store updates and promotions.
+
+      By continuing to browse this site you agree to our use of cookies as described in our Cookie Policy.
+  expected:
+    fields:
+      questions: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: job-description-only-page-01
+- id: job-description-only-page-03
+  scenario: job-description-only-page
+  input:
+    page: |-
+      Data Analyst, Marketing Insights
+      Northbridge Financial Group | Chicago, IL | Full-time
+
+      Posted 3 days ago · 214 applicants
+
+      About Northbridge
+      Northbridge Financial Group is a mid-sized asset management firm serving institutional clients across North America. Our Marketing Insights team turns raw campaign data into actionable strategy for the firm's leadership.
+
+      The Opportunity
+      As a Data Analyst on the Marketing Insights team, you'll partner closely with the marketing and growth teams to measure campaign performance, build dashboards, and surface trends that inform quarterly planning. You'll work primarily in SQL, Python, and Tableau.
+
+      Core Responsibilities
+      - Build and maintain automated reporting dashboards in Tableau
+      - Write complex SQL queries against our data warehouse
+      - Partner with stakeholders to define KPIs for new campaigns
+      - Present findings to senior leadership on a monthly basis
+      - Audit data pipelines for accuracy and completeness
+
+      Required Qualifications
+      - 3+ years of experience in a data analyst or similar role
+      - Proficiency in SQL and at least one scripting language (Python or R)
+      - Experience with BI tools such as Tableau or Looker
+      - Excellent written and verbal communication skills
+
+      Preferred Qualifications
+      - Experience in financial services or asset management
+      - Familiarity with Snowflake or BigQuery
+      - Master's degree in a quantitative field
+
+      Compensation
+      The base salary range for this role is $85,000–$105,000 annually, plus an annual performance bonus and full benefits package including 401(k) matching.
+
+      Life at Northbridge
+      Our Chicago office is located in the Loop with a hybrid schedule of three days in-office. We host quarterly team offsites and offer generous parental leave.
+
+      Share this job: LinkedIn | Twitter | Email
+
+      © 2024 Northbridge Financial Group. All rights reserved. Terms of Use · Privacy Notice
+  expected:
+    fields:
+      questions: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: job-description-only-page-01

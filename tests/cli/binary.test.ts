@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { FORGE_VERSION } from "../../src/core/version";
 
-const EXAMPLE = resolve("examples/moonlighter-extract-questions");
+// A frozen copy of the extract-questions example with its committed outputs,
+// so curating the living example under examples/ never changes this test.
+const EXAMPLE = resolve("tests/fixtures/extract-questions");
 const FAKE_MODEL = `fake/${resolve("tests/fixtures/cli-responses.json")}`;
 
 /** Runs the binary and fails with its own output when the exit code is not 0. */
@@ -81,8 +83,11 @@ describe("the compiled binary", () => {
 			await readFile(join(fresh, ".forge", "feature.yaml"), "utf8"),
 		).toContain("classify-email");
 
-		// emit renders the embedded shim template into the copied example.
-		await rm(join(work, ".forge", "forge_target.py"));
+		// emit renders the embedded shim template into the copied fixture,
+		// which holds no forge_target.py of its own.
+		await expect(
+			readFile(join(work, ".forge", "forge_target.py"), "utf8"),
+		).rejects.toThrow();
 		const emitted = runBinary(binary, ["emit"], work);
 		expectSuccess(emitted);
 		const shim = await readFile(

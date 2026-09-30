@@ -13,19 +13,21 @@ import { parse, stringify } from "yaml";
 import { renderStatusLine, suiteStatus } from "../../src/core/status";
 import { FORGE_VERSION } from "../../src/core/version";
 
-const EXAMPLE = "examples/moonlighter-extract-questions/.forge";
+// A frozen copy of the extract-questions example, so curating the living
+// example under examples/ never changes the counts these tests pin.
+const FIXTURE = "tests/fixtures/extract-questions/.forge";
 
-/** A project directory holding a copy of the example suite at `evals/<name>`. */
+/** A project directory holding a copy of the fixture suite at `evals/<name>`. */
 async function suiteCopy(name: string): Promise<string> {
 	const root = await mkdtemp(join(tmpdir(), "forge-status-"));
 	const directory = join(root, "evals", name);
 	await mkdir(directory, { recursive: true });
-	await cp(EXAMPLE, join(directory, ".forge"), { recursive: true });
+	await cp(FIXTURE, join(directory, ".forge"), { recursive: true });
 	return directory;
 }
 
 describe("suiteStatus and renderStatusLine", () => {
-	test("renders the example suite as one line with its counts and last run", async () => {
+	test("renders the fixture suite as one line with its counts and last run", async () => {
 		const directory = await suiteCopy("a");
 		const report = JSON.parse(
 			await readFile(join(directory, ".forge", "report.json"), "utf8"),

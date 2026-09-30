@@ -1,0 +1,400 @@
+- id: non-english-application-form-01
+  scenario: non-english-application-form
+  input:
+    page: 'TechNova Solutions
+
+      Accueil | À propos | Carrières | Contact
+
+
+      Rejoignez notre équipe de développeurs talentueux !
+
+
+      Développeur Full Stack (H/F) - Paris, France
+
+
+      Chez TechNova Solutions, nous construisons des plateformes SaaS utilisées par plus de 500 entreprises à travers l''Europe. Nous recherchons un développeur full stack passionné pour renforcer notre équipe produit. Vous travaillerez avec React, Node.js et PostgreSQL sur des projets à fort impact.
+
+
+      Ce site utilise des cookies pour améliorer votre expérience. En continuant à naviguer, vous acceptez notre politique de cookies.
+
+
+      Postuler maintenant
+
+
+      Nom complet
+
+      Tapez ici...
+
+
+      Adresse e-mail
+
+      vous@exemple.com
+
+
+      Numéro de téléphone
+
+      Tapez ici...
+
+
+      Pourquoi souhaitez-vous rejoindre TechNova Solutions ?
+
+      Commencez à taper...
+
+
+      Combien d''années d''expérience avez-vous en développement web ?
+
+      Moins d''un an
+
+      1 à 3 ans
+
+      3 à 5 ans
+
+      Plus de 5 ans
+
+
+      Quelles technologies maîtrisez-vous ?
+
+      JavaScript
+
+      Python
+
+      Java
+
+      Go
+
+      Ruby
+
+
+      Êtes-vous disponible immédiatement ?
+
+      Oui
+
+      Non
+
+
+      Téléchargez votre CV
+
+      Aucun fichier choisi
+
+
+      J''accepte que mes données soient traitées conformément à la politique de confidentialité
+
+
+      Remplissage automatique activé par votre navigateur.
+
+
+      Envoyer ma candidature
+
+
+      © 2024 TechNova Solutions. Tous droits réservés.'
+  expected:
+    fields:
+      questions:
+      - label: Nom complet
+        kind: text
+        required: false
+        options: []
+      - label: Adresse e-mail
+        kind: text
+        required: false
+        options: []
+      - label: Numéro de téléphone
+        kind: text
+        required: false
+        options: []
+      - label: Pourquoi souhaitez-vous rejoindre TechNova Solutions ?
+        kind: long_text
+        required: false
+        options: []
+      - label: Combien d'années d'expérience avez-vous en développement web ?
+        kind: single_select
+        required: false
+        options:
+        - Moins d'un an
+        - 1 à 3 ans
+        - 3 à 5 ans
+        - Plus de 5 ans
+      - label: Quelles technologies maîtrisez-vous ?
+        kind: multi_select
+        required: false
+        options:
+        - JavaScript
+        - Python
+        - Java
+        - Go
+        - Ruby
+      - label: Êtes-vous disponible immédiatement ?
+        kind: boolean
+        required: false
+        options: []
+      - label: Téléchargez votre CV
+        kind: file
+        required: false
+        options: []
+      - label: J'accepte que mes données soient traitées conformément à la politique de confidentialité
+        kind: boolean
+        required: false
+        options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+- id: non-english-application-form-02
+  scenario: non-english-application-form
+  input:
+    page: 'Grupo Andina Retail
+
+      Inicio | Nosotros | Empleos | Contacto
+
+
+      ¡Únete a nuestro equipo de marketing!
+
+
+      Especialista en Marketing Digital - Bogotá, Colombia
+
+
+      Grupo Andina Retail es una cadena líder de tiendas en Latinoamérica con presencia en seis países. Buscamos un especialista en marketing digital para liderar nuestras campañas en redes sociales y comercio electrónico, colaborando con equipos de diseño y ventas.
+
+
+      Utilizamos cookies para mejorar tu experiencia de navegación. Al continuar, aceptas nuestra política de cookies.
+
+
+      Postúlate ahora
+
+
+      Nombre completo
+
+      Empieza a escribir...
+
+
+      Correo electrónico
+
+      tú@ejemplo.com
+
+
+      Número de teléfono
+
+      Empieza a escribir...
+
+
+      Cuéntanos por qué te interesa este puesto
+
+      Empieza a escribir...
+
+
+      ¿Cuál es tu nivel de experiencia en marketing digital?
+
+      Menos de 1 año
+
+      1-3 años
+
+      3-5 años
+
+      Más de 5 años
+
+
+      ¿Qué herramientas de marketing has utilizado?
+
+      Google Ads
+
+      Facebook Ads
+
+      HubSpot
+
+      Mailchimp
+
+      SEMrush
+
+
+      ¿Tienes disponibilidad para viajar?
+
+      Sí
+
+      No
+
+
+      Sube tu currículum
+
+      Ningún archivo seleccionado
+
+
+      Acepto la política de privacidad
+
+
+      Autocompletado activado por tu navegador.
+
+
+      Enviar solicitud
+
+
+      © 2024 Grupo Andina Retail. Todos los derechos reservados.'
+  expected:
+    fields:
+      questions:
+      - label: Nombre completo
+        kind: text
+        required: false
+        options: []
+      - label: Correo electrónico
+        kind: text
+        required: false
+        options: []
+      - label: Número de teléfono
+        kind: text
+        required: false
+        options: []
+      - label: Cuéntanos por qué te interesa este puesto
+        kind: long_text
+        required: false
+        options: []
+      - label: ¿Cuál es tu nivel de experiencia en marketing digital?
+        kind: single_select
+        required: false
+        options:
+        - Menos de 1 año
+        - 1-3 años
+        - 3-5 años
+        - Más de 5 años
+      - label: ¿Qué herramientas de marketing has utilizado?
+        kind: multi_select
+        required: false
+        options:
+        - Google Ads
+        - Facebook Ads
+        - HubSpot
+        - Mailchimp
+        - SEMrush
+      - label: ¿Tienes disponibilidad para viajar?
+        kind: boolean
+        required: false
+        options: []
+      - label: Sube tu currículum
+        kind: file
+        required: false
+        options: []
+      - label: Acepto la política de privacidad
+        kind: boolean
+        required: false
+        options: []
+  status: approved
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: non-english-application-form-01
+- id: non-english-application-form-03
+  scenario: non-english-application-form
+  input:
+    page: 'Atelier Vert
+
+      Accueil | Notre mission | Offres d''emploi | Contact
+
+
+      Envie de donner du sens à votre carrière ?
+
+
+      Chargé(e) de Communication - Lyon, France
+
+
+      Atelier Vert est une association engagée dans la transition écologique en région Auvergne-Rhône-Alpes. Nous cherchons un(e) chargé(e) de communication pour développer notre présence digitale et sensibiliser le grand public à nos actions.
+
+
+      Ce site dépose des cookies afin d''analyser le trafic. En poursuivant votre navigation, vous en acceptez l''usage.
+
+
+      Postuler à cette offre
+
+
+      Prénom et nom
+
+      Tapez ici...
+
+
+      Adresse email professionnelle
+
+      prenom.nom@exemple.com
+
+
+      Où êtes-vous situé(e) ?
+
+      Rechercher une ville...
+
+
+      Décrivez votre expérience en communication digitale
+
+      Commencez à taper...
+
+
+      Quels réseaux sociaux gérez-vous professionnellement ?
+
+      Instagram
+
+      LinkedIn
+
+      TikTok
+
+      Twitter/X
+
+      Facebook
+
+
+      Avez-vous déjà travaillé dans le secteur associatif ?
+
+      Oui
+
+      Non
+
+
+      Téléversez votre portfolio
+
+      glissez-déposez ici
+
+
+      J''accepte d''être contacté(e) par téléphone pour un entretien
+
+
+      Formulaire enregistré automatiquement.
+
+
+      Envoyer ma candidature
+
+
+      Atelier Vert - Association loi 1901'
+  expected:
+    fields:
+      questions:
+      - label: Prénom et nom
+        kind: text
+        required: false
+        options: []
+      - label: Adresse email professionnelle
+        kind: text
+        required: false
+        options: []
+      - label: Où êtes-vous situé(e) ?
+        kind: long_text
+        required: false
+        options: []
+      - label: Décrivez votre expérience en communication digitale
+        kind: long_text
+        required: false
+        options: []
+      - label: Quels réseaux sociaux gérez-vous professionnellement ?
+        kind: multi_select
+        required: false
+        options:
+        - Instagram
+        - LinkedIn
+        - TikTok
+        - Twitter/X
+        - Facebook
+      - label: Avez-vous déjà travaillé dans le secteur associatif ?
+        kind: boolean
+        required: false
+        options: []
+      - label: Téléversez votre portfolio
+        kind: file
+        required: false
+        options: []
+      - label: J'accepte d'être contacté(e) par téléphone pour un entretien
+        kind: boolean
+        required: false
+        options: []
+  status: edited
+  generated_by: anthropic/claude-sonnet-5
+  duplicate_of: non-english-application-form-01

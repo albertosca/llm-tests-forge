@@ -586,7 +586,7 @@ describe("the smoke steps, run here against the source CLI", () => {
 
 	test("the job hands the steps the asset and the fixture through env, never through expressions in scripts", () => {
 		expect(smoke.env?.ASSET).toBe(`\${{ matrix.asset }}`);
-		expect(fixture).toBe("examples/moonlighter-extract-questions");
+		expect(fixture).toBe("tests/fixtures/extract-questions");
 		for (const { script } of smokeScripts) expect(script).not.toContain("${{");
 	});
 

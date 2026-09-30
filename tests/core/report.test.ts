@@ -221,11 +221,13 @@ describe("buildReport", () => {
 	});
 
 	test("the committed example run: 46 of 48 rows pass, two asserts fail, nothing errored", async () => {
-		const exampleForge = resolve("examples/moonlighter-classify-email/.forge");
+		// A frozen copy of the classify-email example, so curating the living
+		// example under examples/ never changes the counts pinned here.
+		const exampleForge = resolve("tests/fixtures/classify-email/.forge");
 		const cases = [...(await readAllCases(exampleForge)).values()].flat();
 		const report = buildReport({
 			results: await readResults(
-				resolve("examples/moonlighter-classify-email/results.json"),
+				resolve("tests/fixtures/classify-email/results.json"),
 			),
 			resultsPath: "results.json",
 			scenarios: await readScenarios(exampleForge),

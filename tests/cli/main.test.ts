@@ -932,7 +932,7 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 		);
 		for (const name of ["classify", "kept"])
 			await cp(
-				"examples/moonlighter-extract-questions/.forge",
+				"tests/fixtures/extract-questions/.forge",
 				join(root, "evals", name, ".forge"),
 				{ recursive: true },
 			);
@@ -5412,12 +5412,12 @@ describe("main(): the suite and the project", () => {
 			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
 		);
 		await cp(
-			resolve("examples/moonlighter-extract-questions/.forge"),
+			resolve("tests/fixtures/extract-questions/.forge"),
 			join(root, "evals", "a", ".forge"),
 			{ recursive: true },
 		);
 		await cp(
-			resolve("examples/moonlighter-extract-questions/prompt.txt"),
+			resolve("tests/fixtures/extract-questions/prompt.txt"),
 			join(root, "evals", "a", "prompt.txt"),
 		);
 		for (const argv of [
