@@ -800,6 +800,28 @@ describe("buildReport", () => {
 		expect(outputOf("anthropic/claude-sonnet-5")).toBe(123);
 		expect(outputOf("google/gemini-3.5-flash")).toBe(55 + 243);
 		expect(outputOf("vertex:gemini-3.5-flash")).toBe(72 + 272);
+
+		// A Google component recorded without completionDetails (an older
+		// promptfoo) has no reasoning to add, and must not crash on it.
+		const withoutDetails = build([
+			row({
+				case: "r-01",
+				model: "m",
+				gradingResult: {
+					pass: true,
+					componentResults: [
+						{
+							...rubric(true, undefined, "google:gemini-3.5-flash"),
+							tokensUsed: { prompt: 10, completion: 55 },
+						},
+					],
+				},
+			}),
+		]);
+		expect(
+			withoutDetails.costs.find((modelCost) => modelCost.role === "judge")
+				?.outputTokens,
+		).toBe(55);
 	});
 
 	test("a judge whose provider has no row in prices.yaml gets no real dollar figure", () => {
