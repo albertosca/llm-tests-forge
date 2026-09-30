@@ -291,6 +291,37 @@ describe("upsertAgentsBlock", () => {
 			`> ${fence}\n> ${AGENTS_START}\n>> ${fence}\n${block}\n`,
 		);
 	});
+	test("a pair in a list item stays in it: the item's marker on the first line, its continuation indent on the rest", () => {
+		const listed = (first: string, rest: string, ending = "\n") =>
+			block
+				.split("\n")
+				.map((line, position) => `${position === 0 ? first : rest}${line}`)
+				.join(ending);
+		const bulleted = `Tools:\n- ${AGENTS_START}\n  old\n  ${AGENTS_END}\n- Next.\n`;
+		const planned = planAgentsBlock("AGENTS.md", bulleted);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`Tools:\n${listed("- ", "  ")}\n- Next.\n`);
+		expect(upsertAgentsBlock("AGENTS.md", planned.text)).toBe(planned.text);
+		// In a blockquote, with the end marker as its own list item.
+		const quoted = `> - ${AGENTS_START}\r\n> - ${AGENTS_END}\r\n`;
+		const once = upsertAgentsBlock("AGENTS.md", quoted);
+		expect(once).toBe(`${listed("> - ", ">   ", "\r\n")}\r\n`);
+		expect(upsertAgentsBlock("AGENTS.md", once)).toBe(once);
+		// Ordered, and the other bullets.
+		expect(
+			upsertAgentsBlock("AGENTS.md", `  10) ${AGENTS_START}\n${AGENTS_END}`),
+		).toBe(listed("  10) ", "      "));
+		expect(
+			upsertAgentsBlock("AGENTS.md", `* ${AGENTS_START}\n${AGENTS_END}`),
+		).toBe(listed("* ", "  "));
+		expect(
+			upsertAgentsBlock("AGENTS.md", `+\t${AGENTS_START}\n${AGENTS_END}`),
+		).toBe(listed("+\t", " \t"));
+	});
+	test("a list marker needs whitespace after it; other text before a marker leaves it text", () => {
+		for (const existing of [`-${AGENTS_START}\n`, `Note: ${AGENTS_START}\n`])
+			expect(planAgentsBlock("AGENTS.md", existing).replaced).toBe(false);
+	});
 	test("the block says the project uses llm-tests-forge and points at status and guide", () => {
 		expect(block).toStartWith(AGENTS_START);
 		expect(block).toEndWith(AGENTS_END);

@@ -45,9 +45,25 @@ function lineQuoteDepth(line: string): number {
 	return quoteDepth(QUOTE_MARKERS.exec(line)?.[0] ?? "");
 }
 
-/** The spaces, tabs and `>` before a marker: its indentation and blockquote prefix. */
+/** A list item's marker: `-`, `*`, `+`, or a number with `.` or `)`. */
+const LIST_MARKER = /[-*+]|\d{1,9}[.)]/g;
+
+/**
+ * What stands before a marker: indentation, blockquote `>`s and list item
+ * markers (each followed by whitespace), in any order.
+ */
 function markerPrefix(line: string): string {
-	return /^[ \t>]*/.exec(line)?.[0] ?? "";
+	return /^(?:[ \t>]|(?:[-*+]|\d{1,9}[.)])[ \t]+)*/.exec(line)?.[0] ?? "";
+}
+
+/**
+ * The prefix for the lines after a list item's first: every list marker
+ * becomes as many spaces, so the lines continue the same item.
+ */
+function continuationPrefix(prefix: string): string {
+	return prefix.replace(LIST_MARKER, (listMarker) =>
+		" ".repeat(listMarker.length),
+	);
 }
 
 /** How many blockquotes deep a marker with this prefix stands. */
@@ -168,7 +184,8 @@ function findBlocks(file: string, lines: string[]): MarkedBlock[] {
  * replaced in place when it has exactly one. `replaced` says whether a real
  * marker pair was found. The file's own line endings (LF or CRLF) are kept,
  * in the block too, and a replaced block keeps the start marker's
- * indentation and blockquote prefix on every line. Pure.
+ * indentation, blockquote and list item: its prefix on the first line, and
+ * that prefix with list markers turned to spaces on the rest. Pure.
  */
 export function planAgentsBlock(
 	file: string,
@@ -201,13 +218,14 @@ export function planAgentsBlock(
 	const startLine = lines[only.startIndex] ?? "";
 	const startCarriage = startLine.endsWith("\r") ? "\r" : "";
 	const endCarriage = lines[only.endIndex]?.endsWith("\r") ? "\r" : "";
-	// A pair under a list item, in indented code or in a blockquote stays
-	// there: every line of the block takes the start marker's prefix.
+	// A pair indented, in a blockquote or in a list item stays there: the
+	// first line takes the start marker's prefix, the rest its continuation.
 	const prefix = markerPrefix(startLine);
+	const continuation = continuationPrefix(prefix);
 	const blockLines = block.split("\n");
 	const replacement = blockLines.map(
 		(line, position) =>
-			prefix +
+			(position === 0 ? prefix : continuation) +
 			line +
 			(position < blockLines.length - 1 ? startCarriage : endCarriage),
 	);
