@@ -179,16 +179,24 @@ describe("shimFiles", () => {
 			"// replace example.com/your/module => path/to/your/module",
 		);
 	});
-	test("a manifest with no crate name or no module line still names placeholders", () => {
-		const rustFiles = shimFiles(
-			feature,
-			"rust",
-			"forge_target",
-			locations("[workspace]\nmembers = []\n"),
+	test("the crate is read from every TOML spelling of [package]; a workspace or unreadable manifest names placeholders", () => {
+		const dependencyLine = (manifest: string): string | undefined =>
+			shimFiles(feature, "rust", "forge_target", locations(manifest))[0]
+				?.content.split("\n")
+				.find((line) => line.includes("{ path = "));
+		const found = (name: string) => `# ${name} = { path = "../../../.." }`;
+		const unknown = '# your_crate = { path = "path/to/your/crate" }';
+		expect(dependencyLine('[ package ]\nname = "spaced"\n')).toBe(
+			found("spaced"),
 		);
-		expect(rustFiles[0]?.content).toContain(
-			'# your_crate = { path = "../../../.." }',
+		expect(dependencyLine('["package"]\nname = "quoted"\n')).toBe(
+			found("quoted"),
 		);
+		expect(dependencyLine('package.name = "dotted"\n')).toBe(found("dotted"));
+		expect(dependencyLine('[workspace]\nmembers = ["app"]\n')).toBe(unknown);
+		expect(dependencyLine('[package\nname = "broken"\n')).toBe(unknown);
+	});
+	test("a go manifest with no module line still names placeholders", () => {
 		const goFiles = shimFiles(
 			feature,
 			"go",

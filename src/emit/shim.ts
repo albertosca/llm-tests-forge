@@ -92,22 +92,27 @@ function pathFromShim(
 	);
 }
 
-/** The first `name = "..."` (or `'...'`) under `[package]`; a workspace's own `name` is not the crate's. */
-function crateName(manifestText: string | null): string {
-	let inPackage = false;
-	for (const line of (manifestText ?? "").split("\n")) {
-		const trimmed = line.trim();
-		if (trimmed.startsWith("[")) {
-			inPackage = /^\[package\]\s*(#.*)?$/.test(trimmed);
-			continue;
-		}
-		const found = inPackage
-			? /^name\s*=\s*(?:"([^"]+)"|'([^']+)')/.exec(trimmed)
-			: null;
-		const name = found?.[1] ?? found?.[2];
-		if (name !== undefined) return name;
+function isTable(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * `package.name` of Cargo.toml, parsed as TOML so every spelling of the
+ * table (`[ package ]`, `["package"]`, `package.name = ...`) reads the same.
+ * Null for a workspace with no package of its own, whose directory is no
+ * crate to depend on, and for text that is not TOML.
+ */
+function crateName(manifestText: string | null): string | null {
+	if (manifestText === null) return null;
+	let manifest: unknown;
+	try {
+		manifest = Bun.TOML.parse(manifestText);
+	} catch {
+		return null;
 	}
-	return UNKNOWN_CRATE;
+	const packageTable = isTable(manifest) ? manifest.package : undefined;
+	const name = isTable(packageTable) ? packageTable.name : undefined;
+	return typeof name === "string" ? name : null;
 }
 
 function goModule(manifestText: string | null): string {
@@ -142,11 +147,15 @@ export function shimFiles(
 		case "ruby":
 			return one(`shims/${kind}`);
 		case "rust": {
+			const crate = crateName(locations.manifestText);
 			const variables = {
 				...common,
 				input_names: `&[${names}]`,
-				crate_name: crateName(locations.manifestText),
-				crate_path: pathFromShim(entry, locations, UNKNOWN_CRATE_PATH),
+				crate_name: crate ?? UNKNOWN_CRATE,
+				crate_path:
+					crate === null
+						? UNKNOWN_CRATE_PATH
+						: pathFromShim(entry, locations, UNKNOWN_CRATE_PATH),
 			};
 			return [
 				{
