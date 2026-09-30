@@ -1715,6 +1715,65 @@ describe("review: startInteractivePass arms end-of-input only for the interactiv
 		expect(interactivePassCalls).toBe(1);
 	});
 
+	test("the write-back and its report run inside the pass's whileWriting, where a second Ctrl+C lets the write finish", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+
+		const out: string[] = [];
+		const reader = createInterruptibleReader({
+			readLine: async () => "approve",
+			stdout: () => {},
+			exit: () => {},
+		});
+		const statuses: string[] = [];
+		let linesBeforeWriting = -1;
+		const statusOnDisk = async () =>
+			(await readCases(forgeDirectory, "polite-rejection"))[0]?.status ?? "";
+		const context = createContext({
+			cwd,
+			drafter: MODEL,
+			stdin: reader.read,
+			startInteractivePass: () => {
+				const pass = reader.startInteractivePass();
+				return {
+					read: pass.read,
+					whileWriting: async <Result>(work: () => Promise<Result>) => {
+						statuses.push(await statusOnDisk());
+						linesBeforeWriting = out.length;
+						const result = await pass.whileWriting(work);
+						statuses.push(await statusOnDisk());
+						return result;
+					},
+				};
+			},
+		});
+		context.stdout = (line) => out.push(line);
+
+		expect(
+			await run(
+				["review", "--scenario", "polite-rejection", "--only", "cases"],
+				context,
+			),
+		).toBe(0);
+
+		// Nothing was written before the guarded span began, all of it was
+		// written by its end, and the summary line was printed inside it.
+		expect(statuses).toEqual(["pending", "approved"]);
+		expect(out.slice(linesBeforeWriting)).toEqual([
+			"review: 1 approved, 0 rejected, 0 edited, 0 skipped, 0 re-opened, 0 still pending",
+		]);
+	});
+
 	test("--all never calls it: it asks nothing, so an interrupt during its model calls must not be mistaken for the middle of a review pass", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);

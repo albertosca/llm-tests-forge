@@ -10,8 +10,9 @@
  * reads) when they press Ctrl+C, and that decision must survive too. A
  * pending read, if there is one, and every later read answer "", which the
  * review loop takes as `skip`, so the pass ends normally and writes what
- * was decided. A second interrupt always exits, armed or not, as Ctrl+C
- * always did.
+ * was decided. A second interrupt exits, armed or not, as Ctrl+C always
+ * did — except during the write-back (`whileWriting`), where it lets the
+ * write finish and then exits 130.
  *
  * Arming has to be a separate call, not "after the first `read()`": task
  * review 2026-09-28 found that `llm-tests-forge describe` calls `read()` once for
@@ -48,6 +49,7 @@ export type InteractiveReader = (() => Promise<string>) & {
 /** What `startInteractivePass()` hands the review: the armed reader. */
 export interface InteractivePass {
 	read: InteractiveReader;
+	whileWriting<Result>(work: () => Promise<Result>): Promise<Result>;
 }
 
 export interface InterruptibleReader {
@@ -85,13 +87,40 @@ export function createInterruptibleReader(dependencies: {
 		(): Promise<string> => read(),
 		brand,
 	);
+	let writing = false;
+	let exitAfterWriting = false;
+	/**
+	 * A second Ctrl+C used to exit wherever it landed, including in the
+	 * middle of the write-back — leaving one file written and the next not,
+	 * or a file half-written. During `work` it is held instead: the write
+	 * finishes, then the process exits 130 (owner decision, 2026-09-29).
+	 * A write that fails is not followed by the exit: its error is what
+	 * the person needs to read, and the caller reports it.
+	 */
+	const whileWriting = async <Result>(
+		work: () => Promise<Result>,
+	): Promise<Result> => {
+		writing = true;
+		let result: Result;
+		try {
+			result = await work();
+		} finally {
+			writing = false;
+		}
+		if (exitAfterWriting) dependencies.exit(130);
+		return result;
+	};
 	return {
 		read,
 		startInteractivePass: () => {
 			armed = true;
-			return { read: interactiveRead };
+			return { read: interactiveRead, whileWriting };
 		},
 		interrupt: () => {
+			if (ended && writing) {
+				exitAfterWriting = true;
+				return;
+			}
 			if (ended || !armed) {
 				dependencies.exit(130);
 				return;

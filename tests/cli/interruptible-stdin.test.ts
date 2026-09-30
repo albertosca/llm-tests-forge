@@ -142,6 +142,107 @@ describe("createInterruptibleReader", () => {
 		expect(await reader.read()).toBe("");
 	});
 
+	/** A promise the test settles by hand, standing in for the write-back. */
+	function deferred<Result>() {
+		let settle: {
+			resolve: (value: Result) => void;
+			reject: (reason: Error) => void;
+		} = {
+			resolve: () => {},
+			reject: () => {},
+		};
+		const promise = new Promise<Result>((resolve, reject) => {
+			settle = { resolve, reject };
+		});
+		return { promise, ...settle };
+	}
+
+	test("a second interrupt during the write-back lets the write finish, then exits 130 once", async () => {
+		const exits: number[] = [];
+		const reader = createInterruptibleReader({
+			readLine: pendingLines().readLine,
+			stdout: () => {},
+			exit: (code) => exits.push(code),
+		});
+		const pass = reader.startInteractivePass();
+		reader.interrupt();
+		const write = deferred<string>();
+		const writing = pass.whileWriting(() => write.promise);
+		reader.interrupt();
+		reader.interrupt();
+		// Exiting here would leave a file half-written, or one file
+		// written and the next not; the person asked to stop, not to lose.
+		expect(exits).toEqual([]);
+		write.resolve("written");
+		expect(await writing).toBe("written");
+		expect(exits).toEqual([130]);
+	});
+
+	test("a write-back nobody interrupts returns its result and exits nothing", async () => {
+		const exits: number[] = [];
+		const reader = createInterruptibleReader({
+			readLine: pendingLines().readLine,
+			stdout: () => {},
+			exit: (code) => exits.push(code),
+		});
+		const pass = reader.startInteractivePass();
+		expect(await pass.whileWriting(async () => 3)).toBe(3);
+		expect(exits).toEqual([]);
+	});
+
+	test("a first interrupt during the write-back only ends the input, as it does anywhere in the pass", async () => {
+		const printed: string[] = [];
+		const exits: number[] = [];
+		const reader = createInterruptibleReader({
+			readLine: pendingLines().readLine,
+			stdout: (line) => printed.push(line),
+			exit: (code) => exits.push(code),
+		});
+		const pass = reader.startInteractivePass();
+		const write = deferred<void>();
+		const writing = pass.whileWriting(() => write.promise);
+		reader.interrupt();
+		write.resolve();
+		await writing;
+		expect(exits).toEqual([]);
+		expect(printed).toEqual([
+			"interrupted: no more answers; the decisions already taken are written",
+		]);
+	});
+
+	test("a write-back that fails after a second interrupt reports its failure instead of exiting 130", async () => {
+		// The failure is what the person needs to read; exiting 130 here
+		// would hide it behind a silent interrupt code.
+		const exits: number[] = [];
+		const reader = createInterruptibleReader({
+			readLine: pendingLines().readLine,
+			stdout: () => {},
+			exit: (code) => exits.push(code),
+		});
+		const pass = reader.startInteractivePass();
+		reader.interrupt();
+		const write = deferred<void>();
+		const writing = pass.whileWriting(() => write.promise);
+		reader.interrupt();
+		write.reject(new Error("disk full"));
+		await expect(writing).rejects.toThrow("disk full");
+		expect(exits).toEqual([]);
+	});
+
+	test("once the write-back is over, a second interrupt exits at once again", async () => {
+		const exits: number[] = [];
+		const reader = createInterruptibleReader({
+			readLine: pendingLines().readLine,
+			stdout: () => {},
+			exit: (code) => exits.push(code),
+		});
+		const pass = reader.startInteractivePass();
+		reader.interrupt();
+		await pass.whileWriting(async () => {});
+		reader.interrupt();
+		expect(exits).toEqual([130]);
+	});
+
 	test("armed: a second interrupt exits 130 even after the first ended the input", async () => {
 		const exits: number[] = [];
 		const reader = createInterruptibleReader({
