@@ -10,6 +10,11 @@ import {
 	upsertAgentsBlock,
 } from "../../src/core/agents-block";
 
+// Built from code points so the test shows which character it means.
+const LINE_SEPARATOR = String.fromCodePoint(0x2028);
+const PARAGRAPH_SEPARATOR = String.fromCodePoint(0x2029);
+const NO_BREAK_SPACE = String.fromCodePoint(0xa0);
+
 describe("the per-project invocations", () => {
 	test("the AGENTS block, the guide and the plugin skill name the same four ways to call a project-local install", async () => {
 		const repositoryRoot = join(import.meta.dir, "..", "..");
@@ -89,14 +94,26 @@ describe("upsertAgentsBlock", () => {
 			"AGENTS.md has 2 llm-tests-forge blocks (lines 1 and 3); keep one and run init again",
 		);
 	});
-	test("two start markers in a row name the first one; three blocks list every line", () => {
+	test("a second start marker while the first is open names both lines; three blocks list every line", () => {
 		expect(() =>
 			upsertAgentsBlock(
 				"AGENTS.md",
 				`${AGENTS_START}\n${AGENTS_START}\n${AGENTS_END}\n`,
 			),
 		).toThrow(
-			"AGENTS.md line 1 opens the llm-tests-forge block and nothing closes it",
+			new Error(
+				"AGENTS.md line 2 opens an llm-tests-forge block while the one opened on line 1 is still open",
+			),
+		);
+		expect(() =>
+			upsertAgentsBlock(
+				"AGENTS.md",
+				`a\n${AGENTS_START}\nb\n${AGENTS_START}\n`,
+			),
+		).toThrow(
+			new Error(
+				"AGENTS.md line 4 opens an llm-tests-forge block while the one opened on line 2 is still open",
+			),
 		);
 		const pair = `${AGENTS_START}\n${AGENTS_END}\n`;
 		expect(() => upsertAgentsBlock("AGENTS.md", pair.repeat(3))).toThrow(
@@ -390,8 +407,12 @@ describe("upsertAgentsBlock: what opens and closes a code fence", () => {
 		expect(planned.replaced).toBe(true);
 		expect(planned.text).toBe(`Use \`\`\` inline.\n${block}\nand \`\`\`\n`);
 	});
-	test("an info string may hold any character, a line separator or a lone carriage return too: the fence still quotes the pair", () => {
-		for (const info of ["js x", "js x", "js\rx"]) {
+	test("an info string may hold a line separator or a lone carriage return: the fence still quotes the pair", () => {
+		for (const info of [
+			`js${LINE_SEPARATOR}x`,
+			`js${PARAGRAPH_SEPARATOR}x`,
+			"js\rx",
+		]) {
 			const existing = `\`\`\`${info}\n${quotedPair}\`\`\`\n`;
 			const planned = planAgentsBlock("AGENTS.md", existing);
 			expect(planned.replaced).toBe(false);
@@ -409,5 +430,53 @@ describe("upsertAgentsBlock: what opens and closes a code fence", () => {
 		const planned = planAgentsBlock("AGENTS.md", existing);
 		expect(planned.replaced).toBe(false);
 		expect(planned.text).toBe(`${existing}\n${block}\n`);
+	});
+	test("a closer takes only spaces and tabs after its run: a line separator, a no-break space, a vertical tab or a form feed leaves the fence open", () => {
+		for (const after of [
+			LINE_SEPARATOR,
+			PARAGRAPH_SEPARATOR,
+			NO_BREAK_SPACE,
+			"\v",
+			"\f",
+		]) {
+			const existing = `# doc\n\`\`\`\n\`\`\`${after}\n${quotedPair}\`\`\`\n\ntail\n`;
+			const planned = planAgentsBlock("AGENTS.md", existing);
+			expect({ after, replaced: planned.replaced }).toEqual({
+				after,
+				replaced: false,
+			});
+			expect(planned.text).toBe(`${existing}\n${block}\n`);
+		}
+	});
+	test("a CRLF closer still closes its fence", () => {
+		const existing = `\`\`\`\r\n${quotedPair.replaceAll("\n", "\r\n")}\`\`\` \r\n${realPair.replaceAll("\n", "\r\n")}`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(
+			`\`\`\`\r\n${quotedPair.replaceAll("\n", "\r\n")}\`\`\` \r\n${block.split("\n").join("\r\n")}\r\n`,
+		);
+	});
+	test("backticks with a backtick in the info string are inline code, not a fence; a tilde fence may carry backticks", () => {
+		const existing = `Some text\n\`\`\`x\`\`\`\n\n${realPair}\n\`\`\`\ncode\n\`\`\`\n`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(
+			`Some text\n\`\`\`x\`\`\`\n\n${block}\n\n\`\`\`\ncode\n\`\`\`\n`,
+		);
+		const tilde = `~~~ a\`b\n${quotedPair}~~~\n`;
+		const tildePlanned = planAgentsBlock("AGENTS.md", tilde);
+		expect(tildePlanned.replaced).toBe(false);
+		expect(tildePlanned.text).toBe(`${tilde}\n${block}\n`);
+	});
+	test("depth is the number of `>`: markers at the same depth pair up however the quote markers are spaced", () => {
+		const existing = `>  > ${AGENTS_START}\n>>${AGENTS_END}\n`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(
+			`${block
+				.split("\n")
+				.map((line) => `>  > ${line}`)
+				.join("\n")}\n`,
+		);
 	});
 });

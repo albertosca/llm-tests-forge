@@ -73,17 +73,18 @@ function continuationPrefix(prefix: string): string {
 	);
 }
 
-/** How many blockquotes deep a marker with this prefix stands. */
+/** How many blockquotes deep a marker with this prefix stands: its `>` count. */
 function quoteDepth(prefix: string): number {
-	// Stryker disable next-line ArithmeticOperator: a depth is only ever compared with another depth (openDepth in findBlocks, fence.depth in fenceBefore), so a constant offset cancels
-	return prefix.split(">").length - 1;
+	return prefix.replace(/[^>]/g, "").length;
 }
 
 /**
  * A code fence opener or closer: three or more backticks or tildes, indented
  * at most three spaces (four is indented code), inside any blockquotes. The
- * rest of the line is the info string (any character, a line separator or a
- * carriage return too) or, on a closer, nothing but whitespace.
+ * rest of the line is the info string, which may hold a line separator or a
+ * carriage return; after backticks it may not hold a backtick, since such a
+ * line is inline code (CommonMark). A closer is followed only by spaces and
+ * tabs; see `closesFence`.
  */
 function fenceOf(
 	line: string,
@@ -93,7 +94,19 @@ function fenceOf(
 	if (match === null) return null;
 	// Stryker disable next-line StringLiteral: both groups take part in every match, so neither default is ever read
 	const [, run = "", rest = ""] = match;
-	return { character: run.charAt(0), length: run.length, rest };
+	const character = run.charAt(0);
+	if (character === "`" && rest.includes("`")) return null;
+	return { character, length: run.length, rest };
+}
+
+/**
+ * Whether `rest`, what follows a fence run, lets the line close a fence:
+ * only spaces and tabs, then the line's own carriage return when it is
+ * CRLF. A no-break space, a vertical tab, a form feed or a line separator
+ * leaves the fence open, as CommonMark has it.
+ */
+function closesFence(rest: string): boolean {
+	return /^[ \t]*\r?$/.test(rest);
 }
 
 /**
@@ -122,7 +135,7 @@ function nextFence(open: Fence | null, line: string): Fence | null {
 	const closes =
 		found.character === fence.character &&
 		found.length >= fence.length &&
-		found.rest.trim() === "";
+		closesFence(found.rest);
 	return closes ? null : fence;
 }
 
@@ -162,7 +175,8 @@ function fencedLines(lines: string[]): boolean[] {
 
 /**
  * The complete start/end pairs in `lines`, in order. A marker out of place
- * (an end with nothing open, a start left open) is refused by line number:
+ * (an end with nothing open, a start while another is open, a start left
+ * open) is refused by line number:
  * guessing which half was meant would rewrite text the person wrote. A
  * marker inside a closed fenced code block is quoted text, not the block; the
  * fence still open at the end of the file is not a fence, so from its opener
@@ -179,7 +193,10 @@ function findBlocks(file: string, lines: string[]): MarkedBlock[] {
 		const prefix = markerPrefix(line);
 		const marker = line.slice(prefix.length).trim();
 		if (marker === AGENTS_START) {
-			if (openAt !== null) break;
+			if (openAt !== null)
+				throw new ForgeError(
+					`${file} line ${index + 1} opens an llm-tests-forge block while the one opened on line ${openAt + 1} is still open`,
+				);
 			openAt = index;
 			openDepth = quoteDepth(prefix);
 		} else if (marker === AGENTS_END) {
