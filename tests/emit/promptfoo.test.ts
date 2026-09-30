@@ -471,6 +471,27 @@ describe("buildPromptfooConfig", () => {
 		);
 		expect(runAssert(body, JSON.stringify({ questions }))).toBe(true);
 	});
+	test("an unexpected item that carries no label is named by its value, never as undefined", () => {
+		const selection: Selection = {
+			scenarios: [scenarioOf("f", "edge", "fields")],
+			cases: [caseOf("f-01", "f", { fields: { questions: [{ label: "a" }] } })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const body =
+			buildPromptfooConfig({ feature: jsonFeature, suite, selection }).tests[0]
+				?.assert[0]?.value ?? "";
+		expect(
+			runAssert(
+				body,
+				JSON.stringify({ questions: [{ label: "a" }, "stray", 7, null] }),
+			),
+		).toEqual(
+			failure(
+				'fields differ: questions: unexpected item "stray"; unexpected item 7; unexpected item null',
+			),
+		);
+	});
 	test("a list without a label-like key is compared by position, and a length difference is named", () => {
 		const selection: Selection = {
 			scenarios: [scenarioOf("f", "edge", "fields")],

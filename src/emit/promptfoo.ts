@@ -157,8 +157,12 @@ const FIELDS_DIFF = [
 	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
 	"    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);",
 	"  }",
+	"  for (const gotItem of gotItems) {",
 	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
-	"  for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);",
+	"    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);",
+	// biome-ignore lint/suspicious/noTemplateCurlyInString: same — the backticks belong to the emitted assert, not to this file.
+	"    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);",
+	"  }",
 	"};",
 ].join("\n");
 
