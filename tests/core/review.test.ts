@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { ForgeError } from "../../src/core/errors";
 import {
 	applyDecision,
+	pendingItemFor,
 	pendingItems,
 	withExpected,
 } from "../../src/core/review";
@@ -135,6 +136,47 @@ describe("pendingItems", () => {
 		);
 		expect(caseIds(items)).toEqual(["A", "C", "B"]);
 	});
+
+	test("a case listed before the case it duplicates is asked about once, not again after its target", () => {
+		const items = pendingItems(
+			feature,
+			[],
+			[
+				makeCase("s1-01", "s1", "pending", "s1-02"),
+				makeCase("s1-02", "s1", "pending"),
+			],
+		);
+		expect(caseIds(items)).toStrictEqual(["s1-01", "s1-02"]);
+	});
+
+	test("each item comes with its kind: the feature, then scenarios, then cases", () => {
+		const items = pendingItems(
+			feature,
+			[makeScenario("s1", "pending")],
+			[makeCase("s1-01", "s1", "pending")],
+		);
+		expect(items.map((entry) => [entry.kind, entry.item.id])).toStrictEqual([
+			["feature", "f"],
+			["scenario", "s1"],
+			["case", "s1-01"],
+		]);
+	});
+});
+
+describe("pendingItemFor", () => {
+	test("pairs a decided feature, scenario or case with its own kind", () => {
+		const scenario = makeScenario("s1", "approved");
+		const kase = makeCase("s1-01", "s1", "edited");
+		expect(pendingItemFor(feature)).toStrictEqual({
+			kind: "feature",
+			item: feature,
+		});
+		expect(pendingItemFor(scenario)).toStrictEqual({
+			kind: "scenario",
+			item: scenario,
+		});
+		expect(pendingItemFor(kase)).toStrictEqual({ kind: "case", item: kase });
+	});
 });
 
 describe("applyDecision", () => {
@@ -158,8 +200,8 @@ describe("applyDecision", () => {
 			caught = error;
 		}
 		expect(caught).toBeInstanceOf(ForgeError);
-		expect((caught as ForgeError).message).toContain(
-			"a feature cannot be rejected",
+		expect((caught as ForgeError).message).toBe(
+			"a feature cannot be rejected; edit it or delete .forge/feature.yaml (id: f)",
 		);
 	});
 
@@ -178,8 +220,8 @@ describe("applyDecision", () => {
 			missingEditError = error;
 		}
 		expect(missingEditError).toBeInstanceOf(ForgeError);
-		expect((missingEditError as ForgeError).message).toContain(
-			"edit needs the edited item",
+		expect((missingEditError as ForgeError).message).toBe(
+			"edit needs the edited item (id: c)",
 		);
 
 		// A value that fails the schema has to reach applyDecision as genuinely
@@ -196,6 +238,62 @@ describe("applyDecision", () => {
 		}
 		expect(invalidEditError).toBeInstanceOf(ForgeError);
 		expect((invalidEditError as ForgeError).message).toContain("status");
+	});
+
+	test("an invalid edit names each field that broke, nested fields by their dotted path, and the item", () => {
+		const invalidEdit = JSON.parse(
+			JSON.stringify({
+				...makeCase("c", "s", "pending"),
+				input: { email: 3 },
+				status: "weird",
+			}),
+		);
+		expect(() =>
+			applyDecision(makeCase("c", "s", "pending"), "edit", invalidEdit),
+		).toThrow(
+			'edited item is invalid: input.email: Invalid input: expected string, received number; status: Invalid option: expected one of "pending"|"approved"|"rejected"|"edited" (id: c)',
+		);
+	});
+
+	test("edit refuses to move a case to another scenario, and names the move command", () => {
+		expect(() =>
+			applyDecision(makeCase("s1-01", "s1", "pending"), "edit", {
+				...makeCase("s1-01", "s1", "pending"),
+				scenario: "s2",
+			}),
+		).toThrow(
+			'a case\'s scenario cannot be changed in review (from "s1" to "s2"); run `llm-tests-forge move --case s1-01 --to s2` (id: s1-01)',
+		);
+	});
+
+	test("an edit may rename a case to a free id, but never onto an id a sibling in its file holds", () => {
+		const siblings = new Set(["s1-01", "s1-02"]);
+		expect(
+			applyDecision(
+				makeCase("s1-01", "s1", "pending"),
+				"edit",
+				{ ...makeCase("s1-01", "s1", "pending"), input: { email: "new" } },
+				siblings,
+			).id,
+		).toBe("s1-01");
+		expect(
+			applyDecision(
+				makeCase("s1-01", "s1", "pending"),
+				"edit",
+				{ ...makeCase("s1-01", "s1", "pending"), id: "s1-09" },
+				siblings,
+			).id,
+		).toBe("s1-09");
+		expect(() =>
+			applyDecision(
+				makeCase("s1-01", "s1", "pending"),
+				"edit",
+				{ ...makeCase("s1-01", "s1", "pending"), id: "s1-02" },
+				siblings,
+			),
+		).toThrow(
+			'id "s1-02" is already used by another item in the same file; pick an id nothing else uses (id: s1-01)',
+		);
 	});
 
 	test("edit also validates an edited scenario via the scenario schema", () => {
@@ -303,7 +401,9 @@ describe("applyDecision", () => {
 			caught = error;
 		}
 		expect(caught).toBeInstanceOf(ForgeError);
-		expect((caught as ForgeError).message).toContain('"bogus"');
+		expect((caught as ForgeError).message).toBe(
+			'unrecognized decision "bogus" (id: s)',
+		);
 	});
 });
 
@@ -322,6 +422,15 @@ describe("withExpected", () => {
 			caught = error;
 		}
 		expect(caught).toBeInstanceOf(ForgeError);
-		expect((caught as ForgeError).message).toContain("exactly one of");
+		expect((caught as ForgeError).message).toBe(
+			"expected is invalid: expected must carry exactly one of label, fields, rubric (id: c)",
+		);
+	});
+
+	test("an expected with several problems lists each one", () => {
+		const invalid = JSON.parse(JSON.stringify({ label: 3, rubric: 4 }));
+		expect(() => withExpected(makeCase("c", "s", "pending"), invalid)).toThrow(
+			"expected is invalid: Invalid input: expected string, received number; Invalid input: expected string, received number (id: c)",
+		);
 	});
 });

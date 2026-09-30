@@ -100,10 +100,6 @@ function isScenario(item: Feature | Scenario | Case): item is Scenario {
 	return "kind" in item;
 }
 
-function isCase(item: Feature | Scenario | Case): item is Case {
-	return "scenario" in item;
-}
-
 function validate<T extends Feature | Scenario | Case>(
 	original: T,
 	edited: unknown,
@@ -166,7 +162,9 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// the file still held it — and the next `llm-tests-forge review` exited 1
 			// on everything. Refused by name so the edit is re-asked, rather
 			// than half applied across files the reviewer never opened.
-			if (isScenario(item) && isScenario(next) && next.id !== item.id)
+			// `next` went through the schema `item`'s own shape picked, so it
+			// is a scenario exactly when `item` is.
+			if (isScenario(item) && next.id !== item.id)
 				throw new ForgeError(
 					`a scenario's id cannot be changed in review (from "${item.id}" to "${next.id}"): it names .forge/cases/<id>.yaml; run \`llm-tests-forge move --scenario ${item.id} ${next.id}\``,
 					{ id: item.id },
@@ -188,10 +186,14 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// id and re-checking the expected against a different oracle —
 			// a file move, not a review decision. Refused by name so the
 			// edit is re-asked, rather than half-applied into a file the
-			// reviewer never opened.
-			if (isCase(item) && isCase(next) && next.scenario !== item.scenario)
+			// reviewer never opened. A feature or a scenario has no `scenario`
+			// on either side (`next` went through the same schema as `item`,
+			// which strips unknown keys), so only a case can differ here.
+			const before: { id: string; scenario?: string } = item;
+			const after: { id: string; scenario?: string } = next;
+			if (after.scenario !== before.scenario)
 				throw new ForgeError(
-					`a case's scenario cannot be changed in review (from "${item.scenario}" to "${next.scenario}"); run \`llm-tests-forge move --case ${item.id} --to ${next.scenario}\``,
+					`a case's scenario cannot be changed in review (from "${before.scenario}" to "${after.scenario}"); run \`llm-tests-forge move --case ${item.id} --to ${after.scenario}\``,
 					{ id: item.id },
 				);
 			return { ...next, status: "edited" };
