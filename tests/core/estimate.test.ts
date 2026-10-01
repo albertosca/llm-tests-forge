@@ -805,6 +805,10 @@ const CALIBRATION_RUNS = [
 	fixturePath("extract-questions/results.json"),
 	fixturePath("promptfoo-results-0.123.0.json"),
 ];
+/** A run made after the fit (2026-09-30, three inputs), checked against the bands it did not shape. */
+const LATER_RUN = fixturePath("classify-email-three-inputs/results.json");
+/** Every run the bands must hold for. */
+const BAND_RUNS = [...CALIBRATION_RUNS, LATER_RUN];
 
 /** What promptfoo recorded the target answering, which `readResults` does not keep. */
 const RecordedOutputsSchema = z.object({
@@ -867,7 +871,7 @@ describe("calibration against the committed runs", () => {
 	});
 
 	test("each run's mean billed judge output lies within the judge output band", async () => {
-		for (const path of CALIBRATION_RUNS) {
+		for (const path of BAND_RUNS) {
 			const runMean = mean(
 				(await judgeCallsOf(path)).map((call) => call.billedOutput),
 			);
@@ -883,7 +887,8 @@ describe("calibration against the committed runs", () => {
 	});
 
 	test("every rubric component's prompt overhead lies within the judge overhead band", async () => {
-		for (const path of CALIBRATION_RUNS)
+		expect((await judgeCallsOf(LATER_RUN)).length).toBeGreaterThan(0);
+		for (const path of BAND_RUNS)
 			for (const call of await judgeCallsOf(path))
 				expect({ path, overhead: call.overhead }).toEqual({
 					path,
@@ -902,6 +907,7 @@ describe("calibration against the committed runs", () => {
 		for (const suiteDirectory of [
 			fixturePath("classify-email"),
 			fixturePath("extract-questions"),
+			fixturePath("classify-email-three-inputs"),
 		]) {
 			const prompt = await readFile(join(suiteDirectory, "prompt.txt"), "utf8");
 			const caseById = new Map(
@@ -934,6 +940,6 @@ describe("calibration against the committed runs", () => {
 				checked += 1;
 			}
 		}
-		expect(checked).toBe(48);
+		expect(checked).toBe(96);
 	});
 });

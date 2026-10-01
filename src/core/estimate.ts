@@ -14,8 +14,11 @@ const CHARACTERS_PER_TOKEN = 4;
  * (`tests/fixtures/classify-email/results.json`, Claude Haiku 4.5), whose
  * `prompt.txt` plus joined case input measured 3.54 to 4.17 characters per
  * recorded prompt token. A lower ratio means more tokens, so `_LOW` gives
- * the high token count and `_HIGH` the low one. The only run with recorded
- * target usage: extract-questions records 0.
+ * the high token count and `_HIGH` the low one. extract-questions records
+ * 0 target tokens, so it fits nothing. A later run with recorded target
+ * usage, the three-input classify-email rerun of 2026-09-30
+ * (`tests/fixtures/classify-email-three-inputs/`), did not shape the band
+ * and measured 3.50 to 4.15: inside it, its lowest row on the edge.
  */
 export const INPUT_CHARACTERS_PER_TOKEN_LOW = 3.5;
 export const INPUT_CHARACTERS_PER_TOKEN_HIGH = 4.2;
