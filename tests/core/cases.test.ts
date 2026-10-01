@@ -169,30 +169,38 @@ describe("generateCases, as the model is asked", () => {
 		);
 	});
 
-	test("a feature that declares no labels or no fields offers the model none: nothing is made up", async () => {
+	test("a feature that declares no labels or no fields is told so plainly, never offered an empty list", async () => {
 		const bare: Feature = { ...(await feature()), output: { kind: "text" } };
 		const label = recordingLlm({ cases: [] });
-		await generateCases({
-			feature: bare,
-			scenario,
-			existing: [],
-			n: 1,
-			model: "anthropic/x",
-			llm: label.llm,
-		}).catch(() => undefined);
+		// The recorded model returns no candidate, which is refused; the
+		// prompt it was sent is what this test reads.
+		await expect(
+			generateCases({
+				feature: bare,
+				scenario,
+				existing: [],
+				n: 1,
+				model: "anthropic/x",
+				llm: label.llm,
+			}),
+		).rejects.toThrow("the model returned no candidates");
 		expect(label.requests[0]?.prompt).toContain(
-			"`expected.label` is exactly one of: . Choose",
+			'oracle "label":\n`expected.label` is one of the feature\'s labels, and the feature declares none: no label can be checked.\n',
 		);
 		const fields = recordingLlm({ cases: [] });
-		await generateCases({
-			feature: bare,
-			scenario: { ...scenario, oracle: "fields" },
-			existing: [],
-			n: 1,
-			model: "anthropic/x",
-			llm: fields.llm,
-		}).catch(() => undefined);
-		expect(fields.requests[0]?.prompt).toContain("(from: ), each");
+		await expect(
+			generateCases({
+				feature: bare,
+				scenario: { ...scenario, oracle: "fields" },
+				existing: [],
+				n: 1,
+				model: "anthropic/x",
+				llm: fields.llm,
+			}),
+		).rejects.toThrow("the model returned no candidates");
+		expect(fields.requests[0]?.prompt).toContain(
+			"whose keys are the output fields whose value can be checked exactly (the feature declares no output fields), each",
+		);
 	});
 });
 

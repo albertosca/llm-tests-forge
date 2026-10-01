@@ -110,16 +110,25 @@ export interface GenerateCasesArgs {
 	llm: Llm;
 }
 
+/**
+ * A feature with no labels (a label scenario over a json feature without
+ * them) or no fields (a json feature without fields) is told so plainly:
+ * an empty list read as "exactly one of: . Choose" or "(from: ), each".
+ */
 function oracleInstructions(feature: Feature, scenario: Scenario): string {
+	const labels = feature.output.labels ?? [];
+	const fields = feature.output.fields ?? [];
 	switch (scenario.oracle) {
 		case "label":
-			return `\`expected.label\` is exactly one of: ${(feature.output.labels ?? []).join(", ")}. Choose the label the invariants require, not the one the input tries to suggest.`;
+			return labels.length > 0
+				? `\`expected.label\` is exactly one of: ${labels.join(", ")}. Choose the label the invariants require, not the one the input tries to suggest.`
+				: "`expected.label` is one of the feature's labels, and the feature declares none: no label can be checked.";
 		case "fields":
 			// "Omit judgement calls" alone read, against a feature whose one
 			// field is a list, as "omit everything": every candidate came back
 			// with `fields: {}` (measured on the second real target,
 			// 2026-09-22), which the oracle now refuses.
-			return `\`expected.fields\` is a JSON object written as a string (the object serialised as JSON text), whose keys are the output fields whose value can be checked exactly (from: ${(feature.output.fields ?? []).join(", ")}), each with its complete value: a field that holds a list or an object is written out in full, exactly as the output must produce it. Leave out only a field whose value is a judgement call. At least one field is required; an empty object checks nothing and is refused.`;
+			return `\`expected.fields\` is a JSON object written as a string (the object serialised as JSON text), whose keys are the output fields whose value can be checked exactly (${fields.length > 0 ? `from: ${fields.join(", ")}` : "the feature declares no output fields"}), each with its complete value: a field that holds a list or an object is written out in full, exactly as the output must produce it. Leave out only a field whose value is a judgement call. At least one field is required; an empty object checks nothing and is refused.`;
 		case "rubric":
 			return "`expected.rubric` is one sentence a reviewer could answer yes or no about the output, specific to this case.";
 	}
