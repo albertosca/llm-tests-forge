@@ -230,12 +230,39 @@ describe("suiteStatus and renderStatusLine", () => {
 		// The parser quotes the offending line with its two-space indent,
 		// between blank lines, and puts a caret under it.
 		await writeFile(scenariosFile, "- id: a\n  description: [unclosed\n");
-		const line = renderStatusLine(
-			await suiteStatus("evals/indented", directory, FORGE_VERSION),
+		const status = await suiteStatus(
+			"evals/indented",
+			directory,
+			FORGE_VERSION,
 		);
-		expect(line).toBe(
-			`evals/indented   error: invalid YAML: Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 1: description: [unclosed ^ (file: ${scenariosFile})`,
-		);
+		if (status.state !== "error") throw new Error("expected an error suite");
+		// The parser's own wording is yaml's to change; what status owns is
+		// one line, single spaces, and the quoted source kept in it.
+		expect(status.error).toStartWith("invalid YAML: ");
+		expect(status.error).toEndWith(`(file: ${scenariosFile})`);
+		expect(status.error).not.toContain("\n");
+		expect(status.error).not.toContain("  ");
+		expect(status.error).toContain(" description: [unclosed ^ ");
+	});
+
+	test("every failure readOk can raise ends with the file its reader names, so the message has no edge whitespace to trim", async () => {
+		const broken: Record<string, string> = {
+			"feature.yaml": "id: [unclosed\n",
+			"scenarios.yaml": "- id: [unclosed\n",
+			"cases/broken.yaml": "- id: [unclosed\n",
+			"suite.yaml": "target: [unclosed\n",
+			"report.json": "{ not json\n",
+		};
+		for (const [name, text] of Object.entries(broken)) {
+			const directory = await suiteCopy("edges");
+			const path = join(directory, ".forge", name);
+			await writeFile(path, text);
+			const status = await suiteStatus("evals/edges", directory, FORGE_VERSION);
+			if (status.state !== "error")
+				throw new Error(`expected an error suite for ${name}`);
+			expect(status.error).toEndWith(`(file: ${path})`);
+			expect(status.error).toBe(status.error.trim());
+		}
 	});
 
 	test("a failure that is not a ForgeError is a bug, and propagates rather than showing as a broken suite", async () => {

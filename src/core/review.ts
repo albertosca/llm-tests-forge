@@ -163,7 +163,11 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// on everything. Refused by name so the edit is re-asked, rather
 			// than half applied across files the reviewer never opened.
 			// `next` went through the schema `item`'s own shape picked, so it
-			// is a scenario exactly when `item` is.
+			// is a scenario exactly when `item` is. That rests on a premise:
+			// every item in memory came through a zod parse (its file read
+			// with its schema, or a drafted item parsed by the model call), so
+			// `item` carries only its own schema's keys and `kind` marks a
+			// scenario alone.
 			if (isScenario(item) && next.id !== item.id)
 				throw new ForgeError(
 					`a scenario's id cannot be changed in review (from "${item.id}" to "${next.id}"): it names .forge/cases/<id>.yaml; run \`llm-tests-forge move --scenario ${item.id} ${next.id}\``,
@@ -187,8 +191,11 @@ export function applyDecision<T extends Feature | Scenario | Case>(
 			// a file move, not a review decision. Refused by name so the
 			// edit is re-asked, rather than half-applied into a file the
 			// reviewer never opened. A feature or a scenario has no `scenario`
-			// on either side (`next` went through the same schema as `item`,
-			// which strips unknown keys), so only a case can differ here.
+			// on either side, so only a case can differ here: `next` went
+			// through the same schema as `item`, which strips unknown keys,
+			// and `item` itself came through a zod parse (every item in
+			// memory did, read from its file with its schema or parsed from
+			// the model's answer), so it holds no stray `scenario` either.
 			const before: { id: string; scenario?: string } = item;
 			const after: { id: string; scenario?: string } = next;
 			if (after.scenario !== before.scenario)

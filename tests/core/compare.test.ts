@@ -1,5 +1,27 @@
 import { describe, expect, test } from "bun:test";
 import { sameInput } from "../../src/core/compare";
+import { CaseSchema } from "../../src/core/schemas";
+
+describe("sameInput's premise: every input value is a string", () => {
+	test("a case's input is strings only: the schema every case file and drafted case passes refuses any other value", () => {
+		const withInput = (input: unknown) =>
+			CaseSchema.safeParse({
+				id: "a-01",
+				scenario: "a",
+				input,
+				status: "pending",
+				generated_by: "m/x",
+			}).success;
+		expect(withInput({ email: "x" })).toBe(true);
+		for (const value of [undefined, null, 1, true, {}, ["x"]])
+			expect(withInput({ email: value })).toBe(false);
+	});
+
+	test("a key the right side lacks never matches, even one that names an Object.prototype member, which reads as a function, not undefined", () => {
+		expect(sameInput({ constructor: "x" }, { email: "x" })).toBe(false);
+		expect(sameInput({ toString: "x" }, { email: "x" })).toBe(false);
+	});
+});
 
 describe("sameInput", () => {
 	test("two objects with the same keys and values are the same input", () => {

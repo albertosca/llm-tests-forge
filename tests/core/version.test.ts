@@ -170,6 +170,15 @@ describe("isHigherVersion", () => {
 });
 
 describe("versionWarning", () => {
+	test('each warning starts with "warning: " and holds it nowhere else, which status\'s ⚠ replacement relies on', () => {
+		for (const warning of [
+			versionWarning("0.1.0", "0.2.0"),
+			versionWarning("0.3.0", "0.2.0"),
+		]) {
+			expect(warning).toStartWith("warning: ");
+			expect(warning?.indexOf("warning: ", 1)).toBe(-1);
+		}
+	});
 	test("silent for a missing stamp, the same version or a patch; says the stamp for an older one; says to upgrade for a newer one", () => {
 		expect(versionWarning(undefined, "0.4.1")).toBeNull();
 		expect(versionWarning("0.4.0", "0.4.1")).toBeNull();
