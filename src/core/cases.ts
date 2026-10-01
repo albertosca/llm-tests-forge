@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Llm } from "../llm/generate";
 import { loadTemplate, render } from "../llm/templates";
 import { sameInput } from "./compare";
-import { ForgeError } from "./errors";
+import { ForgeError, messageOf } from "./errors";
 import { nextCaseId } from "./ids";
 import { expectedMatchesOracle } from "./oracle";
 import type { Case, Expected, Feature, Oracle, Scenario } from "./schemas";
@@ -92,7 +92,7 @@ function decodeExpected(raw: {
 		parsed = JSON.parse(raw.fields);
 	} catch (error) {
 		return {
-			problem: `expected.fields is not JSON: ${(error as Error).message}`,
+			problem: `expected.fields is not JSON: ${messageOf(error)}`,
 		};
 	}
 	const object = FieldsObject.safeParse(parsed);

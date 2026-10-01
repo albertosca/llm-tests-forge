@@ -1,3 +1,19 @@
+/**
+ * What a failure says: its message, or the thrown value itself when it
+ * carries none. Total: a value with no prototype (`Object.create(null)`),
+ * a `toString` that throws or a `message` getter that throws reads as a
+ * fixed sentence, so reporting a failure never fails itself.
+ */
+export function messageOf(error: unknown): string {
+	try {
+		return typeof error === "object" && error !== null && "message" in error
+			? String(error.message)
+			: String(error);
+	} catch {
+		return "a value that cannot be shown as text";
+	}
+}
+
 export interface ForgeErrorDetails {
 	file?: string;
 	id?: string;

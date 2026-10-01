@@ -28,7 +28,7 @@ import {
 } from "yaml";
 import type { core, ZodType } from "zod";
 import { z } from "zod";
-import { ForgeError } from "./errors";
+import { ForgeError, messageOf } from "./errors";
 import {
 	type Case,
 	CaseSchema,
@@ -113,13 +113,6 @@ export function readFailure(error: unknown): string {
 		default:
 			return `cannot read: ${messageOf(error)}`;
 	}
-}
-
-/** What a failure says: its message, or the thrown value itself when it carries none. */
-function messageOf(error: unknown): string {
-	return typeof error === "object" && error !== null && "message" in error
-		? String(error.message)
-		: String(error);
 }
 
 /**
@@ -230,6 +223,11 @@ async function followSymlinks(path: string): Promise<string> {
  * file it points at is the one replaced and the link stays a link. In a
  * directory that refuses new files, an existing file is written in place,
  * as it always was (not all or nothing there).
+ *
+ * The rename gives the target a new inode, which an in-place write did
+ * not: another hard link to the old file keeps the old content, and the
+ * new file belongs to whoever ran the forge (the old owner and group are
+ * not carried over; only the permission bits are).
  */
 export async function writeText(
 	path: string,
@@ -278,7 +276,7 @@ export async function writeText(
 			await writeContent(target, text, mode);
 		}
 	} catch (error) {
-		throw new ForgeError(`cannot write: ${(error as Error).message}`, {
+		throw new ForgeError(`cannot write: ${messageOf(error)}`, {
 			file: path,
 		});
 	}
@@ -295,10 +293,9 @@ export async function removeFile(
 	afterwards: string,
 ): Promise<void> {
 	await unlink(path).catch((error: unknown) => {
-		throw new ForgeError(
-			`cannot remove: ${(error as Error).message}; ${afterwards}`,
-			{ file: path },
-		);
+		throw new ForgeError(`cannot remove: ${messageOf(error)}; ${afterwards}`, {
+			file: path,
+		});
 	});
 }
 
@@ -318,7 +315,7 @@ export function parseYamlText<T>(
 	try {
 		data = parse(text);
 	} catch (error) {
-		throw new ForgeError(`invalid YAML: ${(error as Error).message}`, {
+		throw new ForgeError(`invalid YAML: ${messageOf(error)}`, {
 			file: path,
 		});
 	}

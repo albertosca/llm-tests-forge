@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { ForgeError, UsageError } from "../../core/errors";
+import { ForgeError, messageOf, UsageError } from "../../core/errors";
 import { estimateSuite } from "../../core/estimate";
 import {
 	forgePaths,
@@ -33,7 +33,7 @@ async function readBaseline(path: string): Promise<Report> {
 	try {
 		data = JSON.parse(text);
 	} catch (error) {
-		throw new ForgeError(`invalid JSON: ${(error as Error).message}`, {
+		throw new ForgeError(`invalid JSON: ${messageOf(error)}`, {
 			file: path,
 		});
 	}

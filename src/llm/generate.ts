@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { generateObject, NoObjectGeneratedError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import type { ZodType } from "zod";
-import { ForgeError } from "../core/errors";
+import { ForgeError, messageOf } from "../core/errors";
 import { forgePaths } from "../core/files";
 import { parseModelSpec, type ResolvedModel, resolveModel } from "./models";
 
@@ -54,7 +54,7 @@ async function fakeModel(
 	try {
 		responses = JSON.parse(text) as Record<string, unknown>;
 	} catch (error) {
-		throw new ForgeError(`invalid JSON: ${(error as Error).message}`, {
+		throw new ForgeError(`invalid JSON: ${messageOf(error)}`, {
 			file: path,
 		});
 	}

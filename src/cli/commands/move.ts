@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { ForgeError, UsageError } from "../../core/errors";
+import { ForgeError, messageOf, UsageError } from "../../core/errors";
 import {
 	forgePaths,
 	listCaseScenarios,
@@ -59,8 +59,7 @@ function fold(name: string): string {
  */
 async function attempt(work: Promise<void>, afterwards: string): Promise<void> {
 	await work.catch((error: unknown) => {
-		const message = error instanceof Error ? error.message : String(error);
-		throw new ForgeError(`${message}; ${afterwards}`);
+		throw new ForgeError(`${messageOf(error)}; ${afterwards}`);
 	});
 }
 

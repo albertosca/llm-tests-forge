@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
-import { ForgeError } from "../core/errors";
+import { ForgeError, messageOf } from "../core/errors";
 import { readFailure } from "../core/files";
 
 /**
@@ -109,7 +109,7 @@ export async function readResults(path: string): Promise<PromptfooResults> {
 	try {
 		data = JSON.parse(text);
 	} catch (failure) {
-		throw new ForgeError(`invalid JSON: ${(failure as Error).message}`, {
+		throw new ForgeError(`invalid JSON: ${messageOf(failure)}`, {
 			file: path,
 		});
 	}

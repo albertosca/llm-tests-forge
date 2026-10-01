@@ -846,6 +846,20 @@ describe("writeText: a write is all or nothing", () => {
 		}
 		expect((await stat(path)).mode & 0o777).toBe(0o666);
 	});
+
+	test("a write that fails with a thrown value that is not an Error quotes that value, never undefined", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-atomic-"));
+		const path = join(directory, "cases.yaml");
+		const caught = await writeText(path, "x: 1\n", {
+			writeContent: async () => {
+				throw "the disk went away";
+			},
+		}).catch((error: unknown) => error);
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect((caught as ForgeError).reason).toBe(
+			"cannot write: the disk went away",
+		);
+	});
 });
 
 describe("readFailure: every cause in the person's words", () => {
@@ -1061,6 +1075,13 @@ describe("stampSuite, in the files people write", () => {
 			expect(await readFile(path, "utf8")).toBe(
 				"# my suite\nforge_version: 0.4.1\n? [odd, key]\n: 1\ntarget:\n  kind: python\n  models: [anthropic/claude-haiku-4-5]\njudges: [google/gemini-3.5-flash]\n",
 			);
+			// Only that warning is muted: any other one fails the test.
+			const warnings = warning.mock.calls.map(([first]) => String(first));
+			expect(warnings.length).toBeGreaterThan(0);
+			for (const text of warnings)
+				expect(text).toStartWith(
+					"Keys with collection values will be stringified",
+				);
 		} finally {
 			warning.mockRestore();
 		}
