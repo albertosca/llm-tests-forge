@@ -15,6 +15,7 @@ publish = false
 [dependencies]
 serde_json = "1"
 # Your crate, by path from this directory. Uncomment, and check the name and
-# the path (emit writes your_crate and path/to/your/crate when it found no
-# Cargo.toml above the suite).
+# the path (emit writes your_crate and path/to/your/crate when it found
+# no Cargo.toml above the suite, or one with no [package] name: a
+# workspace-only root, or a manifest it could not parse).
 # {{crate_name}} = { path = "{{crate_path}}" }

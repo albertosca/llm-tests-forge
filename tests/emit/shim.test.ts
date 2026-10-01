@@ -196,6 +196,26 @@ describe("shimFiles", () => {
 		expect(dependencyLine('[workspace]\nmembers = ["app"]\n')).toBe(unknown);
 		expect(dependencyLine('[package\nname = "broken"\n')).toBe(unknown);
 	});
+	test("an empty crate name names the placeholders, never an empty crate line", () => {
+		const dependencyLine = shimFiles(
+			feature,
+			"rust",
+			"forge_target",
+			locations('[package]\nname = ""\n'),
+		)[0]
+			?.content.split("\n")
+			.find((line) => line.includes("{ path = "));
+		expect(dependencyLine).toBe(
+			'# your_crate = { path = "path/to/your/crate" }',
+		);
+	});
+	test("the Cargo.toml comment names every case the placeholders stand for", () => {
+		const cargo =
+			shimFiles(feature, "rust", "forge_target", locations())[0]?.content ?? "";
+		expect(cargo).toContain(
+			"# the path (emit writes your_crate and path/to/your/crate when it found\n# no Cargo.toml above the suite, or one with no [package] name: a\n# workspace-only root, or a manifest it could not parse).",
+		);
+	});
 	test("a go manifest with no module line still names placeholders", () => {
 		const goFiles = shimFiles(
 			feature,

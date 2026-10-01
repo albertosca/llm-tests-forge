@@ -100,7 +100,7 @@ function isTable(value: unknown): value is Record<string, unknown> {
  * `package.name` of Cargo.toml, parsed as TOML so every spelling of the
  * table (`[ package ]`, `["package"]`, `package.name = ...`) reads the same.
  * Null for a workspace with no package of its own, whose directory is no
- * crate to depend on, and for text that is not TOML.
+ * crate to depend on, for an empty name, and for text that is not TOML.
  */
 function crateName(manifestText: string | null): string | null {
 	if (manifestText === null) return null;
@@ -112,7 +112,7 @@ function crateName(manifestText: string | null): string | null {
 	}
 	const packageTable = isTable(manifest) ? manifest.package : undefined;
 	const name = isTable(packageTable) ? packageTable.name : undefined;
-	return typeof name === "string" ? name : null;
+	return typeof name === "string" && name !== "" ? name : null;
 }
 
 function goModule(manifestText: string | null): string {
