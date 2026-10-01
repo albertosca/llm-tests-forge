@@ -32,6 +32,7 @@ const StepSchema = z.object({
 	if: z.string().optional(),
 	with: z.record(z.string(), z.unknown()).optional(),
 	env: z.record(z.string(), z.string()).optional(),
+	"continue-on-error": z.union([z.boolean(), z.string()]).optional(),
 });
 type Step = z.infer<typeof StepSchema>;
 
@@ -48,6 +49,8 @@ const JobSchema = z.object({
 			}),
 		})
 		.optional(),
+	"continue-on-error": z.union([z.boolean(), z.string()]).optional(),
+	"timeout-minutes": z.number().optional(),
 	steps: z.array(StepSchema),
 });
 type Job = z.infer<typeof JobSchema>;
@@ -661,14 +664,73 @@ describe("the smoke steps, run here against the source CLI", () => {
 		expect(results.at(-1)?.exitCode).not.toBe(0);
 	});
 
-	test("a binary that succeeds without writing anything fails the comparison", async () => {
+	test("a binary that succeeds without writing anything but the stamp fails the comparison", async () => {
 		const results = runSmoke(
 			await smokeWorkspace(
-				`#!/bin/sh\nif [ "$1" = "--version" ]; then echo ${FORGE_VERSION}; fi\nexit 0\n`,
+				[
+					"#!/bin/sh",
+					`if [ "$1" = "--version" ]; then echo ${FORGE_VERSION}; fi`,
+					`if [ -f .forge/suite.yaml ]; then sed -e 's/^forge_version: .*/forge_version: ${FORGE_VERSION}/' .forge/suite.yaml > suite.stamped && mv suite.stamped .forge/suite.yaml; fi`,
+					"exit 0",
+					"",
+				].join("\n"),
 			),
 		);
 		expect(results.at(-1)?.name).toBe("Compare with the committed outputs");
 		expect(results.at(-1)?.exitCode).not.toBe(0);
+	}, 60000);
+
+	test("the copy's stamp starts older than the binary, so every runner rewrites suite.yaml (the one rename onto an existing file) and the binary's version lands", async () => {
+		const workspace = await smokeWorkspace("");
+		const stamps = join(workspace, "stamps.log");
+		// Logs the stamp each call finds in the suite it runs in, then runs the source CLI.
+		await writeFile(
+			join(workspace, "binaries", asset),
+			[
+				"#!/bin/sh",
+				`if [ -f .forge/suite.yaml ]; then sed -n 's/^forge_version: //p' .forge/suite.yaml >> "${stamps}"; fi`,
+				`exec bun "${join(REPOSITORY, "src/cli/bin.ts")}" "$@"`,
+				"",
+			].join("\n"),
+		);
+		await writeChecksums(join(workspace, "binaries"));
+		const results = runSmoke(workspace);
+		expect(results.map(({ name, exitCode }) => ({ name, exitCode }))).toEqual(
+			smokeScripts.map(({ name }) => ({ name, exitCode: 0 })),
+		);
+		// estimate reads only; emit stamps, so report finds the binary's version.
+		expect((await readFile(stamps, "utf8")).split("\n")).toEqual([
+			"0.0.0",
+			"0.0.0",
+			FORGE_VERSION,
+			"",
+		]);
+	}, 60000);
+
+	test("a stamp that does not land (a failed stamp is only a warning) fails the run step, naming both versions", async () => {
+		const workspace = await smokeWorkspace("");
+		// Runs the source CLI, then puts suite.yaml back as it found it.
+		await writeFile(
+			join(workspace, "binaries", asset),
+			[
+				"#!/bin/sh",
+				`if [ -f .forge/suite.yaml ]; then cp .forge/suite.yaml "${workspace}/suite.before"; fi`,
+				`bun "${join(REPOSITORY, "src/cli/bin.ts")}" "$@"`,
+				"status=$?",
+				`if [ -f "${workspace}/suite.before" ]; then cp "${workspace}/suite.before" .forge/suite.yaml; fi`,
+				'exit "$status"',
+				"",
+			].join("\n"),
+		);
+		await writeChecksums(join(workspace, "binaries"));
+		const results = runSmoke(workspace);
+		expect(results.at(-1)?.name).toBe(
+			"Run estimate, emit and report on the fixture suite",
+		);
+		expect(results.at(-1)?.exitCode).not.toBe(0);
+		expect(results.at(-1)?.output).toContain(
+			`suite.yaml carries forge_version 0.0.0, not ${FORGE_VERSION}`,
+		);
 	}, 60000);
 
 	test("a committed report that differs outside its timestamps fails the comparison", async () => {
@@ -784,7 +846,7 @@ describe("the mutation workflow", () => {
 		pull_request: z.object({ paths: z.array(z.string()) }),
 	});
 
-	test("it runs on demand, weekly, and on pull requests touching the core, its tests or the Stryker config", async () => {
+	test("it runs on demand, weekly, and on pull requests touching the core, its tests, the Stryker config or the workflow itself", async () => {
 		const mutation = await readWorkflow(MUTATION_WORKFLOW);
 		const triggers = TriggersSchema.parse(mutation.on);
 		expect(Object.keys(triggers).sort()).toEqual([
@@ -797,7 +859,23 @@ describe("the mutation workflow", () => {
 			"src/core/**",
 			"tests/core/**",
 			"stryker.config.mjs",
+			".github/workflows/mutation.yml",
 		]);
+	});
+
+	test("nothing silences the gate: no job or step continues on error, the job has a time limit, and the report uploads even when the gate fails", async () => {
+		const mutation = await readWorkflow(MUTATION_WORKFLOW);
+		const jobs = Object.values(mutation.jobs);
+		for (const job of jobs) {
+			expect(job["continue-on-error"]).toBeUndefined();
+			expect(job["timeout-minutes"]).toBe(30);
+			for (const step of job.steps)
+				expect(step["continue-on-error"]).toBeUndefined();
+		}
+		const upload = jobs[0]?.steps.find(
+			(step) => step.uses === "actions/upload-artifact@v4",
+		);
+		expect(upload?.if).toBe("always()");
 	});
 
 	test("its one job installs from the lockfile with bun and node, runs bun run mutation, and uploads reports/mutation/", async () => {

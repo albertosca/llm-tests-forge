@@ -145,9 +145,18 @@ jobs:
           # The outputs are removed first, so a binary that writes nothing
           # cannot pass the comparison on the committed copies.
           rm smoke-work/fixture/.forge/promptfooconfig.yaml smoke-work/fixture/.forge/report.json smoke-work/fixture/.forge/report.md
+          # An older stamp makes the binary rewrite suite.yaml, so every runner
+          # makes the one atomic rename onto an existing file the smoke has.
+          sed -e 's/^forge_version: .*/forge_version: 0.0.0/' "$FIXTURE/.forge/suite.yaml" > smoke-work/fixture/.forge/suite.yaml
           cd smoke-work/fixture
           "$binary" estimate
           "$binary" emit
+          # A failed stamp is only a warning: check that it landed.
+          stamped="$(sed -n 's/^forge_version: //p' .forge/suite.yaml | tr -d '\r')"
+          if [ "$stamped" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "::error::suite.yaml carries forge_version $stamped, not ${GITHUB_REF_NAME#v}"
+            exit 1
+          fi
           "$binary" report results.json
       - name: Compare with the committed outputs
         run: |
