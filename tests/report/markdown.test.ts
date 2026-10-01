@@ -579,9 +579,54 @@ describe("renderReportMarkdown", () => {
 			);
 	});
 
-	test("a real cost below the range says how far below its low bound, with a minus sign", () => {
+	test("a real cost below the range says how far below its low bound, with the same ASCII minus sign as the signed error", () => {
 		expect(costRow({ realDollars: 0.00025 })).toBe(
-			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.000250 | $0.000300–$0.000800 | −16.7% below |",
+			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.000250 | $0.000300–$0.000800 | -16.7% below |",
+		);
+	});
+
+	test("a real cost past a bound by less than 0.05% says <0.1%, never +0.0% or -0.0%", () => {
+		expect(costRow({ realDollars: 0.0008001 })).toBe(
+			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.000800 | $0.000300–$0.000800 | +<0.1% above |",
+		);
+		expect(costRow({ realDollars: 0.0002999 })).toBe(
+			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.000300 | $0.000300–$0.000800 | -<0.1% below |",
+		);
+		// 0.1% past the bound is shown as a number.
+		expect(costRow({ realDollars: 0.0008008 })).toBe(
+			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $0.000801 | $0.000300–$0.000800 | +0.1% above |",
+		);
+	});
+
+	test("a real cost below a range starting at zero cannot be a percentage of it", () => {
+		expect(
+			costRow({
+				realDollars: -0.0001,
+				estimatedLowDollars: 0,
+			}),
+		).toBe(
+			"| anthropic/claude-haiku-4-5 | target | 400 | 80 | $-0.000100 | $0.000000–$0.000800 | below range |",
+		);
+	});
+
+	test("a line with no recorded tokens but a real reported cost is still compared with its range", () => {
+		expect(
+			costRow({ inputTokens: 0, outputTokens: 0, realDollars: 0.0005 }),
+		).toBe(
+			"| anthropic/claude-haiku-4-5 | target | 0 | 0 | $0.000500 | $0.000300–$0.000800 | within range |",
+		);
+		expect(
+			costRow({ inputTokens: 0, outputTokens: 0, realDollars: 0.001 }),
+		).toBe(
+			"| anthropic/claude-haiku-4-5 | target | 0 | 0 | $0.001000 | $0.000300–$0.000800 | +25.0% above |",
+		);
+	});
+
+	test("a line with no recorded tokens and no real figure says so", () => {
+		expect(
+			costRow({ inputTokens: 0, outputTokens: 0, realDollars: null }),
+		).toBe(
+			"| anthropic/claude-haiku-4-5 | target | 0 | 0 | — | $0.000300–$0.000800 | no recorded tokens |",
 		);
 	});
 

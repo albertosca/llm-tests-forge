@@ -248,17 +248,21 @@ function estimatedCell(modelCost: ModelCost): string {
 		: money(modelCost.estimatedDollars);
 }
 
-/** How far outside the range a real figure sits, as a share of the nearer bound. */
-const outside = (distance: number, bound: number): string =>
-	`${((distance / bound) * 100).toFixed(1)}%`;
+/** How far outside the range a real figure sits, as a share of the nearer bound; a share that rounds to 0.0 is `<0.1%`. */
+function outside(distance: number, bound: number): string {
+	const percent = ((distance / bound) * 100).toFixed(1);
+	return percent === "0.0" ? "<0.1%" : `${percent}%`;
+}
 
 /**
  * Against a range, the real figure is either within it or a percentage past
- * its nearer bound. A line whose real tokens are all 0 recorded nothing to
+ * its nearer bound (a bound of $0 has no percentage). A line whose real
+ * tokens are all 0 and whose real cost is $0 or unknown recorded nothing to
  * compare — a shim that never reported usage, a judge promptfoo never
  * counted — and a range starting near $0 would otherwise call that zero
- * "within range". A report written before the range keeps the signed
- * percentage against its point estimate.
+ * "within range"; a real cost reported without tokens is still compared.
+ * The minus sign is ASCII, as in the signed error. A report written before
+ * the range keeps the signed percentage against its point estimate.
  */
 function errorCell(modelCost: ModelCost): string {
 	const range = estimateRange(modelCost);
@@ -266,11 +270,14 @@ function errorCell(modelCost: ModelCost): string {
 		return modelCost.errorPercent === null
 			? NONE
 			: signed(modelCost.errorPercent);
-	if (modelCost.inputTokens === 0 && modelCost.outputTokens === 0)
-		return "no recorded tokens";
 	const real = modelCost.realDollars;
+	const noTokens = modelCost.inputTokens === 0 && modelCost.outputTokens === 0;
+	if (noTokens && (real === null || real === 0)) return "no recorded tokens";
 	if (real === null) return NONE;
-	if (real < range.low) return `−${outside(range.low - real, range.low)} below`;
+	if (real < range.low)
+		return range.low === 0
+			? "below range"
+			: `-${outside(range.low - real, range.low)} below`;
 	if (real <= range.high) return "within range";
 	return range.high === 0
 		? "above range"
