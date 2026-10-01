@@ -1122,6 +1122,67 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 		).toEqual(["approved", "pending"]);
 	});
 
+	test("a Ctrl+C while $EDITOR runs belongs to the editor: the pass neither ends nor exits, the edit lands, and Ctrl+C works again afterwards", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		const started = join(cwd, "editor-started");
+		const release = join(cwd, "editor-release");
+		// Says it is open, waits to be let go, then edits the description.
+		const editor = join(cwd, "waiting-editor.sh");
+		await writeFile(
+			editor,
+			`#!/bin/sh\ntouch "${started}"\nwhile [ ! -f "${release}" ]; do sleep 0.02; done\nsed 's|^description: d$|description: d2|' "$1" > "$1.tmp" && mv "$1.tmp" "$1"\n`,
+		);
+		await chmod(editor, 0o755);
+		const out: string[] = [];
+		const exits: number[] = [];
+		const answers = ["edit"];
+		const reader = createInterruptibleReader({
+			readLine: async () => answers.shift() ?? "",
+			stdout: (line) => out.push(line),
+			exit: (code) => exits.push(code),
+		});
+		const context = createContext({
+			cwd,
+			drafter: MODEL,
+			stdin: reader.read,
+			startInteractivePass: reader.startInteractivePass,
+		});
+		context.stdout = (line) => out.push(line);
+		await withEditor(editor, async () => {
+			const reviewing = run(["review", "--only", "scenarios"], context);
+			while (!(await Bun.file(started).exists())) await Bun.sleep(10);
+			// Two presses inside the editor: once would have ended the pass,
+			// twice exited 130.
+			reader.interrupt();
+			reader.interrupt();
+			await writeFile(release, "");
+			expect(await reviewing).toBe(0);
+		});
+		expect(exits).toEqual([]);
+		expect(out.join("\n")).not.toContain("interrupted:");
+		expect(
+			(await readScenarios(forgeDirectory)).map((scenario) => [
+				scenario.description,
+				scenario.status,
+			]),
+		).toEqual([["d2", "edited"]]);
+		reader.interrupt();
+		expect(out.at(-1)).toBe(
+			"interrupted: no more answers; the decisions already taken are written",
+		);
+	});
+
 	test("a renamed case is written back under its new id, in its own file, with no second file invented", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = join(cwd, ".forge");
@@ -1761,6 +1822,7 @@ describe("review: a write-back that fails part-way names what landed and what di
 				const pass = reader.startInteractivePass();
 				return {
 					read: pass.read,
+					whileEditing: pass.whileEditing,
 					// Two Ctrl+C as soon as the write-back has begun: the first
 					// ends the input, the second is held until the write ends.
 					whileWriting: <Result>(work: () => Promise<Result>) => {
@@ -1972,6 +2034,7 @@ describe("review: startInteractivePass arms end-of-input only for the interactiv
 				const pass = reader.startInteractivePass();
 				return {
 					read: pass.read,
+					whileEditing: pass.whileEditing,
 					whileWriting: async <Result>(work: () => Promise<Result>) => {
 						statuses.push(await statusOnDisk());
 						linesBeforeWriting = out.length;

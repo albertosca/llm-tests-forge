@@ -117,7 +117,7 @@ describe("createInterruptibleReader", () => {
 		expect(exits).toEqual([]);
 	});
 
-	test("armed: an interrupt after a completed read, with none pending (the $EDITOR case), ends the input: no exit, the line printed once, the next read answers empty", async () => {
+	test("armed: an interrupt between two reads, with none pending, ends the input: no exit, the line printed once, the next read answers empty", async () => {
 		const source = pendingLines();
 		const printed: string[] = [];
 		const exits: number[] = [];
@@ -130,10 +130,11 @@ describe("createInterruptibleReader", () => {
 		const answer = reader.read();
 		source.answer("edit");
 		expect(await answer).toBe("edit");
-		// The person is now inside $EDITOR: read() already resolved, and
-		// nothing has called it again yet -- exactly the gap where the old
-		// "no read pending" rule exited, throwing away the "edit" decision
-		// above along with everything already approved this pass.
+		// read() already resolved, and nothing has called it again yet --
+		// exactly the gap where the old "no read pending" rule exited,
+		// throwing away the "edit" decision above along with everything
+		// already approved this pass. (Inside $EDITOR itself an interrupt is
+		// ignored: see whileEditing below.)
 		reader.interrupt();
 		expect(printed).toEqual([
 			"interrupted: no more answers; the decisions already taken are written",
@@ -239,6 +240,51 @@ describe("createInterruptibleReader", () => {
 		const pass = reader.startInteractivePass();
 		reader.interrupt();
 		await pass.whileWriting(async () => {});
+		reader.interrupt();
+		expect(exits).toEqual([130]);
+	});
+
+	test("while the editor runs (whileEditing), interrupts are ignored however many come: no line, no exit, the input not ended; once it returns, an interrupt ends the input again", async () => {
+		const printed: string[] = [];
+		const exits: number[] = [];
+		const reader = createInterruptibleReader({
+			readLine: pendingLines().readLine,
+			stdout: (line) => printed.push(line),
+			exit: (code) => exits.push(code),
+		});
+		const pass = reader.startInteractivePass();
+		const edited = await pass.whileEditing(async () => {
+			// Vim users press Ctrl+C to leave insert mode.
+			reader.interrupt();
+			reader.interrupt();
+			reader.interrupt();
+			return "edited text";
+		});
+		expect(edited).toBe("edited text");
+		expect(printed).toEqual([]);
+		expect(exits).toEqual([]);
+		expect(pass.read.inputEnded()).toBe(false);
+		reader.interrupt();
+		expect(printed).toEqual([
+			"interrupted: no more answers; the decisions already taken are written",
+		]);
+		expect(pass.read.inputEnded()).toBe(true);
+	});
+
+	test("an editor that fails still gives the interrupt back", async () => {
+		const exits: number[] = [];
+		const reader = createInterruptibleReader({
+			readLine: pendingLines().readLine,
+			stdout: () => {},
+			exit: (code) => exits.push(code),
+		});
+		const pass = reader.startInteractivePass();
+		await expect(
+			pass.whileEditing(async () => {
+				throw new Error("editor not found");
+			}),
+		).rejects.toThrow("editor not found");
+		reader.interrupt();
 		reader.interrupt();
 		expect(exits).toEqual([130]);
 	});

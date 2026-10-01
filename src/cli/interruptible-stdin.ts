@@ -6,13 +6,16 @@
  * before this file existed, and still has by default. Once
  * `startInteractivePass()` has been called, the first interrupt instead
  * ends the input: it happens whether or not a read is pending right then,
- * because a person can be inside `$EDITOR` (or otherwise between two
- * reads) when they press Ctrl+C, and that decision must survive too. A
- * pending read, if there is one, and every later read answer "", which the
- * review loop takes as `skip`, so the pass ends normally and writes what
- * was decided. A second interrupt exits, armed or not, as Ctrl+C always
- * did — except during the write-back (`whileWriting`), where it lets the
- * write finish and then exits 130.
+ * because a person can be between two reads when they press Ctrl+C, and
+ * that decision must survive too. A pending read, if there is one, and
+ * every later read answer "", which the review loop takes as `skip`, so
+ * the pass ends normally and writes what was decided. A second interrupt
+ * exits, armed or not, as Ctrl+C always did — except during the
+ * write-back (`whileWriting`), where it lets the write finish and then
+ * exits 130. While `$EDITOR` runs (`whileEditing`), an interrupt is
+ * ignored: the editor owns the terminal and gets the same Ctrl+C (Vim
+ * users press it to leave insert mode), so it must neither end the pass
+ * nor, pressed twice, exit 130. The handler is back once the editor exits.
  *
  * Arming has to be a separate call, not "after the first `read()`": task
  * review 2026-09-28 found that `llm-tests-forge describe` calls `read()` once for
@@ -56,6 +59,8 @@ export type InteractiveReader = (() => Promise<string>) & {
 export interface InteractivePass {
 	read: InteractiveReader;
 	whileWriting<Result>(work: () => Promise<Result>): Promise<Result>;
+	/** Runs `work` (the `$EDITOR` session) with interrupts ignored, and gives them back when it settles. */
+	whileEditing<Result>(work: () => Promise<Result>): Promise<Result>;
 }
 
 export interface InterruptibleReader {
@@ -117,13 +122,25 @@ export function createInterruptibleReader(dependencies: {
 		if (exitAfterWriting) dependencies.exit(130);
 		return result;
 	};
+	let editing = false;
+	const whileEditing = async <Result>(
+		work: () => Promise<Result>,
+	): Promise<Result> => {
+		editing = true;
+		try {
+			return await work();
+		} finally {
+			editing = false;
+		}
+	};
 	return {
 		read,
 		startInteractivePass: () => {
 			armed = true;
-			return { read: interactiveRead, whileWriting };
+			return { read: interactiveRead, whileWriting, whileEditing };
 		},
 		interrupt: () => {
+			if (editing) return;
 			if (ended && writing) {
 				exitAfterWriting = true;
 				return;

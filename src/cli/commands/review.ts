@@ -269,7 +269,9 @@ export async function reviewCommand(
 	const result = await runReviewLoop({
 		items,
 		ask: (question, choices) => askChoice(paint.prompt(question), choices, io),
-		openEditor: openInEditor,
+		// The editor owns the terminal while it runs: a Ctrl+C there is the
+		// editor's (Vim leaves insert mode with it), never the end of the pass.
+		openEditor: (yamlText) => pass.whileEditing(() => openInEditor(yamlText)),
 		// The human's expected value answers to the same oracle contract as
 		// the model's, checked with the same function.
 		askExpected: (caseEntry, oracle) =>
