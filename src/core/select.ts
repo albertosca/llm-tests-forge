@@ -20,6 +20,21 @@ export interface Selection {
 	reviewable: number;
 }
 
+/** The keys a case's input lacks and has beyond the feature's inputs, as `missing: …; extra: …`, or null when they are the same set. */
+function inputKeyMismatch(
+	input: Record<string, string>,
+	feature: Feature,
+): string | null {
+	const names = feature.inputs.map((featureInput) => featureInput.name);
+	const keys = Object.keys(input);
+	const missing = names.filter((name) => !keys.includes(name));
+	const extra = keys.filter((key) => !names.includes(key));
+	if (missing.length === 0 && extra.length === 0) return null;
+	const listed = (items: string[]): string =>
+		items.length > 0 ? items.join(", ") : "none";
+	return `missing: ${listed(missing)}; extra: ${listed(extra)}`;
+}
+
 function reviewed(status: Scenario["status"]): boolean {
 	return status === "approved" || status === "edited";
 }
@@ -81,6 +96,16 @@ export function selectCases(request: {
 				continue;
 			}
 			if (kase.status === "rejected") continue;
+			// An input renamed in feature.yaml alone left every case with the
+			// old key: the prompt then named a var no case had, and the
+			// target received "" in silence. Refused, not a blocker: review
+			// cannot fix it, a rename in one of the two files does.
+			const keyMismatch = inputKeyMismatch(kase.input, feature);
+			if (keyMismatch !== null)
+				throw new ForgeError(
+					`case ${kase.id}'s input keys do not match the feature's inputs (${keyMismatch}); rename them in its input: or in feature.yaml`,
+					{ file, id: kase.id },
+				);
 			if (kase.expected === undefined) {
 				block(`case ${kase.id} has no expected (${file})`, true);
 				continue;

@@ -336,3 +336,79 @@ describe("selectCases", () => {
 		expect(selection.blockers).toEqual([]);
 	});
 });
+
+describe("selectCases: a case's input keys must be the feature's inputs", () => {
+	const twoInputs: Feature = {
+		...feature,
+		inputs: [
+			{ name: "from_addr", kind: "text" },
+			{ name: "body", kind: "text" },
+		],
+	};
+	/** What selecting one approved case with `input` throws, or null when it is selected. */
+	function refusalFor(input: Record<string, string>): ForgeError | null {
+		try {
+			selectCases({
+				suite: suite(),
+				scenarios: [scenario("a", "approved")],
+				casesByScenario: new Map([
+					["a", [{ ...kase("a-01", "a", "approved"), input }]],
+				]),
+				paths,
+				feature: twoInputs,
+			});
+			return null;
+		} catch (error) {
+			if (error instanceof ForgeError) return error;
+			throw error;
+		}
+	}
+	const file = "/p/.forge/cases/a.yaml";
+
+	test("an input renamed in feature.yaml alone (missing one key, an extra one) is refused, naming the file, the case and both keys", () => {
+		const refusal = refusalFor({ "from-addr": "x", body: "y" });
+		expect(refusal?.reason).toBe(
+			"case a-01's input keys do not match the feature's inputs (missing: from_addr; extra: from-addr); rename them in its input: or in feature.yaml",
+		);
+		expect(refusal?.details).toEqual({ file, id: "a-01" });
+	});
+	test("a missing key alone, and an extra key alone, are each refused", () => {
+		expect(refusalFor({ body: "y" })?.reason).toBe(
+			"case a-01's input keys do not match the feature's inputs (missing: from_addr; extra: none); rename them in its input: or in feature.yaml",
+		);
+		expect(
+			refusalFor({ from_addr: "x", body: "y", subject: "z" })?.reason,
+		).toBe(
+			"case a-01's input keys do not match the feature's inputs (missing: none; extra: subject); rename them in its input: or in feature.yaml",
+		);
+	});
+	test("several missing and extra keys are listed in order, comma-separated", () => {
+		expect(refusalFor({ a: "1", b: "2" })?.reason).toBe(
+			"case a-01's input keys do not match the feature's inputs (missing: from_addr, body; extra: a, b); rename them in its input: or in feature.yaml",
+		);
+	});
+	test("keys matching the inputs in any order are selected", () => {
+		expect(refusalFor({ body: "y", from_addr: "x" })).toBeNull();
+	});
+	test("a pending or rejected case is not checked: it is not selected either way", () => {
+		const selection = selectCases({
+			suite: suite(),
+			scenarios: [scenario("a", "approved")],
+			casesByScenario: new Map([
+				[
+					"a",
+					[
+						{ ...kase("a-01", "a", "pending"), input: { old: "x" } },
+						{ ...kase("a-02", "a", "rejected"), input: { old: "x" } },
+					],
+				],
+			]),
+			paths,
+			feature: twoInputs,
+		});
+		expect(selection.cases).toEqual([]);
+		expect(selection.blockers).toEqual([
+			"case a-01 is pending (/p/.forge/cases/a.yaml)",
+		]);
+	});
+});
