@@ -105,14 +105,13 @@ describe("FeatureSchema: input names promptfoo's templates can reference", () =>
 	const refusal = (name: string): string[][] => [
 		[
 			"inputs.0.name",
-			`input name "${name}" cannot be referenced in promptfoo's templates; use letters, digits and underscores, not starting with a digit, and none of not, true, false, none, null`,
+			`input name "${name}" cannot be referenced in promptfoo's templates; use ASCII letters, digits and underscores, starting with a letter (a leading underscore is promptfoo's own), and none of not, true, false, none, null; rename it everywhere: in feature.yaml, in every case's input: keys, and in the target or shim code`,
 		],
 	];
 
-	test("letters, digits and underscores, not starting with a digit, are accepted, keywords in another case and the operators that render included", () => {
+	test("ASCII letters, digits and underscores, starting with a letter, are accepted, keywords in another case and the operators that render included", () => {
 		for (const name of [
 			"email",
-			"_private",
 			"body2",
 			"Email_Body",
 			"x",
@@ -141,6 +140,17 @@ describe("FeatureSchema: input names promptfoo's templates can reference", () =>
 	});
 	test("a name ending in a character that is not a letter, digit or underscore is refused", () => {
 		expect(refusalsFor("email.")).toStrictEqual(refusal("email."));
+	});
+	test("a name with a leading underscore is refused: promptfoo's own variables (__evalId, __repeatIndex, _conversation) would hand the target their value instead, and __proto__ is dropped on read", () => {
+		for (const name of [
+			"_private",
+			"_",
+			"__evalId",
+			"__repeatIndex",
+			"_conversation",
+			"__proto__",
+		])
+			expect(refusalsFor(name)).toStrictEqual(refusal(name));
 	});
 	test("not, true, false, none and null, which promptfoo reads as a keyword or a literal, are refused", () => {
 		for (const name of ["not", "true", "false", "none", "null"])

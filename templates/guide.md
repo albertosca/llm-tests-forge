@@ -70,7 +70,7 @@ then `llm-tests-forge report results.json`. promptfoo exits with status 100 when
 ## Every verb
 
 - `llm-tests-forge init`: detect the language, write `forge.yaml` and the `AGENTS.md` block.
-- `llm-tests-forge describe`: free text (or stdin) becomes `.forge/feature.yaml`, pending review. Calls the drafter. Each input's name becomes a promptfoo template variable, so it takes letters, digits and underscores, does not start with a digit, and is none of `not`, `true`, `false`, `none`, `null` (`user_message`, not `user message`); a `feature.yaml` with any other name is refused. `-h` and `--help` anywhere before a `--` print the usage, so a text that is one of them goes after `--`.
+- `llm-tests-forge describe`: free text (or stdin) becomes `.forge/feature.yaml`, pending review. Calls the drafter. Each input's name becomes a promptfoo template variable, so it takes ASCII letters, digits and underscores, starts with a letter (a leading underscore is promptfoo's own), and is none of `not`, `true`, `false`, `none`, `null` (`user_message`, not `user message`); a `feature.yaml` with any other name is refused. Renaming an input means renaming it in `feature.yaml`, in every case's `input:` keys and in the target or shim code; `estimate`, `emit` and `report` refuse an approved case whose input keys do not match the feature's inputs. `-h` and `--help` anywhere before a `--` print the usage, so a text that is one of them goes after `--`.
 - `llm-tests-forge scenarios`: the approved feature becomes `.forge/scenarios.yaml`. Calls the drafter.
 - `llm-tests-forge cases`: approved scenarios become `.forge/cases/<id>.yaml`. Calls the drafter.
 - `llm-tests-forge dedupe`: marks likely duplicate cases with `duplicate_of`. Calls the drafter.

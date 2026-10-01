@@ -22,8 +22,13 @@ export const FeatureStatus = z.enum(["pending", "approved", "edited"]);
  * render, `user-message` renders NaN, and `true`, `false`, `none`, `null`
  * render as literals instead of the input. Measured in the same run:
  * `and`, `or`, `in`, `is`, `if`, `NOT` and `True` render the input.
+ *
+ * A leading underscore is refused too: promptfoo puts its own variables in
+ * the same vars (`__evalId`, `__repeatIndex`, `_conversation`), so an input
+ * of that name hands the target promptfoo's value (measured: the eval id,
+ * `0`, empty), and `__proto__` is dropped when a case file is read.
  */
-const TEMPLATE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const TEMPLATE_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 const TEMPLATE_LITERALS = ["not", "true", "false", "none", "null"];
 
 export const FeatureInputSchema = z.object({
@@ -34,7 +39,7 @@ export const FeatureInputSchema = z.object({
 			(name) => TEMPLATE_NAME.test(name) && !TEMPLATE_LITERALS.includes(name),
 			{
 				error: (issue) =>
-					`input name "${String(issue.input)}" cannot be referenced in promptfoo's templates; use letters, digits and underscores, not starting with a digit, and none of ${TEMPLATE_LITERALS.join(", ")}`,
+					`input name "${String(issue.input)}" cannot be referenced in promptfoo's templates; use ASCII letters, digits and underscores, starting with a letter (a leading underscore is promptfoo's own), and none of ${TEMPLATE_LITERALS.join(", ")}; rename it everywhere: in feature.yaml, in every case's input: keys, and in the target or shim code`,
 			},
 		),
 	kind: z.enum(["text", "json"]),
