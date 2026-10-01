@@ -28,8 +28,9 @@ const reader = createInterruptibleReader({
 });
 process.on("SIGINT", reader.interrupt);
 
-// Provider keys are loaded by `main()` into `env` from ~/.config, for a
-// verb that may need one (never for help, version or guide); see main.ts.
+// Provider keys are loaded by `main()` into `env` from ~/.config, once,
+// just before a real (not fake/) model is resolved; nothing that calls no
+// model, and no usage error, opens a key file. See main.ts.
 process.exit(
 	await main(process.argv.slice(2), {
 		cwd: process.cwd(),
