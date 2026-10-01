@@ -12,7 +12,9 @@ import {
 } from "node:path";
 import {
 	isAlias,
+	isMap,
 	isNode,
+	isScalar,
 	isSeq,
 	type Node,
 	parseDocument,
@@ -360,8 +362,16 @@ export function registerSuite(
 	}
 	const replacement = document.createNode([entry]);
 	if (isNode(suites)) {
-		replacement.comment = suites.comment;
 		replacement.commentBefore = suites.commentBefore;
+		// A comment after a bare `suites:` belongs on the key's line: on the
+		// new block list it would print below the item it was above.
+		// Stryker disable next-line ConditionalExpression,ArrayDeclaration: suites is a node only inside a map document (ProjectConfigSchema read the file as one), so the empty list is never iterated; the guard is for the type alone
+		const pairs = isMap(document.contents) ? document.contents.items : [];
+		for (const pair of pairs) {
+			// Stryker disable next-line ConditionalExpression: for the type alone: a key that is not a scalar has no value "suites" either way
+			if (!isScalar(pair.key)) continue;
+			if (pair.key.value === "suites") pair.key.comment = suites.comment;
+		}
 	}
 	document.set("suites", replacement);
 	const printed = document.toString({

@@ -211,6 +211,26 @@ describe("forge.yaml", () => {
 			expect(parse(text).suites).toEqual(["x"]);
 		}
 	});
+	test("a bare suites: with a trailing comment keeps the comment on the key's line, above the new item", async () => {
+		const project = await readProject(
+			await projectWith(
+				"version: 1\nlanguage: go\nsuites: # none yet\ndefaults: {}\n",
+			),
+		);
+		expect(registerSuite(project, join(project.root, "evals/x"))?.text).toBe(
+			"version: 1\nlanguage: go\nsuites: # none yet\n  - evals/x\ndefaults: {}\n",
+		);
+	});
+	test("a comment on the line below a bare suites: stays above the new item", async () => {
+		const project = await readProject(
+			await projectWith(
+				"version: 1\nlanguage: go\nsuites:\n  # registered by describe\ndefaults: {}\n",
+			),
+		);
+		const text = registerSuite(project, join(project.root, "evals/x"))?.text;
+		expect(parse(text ?? "").suites).toEqual(["evals/x"]);
+		expect(text).toContain("# registered by describe");
+	});
 	test("registerSuite keeps the trailing comment on suites: [] # keep", async () => {
 		const project = await readProject(
 			await projectWith("version: 1\nlanguage: go\nsuites: [] # keep\n"),
@@ -454,13 +474,13 @@ describe("registerSuite changes only the line it adds", () => {
 			`version: 1\nlanguage: go\n${defaults}suites:\n  - evals/b\n`,
 		);
 	});
-	test("a suites: null is replaced through the document, keeping CRLF and its comment", async () => {
+	test("a suites: null is replaced through the document, keeping CRLF and its comment on the key's line", async () => {
 		expect(
 			await registeredText(
 				"version: 1\r\nlanguage: go\r\nsuites: null # none yet\r\ndefaults: {}\r\n",
 			),
 		).toBe(
-			"version: 1\r\nlanguage: go\r\nsuites:\r\n  - evals/b\r\n  # none yet\r\ndefaults: {}\r\n",
+			"version: 1\r\nlanguage: go\r\nsuites: # none yet\r\n  - evals/b\r\ndefaults: {}\r\n",
 		);
 	});
 	test("a block scalar as the last item gets the new line after its content, not after the next key", async () => {
