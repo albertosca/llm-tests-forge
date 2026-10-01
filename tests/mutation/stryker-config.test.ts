@@ -19,3 +19,17 @@ test("stryker lists every test file under tests/core, nested ones included", asy
 	expect(onDisk.length).toBeGreaterThan(0);
 	expect([...config.bun.testFiles].sort()).toEqual(onDisk);
 });
+
+/** `git check-ignore`'s answer for a path that need not exist: 0 ignored, 1 not ignored (anything else is an error, not an answer). */
+function ignoreStatus(path: string): number {
+	return Bun.spawnSync(["git", "check-ignore", "--no-index", "-q", path], {
+		cwd: REPOSITORY,
+	}).exitCode;
+}
+
+test("Stryker's report and sandbox are ignored at the root only, so a reports/ directory deeper in the tree is not", () => {
+	expect(ignoreStatus("reports/mutation/mutation.json")).toBe(0);
+	expect(ignoreStatus(".stryker-tmp/sandbox-1/package.json")).toBe(0);
+	expect(ignoreStatus("examples/some-suite/reports/summary.md")).toBe(1);
+	expect(ignoreStatus("src/report/.stryker-tmp/notes.md")).toBe(1);
+});

@@ -3,8 +3,8 @@
 node_modules/
 coverage/
 # Stryker's sandbox is a full copy of the repository (biome.json included) and its report is large
-.stryker-tmp/
-reports/
+/.stryker-tmp/
+/reports/
 **/.forge/failures/
 **/.forge/usage.jsonl
 __pycache__/
