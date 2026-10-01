@@ -6259,13 +6259,17 @@ describe("main(): the suite and the project", () => {
 		}
 		// describe reads them when it reaches its model. The key the shell
 		// exports is taken out for the call, so the model is refused for a
-		// missing key and nothing goes over the network.
+		// missing key. And should a key ever reach the provider anyway (a
+		// resolver reading the loaded keys, say), its base URL is a closed
+		// local port, so nothing can go over the network either way.
 		const root = await projectWith(
 			"version: 1\nlanguage: python\nsuites: []\n",
 		);
 		const environment: Record<string, string | undefined> = {};
 		const exported = process.env.ANTHROPIC_API_KEY;
+		const exportedBaseUrl = process.env.ANTHROPIC_BASE_URL;
 		delete process.env.ANTHROPIC_API_KEY;
+		process.env.ANTHROPIC_BASE_URL = "http://127.0.0.1:9/v1";
 		const lines: string[] = [];
 		try {
 			const outcome = await main(
@@ -6281,6 +6285,8 @@ describe("main(): the suite and the project", () => {
 			expect(outcome).toBe(1);
 		} finally {
 			if (exported !== undefined) process.env.ANTHROPIC_API_KEY = exported;
+			if (exportedBaseUrl === undefined) delete process.env.ANTHROPIC_BASE_URL;
+			else process.env.ANTHROPIC_BASE_URL = exportedBaseUrl;
 		}
 		expect(lines).toEqual([
 			'error: ANTHROPIC_API_KEY is not set; needed for "anthropic/claude-x"',
