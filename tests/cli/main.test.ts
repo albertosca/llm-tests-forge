@@ -6172,18 +6172,56 @@ describe("main(): the suite and the project", () => {
 		expect(process.env).toEqual(processEnvironmentBefore);
 	});
 
-	test("a verb that may call a model loads the provider keys from the injected config directory before it runs", async () => {
+	test("the provider keys are read from the injected config directory only on the way to a model: status and a usage error read none", async () => {
 		const configDirectory = await configDirectoryWithMalformedKeyFile();
+		for (const [argv, code] of [
+			[["status"], 0],
+			[["status", "--version"], 2],
+			[["status", "extra"], 2],
+		] as const) {
+			const environment: Record<string, string | undefined> = {};
+			const lines: string[] = [];
+			const outcome = await main([...argv], {
+				cwd: configDirectory,
+				env: environment,
+				configDirectory,
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			});
+			expect({ argv, outcome, environment }).toEqual({
+				argv,
+				outcome: code,
+				environment: {},
+			});
+		}
+		// describe reads them when it reaches its model. The key the shell
+		// exports is taken out for the call, so the model is refused for a
+		// missing key and nothing goes over the network.
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: []\n",
+		);
 		const environment: Record<string, string | undefined> = {};
-		// Outside any project `status` has nothing to report; what matters
-		// here is only that the keys were loaded on the way to it.
-		await main(["status"], {
-			cwd: configDirectory,
-			env: environment,
-			configDirectory,
-			stdin: async () => "",
-			stdout: () => {},
-		});
+		const exported = process.env.ANTHROPIC_API_KEY;
+		delete process.env.ANTHROPIC_API_KEY;
+		const lines: string[] = [];
+		try {
+			const outcome = await main(
+				["describe", "--drafter", "anthropic/claude-x", "classifies emails"],
+				{
+					cwd: root,
+					env: environment,
+					configDirectory,
+					stdin: async () => "",
+					stdout: (line) => lines.push(line),
+				},
+			);
+			expect(outcome).toBe(1);
+		} finally {
+			if (exported !== undefined) process.env.ANTHROPIC_API_KEY = exported;
+		}
+		expect(lines).toEqual([
+			'error: ANTHROPIC_API_KEY is not set; needed for "anthropic/claude-x"',
+		]);
 		expect(environment).toEqual({ ANTHROPIC_API_KEY: "from-file" });
 	});
 
@@ -6250,6 +6288,8 @@ describe("main(): the suite and the project", () => {
 			[["--drafter", "x", "version"], 2],
 			[["nonsense"], 2],
 			[[], 2],
+			// A usage error is answered before any key file is opened too.
+			[["status", "--version"], 2],
 		] as const) {
 			const answered = main([...argv], {
 				cwd: configDirectory,

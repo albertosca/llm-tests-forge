@@ -26,6 +26,12 @@ export interface Llm {
 export interface CreateLlmOptions {
 	forgeDirectory: string;
 	resolve?: (spec: string) => ResolvedModel;
+	/**
+	 * Runs before a real (not `fake/`) model is resolved: the CLI reads the
+	 * provider keys here, so a verb that never reaches a model, and a
+	 * command line refused for its usage, opens no key file.
+	 */
+	beforeResolve?: () => Promise<void>;
 	now?: () => Date;
 }
 
@@ -105,9 +111,9 @@ export function createLlm(options: CreateLlmOptions): Llm {
 
 	async function pickModel(spec: string, verb: string): Promise<ResolvedModel> {
 		const { provider, model } = parseModelSpec(spec);
-		return provider === "fake"
-			? fakeModel(model, verb, fakeCursors)
-			: resolve(spec);
+		if (provider === "fake") return fakeModel(model, verb, fakeCursors);
+		await options.beforeResolve?.();
+		return resolve(spec);
 	}
 
 	return {

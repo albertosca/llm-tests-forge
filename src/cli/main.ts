@@ -324,15 +324,18 @@ export async function main(
 		const information = rest[0] !== undefined && INFORMATION_VERBS.has(rest[0]);
 		// Keys the shell does not export are read from
 		// <configDirectory>/<provider>/api.env; a key already in the
-		// environment wins. Only for a verb that may need one: help, version
-		// and guide (bin.ts used to load keys before anything) touch no key
-		// file at all, as `--help` answered above does not, and neither does
-		// a command line naming no verb, which `run` answers with the usage.
-		if (!information && Object.hasOwn(COMMANDS, rest[0] ?? ""))
-			await loadProviderKeys({
+		// environment wins. Read once, and only when a verb is about to
+		// resolve a real model: help, version, guide, a verb that calls no
+		// model and a command line refused for its usage (`status
+		// --version`) open no key file at all.
+		let keysLoaded: Promise<string[]> | undefined;
+		const loadKeys = async (): Promise<void> => {
+			keysLoaded ??= loadProviderKeys({
 				environment: options.env,
 				configDirectory: options.configDirectory,
 			});
+			await keysLoaded;
+		};
 		// `init` reads no forge.yaml through the resolution: it creates one, and
 		// a broken one must not stop it from updating AGENTS.md.
 		const initializing = rest[0] === "init";
@@ -352,6 +355,7 @@ export async function main(
 			startInteractivePass: options.startInteractivePass,
 			forgeDirectory: resolution.forgeDirectory,
 			project: resolution.project,
+			loadProviderKeys: loadKeys,
 		});
 		if (options.stdout) context.stdout = options.stdout;
 		await refuseVerbWithoutSuite(rest[0], context);

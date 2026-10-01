@@ -230,4 +230,27 @@ describe("createLlm.generate", () => {
 		expect(failure).not.toBeInstanceOf(ForgeError);
 		expect((failure as Error).message).toBe("network failure");
 	});
+
+	test("beforeResolve runs before a real model is resolved, and never for a fake one", async () => {
+		const calls: string[] = [];
+		const llm = createLlm({
+			forgeDirectory: await tmpForge(),
+			beforeResolve: async () => {
+				calls.push("keys");
+			},
+			resolve: () => {
+				calls.push("resolve");
+				return mock('{"answer": 1}');
+			},
+		});
+		await llm.generate({ schema, prompt: "p", model: FAKE, verb: "probe" });
+		expect(calls).toEqual([]);
+		await llm.generate({
+			schema,
+			prompt: "p",
+			model: "anthropic/x",
+			verb: "probe",
+		});
+		expect(calls).toEqual(["keys", "resolve"]);
+	});
 });

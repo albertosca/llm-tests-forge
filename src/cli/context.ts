@@ -55,6 +55,8 @@ export interface CreateContextOptions {
 	stdin: () => Promise<string>;
 	/** See `CliContext.startInteractivePass`; absent -> a reader over `stdin`. */
 	startInteractivePass?: () => InteractivePass;
+	/** Reads the provider keys; called before a real model is resolved (`CreateLlmOptions.beforeResolve`). Absent -> none read. */
+	loadProviderKeys?: () => Promise<void>;
 }
 
 export function createContext(options: CreateContextOptions): CliContext {
@@ -70,7 +72,10 @@ export function createContext(options: CreateContextOptions): CliContext {
 		cwd: options.cwd,
 		forgeDirectory,
 		project,
-		llm: createLlm({ forgeDirectory }),
+		llm: createLlm({
+			forgeDirectory,
+			beforeResolve: options.loadProviderKeys,
+		}),
 		get drafter(): string {
 			if (!drafter)
 				throw new UsageError(
