@@ -795,6 +795,8 @@ describe("buildReport", () => {
 			judged("vertex:gemini-3.5-flash", 72, 272),
 			// promptfoo maps Vertex's Claude through the Anthropic mapping.
 			judged("vertex:claude-sonnet-4-5@20250929", 90, 30),
+			// Neither Google nor Vertex: taken to include it, as OpenAI documents.
+			judged("openai:chat:gpt-5", 64, 16),
 		]);
 		const outputOf = (model: string) =>
 			report.costs.find(
@@ -804,6 +806,7 @@ describe("buildReport", () => {
 		expect(outputOf("google/gemini-3.5-flash")).toBe(55 + 243);
 		expect(outputOf("vertex:gemini-3.5-flash")).toBe(72 + 272);
 		expect(outputOf("vertex:claude-sonnet-4-5@20250929")).toBe(90);
+		expect(outputOf("openai/gpt-5")).toBe(64);
 
 		// A Google component recorded without completionDetails (an older
 		// promptfoo) has no reasoning to add, and must not crash on it.
