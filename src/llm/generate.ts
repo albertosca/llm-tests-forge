@@ -2,7 +2,7 @@ import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { generateObject, NoObjectGeneratedError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
-import type { ZodType } from "zod";
+import { ZodError, type ZodType } from "zod";
 import { ForgeError, messageOf } from "../core/errors";
 import { forgePaths } from "../core/files";
 import { parseModelSpec, type ResolvedModel, resolveModel } from "./models";
@@ -17,6 +17,27 @@ export interface GenerateArgs<T> {
 	prompt: string;
 	model: string;
 	verb: string;
+}
+
+/**
+ * The schema's own reasons behind a NoObjectGeneratedError, as
+ * `path: message` joined by "; ", or "" when there are none. The AI SDK
+ * wraps them two levels down (its TypeValidationError, then the ZodError),
+ * and its own message says only "response did not match schema".
+ */
+function schemaReasons(error: unknown): string {
+	let current: unknown = error;
+	for (let depth = 0; depth < 4; depth += 1) {
+		if (current instanceof ZodError)
+			return current.issues
+				.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+				.join("; ");
+		current =
+			typeof current === "object" && current !== null && "cause" in current
+				? current.cause
+				: undefined;
+	}
+	return "";
 }
 
 export interface Llm {
@@ -144,8 +165,9 @@ export function createLlm(options: CreateLlmOptions): Llm {
 						`${request.verb}-${timestamp.replace(/:/g, "-")}.txt`,
 					);
 					await writeFile(rawPath, error.text ?? "", "utf8");
+					const reasons = schemaReasons(error.cause);
 					throw new ForgeError(
-						`model output did not match the ${request.verb} schema: ${error.message}`,
+						`model output did not match the ${request.verb} schema: ${error.message}${reasons === "" ? "" : ` ${reasons}`}`,
 						{ rawPath },
 					);
 				}

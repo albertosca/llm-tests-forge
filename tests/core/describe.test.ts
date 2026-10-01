@@ -95,8 +95,9 @@ describe("describeFeature", () => {
 			llm: await llm(),
 		}).catch((error: unknown) => error);
 		expect(caught).toBeInstanceOf(ForgeError);
+		// The schema's own reason follows, so the person sees which input.
 		expect(String(caught)).toContain(
-			"model output did not match the describe schema",
+			`model output did not match the describe schema: No object generated: response did not match schema. inputs.0.name: input name "user message" cannot be referenced in promptfoo's templates;`,
 		);
 	});
 });
