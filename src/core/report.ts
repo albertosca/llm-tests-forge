@@ -294,18 +294,23 @@ function judgeName(provider: string | undefined): string {
 
 /**
  * Whether a judge's `completionDetails.reasoning` is billed on top of its
- * `completion`. Google (and Vertex) report the hidden reasoning apart from
- * the answer, so leaving it out understates a thinking judge severalfold.
- * Anthropic does not: promptfoo 0.123.0 maps Anthropic's `output_tokens`
- * to `completion` and its `thinking_tokens` to the reasoning detail, so
- * the reasoning is already inside `completion` and adding it counted it
- * twice. Every other provider is taken to include it too, as OpenAI's API
- * documents for `completion_tokens` (not measured on a run here).
+ * `completion`. Google (and Vertex's Gemini) report the hidden reasoning
+ * apart from the answer, so leaving it out understates a thinking judge
+ * severalfold. Anthropic does not: promptfoo 0.123.0 maps Anthropic's
+ * `output_tokens` to `completion` and its `thinking_tokens` to the
+ * reasoning detail, so the reasoning is already inside `completion` and
+ * adding it counted it twice. Vertex's Claude goes through that same
+ * Anthropic mapping: promptfoo 0.123.0's Vertex provider sends any model
+ * whose name includes "claude" to its Claude call, which reads usage with
+ * the Anthropic `getTokenUsage` (read in its dist). Every other provider
+ * is taken to include it too, as OpenAI's API documents for
+ * `completion_tokens` (not measured on a run here).
  */
 function reasoningBilledApart(provider: string | undefined): boolean {
 	return (
 		provider !== undefined &&
-		(provider.startsWith("google:") || provider.startsWith("vertex:"))
+		(provider.startsWith("google:") ||
+			(provider.startsWith("vertex:") && !provider.includes("claude")))
 	);
 }
 

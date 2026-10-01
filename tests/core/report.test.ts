@@ -766,7 +766,7 @@ describe("buildReport", () => {
 		]);
 	});
 
-	test("judge reasoning is added to the output only where the provider reports it apart: Google and Vertex, never Anthropic", () => {
+	test("judge reasoning is added to the output only where the provider reports it apart: Google and Vertex's Gemini, never Anthropic nor Vertex's Claude", () => {
 		// promptfoo 0.123.0 maps Anthropic's `output_tokens` to `completion`
 		// and its `thinking_tokens` to `completionDetails.reasoning`, so the
 		// reasoning is already inside `completion`; Google reports the two
@@ -793,6 +793,8 @@ describe("buildReport", () => {
 			judged("anthropic:messages:claude-sonnet-5", 123, 44),
 			judged("google:gemini-3.5-flash", 55, 243),
 			judged("vertex:gemini-3.5-flash", 72, 272),
+			// promptfoo maps Vertex's Claude through the Anthropic mapping.
+			judged("vertex:claude-sonnet-4-5@20250929", 90, 30),
 		]);
 		const outputOf = (model: string) =>
 			report.costs.find(
@@ -801,6 +803,7 @@ describe("buildReport", () => {
 		expect(outputOf("anthropic/claude-sonnet-5")).toBe(123);
 		expect(outputOf("google/gemini-3.5-flash")).toBe(55 + 243);
 		expect(outputOf("vertex:gemini-3.5-flash")).toBe(72 + 272);
+		expect(outputOf("vertex:claude-sonnet-4-5@20250929")).toBe(90);
 
 		// A Google component recorded without completionDetails (an older
 		// promptfoo) has no reasoning to add, and must not crash on it.
