@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describeFeature } from "../../src/core/describe";
@@ -72,6 +72,32 @@ describe("describeFeature", () => {
 		await expect(
 			describeFeature({ text: " \n\t", model: FAKE, llm: await llm() }),
 		).rejects.toThrow("describe needs a non-empty description");
+	});
+
+	test("a model answer naming an input promptfoo's templates cannot reference is refused with a ForgeError", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-"));
+		const responses = join(directory, "responses.json");
+		await writeFile(
+			responses,
+			JSON.stringify({
+				describe: JSON.stringify({
+					id: "classify-email",
+					purpose: "Classifies hiring emails.",
+					inputs: [{ name: "user message", kind: "text" }],
+					output: { kind: "label", labels: ["rejection"] },
+					invariants: [],
+				}),
+			}),
+		);
+		const caught = await describeFeature({
+			text: "The bot classifies hiring emails",
+			model: `fake/${responses}`,
+			llm: await llm(),
+		}).catch((error: unknown) => error);
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect(String(caught)).toContain(
+			"model output did not match the describe schema",
+		);
 	});
 });
 

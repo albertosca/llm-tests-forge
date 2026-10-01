@@ -427,4 +427,17 @@ describe.skipIf(!shims)("every target kind against promptfoo 0.123.0", () => {
 			server.stop(true);
 		}
 	});
+
+	test("exec: the command's first argument is exactly the first input's value", async () => {
+		// Answers its first argument upper-cased when the model reached it in
+		// the options (the second argument); "text: hello" would fail.
+		const script = `case "$2" in *'"model":"${MODEL}"'*) printf '%s' "$1" | tr a-z A-Z ;; *) printf 'model was %s' "$2" ;; esac\n`;
+		await withProject(
+			{ kind: "exec", command: "sh ./first-argument.sh", models: MODELS },
+			{ "evals/shout/.forge/first-argument.sh": script },
+			async ({ suite }) => {
+				await expectOnePassingHello(suite);
+			},
+		);
+	});
 });

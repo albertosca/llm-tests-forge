@@ -377,6 +377,29 @@ describe("buildPromptfooConfig", () => {
 			"from: {{from}}\nsubject: {{subject}}\nbody: {{body}}",
 		]);
 	});
+	test("an exec target's prompt is the first input alone, which promptfoo passes as the command's first argument", () => {
+		const threeInputFeature: Feature = {
+			...jsonFeature,
+			inputs: [
+				{ name: "from", kind: "text" },
+				{ name: "subject", kind: "text" },
+				{ name: "body", kind: "text" },
+			],
+		};
+		const config = buildPromptfooConfig({
+			feature: threeInputFeature,
+			suite: {
+				...suite,
+				target: {
+					kind: "exec",
+					command: "./run.sh",
+					models: ["anthropic/claude-haiku-4-5"],
+				},
+			},
+			selection,
+		});
+		expect(config.prompts).toEqual(["{{from}}"]);
+	});
 	test("each case becomes a test with its vars and full metadata", () => {
 		const config = buildPromptfooConfig({
 			feature: labelFeature,

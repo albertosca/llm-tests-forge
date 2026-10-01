@@ -403,10 +403,13 @@ export function buildPromptfooConfig(options: {
 			),
 		};
 	});
-	// The target reads its inputs from vars, never from this text: the prompt is what promptfoo's views show for a row, so it names every input.
-	const prompt = feature.inputs
-		.map((input) => `${input.name}: {{${input.name}}}`)
-		.join("\n");
+	// promptfoo passes the rendered prompt to an exec command as its first argument, documented as the feature's first input, so exec keeps exactly that. Every other target reads its inputs from vars, never from this text: there the prompt is only what promptfoo's views show for a row, so it names every input.
+	const prompt =
+		suite.target.kind === "exec"
+			? `{{${feature.inputs[0]?.name ?? "input"}}}`
+			: feature.inputs
+					.map((input) => `${input.name}: {{${input.name}}}`)
+					.join("\n");
 	return {
 		description: `${feature.id}: forge suite, ${selection.cases.length} cases from ${selection.scenarios.length} scenarios`,
 		prompts: [prompt],

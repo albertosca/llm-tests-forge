@@ -94,6 +94,66 @@ describe("FeatureSchema", () => {
 	});
 });
 
+describe("FeatureSchema: input names promptfoo's templates can reference", () => {
+	/** The issues a feature whose only input is named `name` is refused with, as [path, message]. */
+	function refusalsFor(name: string): string[][] | undefined {
+		return FeatureSchema.safeParse({
+			...feature,
+			inputs: [{ name, kind: "text" }],
+		}).error?.issues.map((issue) => [issue.path.join("."), issue.message]);
+	}
+	const refusal = (name: string): string[][] => [
+		[
+			"inputs.0.name",
+			`input name "${name}" cannot be referenced in promptfoo's templates; use letters, digits and underscores, not starting with a digit, and none of not, true, false, none, null`,
+		],
+	];
+
+	test("letters, digits and underscores, not starting with a digit, are accepted, keywords in another case and the operators that render included", () => {
+		for (const name of [
+			"email",
+			"_private",
+			"body2",
+			"Email_Body",
+			"x",
+			"NOT",
+			"True",
+			"None",
+			"and",
+			"or",
+			"in",
+			"is",
+			"if",
+		])
+			expect(refusalsFor(name)).toBeUndefined();
+	});
+	test("a name with a space is refused, naming the input", () => {
+		expect(refusalsFor("user message")).toStrictEqual(refusal("user message"));
+	});
+	test("a name with a hyphen (which promptfoo renders as a subtraction, NaN) is refused", () => {
+		expect(refusalsFor("user-message")).toStrictEqual(refusal("user-message"));
+	});
+	test("a name starting with a digit is refused", () => {
+		expect(refusalsFor("1st")).toStrictEqual(refusal("1st"));
+	});
+	test("a name with a letter outside ASCII is refused", () => {
+		expect(refusalsFor("ünicode")).toStrictEqual(refusal("ünicode"));
+	});
+	test("a name ending in a character that is not a letter, digit or underscore is refused", () => {
+		expect(refusalsFor("email.")).toStrictEqual(refusal("email."));
+	});
+	test("not, true, false, none and null, which promptfoo reads as a keyword or a literal, are refused", () => {
+		for (const name of ["not", "true", "false", "none", "null"])
+			expect(refusalsFor(name)).toStrictEqual(refusal(name));
+	});
+	test("an empty name is refused for being empty, not for its shape", () => {
+		expect(refusalsFor("")?.map(([path]) => path)).toStrictEqual([
+			"inputs.0.name",
+		]);
+		expect(refusalsFor("")?.[0]?.[1]).not.toContain("promptfoo");
+	});
+});
+
 describe("ScenarioSchema", () => {
 	test("requires kind and oracle from the enums", () => {
 		const validScenario = {

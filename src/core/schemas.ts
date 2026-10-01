@@ -13,8 +13,30 @@ export const Oracle = z.enum(["label", "fields", "rubric"]);
 export const Status = z.enum(["pending", "approved", "rejected", "edited"]);
 export const FeatureStatus = z.enum(["pending", "approved", "edited"]);
 
+/**
+ * Every input becomes a `{{<name>}}` in the emitted prompt and the http
+ * default body, and promptfoo 0.123.0 renders those with Nunjucks, which has
+ * no lookup by an arbitrary key (`_vars["a b"]`, `vars[...]`, `context[...]`
+ * and `this[...]` all render empty, measured with a one-case eval). So a
+ * name must be a Nunjucks identifier: `user message` and `not` fail the
+ * render, `user-message` renders NaN, and `true`, `false`, `none`, `null`
+ * render as literals instead of the input. Measured in the same run:
+ * `and`, `or`, `in`, `is`, `if`, `NOT` and `True` render the input.
+ */
+const TEMPLATE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const TEMPLATE_LITERALS = ["not", "true", "false", "none", "null"];
+
 export const FeatureInputSchema = z.object({
-	name: z.string().min(1),
+	name: z
+		.string()
+		.min(1, { abort: true })
+		.refine(
+			(name) => TEMPLATE_NAME.test(name) && !TEMPLATE_LITERALS.includes(name),
+			{
+				error: (issue) =>
+					`input name "${String(issue.input)}" cannot be referenced in promptfoo's templates; use letters, digits and underscores, not starting with a digit, and none of ${TEMPLATE_LITERALS.join(", ")}`,
+			},
+		),
 	kind: z.enum(["text", "json"]),
 	notes: z.string().optional(),
 });

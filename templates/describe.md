@@ -4,6 +4,8 @@ Below is the developer's own description of the feature, and optionally the real
 
 The `id` must be kebab-case, at most five words, derived from the purpose.
 
+Each input `name` uses only letters, digits and underscores and does not start with a digit (for example `email` or `user_message`, never `user message` or `user-message`), and is none of `not`, `true`, `false`, `none`, `null`: it becomes a template variable.
+
 Developer's description:
 <description>
 {{description}}

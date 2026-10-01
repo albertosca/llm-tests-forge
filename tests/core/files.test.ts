@@ -119,6 +119,25 @@ describe("feature round trip", () => {
 		expect((caught as ForgeError).message).toContain("invalid YAML");
 		expect((caught as ForgeError).message).toContain("feature.yaml");
 	});
+
+	test("an input name promptfoo's templates cannot reference is refused, naming feature.yaml and the input", async () => {
+		const directory = await tmpForge();
+		await mkdir(directory, { recursive: true });
+		await writeFile(
+			forgePaths(directory).feature,
+			"id: a\npurpose: b\ninputs:\n  - name: email\n    kind: text\n  - name: user message\n    kind: text\noutput:\n  kind: text\nstatus: pending\n",
+		);
+		const caught = await readFeature(directory).catch(
+			(error: unknown) => error,
+		);
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect((caught as ForgeError).details.file).toBe(
+			forgePaths(directory).feature,
+		);
+		expect((caught as ForgeError).message).toContain(
+			`inputs.1.name: input name "user message" cannot be referenced in promptfoo's templates`,
+		);
+	});
 });
 
 describe("scenarios and cases", () => {
