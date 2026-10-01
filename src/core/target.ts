@@ -47,6 +47,9 @@ export function shimTarget(
 export const RESPONSE_FUNCTION_REFUSAL =
 	"target.response must be an expression over json, not a function: promptfoo calls any text holding => as a function";
 
+/** The refusal of an empty or whitespace-only `target.response`, shared by the suite schema and `httpTransform`. */
+export const EMPTY_RESPONSE_REFUSAL = "target.response is empty";
+
 /**
  * promptfoo's http provider hands the asserts whatever `transformResponse`
  * returns, and an object reaches them as "[object Object]". The expression
@@ -56,8 +59,7 @@ export const RESPONSE_FUNCTION_REFUSAL =
  */
 export function httpTransform(response: string | undefined): string {
 	const expression = response ?? "json";
-	if (expression.trim() === "")
-		throw new ForgeError("target.response is empty");
+	if (expression.trim() === "") throw new ForgeError(EMPTY_RESPONSE_REFUSAL);
 	if (expression.includes("=>"))
 		throw new ForgeError(RESPONSE_FUNCTION_REFUSAL);
 	return `typeof (${expression}) === "string" ? (${expression}) : JSON.stringify(${expression})`;

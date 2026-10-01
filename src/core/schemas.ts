@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RESPONSE_FUNCTION_REFUSAL } from "./target";
+import { EMPTY_RESPONSE_REFUSAL, RESPONSE_FUNCTION_REFUSAL } from "./target";
 
 export const Kind = z.enum([
 	"happy",
@@ -204,7 +204,7 @@ const TargetSchema = z
 				// Stryker disable next-line StringLiteral: the code is never read, see above.
 				code: "custom",
 				path: ["response"],
-				message: "target.response is empty",
+				message: EMPTY_RESPONSE_REFUSAL,
 			});
 		if (target.response?.includes("=>"))
 			context.addIssue({

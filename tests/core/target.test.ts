@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { ForgeError } from "../../src/core/errors";
 import {
+	EMPTY_RESPONSE_REFUSAL,
 	httpTransform,
 	RESPONSE_FUNCTION_REFUSAL,
 	shimTarget,
@@ -77,9 +78,10 @@ describe("httpTransform", () => {
 		);
 	});
 	test("an empty or whitespace-only expression is refused, as the schema refuses it", () => {
+		expect(EMPTY_RESPONSE_REFUSAL).toBe("target.response is empty");
 		for (const response of ["", "   ", "\t\n"]) {
 			expect(() => httpTransform(response)).toThrow(ForgeError);
-			expect(() => httpTransform(response)).toThrow("target.response is empty");
+			expect(() => httpTransform(response)).toThrow(EMPTY_RESPONSE_REFUSAL);
 		}
 	});
 });
