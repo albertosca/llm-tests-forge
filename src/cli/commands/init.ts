@@ -1,4 +1,4 @@
-import { access } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { planAgentsBlock } from "../../core/agents-block";
@@ -22,6 +22,17 @@ async function readIfPresent(path: string): Promise<string | null> {
 		() => false,
 	);
 	return present ? readText(path) : null;
+}
+
+/** Whether two paths, links followed, name the same file. */
+async function sameFile(first: string, second: string): Promise<boolean> {
+	const [firstStatus, secondStatus] = await Promise.all([
+		stat(first),
+		stat(second),
+	]);
+	return (
+		firstStatus.dev === secondStatus.dev && firstStatus.ino === secondStatus.ino
+	);
 }
 
 function parseLanguage(value: string): Language {
@@ -100,8 +111,15 @@ export async function initCommand(
 		`init: ${planned.replaced ? "updated" : "wrote"} the llm-tests-forge block in ${AGENTS_FILE}`,
 	);
 
-	const claude = await readIfPresent(join(root, CLAUDE_FILE));
-	if (claude !== null && !claude.includes(AGENTS_FILE))
+	const claudePath = join(root, CLAUDE_FILE);
+	const claude = await readIfPresent(claudePath);
+	// One file under both names (a symlink either way) already holds the
+	// block: importing AGENTS.md there would make it import itself.
+	if (
+		claude !== null &&
+		!claude.includes(AGENTS_FILE) &&
+		!(await sameFile(claudePath, agentsPath))
+	)
 		context.stdout(
 			`init: ${CLAUDE_FILE} does not import ${AGENTS_FILE}; add the line "@${AGENTS_FILE}" to it so Claude Code reads the block`,
 		);

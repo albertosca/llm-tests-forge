@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
 	chmod,
+	link,
 	mkdir,
 	mkdtemp,
 	readFile,
 	stat,
+	symlink,
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -111,6 +113,35 @@ describe("init through main()", () => {
 		expect(second.lines.join("\n")).not.toContain("CLAUDE.md");
 		expect(await readFile(join(importing, "CLAUDE.md"), "utf8")).toBe(
 			"@AGENTS.md\n",
+		);
+	});
+
+	test("an AGENTS.md that is the same file as CLAUDE.md (a symlink either way) gets no hint to import itself", async () => {
+		for (const linkName of ["AGENTS.md", "CLAUDE.md"]) {
+			const directory = await directoryWith(["go.mod"]);
+			const target = linkName === "AGENTS.md" ? "CLAUDE.md" : "AGENTS.md";
+			await writeFile(join(directory, target), "# Notes\n");
+			await symlink(target, join(directory, linkName));
+			const { status, lines } = await runInit(directory);
+			expect({ linkName, status }).toEqual({ linkName, status: 0 });
+			expect(lines.join("\n")).not.toContain("does not import");
+			// The block went into the one file, through the link.
+			expect(await readFile(join(directory, "CLAUDE.md"), "utf8")).toContain(
+				AGENTS_START,
+			);
+		}
+	});
+
+	test("a hard link between them is broken by the atomic write, so CLAUDE.md is a separate file again and gets the hint", async () => {
+		const directory = await directoryWith(["go.mod"]);
+		await writeFile(join(directory, "CLAUDE.md"), "# Notes\n");
+		await link(join(directory, "CLAUDE.md"), join(directory, "AGENTS.md"));
+		const { lines } = await runInit(directory);
+		expect(lines).toContain(
+			'init: CLAUDE.md does not import AGENTS.md; add the line "@AGENTS.md" to it so Claude Code reads the block',
+		);
+		expect(await readFile(join(directory, "CLAUDE.md"), "utf8")).toBe(
+			"# Notes\n",
 		);
 	});
 
