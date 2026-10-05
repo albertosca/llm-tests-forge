@@ -122,25 +122,26 @@ export function readFailure(error: unknown): string {
  * array element that itself carries a string `id` (every top-level forge
  * list does), name that id and the index instead of the bare number; every
  * other issue (a non-array file, or an array element without an `id`)
- * keeps the plain `path: message` form.
+ * keeps the plain `path: message` form. The element is looked up by its
+ * index, once per issue: walking the items for each issue made a file with
+ * thousands of broken items quadratic. Exported for its test.
  */
-function describeIssue(issue: core.$ZodIssue, data: unknown): string {
-	if (Array.isArray(data)) {
-		const items: unknown[] = data;
-		for (const [index, item] of items.entries())
-			if (
-				index === issue.path[0] &&
-				typeof item === "object" &&
-				item !== null &&
-				"id" in item &&
-				typeof item.id === "string"
-			) {
-				const inside = issue.path
-					.slice(1)
-					.map((step) => `.${String(step)}`)
-					.join("");
-				return `item "${item.id}" (index ${index})${inside}: ${issue.message}`;
-			}
+export function describeIssue(issue: core.$ZodIssue, data: unknown): string {
+	const [index] = issue.path;
+	// On an array, zod's path starts with the element's index, or is empty
+	// for an issue on the array itself: NaN then finds no element.
+	const item: unknown = Array.isArray(data) ? data[Number(index)] : undefined;
+	if (
+		typeof item === "object" &&
+		item !== null &&
+		"id" in item &&
+		typeof item.id === "string"
+	) {
+		const inside = issue.path
+			.slice(1)
+			.map((step) => `.${String(step)}`)
+			.join("");
+		return `item "${item.id}" (index ${String(index)})${inside}: ${issue.message}`;
 	}
 	return `${issue.path.join(".")}: ${issue.message}`;
 }

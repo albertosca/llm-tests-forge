@@ -13,11 +13,14 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
+import { z } from "zod";
 import { ForgeError } from "../../src/core/errors";
 import {
 	caseFileFingerprint,
+	describeIssue,
 	forgePaths,
 	listCaseScenarios,
+	parseYamlText,
 	readAllCases,
 	readCaseFile,
 	readCases,
@@ -37,7 +40,7 @@ import {
 	writeText,
 } from "../../src/core/files";
 import type { Case, Scenario } from "../../src/core/schemas";
-import { LANGUAGES, SuiteSchema } from "../../src/core/schemas";
+import { CaseSchema, LANGUAGES, SuiteSchema } from "../../src/core/schemas";
 
 async function tmpForge(): Promise<string> {
 	const directory = await mkdtemp(join(tmpdir(), "forge-"));
@@ -398,6 +401,51 @@ describe("readYamlFile: array schema errors name the element, not just the path"
 		await writeFile(forgePaths(directory).feature, "id: only-an-id\n");
 		const caught = await readFeature(directory).catch((error: Error) => error);
 		expect((caught as Error).message).toContain("purpose: Invalid input");
+	});
+	test("an empty file read as a list, and a list too short, say what the list should be, naming no item", () => {
+		const refusal = (text: string, schema: z.ZodType): string => {
+			try {
+				parseYamlText("cases.yaml", text, schema);
+			} catch (error) {
+				if (error instanceof ForgeError) return error.message;
+				throw error;
+			}
+			throw new Error("expected a refusal");
+		};
+		const empty = refusal("", z.array(CaseSchema));
+		expect(empty).toContain("Invalid input: expected array, received null");
+		expect(empty).not.toContain("item ");
+		const short = refusal("[]", z.array(CaseSchema).min(1));
+		expect(short).toContain("Too small: expected array to have >=1 items");
+		expect(short).not.toContain("item ");
+	});
+	test("describing the issues of 10,000 broken cases reads each case once, not every case before it", () => {
+		const items = Array.from({ length: 10_000 }, (_, index) => ({
+			id: `case-${index}`,
+			scenario: "s",
+			input: {},
+			status: "approved",
+		}));
+		const result = z.array(CaseSchema).safeParse(items);
+		if (result.success) throw new Error("expected every case to be refused");
+		// Counting reads, not milliseconds: the count is the same on a
+		// loaded CI runner, and reading every earlier case for each issue
+		// costs 5 * 10^7 reads here.
+		let reads = 0;
+		const counted = new Proxy(items, {
+			get(target, key, receiver) {
+				if (typeof key === "string" && /^\d+$/.test(key)) reads += 1;
+				return Reflect.get(target, key, receiver);
+			},
+		});
+		const described = result.error.issues.map((issue) =>
+			describeIssue(issue, counted),
+		);
+		expect(result.error.issues).toHaveLength(10_000);
+		expect(reads).toBe(10_000);
+		expect(described.at(-1)).toBe(
+			'item "case-9999" (index 9999).generated_by: Invalid input: expected string, received undefined',
+		);
 	});
 });
 
