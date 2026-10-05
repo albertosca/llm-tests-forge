@@ -55,7 +55,12 @@ export function processIsAlive(pid: number): boolean {
 	}
 }
 
-/** Whether `path` itself (not a link's target) belongs to this process's user; false when it cannot be read. */
+/**
+ * Whether `path` itself (not a link's target) belongs to this process's user;
+ * false when it cannot be read. Where `process.getuid` does not exist
+ * (Windows), nothing is this user's, so removeAbandonedRuns removes nothing
+ * there and a killed run's directory stays.
+ */
 export function ownedByThisUser(path: string): boolean {
 	try {
 		return lstatSync(path).uid === process.getuid?.();

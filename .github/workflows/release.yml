@@ -53,7 +53,8 @@ jobs:
         with:
           node-version: "22"
       # Cache off, as in ci.yml's packages job: the package tests use their
-      # own uv cache, and v10 also disables it on a release event.
+      # own uv cache. setup-uv's `auto` would not turn it off here: it skips
+      # the `release` event, not a tag push, which is what runs this workflow.
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: false

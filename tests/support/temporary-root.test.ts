@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
 	chmodSync,
+	chownSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
@@ -137,12 +138,43 @@ test("a dead owner's directory that another user owns is kept: a pid is only thi
 	rmSync(parent, { recursive: true, force: true });
 });
 
-test("ownedByThisUser: a directory this process made is, the root directory and a missing path are not", () => {
+/**
+ * A path another uid owns, whoever runs the test: as root (a Docker
+ * container), a file this test hands to uid 1; as anyone else, `/`, which
+ * root owns.
+ */
+function pathOwnedByAnotherUser(directory: string): string {
+	if (process.getuid?.() !== 0) return "/";
+	const handed = join(directory, "handed-to-uid-1");
+	writeFileSync(handed, "x");
+	chownSync(handed, 1, 1);
+	return handed;
+}
+
+test("ownedByThisUser: a directory this process made is; a path another uid owns, and a missing path, are not", () => {
 	const made = mkdtempSync(join(tmpdir(), "owned-"));
 	expect(ownedByThisUser(made)).toBe(true);
-	expect(ownedByThisUser("/")).toBe(false);
+	expect(ownedByThisUser(pathOwnedByAnotherUser(made))).toBe(false);
 	expect(ownedByThisUser(join(made, "missing"))).toBe(false);
 	rmSync(made, { recursive: true, force: true });
+});
+
+test("where process.getuid does not exist (Windows), nothing counts as this user's, so nothing is removed", () => {
+	const made = mkdtempSync(join(tmpdir(), "owned-"));
+	const getuid = process.getuid;
+	try {
+		Object.defineProperty(process, "getuid", {
+			value: undefined,
+			configurable: true,
+		});
+		expect(ownedByThisUser(made)).toBe(false);
+	} finally {
+		Object.defineProperty(process, "getuid", {
+			value: getuid,
+			configurable: true,
+		});
+		rmSync(made, { recursive: true, force: true });
+	}
 });
 
 test("a parent that cannot be listed is left alone without throwing", () => {
