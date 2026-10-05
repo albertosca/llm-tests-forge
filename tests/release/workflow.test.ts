@@ -785,6 +785,12 @@ describe("the package tests in CI", () => {
 				"bun-version": "1.4.2",
 			});
 			expect(withOf("actions/setup-node@v7")).toEqual({ "node-version": "22" });
+			// The package tests keep uv's cache in node_modules/.cache/forge-uv
+			// (tests/support/preload-package-caches.ts), so setup-uv's own cache
+			// would be restored for nothing.
+			expect(withOf("astral-sh/setup-uv@v10.2.0")).toEqual({
+				"enable-cache": false,
+			});
 			expect(withOf("ruby/setup-ruby@v1")).toEqual({ "ruby-version": "3.3" });
 			expect(withOf("erlef/setup-beam@v1")).toEqual({
 				"otp-version": "27",

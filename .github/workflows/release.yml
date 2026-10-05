@@ -52,7 +52,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
+      # Cache off, as in ci.yml's packages job: the package tests use their
+      # own uv cache, and v10 also disables it on a release event.
       - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: false
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"

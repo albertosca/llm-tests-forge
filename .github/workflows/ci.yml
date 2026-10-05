@@ -67,7 +67,13 @@ jobs:
         with:
           node-version: "22"
       # setup-uv publishes no major tags since v8, only immutable releases.
+      # Its cache stays off: the package tests point uv at
+      # node_modules/.cache/forge-uv, so restoring setup-uv's cache (about 3 s
+      # on 2026-10-01) bought nothing; the cold download it would save is
+      # hatchling and five small wheels, 1.9 MB and about 0.5 s.
       - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: false
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
