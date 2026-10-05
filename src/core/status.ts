@@ -126,7 +126,7 @@ export async function suiteStatus(
 		return {
 			entry,
 			state: "error",
-			// Stryker disable next-line MethodExpression: every ForgeError readOk can raise opens with fixed wording and closes with the "(file: …)" suffix its reader adds, so there is no edge whitespace for trim to remove
+			// Stryker disable next-line MethodExpression: every ForgeError readOk can raise (files.ts's readers, selectCases) opens with fixed wording and closes with the "(file: …)" suffix ForgeError adds, so there is no edge whitespace for trim to remove; the status test "every failure readOk can raise…" guards it
 			error: error.message.replace(/\s*\n\s*/g, " ").trim(),
 		};
 	}
@@ -156,6 +156,6 @@ export function renderStatusLine(status: SuiteStatus): string {
 	const line = `${status.entry}   ${feature}   ${scenarios} · ${cases} · ${run}`;
 	// The ⚠ replaces the "warning: " prefix; the JSON keeps versionWarning's text as is.
 	if (status.warning === null) return line;
-	// Stryker disable next-line Regex: both of versionWarning's sentences start with "warning: ", so the first occurrence is always at the start and dropping the anchor replaces the same text
+	// Stryker disable next-line Regex: both of versionWarning's sentences start with "warning: " (the version test "each warning starts with…" guards it), so the first occurrence is always at the start and dropping the anchor replaces the same text
 	return `${line}  ⚠ ${status.warning.replace(/^warning: /, "")}`;
 }

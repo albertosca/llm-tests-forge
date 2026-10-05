@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { parseYamlText } from "../../src/core/files";
 import type { Case, Feature, Scenario } from "../../src/core/schemas";
 import {
 	CaseSchema,
@@ -311,6 +312,24 @@ describe("SuiteSchema.target.kind", () => {
 		});
 		expect(http.target.method).toBe("POST");
 		expect(http.target.response).toBe("json.output.label");
+	});
+	test("a target refusal reads as its path and message alone, never zod's code, which the StringLiteral disables on each code rely on", () => {
+		const issue = SuiteSchema.safeParse({
+			target: { kind: "exec", models: ["m/x"] },
+			judges: ["google/gemini-3.5-flash"],
+		}).error?.issues[0];
+		expect(issue?.code).toBe("custom");
+		expect(() =>
+			parseYamlText(
+				"suite.yaml",
+				"target: {kind: exec, models: [m/x]}\njudges: [google/gemini-3.5-flash]\n",
+				SuiteSchema,
+			),
+		).toThrow(
+			new Error(
+				"does not match schema: target.command: target.command is required when target.kind is exec (file: suite.yaml)",
+			),
+		);
 	});
 	test("each target refusal is reported at the field it is about", () => {
 		const judges = ["google/gemini-3.5-flash"];

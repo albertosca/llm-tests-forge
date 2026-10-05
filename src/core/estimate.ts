@@ -336,7 +336,7 @@ export function estimateSuite(parameters: {
 	// rubric (the characters band) and promptfoo's own grading prompt (the
 	// overhead band).
 	const rubricTokens = rubricCases.map((testCase) =>
-		// Stryker disable next-line OptionalChaining,StringLiteral: selectCases admits a case only with an expected value its scenario's oracle accepts, so every case of a rubric scenario reaching here carries a rubric; the fallback exists for the optional type alone
+		// Stryker disable next-line OptionalChaining,StringLiteral: selectCases admits a case only with an expected value its scenario's oracle accepts, so every case of a rubric scenario reaching here carries a rubric (the select test "a rubric-oracle case whose expected carries only a label is a blocker" guards it); the fallback exists for the optional type alone
 		approxTokens(testCase.expected?.rubric ?? ""),
 	);
 	const perRubricCase = (perCase: (tokens: number) => number): number =>

@@ -302,6 +302,12 @@ async function registeredText(
 }
 
 describe("registerSuite changes only the line it adds", () => {
+	test("readProject refuses a forge.yaml that is not a map, so registerSuite only ever sees a map document (its Stryker disables rely on it)", async () => {
+		for (const text of ["- evals/a\n", "evals/a\n", "null\n"]) {
+			const root = await projectWith(text);
+			await expect(readProject(root)).rejects.toThrow("does not match schema");
+		}
+	});
 	test("a CRLF block list gets a CRLF line at the last item's indent, and nothing else changes", async () => {
 		expect(
 			await registeredText(

@@ -16,6 +16,10 @@ describe("FORGE_VERSION", () => {
 		);
 		expect(FORGE_VERSION).toBe(packageJson.version);
 	});
+	test("is a SemVer version, which stampSuite's Stryker disable relies on: a one-line text prints plain whatever its scalar type", () => {
+		// A text that does not parse compares as "older", even with itself.
+		expect(compareVersions(FORGE_VERSION, FORGE_VERSION)).toBe("same");
+	});
 });
 
 describe("compareVersions", () => {

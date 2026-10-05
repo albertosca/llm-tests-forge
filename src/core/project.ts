@@ -380,7 +380,7 @@ export function registerSuite(
 		replacement.commentBefore = [...lines(suites.commentBefore), ...below].join(
 			"\n",
 		);
-		// Stryker disable next-line ConditionalExpression,ArrayDeclaration: suites is a node only inside a map document (ProjectConfigSchema read the file as one), so the empty list is never iterated; the guard is for the type alone
+		// Stryker disable next-line ConditionalExpression,ArrayDeclaration: suites is a node only inside a map document (readProject read the file with ProjectConfigSchema, an object; the project test "readProject refuses a forge.yaml that is not a map" guards it), so the empty list is never iterated; the guard is for the type alone
 		const pairs = isMap(document.contents) ? document.contents.items : [];
 		for (const pair of pairs) {
 			// Stryker disable next-line ConditionalExpression: for the type alone: a key that is not a scalar has no value "suites" either way

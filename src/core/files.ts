@@ -604,7 +604,7 @@ export async function stampSuite(
 		document.set("forge_version", stamp);
 		const node = document.get("forge_version", true);
 		// An empty stamp was written `""`: the new one is a plain scalar.
-		// Stryker disable next-line StringLiteral: yaml writes a scalar with an empty type in its default style, plain for any one-line text, and the stamp is FORGE_VERSION (the one caller, src/cli/main.ts, passes it) or an existing stamp that parses as semver (probed: only a text holding a line break prints differently).
+		// Stryker disable next-line StringLiteral: yaml writes a scalar with an empty type in its default style, plain for any one-line text, and the stamp is FORGE_VERSION (the one caller, src/cli/main.ts, passes it; the version test "is a SemVer version" guards its shape) or an existing stamp that parses as semver (probed: only a text holding a line break prints differently).
 		if (isScalar(node)) node.type = "PLAIN";
 	} else {
 		const stampKey = new Scalar("forge_version");

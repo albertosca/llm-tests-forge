@@ -173,7 +173,8 @@ const TargetSchema = z
 	// is given (probed with zod 4.6.5), and the forge reports an issue by its
 	// path and message alone (describeIssue in files.ts, and review.ts), never
 	// by its code, so an empty code reads the same to a person. Hence the
-	// StringLiteral disables below.
+	// StringLiteral disables below; the schemas test "a target refusal reads
+	// as its path and message alone" guards it.
 	.superRefine((target, context) => {
 		if (target.kind === "exec" && target.command === undefined)
 			context.addIssue({

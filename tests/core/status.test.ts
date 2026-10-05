@@ -245,7 +245,7 @@ describe("suiteStatus and renderStatusLine", () => {
 		expect(status.error).toContain(" description: [unclosed ^ ");
 	});
 
-	test("every failure readOk can raise ends with the file its reader names, so the message has no edge whitespace to trim", async () => {
+	test("every failure readOk can raise ends with the file its reader or selectCases names, so the message has no edge whitespace to trim", async () => {
 		const broken: Record<string, string> = {
 			"feature.yaml": "id: [unclosed\n",
 			"scenarios.yaml": "- id: [unclosed\n",
@@ -261,6 +261,18 @@ describe("suiteStatus and renderStatusLine", () => {
 			if (status.state !== "error")
 				throw new Error(`expected an error suite for ${name}`);
 			expect(status.error).toEndWith(`(file: ${path})`);
+			expect(status.error).toBe(status.error.trim());
+		}
+		// selectCases' refusals name the file and the item.
+		const refused = [
+			await suiteWithRenamedKey("edges-keys", "approved"),
+			await suiteWithMissingInclude("edges-include"),
+		];
+		for (const { directory } of refused) {
+			const status = await suiteStatus("evals/edges", directory, FORGE_VERSION);
+			if (status.state !== "error")
+				throw new Error(`expected an error suite for ${directory}`);
+			expect(status.error).toMatch(/\(file: [^)]+, id: [^)]+\)$/);
 			expect(status.error).toBe(status.error.trim());
 		}
 	});
@@ -450,16 +462,22 @@ describe("suiteStatus and renderStatusLine", () => {
 		expect(status.state).toBe("ok");
 	});
 
-	test("an include naming no scenario is the error row selectCases refuses it with", async () => {
-		const directory = await suiteCopy("badinclude");
+	/** The suite copy with suite.yaml's include naming a scenario that does not exist. */
+	async function suiteWithMissingInclude(
+		name: string,
+	): Promise<{ directory: string; suiteFile: string }> {
+		const directory = await suiteCopy(name);
 		const suiteFile = join(directory, ".forge", "suite.yaml");
-		await writeFile(
-			suiteFile,
-			(await readFile(suiteFile, "utf8")).replace(
-				/^include: \[\]$/m,
-				"include: [gone]",
-			),
-		);
+		const text = await readFile(suiteFile, "utf8");
+		const rewritten = text.replace(/^include: \[\]$/m, "include: [gone]");
+		expect(rewritten).not.toBe(text);
+		await writeFile(suiteFile, rewritten);
+		return { directory, suiteFile };
+	}
+
+	test("an include naming no scenario is the error row selectCases refuses it with", async () => {
+		const { directory, suiteFile } =
+			await suiteWithMissingInclude("badinclude");
 		const status = await suiteStatus(
 			"evals/badinclude",
 			directory,
