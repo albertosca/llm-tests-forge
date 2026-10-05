@@ -66,17 +66,38 @@ module LlmTestsForge
   end
 
   # What the shim says when no binary runs here: musl, which no binary
-  # supports yet; the fallback gem on a platform that has a native gem, which
-  # only force_ruby_platform or --platform ruby installs; or a platform
-  # without a binary.
-  def missing_binary_message(local_platform: Gem::Platform.local, installed_gem_platform: self.installed_gem_platform)
+  # supports yet; the fallback gem on a platform that has a native gem, with
+  # what chose it (fallback_cause, read only then); or a platform without a
+  # binary.
+  def missing_binary_message(local_platform: Gem::Platform.local, installed_gem_platform: self.installed_gem_platform,
+                             fallback_cause: nil)
     name = platform_name(local_platform)
     return musl_message(name) if musl?(local_platform)
 
     native = native_gem_platform(local_platform)
-    return fallback_chosen_message(name, native) if installed_gem_platform == FALLBACK_GEM_PLATFORM && native
+    if installed_gem_platform == FALLBACK_GEM_PLATFORM && native
+      return fallback_chosen_message(name, native, fallback_cause || self.fallback_cause)
+    end
 
     "llm-tests-forge has no binary for #{name}; see #{REPOSITORY_URL} for install.sh"
+  end
+
+  # What installed the fallback where a native gem fits. Under Bundler, its
+  # force_ruby_platform (set in its settings, or for this gem in the Gemfile)
+  # or else a Gemfile.lock whose PLATFORMS lack this platform; outside
+  # Bundler, gem install --platform ruby.
+  def fallback_cause(bundler = defined?(::Bundler) ? ::Bundler : nil)
+    return :gem_install unless bundler.respond_to?(:settings)
+    return :force_ruby_platform if bundler.settings[:force_ruby_platform] || gemfile_forces_ruby_platform?(bundler)
+
+    :lockfile
+  end
+
+  def gemfile_forces_ruby_platform?(bundler)
+    dependency = bundler.definition.dependencies.find { |candidate| candidate.name == "llm-tests-forge" }
+    dependency.respond_to?(:force_ruby_platform) && dependency.force_ruby_platform ? true : false
+  rescue StandardError
+    false
   end
 
   def musl_message(name)
@@ -84,12 +105,19 @@ module LlmTestsForge
       "see #{REPOSITORY_URL}"
   end
 
-  def fallback_chosen_message(name, native)
+  FALLBACK_CAUSES = {
+    force_ruby_platform: "Bundler's force_ruby_platform chose the fallback. Unset it " \
+                         "(bundle config unset force_ruby_platform, or drop force_ruby_platform: true " \
+                         "from the Gemfile) and run bundle install",
+    lockfile: "Bundler chose the fallback because the PLATFORMS of Gemfile.lock lack this platform. " \
+              "Add it: bundle lock --add-platform %<native>s, then bundle install",
+    gem_install: "gem install --platform ruby chose the fallback (if Bundler installed it, run it with " \
+                 "bundle exec to see why). Reinstall it without --platform ruby: gem install llm-tests-forge"
+  }.freeze
+
+  def fallback_chosen_message(name, native, cause)
     "llm-tests-forge: this is the ruby-platform fallback gem, which has no binary, " \
-      "but #{name} has a native gem (#{native}); Bundler's force_ruby_platform or " \
-      "gem install --platform ruby chose the fallback. Remove force_ruby_platform for it " \
-      "(bundle config unset force_ruby_platform, or force_ruby_platform: true in the Gemfile), " \
-      "or run gem install llm-tests-forge without --platform ruby"
+      "but #{name} has a native gem (#{native}); #{format(FALLBACK_CAUSES.fetch(cause), native: native)}"
   end
 
   # Runs the binary as a child and returns its exit status. The shim stays

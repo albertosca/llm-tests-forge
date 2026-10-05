@@ -553,9 +553,71 @@ async function installedPlatforms(home: string): Promise<string> {
 	);
 }
 
-/** What the fallback gem says on a platform that has a native gem (`name` in npm's spelling, `native` the native gem's platform). */
-function fallbackGemChosenMessage(name: string, native: string): string {
-	return `llm-tests-forge: this is the ruby-platform fallback gem, which has no binary, but ${name} has a native gem (${native}); Bundler's force_ruby_platform or gem install --platform ruby chose the fallback. Remove force_ruby_platform for it (bundle config unset force_ruby_platform, or force_ruby_platform: true in the Gemfile), or run gem install llm-tests-forge without --platform ruby`;
+/**
+ * A Bundler project depending on llm-tests-forge from `source`, with every
+ * Bundler path kept inside it: `bundle install`, then `bundle exec
+ * llm-tests-forge --version`, whose result is returned. `lockfile` is written
+ * as Gemfile.lock first; `configuration` holds BUNDLE_* settings.
+ */
+async function bundledProject(
+	work: string,
+	source: string,
+	options: {
+		lockfile?: string;
+		configuration?: Record<string, string>;
+		gemOptions?: string;
+	},
+): Promise<Finished> {
+	const project = await mkdtemp(join(work, "bundled-"));
+	await writeFile(
+		join(project, "Gemfile"),
+		`source ${JSON.stringify(source)}\ngem "llm-tests-forge"${options.gemOptions ?? ""}\n`,
+	);
+	if (options.lockfile !== undefined)
+		await writeFile(join(project, "Gemfile.lock"), options.lockfile);
+	const environment = {
+		...process.env,
+		BUNDLE_GEMFILE: join(project, "Gemfile"),
+		BUNDLE_PATH: join(project, "vendor"),
+		BUNDLE_APP_CONFIG: join(project, ".bundle"),
+		BUNDLE_USER_HOME: join(project, "bundle-home"),
+		GEM_SPEC_CACHE: join(project, "spec-cache"),
+		...options.configuration,
+	};
+	const installation = await run(
+		["bundle", "install", "--quiet"],
+		project,
+		environment,
+	);
+	if (installation.exitCode !== 0)
+		throw new Error(
+			`bundle install exited ${installation.exitCode}: ${installation.stdout}${installation.stderr}`,
+		);
+	return run(
+		["bundle", "exec", "llm-tests-forge", "--version"],
+		project,
+		environment,
+	);
+}
+
+/** What chose the fallback gem on a platform that has a native gem: Bundler's force_ruby_platform, a Gemfile.lock whose PLATFORMS lacks this platform, or gem install outside Bundler. */
+type FallbackCause = "force_ruby_platform" | "lockfile" | "gem_install";
+
+/** What the fallback gem says on a platform that has a native gem (`name` in npm's spelling, `native` the native gem's platform), for each cause. */
+function fallbackGemChosenMessage(
+	name: string,
+	native: string,
+	cause: FallbackCause,
+): string {
+	const opening = `llm-tests-forge: this is the ruby-platform fallback gem, which has no binary, but ${name} has a native gem (${native}); `;
+	const causes: Record<FallbackCause, string> = {
+		force_ruby_platform:
+			"Bundler's force_ruby_platform chose the fallback. Unset it (bundle config unset force_ruby_platform, or drop force_ruby_platform: true from the Gemfile) and run bundle install",
+		lockfile: `Bundler chose the fallback because the PLATFORMS of Gemfile.lock lack this platform. Add it: bundle lock --add-platform ${native}, then bundle install`,
+		gem_install:
+			"gem install --platform ruby chose the fallback (if Bundler installed it, run it with bundle exec to see why). Reinstall it without --platform ruby: gem install llm-tests-forge",
+	};
+	return `${opening}${causes[cause]}`;
 }
 
 describe.skipIf(!packages)("the fallback gem", () => {
@@ -590,7 +652,7 @@ describe.skipIf(!packages)("the fallback gem", () => {
 		expect(await run([entry, "--version"], work, environment)).toEqual({
 			exitCode: 1,
 			stdout: "",
-			stderr: `${fallbackGemChosenMessage(NPM_PLATFORM_NAME, HOST.gemPlatform)}\n`,
+			stderr: `${fallbackGemChosenMessage(NPM_PLATFORM_NAME, HOST.gemPlatform, "gem_install")}\n`,
 		});
 	}, 600_000);
 
@@ -664,7 +726,7 @@ describe.skipIf(!packages)("the fallback gem", () => {
 		);
 	}, 600_000);
 
-	test("the fallback gem on a platform that has a native gem says force_ruby_platform or --platform ruby chose it, and how to get the native gem", async () => {
+	test("the fallback gem on a platform that has a native gem names the native gem, what chose the fallback, and the fix for that cause", async () => {
 		const { work } = await builtGems();
 		// [local platform as RubyGems reports it, the npm name, the native gem's platform]
 		const cases: [string, string, string][] = [
@@ -674,18 +736,63 @@ describe.skipIf(!packages)("the fallback gem", () => {
 			["aarch64-linux", "linux-arm64", "aarch64-linux-gnu"],
 			["x64-mingw-ucrt", "win32-x64", "x64-mingw-ucrt"],
 		];
-		for (const [local, name, native] of cases) {
-			const finished = await rubyOutput(
-				`print LlmTestsForge.missing_binary_message(local_platform: Gem::Platform.new(${JSON.stringify(local)}), installed_gem_platform: "ruby")`,
-				work,
-			);
-			expect({ local, ...finished }).toEqual({
-				local,
-				exitCode: 0,
-				stdout: fallbackGemChosenMessage(name, native),
-				stderr: "",
-			});
-		}
+		for (const cause of [
+			"force_ruby_platform",
+			"lockfile",
+			"gem_install",
+		] as const)
+			for (const [local, name, native] of cases) {
+				const finished = await rubyOutput(
+					`print LlmTestsForge.missing_binary_message(local_platform: Gem::Platform.new(${JSON.stringify(local)}), installed_gem_platform: "ruby", fallback_cause: :${cause})`,
+					work,
+				);
+				expect({ local, cause, ...finished }).toEqual({
+					local,
+					cause,
+					exitCode: 0,
+					stdout: fallbackGemChosenMessage(name, native, cause),
+					stderr: "",
+				});
+			}
+	}, 600_000);
+
+	test("the cause is read from Bundler when it is loaded: force_ruby_platform set globally or for this gem in the Gemfile, otherwise the lockfile; without Bundler, gem install", async () => {
+		const { work } = await builtGems();
+		// A stand-in for the Bundler module: its settings, and the Gemfile's
+		// llm-tests-forge dependency (nil when the Gemfile has none, :raise when
+		// reading the definition fails).
+		const stub = `
+FakeDependency = Struct.new(:name, :force_ruby_platform)
+FakeDefinition = Struct.new(:dependencies)
+FakeBundler = Struct.new(:settings, :gemfile_force) do
+  def definition
+    raise "no Gemfile" if gemfile_force == :raise
+    FakeDefinition.new([FakeDependency.new("other", true), FakeDependency.new("llm-tests-forge", gemfile_force)])
+  end
+end`;
+		// [the program's expression, the cause]
+		const cases: [string, string][] = [
+			["LlmTestsForge.fallback_cause(nil)", "gem_install"],
+			[
+				"LlmTestsForge.fallback_cause(FakeBundler.new({ force_ruby_platform: true }, false))",
+				"force_ruby_platform",
+			],
+			[
+				"LlmTestsForge.fallback_cause(FakeBundler.new({ force_ruby_platform: false }, true))",
+				"force_ruby_platform",
+			],
+			[
+				"LlmTestsForge.fallback_cause(FakeBundler.new({ force_ruby_platform: nil }, false))",
+				"lockfile",
+			],
+			["LlmTestsForge.fallback_cause(FakeBundler.new({}, :raise))", "lockfile"],
+			["LlmTestsForge.fallback_cause", "gem_install"],
+		];
+		for (const [expression, cause] of cases)
+			expect({
+				expression,
+				...(await rubyOutput(`${stub}\nprint ${expression}`, work)),
+			}).toEqual({ expression, exitCode: 0, stdout: cause, stderr: "" });
 	}, 600_000);
 
 	test("the fallback gem where no native gem fits, and a native gem missing its binary, keep the plain message", async () => {
@@ -742,7 +849,67 @@ describe.skipIf(!packages)("the fallback gem", () => {
 		expect(await run([entry, "--version"], work, environment)).toEqual({
 			exitCode: 1,
 			stdout: "",
-			stderr: `${fallbackGemChosenMessage(NPM_PLATFORM_NAME, HOST.gemPlatform)}\n`,
+			stderr: `${fallbackGemChosenMessage(NPM_PLATFORM_NAME, HOST.gemPlatform, "gem_install")}\n`,
+		});
+	}, 600_000);
+
+	test("under bundle exec, force_ruby_platform installs the fallback and the shim names it; a Gemfile.lock whose PLATFORMS lack this platform installs it too, and the shim names that", async () => {
+		if (HOST === undefined) throw new Error("this machine is not a target");
+		const { hostGem, foreignGem, fallbackGem, work } = await builtGems();
+		const repository = await gemRepository(
+			[fallbackGem, hostGem, foreignGem],
+			"fallback-last",
+		);
+		const source = `${pathToFileURL(repository).href}/`;
+		const forced = await bundledProject(work, source, {
+			configuration: { BUNDLE_FORCE_RUBY_PLATFORM: "true" },
+		});
+		expect(forced).toEqual({
+			exitCode: 1,
+			stdout: "",
+			stderr: `${fallbackGemChosenMessage(NPM_PLATFORM_NAME, HOST.gemPlatform, "force_ruby_platform")}\n`,
+		});
+		// The same setting for this gem alone, in the Gemfile.
+		expect(
+			await bundledProject(work, source, {
+				gemOptions: ", force_ruby_platform: true",
+			}),
+		).toEqual({
+			exitCode: 1,
+			stdout: "",
+			stderr: `${fallbackGemChosenMessage(NPM_PLATFORM_NAME, HOST.gemPlatform, "force_ruby_platform")}\n`,
+		});
+		// Locked on another machine: ruby and the foreign platform, not this one.
+		// (A lockfile listing ruby alone is re-resolved: Bundler adds this
+		// platform and installs the native gem.)
+		if (FOREIGN === undefined) throw new Error("no foreign target");
+		const locked = await bundledProject(work, source, {
+			lockfile: [
+				"GEM",
+				`  remote: ${source}`,
+				"  specs:",
+				`    llm-tests-forge (${FORGE_VERSION})`,
+				`    llm-tests-forge (${FORGE_VERSION}-${FOREIGN.gemPlatform})`,
+				"",
+				"PLATFORMS",
+				"  ruby",
+				`  ${FOREIGN.gemPlatform}`,
+				"",
+				"DEPENDENCIES",
+				"  llm-tests-forge",
+				"",
+			].join("\n"),
+		});
+		expect(locked).toEqual({
+			exitCode: 1,
+			stdout: "",
+			stderr: `${fallbackGemChosenMessage(NPM_PLATFORM_NAME, HOST.gemPlatform, "lockfile")}\n`,
+		});
+		// A control: with neither, Bundler installs the native gem and it runs.
+		expect(await bundledProject(work, source, {})).toEqual({
+			exitCode: 0,
+			stdout: `${FORGE_VERSION}\n`,
+			stderr: "",
 		});
 	}, 600_000);
 
