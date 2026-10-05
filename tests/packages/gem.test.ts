@@ -405,12 +405,16 @@ describe.skipIf(!packages)("rubygems gems", () => {
 			["x86_64-linux", "linux-x64"],
 			["aarch64-linux", "linux-arm64"],
 			["x64-mingw-ucrt", "win32-x64"],
+			["x64-mingw32", "win32-x64"],
+			["x86-mingw32", "win32-ia32"],
 			["x86_64-freebsd", "freebsd-x64"],
-			["x86-linux", "linux-x86"],
+			// RubyGems spells every 32-bit x86 (i386 to i686) as x86; npm says ia32.
+			["x86-linux", "linux-ia32"],
+			["i686-linux", "linux-ia32"],
 		];
 		for (const [local, name] of cases) {
 			const finished = await rubyOutput(
-				`print LlmTestsForge.missing_binary_message(local_platform: Gem::Platform.new(${JSON.stringify(local)}))`,
+				`print LlmTestsForge.missing_binary_message(local_platform: Gem::Platform.new(${JSON.stringify(local)}), installed_gem_platform: nil)`,
 				work,
 			);
 			expect({ local, ...finished }).toEqual({
@@ -548,7 +552,15 @@ async function installedPlatforms(home: string): Promise<string> {
 	);
 }
 
-const UNSUPPORTED_MESSAGE = `llm-tests-forge has no binary for ${NPM_PLATFORM_NAME}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`;
+/** What the shim says on musl Linux, which no release binary runs on (`name` in npm's spelling, linux-x64). */
+function muslMessage(name: string): string {
+	return `llm-tests-forge has no binary for musl/Alpine yet (${name}-musl): the ${name} binary needs glibc; see https://github.com/albertosca/llm-tests-forge`;
+}
+
+/** What the fallback gem says on a platform that has a native gem (`name` in npm's spelling, `native` the native gem's platform). */
+function fallbackGemChosenMessage(name: string, native: string): string {
+	return `llm-tests-forge: this is the ruby-platform fallback gem, which has no binary, but ${name} has a native gem (${native}); Bundler's force_ruby_platform or gem install --platform ruby chose the fallback. Remove force_ruby_platform for it (bundle config unset force_ruby_platform, or force_ruby_platform: true in the Gemfile), or run gem install llm-tests-forge without --platform ruby`;
+}
 
 describe.skipIf(!packages)("the fallback gem", () => {
 	test("with the host gem and the fallback in one repository, in either index order, gem install by name installs the host gem, and the shim runs the binary", async () => {
@@ -570,7 +582,10 @@ describe.skipIf(!packages)("the fallback gem", () => {
 		}
 	}, 600_000);
 
-	test("with only the fallback in the repository, gem install by name installs it, and the shim names this platform and install.sh and exits 1", async () => {
+	// This machine has a native gem, so the installed fallback says so; the
+	// plain message for a platform without one is pinned by the message tests.
+	test("with only the fallback in the repository, gem install by name installs it, and its shim exits 1 naming the native gem this platform has", async () => {
+		if (HOST === undefined) throw new Error("this machine is not a target");
 		const { fallbackGem, work } = await builtGems();
 		const { home, entry, environment } = await installedFrom(
 			await gemRepository([fallbackGem], "fallback-last"),
@@ -579,7 +594,7 @@ describe.skipIf(!packages)("the fallback gem", () => {
 		expect(await run([entry, "--version"], work, environment)).toEqual({
 			exitCode: 1,
 			stdout: "",
-			stderr: UNSUPPORTED_MESSAGE,
+			stderr: `${fallbackGemChosenMessage(NPM_PLATFORM_NAME, HOST.gemPlatform)}\n`,
 		});
 	}, 600_000);
 
@@ -639,6 +654,100 @@ describe.skipIf(!packages)("the fallback gem", () => {
 				}).toEqual({ order, platform, installed: chosen });
 			}
 		}
+	}, 600_000);
+
+	test("the shim's list of native gem platforms is the release targets' (scripts/release/targets.ts), in order", async () => {
+		const { work } = await builtGems();
+		const finished = await rubyOutput(
+			'require "json"\nprint JSON.generate(LlmTestsForge::RELEASE_GEM_PLATFORMS)',
+			work,
+		);
+		expect(finished.exitCode).toBe(0);
+		expect(JSON.parse(finished.stdout)).toEqual(
+			RELEASE_TARGETS.map((target) => target.gemPlatform),
+		);
+	}, 600_000);
+
+	test("the fallback gem on a platform that has a native gem says force_ruby_platform or --platform ruby chose it, and how to get the native gem", async () => {
+		const { work } = await builtGems();
+		// [local platform as RubyGems reports it, the npm name, the native gem's platform]
+		const cases: [string, string, string][] = [
+			["arm64-darwin-25", "darwin-arm64", "arm64-darwin"],
+			["x86_64-darwin-23", "darwin-x64", "x86_64-darwin"],
+			["x86_64-linux", "linux-x64", "x86_64-linux-gnu"],
+			["aarch64-linux", "linux-arm64", "aarch64-linux-gnu"],
+			["x64-mingw-ucrt", "win32-x64", "x64-mingw-ucrt"],
+		];
+		for (const [local, name, native] of cases) {
+			const finished = await rubyOutput(
+				`print LlmTestsForge.missing_binary_message(local_platform: Gem::Platform.new(${JSON.stringify(local)}), installed_gem_platform: "ruby")`,
+				work,
+			);
+			expect({ local, ...finished }).toEqual({
+				local,
+				exitCode: 0,
+				stdout: fallbackGemChosenMessage(name, native),
+				stderr: "",
+			});
+		}
+	}, 600_000);
+
+	test("the fallback gem where no native gem fits, and a native gem missing its binary, keep the plain message", async () => {
+		const { work } = await builtGems();
+		// [local platform, the gem installed, the npm name]
+		const cases: [string, string, string][] = [
+			["x86_64-freebsd", "ruby", "freebsd-x64"],
+			["x86-mingw32", "ruby", "win32-ia32"],
+			["arm64-darwin-25", "arm64-darwin", "darwin-arm64"],
+		];
+		for (const [local, installedPlatform, name] of cases) {
+			const finished = await rubyOutput(
+				`print LlmTestsForge.missing_binary_message(local_platform: Gem::Platform.new(${JSON.stringify(local)}), installed_gem_platform: ${JSON.stringify(installedPlatform)})`,
+				work,
+			);
+			expect({ local, ...finished }).toEqual({
+				local,
+				exitCode: 0,
+				stdout: `llm-tests-forge has no binary for ${name}; see https://github.com/albertosca/llm-tests-forge for install.sh`,
+				stderr: "",
+			});
+		}
+	}, 600_000);
+
+	test("on musl Linux, whichever gem is installed, the message says musl has no binary yet instead of naming linux-x64 unsupported", async () => {
+		const { work } = await builtGems();
+		const cases: [string, string, string][] = [
+			["x86_64-linux-musl", "ruby", "linux-x64"],
+			["aarch64-linux-musl", "ruby", "linux-arm64"],
+			["x86_64-linux-musl", "x86_64-linux-gnu", "linux-x64"],
+		];
+		for (const [local, installedPlatform, name] of cases) {
+			const finished = await rubyOutput(
+				`print LlmTestsForge.missing_binary_message(local_platform: Gem::Platform.new(${JSON.stringify(local)}), installed_gem_platform: ${JSON.stringify(installedPlatform)})`,
+				work,
+			);
+			expect({ local, ...finished }).toEqual({
+				local,
+				exitCode: 0,
+				stdout: muslMessage(name),
+				stderr: "",
+			});
+		}
+	}, 600_000);
+
+	test("gem install --platform ruby on this machine installs the fallback beside a native gem, and the installed shim says what chose it", async () => {
+		if (HOST === undefined) throw new Error("this machine is not a target");
+		const { hostGem, fallbackGem, work } = await builtGems();
+		const { home, entry, environment } = await installedFrom(
+			await gemRepository([fallbackGem, hostGem], "fallback-last"),
+			"ruby",
+		);
+		expect(await installedPlatforms(home)).toBe("ruby");
+		expect(await run([entry, "--version"], work, environment)).toEqual({
+			exitCode: 1,
+			stdout: "",
+			stderr: `${fallbackGemChosenMessage(NPM_PLATFORM_NAME, HOST.gemPlatform)}\n`,
+		});
 	}, 600_000);
 
 	test("the gemspec refuses a binary for the platform ruby, since the fallback ships none", async () => {
