@@ -134,6 +134,24 @@ describe("pep440Version", () => {
 			);
 	});
 
+	test("a number with a leading zero is refused, naming the version: SemVer forbids it and uv would write it without the zero", () => {
+		for (const [version, number] of [
+			["0.1.0-rc.01", "01"],
+			["0.1.0-rc01", "01"],
+			["0.2.0-beta.007", "007"],
+			["01.2.3", "01"],
+			["1.02.3", "02"],
+			["1.2.00", "00"],
+		] as const)
+			expect(() => pep440Version(version)).toThrow(
+				new ForgeError(
+					`version ${version} has a number with a leading zero (${number}), which SemVer forbids and the wheel would spell without it`,
+				),
+			);
+		expect(pep440Version("0.1.0-rc.0")).toBe("0.1.0rc0");
+		expect(pep440Version("10.20.30-rc.10")).toBe("10.20.30rc10");
+	});
+
 	test("a version that is not MAJOR.MINOR.PATCH is refused, naming it", () => {
 		expect(() => pep440Version("1.2")).toThrow(
 			new ForgeError("version 1.2 is not MAJOR.MINOR.PATCH"),

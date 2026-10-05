@@ -20,12 +20,18 @@ const PEP_440_PRERELEASES: Record<string, string> = {
  * wheel's file name: `0.1.0-rc.1` becomes `0.1.0rc1`, `-alpha.N` becomes
  * `aN`, `-beta.N` becomes `bN`, and a plain `X.Y.Z` stays as it is. Any
  * other label is refused naming it, since the wheel would not carry the
- * version the tag names.
+ * version the tag names. So is a number with a leading zero (`-rc.01`):
+ * SemVer forbids it, and PEP 440 normalises it away (`rc1`).
  */
 export function pep440Version(version: string): string {
 	const parts = /^(\d+\.\d+\.\d+)(.*)$/.exec(version);
 	if (parts === null)
 		throw new ForgeError(`version ${version} is not MAJOR.MINOR.PATCH`);
+	const leadingZero = /(?<!\d)0\d+/.exec(version)?.[0];
+	if (leadingZero !== undefined)
+		throw new ForgeError(
+			`version ${version} has a number with a leading zero (${leadingZero}), which SemVer forbids and the wheel would spell without it`,
+		);
 	const [, release = "", suffix = ""] = parts;
 	if (suffix === "") return release;
 	const prerelease = /^-(alpha|beta|rc)\.?(\d+)$/.exec(suffix);
