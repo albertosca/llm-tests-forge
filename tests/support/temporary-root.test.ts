@@ -14,6 +14,7 @@ import { REPOSITORY } from "../helpers/repository";
 import {
 	createTemporaryRoot,
 	makeWritable,
+	ownedByThisUser,
 	processIsAlive,
 	removeAbandonedRuns,
 	removeTree,
@@ -121,6 +122,29 @@ test("at start, a run directory whose owner is dead is removed; a live owner's, 
 	rmSync(parent, { recursive: true, force: true });
 });
 
+test("a dead owner's directory that another user owns is kept: a pid is only this user's to judge", () => {
+	const parent = mkdtempSync(join(tmpdir(), "parent-"));
+	const deadPid = 999_999_002;
+	const theirs = `forge-test-run-${deadPid}-their01`;
+	const mine = `forge-test-run-${deadPid}-mine01`;
+	for (const name of [theirs, mine]) mkdirSync(join(parent, name));
+	removeAbandonedRuns(
+		parent,
+		() => false,
+		(path) => !path.endsWith(theirs),
+	);
+	expect(readdirSync(parent)).toEqual([theirs]);
+	rmSync(parent, { recursive: true, force: true });
+});
+
+test("ownedByThisUser: a directory this process made is, the root directory and a missing path are not", () => {
+	const made = mkdtempSync(join(tmpdir(), "owned-"));
+	expect(ownedByThisUser(made)).toBe(true);
+	expect(ownedByThisUser("/")).toBe(false);
+	expect(ownedByThisUser(join(made, "missing"))).toBe(false);
+	rmSync(made, { recursive: true, force: true });
+});
+
 test("a parent that cannot be listed is left alone without throwing", () => {
 	expect(() =>
 		removeAbandonedRuns(join(tmpdir(), "does-not-exist"), () => false),
@@ -144,31 +168,45 @@ test("a SIGKILLed run leaves its directory, and the next run's start removes it"
 		],
 		{ cwd: REPOSITORY, env: environment, stdout: "ignore", stderr: "ignore" },
 	);
+	// Waits for the run to mark itself started; fails at once, naming the
+	// exit code, when the run ends first, and gives up well inside the test's
+	// own timeout, so the finally below always gets to kill the child.
 	const started = async (): Promise<string> => {
+		const deadline = Date.now() + 20_000;
 		for (;;) {
 			const runDirectory = readdirSync(parent).find((name) =>
 				existsSync(join(parent, name, "started")),
 			);
 			if (runDirectory !== undefined) return runDirectory;
+			if (hanging.exitCode !== null)
+				throw new Error(
+					`the hanging run exited ${hanging.exitCode} before it started`,
+				);
+			if (Date.now() > deadline)
+				throw new Error("the hanging run did not start within 20 s");
 			await Bun.sleep(50);
 		}
 	};
-	const runDirectory = await started();
-	hanging.kill("SIGKILL");
-	expect(await hanging.exited).not.toBe(0);
-	expect(readdirSync(parent)).toEqual([runDirectory]);
-	const next = Bun.spawnSync(
-		[
-			"bun",
-			"test",
-			"./tests/support/leaky-fixture.ts",
-			"--config=bunfig.packages.toml",
-		],
-		{ cwd: REPOSITORY, env: environment },
-	);
-	expect(next.exitCode).toBe(0);
-	expect(readdirSync(parent)).toEqual([]);
-	rmSync(parent, { recursive: true, force: true });
+	try {
+		const runDirectory = await started();
+		hanging.kill("SIGKILL");
+		expect(await hanging.exited).not.toBe(0);
+		expect(readdirSync(parent)).toEqual([runDirectory]);
+		const next = Bun.spawnSync(
+			[
+				"bun",
+				"test",
+				"./tests/support/leaky-fixture.ts",
+				"--config=bunfig.packages.toml",
+			],
+			{ cwd: REPOSITORY, env: environment },
+		);
+		expect(next.exitCode).toBe(0);
+		expect(readdirSync(parent)).toEqual([]);
+	} finally {
+		hanging.kill("SIGKILL");
+		rmSync(parent, { recursive: true, force: true });
+	}
 }, 30_000);
 
 test("a run in a known parent directory leaves no forge-* entry behind", () => {

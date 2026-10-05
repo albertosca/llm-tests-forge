@@ -55,15 +55,32 @@ export function processIsAlive(pid: number): boolean {
 	}
 }
 
+/** Whether `path` itself (not a link's target) belongs to this process's user; false when it cannot be read. */
+export function ownedByThisUser(path: string): boolean {
+	try {
+		return lstatSync(path).uid === process.getuid?.();
+	} catch {
+		return false;
+	}
+}
+
 /**
  * Removes the run directories in `parent` whose owning process no longer
  * exists: what a SIGKILLed run (which runs no cleanup) left behind. A live
  * owner's directory is never touched, and neither is a name without a pid
  * (an older checkout's run, which may still be going). Never throws.
+ *
+ * A pid only means something in this machine's pid namespace, and only for
+ * this user's processes: two containers sharing one TMPDIR each see the
+ * other's live runs as dead pids, and another user's run is not ours to
+ * judge. So only directories this user owns are removed. Two containers
+ * running as the same uid on one shared TMPDIR remain a case this cannot
+ * tell apart: give each container its own TMPDIR.
  */
 export function removeAbandonedRuns(
 	parent: string,
 	isAlive: (pid: number) => boolean = processIsAlive,
+	isMine: (path: string) => boolean = ownedByThisUser,
 ): void {
 	let names: string[];
 	try {
@@ -73,8 +90,9 @@ export function removeAbandonedRuns(
 	}
 	for (const name of names) {
 		const owner = RUN_DIRECTORY.exec(name)?.[1];
-		if (owner !== undefined && !isAlive(Number(owner)))
-			removeTree(join(parent, name));
+		const path = join(parent, name);
+		if (owner !== undefined && !isAlive(Number(owner)) && isMine(path))
+			removeTree(path);
 	}
 }
 
