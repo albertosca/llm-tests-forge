@@ -27,7 +27,10 @@ export function pep440Version(version: string): string {
 	const parts = /^(\d+\.\d+\.\d+)(.*)$/.exec(version);
 	if (parts === null)
 		throw new ForgeError(`version ${version} is not MAJOR.MINOR.PATCH`);
-	const leadingZero = /(?<!\d)0\d+/.exec(version)?.[0];
+	// Build metadata (after `+`) may have leading zeros; it is refused below
+	// as a label PEP 440 cannot express.
+	const precedencePart = version.split("+", 1)[0] ?? version;
+	const leadingZero = /(?<!\d)0\d+/.exec(precedencePart)?.[0];
 	if (leadingZero !== undefined)
 		throw new ForgeError(
 			`version ${version} has a number with a leading zero (${leadingZero}), which SemVer forbids and the wheel would spell without it`,

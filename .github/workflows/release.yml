@@ -2,9 +2,9 @@ name: release
 # Runs on a version tag: checks, builds the five binaries, smoke-tests each on
 # its native runner, creates the GitHub Release once the package tests pass,
 # then publishes to each registry whose token is set. A tag holding a hyphen
-# (v0.2.0-rc.1) makes a
-# draft release and publishes nowhere: a draft has no public download URLs,
-# which the Hex task, the Homebrew formula and install.sh point at.
+# (v0.2.0-rc.1) makes a draft release and publishes nowhere: a draft has no
+# public download URLs, which the Hex task, the Homebrew formula and
+# install.sh point at.
 on:
   push:
     tags: ["v*"]

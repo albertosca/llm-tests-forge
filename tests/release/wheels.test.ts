@@ -126,6 +126,10 @@ describe("pep440Version", () => {
 			["0.1.0-rc", "rc"],
 			["0.1.0-rc.1.2", "rc.1.2"],
 			["0.1.0+build.5", "+build.5"],
+			// Build metadata may have leading zeros (SemVer allows them there);
+			// it is refused for what it is, not as a leading zero.
+			["1.0.0+001", "+001"],
+			["1.0.0-rc.1+007", "rc.1+007"],
 		] as const)
 			expect(() => pep440Version(version)).toThrow(
 				new ForgeError(
