@@ -474,6 +474,40 @@ describe("registerSuite changes only the line it adds", () => {
 			`version: 1\nlanguage: go\n${defaults}suites:\n  - evals/b\n`,
 		);
 	});
+	test("a comment on a bare suites:'s line stays there and the comment lines below it stay below, above the new item", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites: # c1\n  # c2\ndefaults: {}\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites: # c1\n  # c2\n  - evals/b\ndefaults: {}\n",
+		);
+		expect(
+			await registeredText(
+				"version: 1\r\nlanguage: go\r\nsuites: null # c1\r\n  # c2\r\n  # c3\r\n",
+			),
+		).toBe(
+			"version: 1\r\nlanguage: go\r\nsuites: # c1\r\n  # c2\r\n  # c3\r\n  - evals/b\r\n",
+		);
+	});
+	test("a comment only on the lines below a bare suites: stays below the key, above the new item", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites:\n  # below\ndefaults: {}\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites:\n  # below\n  - evals/b\ndefaults: {}\n",
+		);
+	});
+	test("a comment above a null on its own line stays above the new item, after the null's line comment", async () => {
+		expect(
+			await registeredText(
+				"version: 1\nlanguage: go\nsuites:\n  # c0\n  null # c1\n  # c2\n",
+			),
+		).toBe(
+			"version: 1\nlanguage: go\nsuites: # c1\n  # c0\n  # c2\n  - evals/b\n",
+		);
+	});
 	test("a suites: null is replaced through the document, keeping CRLF and its comment on the key's line", async () => {
 		expect(
 			await registeredText(

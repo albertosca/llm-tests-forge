@@ -362,15 +362,30 @@ export function registerSuite(
 	}
 	const replacement = document.createNode([entry]);
 	if (isNode(suites)) {
-		replacement.commentBefore = suites.commentBefore;
-		// A comment after a bare `suites:` belongs on the key's line: on the
-		// new block list it would print below the item it was above.
+		// A bare `suites:` has no value to hold its comments, so the parser
+		// gives it every comment line up to the next key. The first stays on
+		// the key's line when it stood on the value's (on the new block list
+		// it would print below the item it was above); the lines below stay
+		// below, above the new item.
+		const valueEnd = sourceRange(suites)[1];
+		const onValueLine = project.text
+			.slice(valueEnd, lineEnd(project.text, valueEnd))
+			.includes("#");
+		// A CRLF file's comment lines are joined by "\r\n"; the printer joins
+		// them by "\n" and the whole text is turned CRLF afterwards.
+		const lines = (comment: string | null | undefined): string[] =>
+			comment?.split(/\r?\n/) ?? [];
+		const below = lines(suites.comment);
+		const keyComment = onValueLine ? below.shift() : undefined;
+		replacement.commentBefore = [...lines(suites.commentBefore), ...below].join(
+			"\n",
+		);
 		// Stryker disable next-line ConditionalExpression,ArrayDeclaration: suites is a node only inside a map document (ProjectConfigSchema read the file as one), so the empty list is never iterated; the guard is for the type alone
 		const pairs = isMap(document.contents) ? document.contents.items : [];
 		for (const pair of pairs) {
 			// Stryker disable next-line ConditionalExpression: for the type alone: a key that is not a scalar has no value "suites" either way
 			if (!isScalar(pair.key)) continue;
-			if (pair.key.value === "suites") pair.key.comment = suites.comment;
+			if (pair.key.value === "suites") pair.key.comment = keyComment;
 		}
 	}
 	document.set("suites", replacement);
