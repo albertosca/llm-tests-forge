@@ -374,6 +374,14 @@ async function localIndex(wheels: string[]): Promise<string> {
 	return index;
 }
 
+/**
+ * The requirement every install by name uses: the name pinned to this
+ * version, as PEP 440 spells it. A bare name would skip a prerelease
+ * (0.1.0rc2) wherever a release of it is also in the index, and the pin
+ * still leaves the installer to choose among that version's wheels.
+ */
+const REQUIREMENT = `llm-tests-forge==${pep440Version(FORGE_VERSION)}`;
+
 /** A fresh venv with llm-tests-forge installed by name from `index` alone, so the installer chooses the wheel, as `pip install llm-tests-forge` does. */
 async function venvInstalledFrom(
 	index: string,
@@ -393,14 +401,14 @@ async function venvInstalledFrom(
 			index,
 			"--python",
 			paths.python,
-			"llm-tests-forge",
+			REQUIREMENT,
 		],
 		work,
 	);
 	return paths;
 }
 
-/** The `Tag:` lines of the WHEEL file of the llm-tests-forge installed for `python`: the wheel the installer chose. */
+/** The `Tag:` lines of the WHEEL file of the llm-tests-forge installed for `python`, sorted: the wheel the installer chose. Their order is the build's (CI's hatchling writes manylinux2014 first), so it carries no meaning. */
 async function installedTags(python: string, work: string): Promise<string[]> {
 	const wheelText = await mustRun(
 		[
@@ -410,7 +418,10 @@ async function installedTags(python: string, work: string): Promise<string[]> {
 		],
 		work,
 	);
-	return wheelText.split("\n").filter((line) => line.startsWith("Tag: "));
+	return wheelText
+		.split("\n")
+		.filter((line) => line.startsWith("Tag: "))
+		.sort();
 }
 
 /** What the fallback wheel says on a platform that has a platform wheel (`name` in npm's spelling, `platformTag` that wheel's tag). */
@@ -453,7 +464,8 @@ describe.skipIf(!packages)("the fallback wheel", () => {
 		expect(await installedTags(paths.python, work)).toEqual(
 			HOST.wheelTag
 				.split(".")
-				.map((platformTag) => `Tag: py3-none-${platformTag}`),
+				.map((platformTag) => `Tag: py3-none-${platformTag}`)
+				.sort(),
 		);
 		expect(await run([paths.entry, "--version"], work)).toEqual({
 			exitCode: 0,
@@ -698,7 +710,7 @@ describe.skipIf(!packages)("the fallback wheel", () => {
 					pythonPlatform,
 					"--target",
 					target,
-					"llm-tests-forge",
+					REQUIREMENT,
 				],
 				work,
 			);

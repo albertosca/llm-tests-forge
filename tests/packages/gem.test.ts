@@ -454,24 +454,41 @@ describe.skipIf(!packages)("rubygems gems", () => {
  * through the resolver that chooses among rubygems.org's gems. The fallback
  * is listed first when ARGV[1] is "fallback-first" and last otherwise, so a
  * test that runs both orders cannot pass on the index's order.
+ *
+ * As rubygems.org does, each gem is served as gems/<full_name>.gem (a
+ * prerelease's full name spells the version 0.1.0.pre.rc.2, not the
+ * 0.1.0-rc.2 of its build file name), and a prerelease is listed in
+ * prerelease_specs only, never in specs or latest_specs.
  */
 const WRITE_GEM_INDEX = `
 require "rubygems/package"
 require "fileutils"
 Dir.chdir(ARGV.fetch(0)) do
-  specifications = Dir["gems/*.gem"].sort.map { |file| Gem::Package.new(file).spec }
+  specifications = Dir["gems/*.gem"].sort.map do |file|
+    specification = Gem::Package.new(file).spec
+    served = "gems/#{specification.full_name}.gem"
+    File.rename(file, served) unless file == served
+    specification
+  end
   fallbacks, platforms = specifications.partition { |specification| specification.platform == Gem::Platform::RUBY }
   ordered = ARGV.fetch(1) == "fallback-first" ? fallbacks + platforms : platforms + fallbacks
-  tuples = ordered.map { |specification| [specification.name, specification.version, specification.original_platform] }
-  File.binwrite("specs.4.8.gz", Gem::Util.gzip(Marshal.dump(tuples)))
-  File.binwrite("latest_specs.4.8.gz", Gem::Util.gzip(Marshal.dump(tuples)))
-  File.binwrite("prerelease_specs.4.8.gz", Gem::Util.gzip(Marshal.dump([])))
+  tuple = ->(specification) { [specification.name, specification.version, specification.original_platform] }
+  prereleases, releases = ordered.partition { |specification| specification.version.prerelease? }
+  File.binwrite("specs.4.8.gz", Gem::Util.gzip(Marshal.dump(releases.map(&tuple))))
+  File.binwrite("latest_specs.4.8.gz", Gem::Util.gzip(Marshal.dump(releases.map(&tuple))))
+  File.binwrite("prerelease_specs.4.8.gz", Gem::Util.gzip(Marshal.dump(prereleases.map(&tuple))))
   FileUtils.mkdir_p("quick/Marshal.4.8")
   ordered.each do |specification|
     File.binwrite("quick/Marshal.4.8/#{specification.full_name}.gemspec.rz", Gem.deflate(Marshal.dump(specification)))
   end
 end
 `;
+
+/**
+ * package.json's version as RubyGems spells it, by RubyGems' own rule (each
+ * "-" becomes ".pre."): 0.1.0-rc.2 is 0.1.0.pre.rc.2, 0.1.0 stays 0.1.0.
+ */
+const GEM_VERSION = FORGE_VERSION.replaceAll("-", ".pre.");
 
 type IndexOrder = "fallback-first" | "fallback-last";
 
@@ -499,7 +516,8 @@ async function gemRepository(
  * llm-tests-forge installed by name from `repository` alone, so RubyGems'
  * resolver chooses the gem, as `gem install llm-tests-forge` does against
  * rubygems.org; `platform`, when given, stands for the local platform
- * (`--platform`).
+ * (`--platform`). `--pre` lets the name match a prerelease, which is all a
+ * prerelease-stamped repository holds; a release resolves the same with it.
  */
 async function installedFrom(
 	repository: string,
@@ -520,6 +538,7 @@ async function installedFrom(
 			"--bindir",
 			join(home, "bin"),
 			...(platform === undefined ? [] : ["--platform", platform]),
+			"--pre",
 			"llm-tests-forge",
 		],
 		home,
@@ -569,9 +588,11 @@ async function bundledProject(
 	},
 ): Promise<Finished> {
 	const project = await mkdtemp(join(work, "bundled-"));
+	// The exact version, so Bundler takes a prerelease (it skips one for a
+	// bare name) and the lockfile's DEPENDENCIES line below matches.
 	await writeFile(
 		join(project, "Gemfile"),
-		`source ${JSON.stringify(source)}\ngem "llm-tests-forge"${options.gemOptions ?? ""}\n`,
+		`source ${JSON.stringify(source)}\ngem "llm-tests-forge", "= ${GEM_VERSION}"${options.gemOptions ?? ""}\n`,
 	);
 	if (options.lockfile !== undefined)
 		await writeFile(join(project, "Gemfile.lock"), options.lockfile);
@@ -672,7 +693,7 @@ describe.skipIf(!packages)("the fallback gem", () => {
 		);
 		expect(inspected).toEqual({
 			platform: "ruby",
-			version: FORGE_VERSION,
+			version: GEM_VERSION,
 			files: ["LICENSE", "exe/llm-tests-forge", "lib/llm_tests_forge.rb"],
 			executables: ["llm-tests-forge"],
 		});
@@ -888,15 +909,15 @@ end`;
 				"GEM",
 				`  remote: ${source}`,
 				"  specs:",
-				`    llm-tests-forge (${FORGE_VERSION})`,
-				`    llm-tests-forge (${FORGE_VERSION}-${FOREIGN.gemPlatform})`,
+				`    llm-tests-forge (${GEM_VERSION})`,
+				`    llm-tests-forge (${GEM_VERSION}-${FOREIGN.gemPlatform})`,
 				"",
 				"PLATFORMS",
 				"  ruby",
 				`  ${FOREIGN.gemPlatform}`,
 				"",
 				"DEPENDENCIES",
-				"  llm-tests-forge",
+				`  llm-tests-forge (= ${GEM_VERSION})`,
 				"",
 			].join("\n"),
 		});
