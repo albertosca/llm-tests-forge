@@ -255,9 +255,11 @@ defmodule LlmTestsForge do
   end
 
   defp parse_proxy!(name, value) do
-    with_scheme = if value =~ "://", do: value, else: "http://" <> value
-    [scheme, rest] = String.split(with_scheme, "://", parts: 2)
-    shown = redacted(scheme, rest)
+    {scheme, rest} = split_scheme(value)
+    # Everything up to the last `@` is the userinfo, so a password may hold
+    # an unencoded `/`, `?`, `#` or `@`; it never reaches a message.
+    {userinfo, after_userinfo} = split_userinfo(rest)
+    shown = if userinfo, do: "#{scheme}://***@#{after_userinfo}", else: "#{scheme}://#{rest}"
 
     unless String.downcase(scheme) == "http" do
       Mix.raise(
@@ -266,8 +268,7 @@ defmodule LlmTestsForge do
       )
     end
 
-    authority = rest |> String.split(["/", "?", "#"], parts: 2) |> hd()
-    {userinfo, host_and_port} = split_userinfo(authority)
+    host_and_port = after_userinfo |> String.split(["/", "?", "#"], parts: 2) |> hd()
     {host, port_text} = split_host_and_port(host_and_port)
 
     if host == "", do: Mix.raise("#{name} is not a proxy URL: #{shown}")
@@ -285,25 +286,24 @@ defmodule LlmTestsForge do
     {{String.to_charlist(host), port}, proxy_auth(userinfo)}
   end
 
-  # The value as an error may show it: credentials replaced with `***`.
-  defp redacted(scheme, rest) do
-    case split_userinfo(rest |> String.split(["/", "?", "#"], parts: 2) |> hd()) do
-      {nil, _host_and_port} ->
-        "#{scheme}://#{rest}"
-
-      {userinfo, _host_and_port} ->
-        "#{scheme}://" <> String.replace(rest, userinfo <> "@", "***@", global: false)
+  # The scheme and the rest; a value without a well-formed `scheme://` (a
+  # `://` inside a password does not count) is http.
+  defp split_scheme(value) do
+    case Regex.run(~r{\A([A-Za-z][A-Za-z0-9+.-]*)://(.*)\z}s, value) do
+      [_value, scheme, rest] -> {scheme, rest}
+      nil -> {"http", value}
     end
   end
 
-  defp split_userinfo(authority) do
-    case String.split(authority, "@") do
-      [host_and_port] ->
-        {nil, host_and_port}
+  # The userinfo (everything before the last `@`, or nil) and what follows it.
+  defp split_userinfo(rest) do
+    case String.split(rest, "@") do
+      [no_userinfo] ->
+        {nil, no_userinfo}
 
       parts ->
-        {host_and_port, userinfo_parts} = List.pop_at(parts, -1)
-        {Enum.join(userinfo_parts, "@"), host_and_port}
+        {after_userinfo, userinfo_parts} = List.pop_at(parts, -1)
+        {Enum.join(userinfo_parts, "@"), after_userinfo}
     end
   end
 

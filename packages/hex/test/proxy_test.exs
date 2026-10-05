@@ -204,6 +204,54 @@ defmodule LlmTestsForgeProxyTest do
         })
       end
     end
+
+    test "a password holding /, ?, # or :// unencoded never shows in any error, whatever the error" do
+      for password <- ["s3cr3t/x", "s3cr3t?x", "s3cr3t#x", "s3cr3t://x", "s3@cr3t/x"] do
+        for {value, expected} <- [
+              {"http://user:#{password}@127.0.0.1:abc",
+               "HTTPS_PROXY has a port that is not a number from 1 to 65535: http://***@127.0.0.1:abc"},
+              {"user:#{password}@127.0.0.1:abc",
+               "HTTPS_PROXY has a port that is not a number from 1 to 65535: http://***@127.0.0.1:abc"},
+              {"http://user:#{password}@:3128",
+               "HTTPS_PROXY is not a proxy URL: http://***@:3128"},
+              {"socks5://user:#{password}@127.0.0.1:1080",
+               "HTTPS_PROXY uses socks5://, which this installer cannot use (:httpc reaches a proxy over plain HTTP only); set an http:// proxy, or install with install.sh"}
+            ] do
+          error =
+            assert_raise Mix.Error, fn ->
+              LlmTestsForge.proxy_for!("https://h.invalid/x", %{"HTTPS_PROXY" => value})
+            end
+
+          assert {value, error.message} == {value, expected}
+          refute error.message =~ "s3"
+        end
+      end
+    end
+
+    test "a failed download through a proxy with credentials reports an error that holds no password" do
+      # download!/2 prints inspect(reason) of :httpc's error.
+      for url <- ["http://release.invalid/x", "https://release.invalid/x"] do
+        result =
+          LlmTestsForge.http_get(url, %{
+            "HTTP_PROXY" => "http://user:s3cr3t/x@127.0.0.1:#{dead_port()}",
+            "HTTPS_PROXY" => "http://user:s3cr3t/x@127.0.0.1:#{dead_port()}"
+          })
+
+        assert {:error, _reason} = result
+        refute inspect(result) =~ "s3cr3t"
+      end
+    end
+
+    test "a password holding / is still the password: everything up to the last @ is the userinfo" do
+      assert LlmTestsForge.proxy_for!("https://h.invalid/x", %{
+               "HTTPS_PROXY" => "http://user:s3cr3t/x@127.0.0.1:3128"
+             }) ==
+               %{
+                 option: :https_proxy,
+                 address: {~c"127.0.0.1", 3128},
+                 auth: {~c"user", ~c"s3cr3t/x"}
+               }
+    end
   end
 
   describe "NO_PROXY, as curl matches it" do
