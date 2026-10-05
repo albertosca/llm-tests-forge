@@ -207,17 +207,44 @@ jobs:
           path: packages.tar
           if-no-files-found: error
 
+  # The one job that signs: id-token mints the OIDC token Sigstore's signing
+  # certificate is issued for, attestations stores the attestation.
   release:
     needs: [smoke, assemble, packages]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           name: binaries
           path: binaries
+      # SLSA build provenance for the assets install.sh and users verify with
+      # `gh attestation verify <file> --repo albertosca/llm-tests-forge`.
+      # actions/attest, not attest-build-provenance: since v4 the latter is a
+      # wrapper over it, and its README sends new workflows here. A failure
+      # stops a public repository's release, since install.sh refuses an
+      # unattested binary wherever gh is logged in. A private repository only
+      # warns: on a Free, Pro or Team plan attestations exist for public
+      # repositories alone, and a private rc run must still go through.
+      - name: Attest the release assets
+        id: attest
+        continue-on-error: ${{ github.event.repository.private }}
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            binaries/llm-tests-forge-darwin-arm64
+            binaries/llm-tests-forge-darwin-x64
+            binaries/llm-tests-forge-linux-x64
+            binaries/llm-tests-forge-linux-arm64
+            binaries/llm-tests-forge-windows-x64.exe
+            binaries/SHA256SUMS
+      - name: Warn that the release is not attested
+        if: steps.attest.outcome == 'failure'
+        run: echo "::warning::the release assets are not attested (a private repository without attestations on its plan?); gh attestation verify will find nothing for them"
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -26,6 +26,7 @@ const CI_WORKFLOW = join(REPOSITORY, ".github/workflows/ci.yml");
 const MUTATION_WORKFLOW = join(REPOSITORY, ".github/workflows/mutation.yml");
 
 const StepSchema = z.object({
+	id: z.string().optional(),
 	name: z.string().optional(),
 	uses: z.string().optional(),
 	run: z.string().optional(),
@@ -182,12 +183,19 @@ describe("the release workflow's shape", () => {
 		expect(workflow.on).toEqual({ push: { tags: ["v*"] } });
 	});
 
-	test("every job reads the repository only, except release, which writes it", () => {
+	test("every job reads the repository only, except release, which writes it and alone may sign attestations", () => {
 		expect(workflow.permissions).toEqual({ contents: "read" });
 		for (const [name, job] of Object.entries(workflow.jobs))
 			expect({ name, permissions: job.permissions }).toEqual({
 				name,
-				permissions: { contents: name === "release" ? "write" : "read" },
+				permissions:
+					name === "release"
+						? {
+								contents: "write",
+								"id-token": "write",
+								attestations: "write",
+							}
+						: { contents: "read" },
 			});
 	});
 
@@ -254,6 +262,7 @@ describe("the release workflow's shape", () => {
 			"astral-sh/setup-uv@v10.2.0",
 			"actions/setup-node@v7",
 			"erlef/setup-beam@v1",
+			"actions/attest@v4",
 		]);
 		for (const path of [
 			RELEASE_WORKFLOW,
@@ -683,6 +692,77 @@ describe("the release step", () => {
 			expect(RELEASE_TARGETS.map((target) => target.assetName)).toContain(
 				`llm-tests-forge-${pair}`,
 			);
+	});
+});
+
+describe("build provenance", () => {
+	const release = jobNamed("release");
+
+	test("the release job attests the five binaries and SHA256SUMS, as SLSA build provenance, before the release is created", () => {
+		const attest = stepNamed(release, "Attest the release assets");
+		expect(attest.uses).toBe("actions/attest@v4");
+		expect(attest.id).toBe("attest");
+		// subject-path alone: the action's provenance mode, no custom predicate.
+		expect(Object.keys(attest.with ?? {})).toEqual(["subject-path"]);
+		const subjects = String(attest.with?.["subject-path"] ?? "")
+			.trim()
+			.split("\n")
+			.map((line) => line.trim());
+		expect(subjects.sort()).toEqual(
+			[
+				...RELEASE_TARGETS.map((target) => `binaries/${target.assetName}`),
+				`binaries/${CHECKSUMS_FILE_NAME}`,
+			].sort(),
+		);
+		const names = release.steps.map((step) => step.name ?? step.uses);
+		const downloaded = release.steps.findIndex(
+			(step) => step.uses === "actions/download-artifact@v8",
+		);
+		expect(downloaded).toBeGreaterThanOrEqual(0);
+		expect(names.indexOf("Attest the release assets")).toBeGreaterThan(
+			downloaded,
+		);
+		expect(names.indexOf("Attest the release assets")).toBeLessThan(
+			names.indexOf("Create the GitHub Release"),
+		);
+	});
+
+	test("a failed attestation stops a public repository's release, and only warns in a private one, where a Free or Pro plan has no attestations", () => {
+		const attest = stepNamed(release, "Attest the release assets");
+		expect(attest["continue-on-error"]).toBe(
+			`\${{ github.event.repository.private }}`,
+		);
+		expect(release["continue-on-error"]).toBeUndefined();
+		const warning = stepNamed(release, "Warn that the release is not attested");
+		expect(warning.if).toBe("steps.attest.outcome == 'failure'");
+		const result = runStep(scriptOf(warning), tmpdir(), {});
+		expect(result.exitCode).toBe(0);
+		expect(result.output).toStartWith("::warning::");
+		expect(result.output).toContain("gh attestation verify");
+		// Nothing else in the workflow continues on error.
+		for (const [name, job] of Object.entries(workflow.jobs))
+			for (const step of job.steps)
+				if (step !== attest)
+					expect({
+						name,
+						step: step.name ?? step.uses,
+						continueOnError: step["continue-on-error"],
+					}).toEqual({
+						name,
+						step: step.name ?? step.uses,
+						continueOnError: undefined,
+					});
+	});
+
+	test("install.sh verifies against this repository and this workflow file", async () => {
+		const installScript = await readFile(
+			join(REPOSITORY, "install.sh"),
+			"utf8",
+		);
+		expect(installScript).toContain('REPOSITORY="albertosca/llm-tests-forge"');
+		expect(installScript).toContain(
+			`SIGNER_WORKFLOW="$REPOSITORY/${RELEASE_WORKFLOW.slice(REPOSITORY.length + 1)}"`,
+		);
 	});
 });
 
