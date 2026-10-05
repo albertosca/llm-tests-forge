@@ -465,6 +465,18 @@ describe("suiteStatus and renderStatusLine", () => {
 		);
 	});
 
+	test("`state` stays the second key of every row, ok or refused, as status --json prints it", async () => {
+		const { directory } = await suiteWithRenamedKey("keysrefused", "approved");
+		const refused = await suiteStatus("evals/k", directory, FORGE_VERSION);
+		const readable = await suiteStatus(
+			"evals/k",
+			await suiteCopy("keysok"),
+			FORGE_VERSION,
+		);
+		for (const row of [refused, readable])
+			expect(Object.keys(row).slice(0, 2)).toEqual(["entry", "state"]);
+	});
+
 	test("a refused suite's row keeps the feature pending marker and the version warning", async () => {
 		const { directory } = await suiteWithRenamedKey(
 			"refusedpending",

@@ -21,7 +21,6 @@ import { versionWarning } from "./version";
  * what is left to review.
  */
 interface SuiteSummary {
-	entry: string;
 	feature: string;
 	featureStatus: Feature["status"] | null;
 	scenarios: { approved: number; pending: number; rejected: number };
@@ -31,16 +30,16 @@ interface SuiteSummary {
 }
 
 /**
- * The shape `status --json` prints for each suite, kept stable for agents.
- * An error row of a suite that reads but that emit would refuse keeps the
- * summary, so the person loses no context; one that does not read has the
- * message alone.
+ * The shape `status --json` prints for each suite, kept stable for agents:
+ * `entry` then `state` lead every row. An error row of a suite that reads
+ * but that emit would refuse keeps the summary, so the person loses no
+ * context; one that does not read has the message alone.
  */
 export type SuiteStatus =
 	| { entry: string; state: "missing" }
 	| { entry: string; state: "error"; error: string }
-	| (SuiteSummary & { state: "ok" })
-	| (SuiteSummary & { state: "error"; error: string });
+	| ({ entry: string; state: "ok" } & SuiteSummary)
+	| ({ entry: string; state: "error"; error: string } & SuiteSummary);
 
 function exists(path: string): Promise<boolean> {
 	return access(path).then(
@@ -77,7 +76,6 @@ async function readOk(
 		? await readYamlFile(paths.reportJson, ReportSchema)
 		: null;
 	const summary: SuiteSummary = {
-		entry,
 		feature: feature?.id ?? "(no feature yet)",
 		featureStatus: feature?.status ?? null,
 		scenarios: {
@@ -113,9 +111,9 @@ async function readOk(
 			});
 		} catch (error) {
 			if (!(error instanceof ForgeError)) throw error;
-			return { ...summary, state: "error", error: oneLine(error) };
+			return { entry, state: "error", error: oneLine(error), ...summary };
 		}
-	return { ...summary, state: "ok" };
+	return { entry, state: "ok", ...summary };
 }
 
 /**
