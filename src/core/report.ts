@@ -699,6 +699,10 @@ function baselineDiffOf(
  * The calendar day of an ISO timestamp, or null when the value is not one:
  * `Date.parse` alone takes "Tue Sep 16 2026" and cutting the first ten
  * characters of anything else would show garbage as if it were a date.
+ * `Date.parse` also rolls a day the calendar does not have into the next
+ * month (2026-02-30 is March 2), so the written day is rebuilt from its
+ * parts and must come back the same. The day is the one written, whatever
+ * the offset.
  */
 export function isoDay(timestamp: string): string | null {
 	// `match`, not `exec`: exec would coerce a missing value to the text
@@ -706,7 +710,14 @@ export function isoDay(timestamp: string): string | null {
 	// own check; match on a missing value throws.
 	const day = timestamp.match(/^(\d{4}-\d{2}-\d{2})(?:T|$)/)?.[1];
 	if (day === undefined || Number.isNaN(Date.parse(timestamp))) return null;
-	return day;
+	// setUTCFullYear, not Date.UTC: Date.UTC reads a year below 100 as 19xx.
+	const calendar = new Date(0);
+	calendar.setUTCFullYear(
+		Number(day.slice(0, 4)),
+		Number(day.slice(5, 7)) - 1,
+		Number(day.slice(8, 10)),
+	);
+	return calendar.toISOString().slice(0, 10) === day ? day : null;
 }
 
 /** The timestamp promptfoo recorded, or null when it is absent, empty or not an ISO date: the same test `status` reads it by. */

@@ -1960,4 +1960,27 @@ describe("isoDay", () => {
 		// Date.parse takes "12026-09-16" as the year 12026.
 		expect(isoDay("12026-09-16")).toBeNull();
 	});
+
+	test("a day the calendar does not have is not a day, though Date.parse rolls it into the next month", () => {
+		for (const timestamp of [
+			"2026-02-30",
+			"2026-02-30T10:00:00Z",
+			"2026-04-31",
+			"2026-02-29",
+			"2100-02-29",
+		])
+			expect({ timestamp, day: isoDay(timestamp) }).toEqual({
+				timestamp,
+				day: null,
+			});
+	});
+
+	test("a leap day, the last day of a month and year 0000 are days; the day is the one written, whatever the offset", () => {
+		expect(isoDay("2024-02-29")).toBe("2024-02-29");
+		expect(isoDay("2000-02-29T00:00:00Z")).toBe("2000-02-29");
+		expect(isoDay("0000-02-29")).toBe("0000-02-29");
+		expect(isoDay("2026-04-30")).toBe("2026-04-30");
+		expect(isoDay("2026-12-31T23:30:00-05:00")).toBe("2026-12-31");
+		expect(isoDay("2026-01-01T00:30:00+05:00")).toBe("2026-01-01");
+	});
 });
