@@ -7,6 +7,7 @@ import {
 	agentsBlock,
 	PER_PROJECT_INVOCATIONS,
 	planAgentsBlock,
+	quotedLines,
 	upsertAgentsBlock,
 } from "../../src/core/agents-block";
 
@@ -587,10 +588,12 @@ describe("upsertAgentsBlock: indented code and list items, as CommonMark reads t
 		);
 		expectQuoted(`-   \n\n${indented("      ", quotedPair)}`);
 	});
-	test("past five spaces after the marker the item's content is one column past it, so lines at its old column are paragraph text", () => {
-		const existing = `-     \`\`\`\n${indented("      ", realPair)}      \`\`\`\n`;
-		expect(upsertAgentsBlock("AGENTS.md", existing)).toBe(
-			`-     \`\`\`\n${indented("      ", block)}\n      \`\`\`\n`,
+	test("past five spaces after the marker the item's content is one column past it: the rest of its line is indented code, and lines at that column continue it", () => {
+		expectQuoted(
+			`-     \`\`\`\n${indented("      ", quotedPair)}      \`\`\`\n`,
+		);
+		expectQuoted(
+			`-      ${AGENTS_START}\n       quoted\n       ${AGENTS_END}\n`,
 		);
 	});
 	test("a line ends a list item by its leading spaces alone, however many spaces stand inside it", () => {
@@ -625,4 +628,261 @@ describe("upsertAgentsBlock: indented code and list items, as CommonMark reads t
 			`> \`\`\`\n>> \`\`\`\n${indented("> ", quotedPair)}> \`\`\`\n`,
 		);
 	});
+});
+
+describe("upsertAgentsBlock: never overwrites what CommonMark reads as code", () => {
+	const block = agentsBlock();
+	const quotedPair = `${AGENTS_START}\nuser text\n${AGENTS_END}\n`;
+	const realPair = `${AGENTS_START}\nold\n${AGENTS_END}\n`;
+	const indented = (indentation: string, text: string): string =>
+		text.replace(/^(?=.)/gm, indentation);
+	function expectQuoted(existing: string): void {
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect({ existing, replaced: planned.replaced }).toEqual({
+			existing,
+			replaced: false,
+		});
+		expect(planned.text).toBe(`${existing}\n${block}\n`);
+	}
+	function expectReplaced(existing: string, expected: string): void {
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect({ existing, text: planned.text }).toEqual({
+			existing,
+			text: expected,
+		});
+	}
+
+	test("a thematic break is no list item: a fence after it two or three spaces in quotes the pair", () => {
+		expectQuoted(
+			`* * *\n\n  \`\`\`\n${AGENTS_START}\nuser text\n${AGENTS_END}\n  \`\`\`\n`,
+		);
+		for (const rule of ["* * *", "- - -", "- ---", "* ***", "___"])
+			for (const indentation of ["  ", "   "])
+				expectQuoted(
+					`${rule}\n\n${indentation}\`\`\`\n${quotedPair}${indentation}\`\`\`\n`,
+				);
+	});
+	test("an empty list item cannot interrupt a paragraph, nor an ordered one that does not start at 1", () => {
+		expectQuoted(`intro\n1. \n   ~~~\n${quotedPair}   ~~~\n`);
+		// `2. text` continues the paragraph, so the lines below are lazy
+		// paragraph text, not a fence in an item.
+		expectReplaced(
+			`intro\n2. text\n${indented("    ", `~~~\n${realPair}`)}`,
+			`intro\n2. text\n    ~~~\n${indented("    ", block)}\n`,
+		);
+	});
+	test("indented code starts after a heading, a thematic break or an HTML block that ended, but not inside an HTML block", () => {
+		for (const before of [
+			"# Title",
+			"Title\n===",
+			"Title\n---",
+			"* * *",
+			"<!-- a note -->",
+		])
+			expectQuoted(`${before}\n${indented("    ", quotedPair)}`);
+		expectReplaced(
+			`<div>\n${indented("    ", realPair)}</div>\n`,
+			`<div>\n${indented("    ", block)}\n</div>\n`,
+		);
+		expectQuoted(`<div>\n\n${indented("    ", quotedPair)}`);
+	});
+	test("a new blockquote, or a blockquote in a list item, ends the paragraph before it: indented code may start inside it", () => {
+		expectQuoted(`intro\n${indented(">\t\t", quotedPair)}`);
+		expectQuoted(`- item\n${indented("  >     ", quotedPair)}`);
+	});
+	test("a line indented four columns with no new block before it is a lazy paragraph line, even outside the paragraph's blockquote", () => {
+		expectReplaced(
+			`> intro\n${indented("    ", realPair)}`,
+			`> intro\n${indented("    ", block)}\n`,
+		);
+	});
+	test("inside an HTML block a quoted fence is HTML, not a fence", () => {
+		expectReplaced(
+			`<div>\n>\t~~~\n${indented("> ", realPair)}>\t~~~\n`,
+			`<div>\n>\t~~~\n${indented("> ", block)}\n>\t~~~\n`,
+		);
+	});
+});
+
+describe("quotedLines: the lines CommonMark reads as code", () => {
+	/** The 1-based numbers of the lines quoted, blank lines left out (they can never be a marker). */
+	function quotedNumbers(text: string): number[] {
+		const lines = text.split("\n");
+		return quotedLines(lines).flatMap((quoted, index) =>
+			quoted && lines[index]?.trim() !== "" ? [index + 1] : [],
+		);
+	}
+	// Each expectation is commonmark.js 0.31.2's code lines, except where it
+	// ends inside an unclosed fence (marked): there the fence is no fence.
+	const cases: [string, string, number[]][] = [
+		[
+			"a line four columns in leaves its blockquote, and the fence in it",
+			"> ```\n    > x\n> a\n> b\n> ```\n",
+			[1, 2, 5],
+		],
+		[
+			"three columns in, a `>` continues its blockquote",
+			"> ```\n   > x\n> ```\n",
+			[1, 2, 3],
+		],
+		["one space after `>` belongs to the marker", ">\n>    x\n", []],
+		[
+			"a closer four columns in is content",
+			"```\n    ```\nx\n```\n",
+			[1, 2, 3, 4],
+		],
+		["a fence inside an HTML block is HTML", "<div>\n```\nx\n```\n", []],
+		[
+			"an HTML comment ends at `-->`, and code may follow",
+			"<!--\nx\n-->\n    code\n",
+			[4],
+		],
+		[
+			"an HTML block's end is looked for past the blockquote marker",
+			"> <!DOCTYPE html\n>     code\n",
+			[],
+		],
+		[
+			"on each line of the HTML block too",
+			"> <!DOCTYPE html\n> x\n>     code\n",
+			[],
+		],
+		[
+			"an item with nothing but spaces is empty, and a blank line ends it",
+			"-      \n\n  ```\nx\n  ```\n",
+			[3, 4, 5],
+		],
+		["an empty item, then a blank line", "-\n\n  ```\nx\n  ```\n", [3, 4, 5]],
+		[
+			"a lone tag cannot interrupt a paragraph",
+			"intro\n<span>\n```\nx\n```\n",
+			[3, 4, 5],
+		],
+		[
+			"a block tag can interrupt a paragraph",
+			"intro\n<div>\n```\nx\n```\n",
+			[],
+		],
+		["a lone tag starts an HTML block", "<span>\n```\nx\n```\n", []],
+		["a lone tag in capitals too", "<SPAN>\n```\nx\n```\n", []],
+		["a closing block tag", "intro\n</div>\n```\nx\n```\n", []],
+		["a block tag in capitals", "intro\n<DIV>\n```\nx\n```\n", []],
+		["a block tag cut at the line's end", "intro\n<div\n```\nx\n```\n", []],
+		["a self-closing block tag", "intro\n<div/>\n```\nx\n```\n", []],
+		["a block tag with an attribute", "intro\n<div x>\n```\nx\n```\n", []],
+		[
+			"a longer name is no block tag",
+			"intro\n<divx>\n```\nx\n```\n",
+			[3, 4, 5],
+		],
+		[
+			"a block tag after text is text",
+			"intro\nx <div>\n```\nx\n```\n",
+			[3, 4, 5],
+		],
+		["`===` with no paragraph is a paragraph", "===\n    code\n", []],
+		["a setext underline is the whole line", "intro\nx ==\n    code\n", []],
+		[
+			"an ordered item that starts at 1 interrupts a paragraph",
+			"intro\n1. ```\n   x\n   ```\n",
+			[2, 3, 4],
+		],
+		[
+			"one that starts at 2 does not (the fence then never closes: marked)",
+			"intro\n2. ```\n   x\n   ```\n",
+			[],
+		],
+		[
+			"a bullet item interrupts a paragraph",
+			"intro\n- ```\n  x\n  ```\n",
+			[2, 3, 4],
+		],
+		[
+			"an item's own line can hold indented code, after a paragraph too",
+			"intro\n-      code\n",
+			[2],
+		],
+		[
+			"a blockquote line with only spaces is blank",
+			"  > x\n  > \n  >     code\n",
+			[3],
+		],
+		["with spaces after the marker too", "> a\n>   \n>     code\n", [3]],
+		[
+			"a lazy line keeps the paragraph's blockquote open",
+			"> a\nb\n>     code\n",
+			[],
+		],
+		["`##` is a heading", "## Title\n    code\n", [2]],
+		["a `#` after text is text", "Title #\n    code\n", []],
+		["a lone `#` is a heading", "#\n    code\n", [2]],
+		["seven `#` are text", "####### x\n    code\n", []],
+		[
+			"a blank line does not end an HTML comment",
+			"<!--\n\n    code\n-->\n",
+			[],
+		],
+		[
+			"a declaration interrupts a paragraph and runs to its `>`",
+			"intro\n<!DOCTYPE\n```\nx\n```\n",
+			[],
+		],
+		[
+			"a declaration after text is text",
+			"intro\nx <!D\n```\nx\n```\n",
+			[3, 4, 5],
+		],
+		[
+			"a CDATA section interrupts a paragraph",
+			"intro\n<![CDATA[\n```\nx\n```\n",
+			[],
+		],
+		[
+			"a CDATA section after text is text",
+			"intro\nx <![CDATA[\n```\nx\n```\n",
+			[3, 4, 5],
+		],
+		["a heading tag is a block tag", "intro\n<h1>\n```\nx\n```\n", []],
+		["text after a break makes list items", "* * * x\n    code\n", []],
+		["`_` runs after text are text", "x ___\n    code\n", []],
+		["`*` runs after text are text", "x * * *\n    code\n", []],
+		["text after `___` is a paragraph", "___ x\n    code\n", []],
+		["`___` is a thematic break", "___\n    code\n", [2]],
+		["spaces may stand between its `_`", "_  _  _\n    code\n", [2]],
+		["`-` runs after text are text", "x - - -\n    code\n", []],
+		["text after `- - -` makes list items", "- - - x\n    code\n", []],
+		[
+			"`--` under a paragraph is a setext underline",
+			"intro\n--\n    code\n",
+			[3],
+		],
+		["a list marker after text is text", "x -     code\n", []],
+		[
+			"a `<pre>` after text is text",
+			"intro\nx <pre>\n```\nx\n```\n",
+			[3, 4, 5],
+		],
+		[
+			"`<pre` cut at the line's end starts HTML",
+			"intro\n<pre\n```\nx\n```\n",
+			[],
+		],
+		["`<pre` and a space starts HTML", "intro\n<pre x>\n```\nx\n```\n", []],
+		["a `<?` after text is text", "intro\nx <?\n```\nx\n```\n", [3, 4, 5]],
+		["`<?` starts HTML", "intro\n<?\n```\nx\n```\n", []],
+		[
+			"backticks anywhere after a backtick run make it no fence (marked)",
+			"```ab`\nx\n```\n",
+			[],
+		],
+		["a tilde run after text is no fence (marked)", "a ~~~\nx\n~~~\n", []],
+		["one tilde is no fence (marked)", "~\nx\n~~~\n", []],
+	];
+	for (const [name, text, expected] of cases)
+		test(name, () => {
+			expect({ text, quoted: quotedNumbers(text) }).toEqual({
+				text,
+				quoted: expected,
+			});
+		});
 });
