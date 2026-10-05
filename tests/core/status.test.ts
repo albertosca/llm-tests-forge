@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { parse, stringify } from "yaml";
 import * as files from "../../src/core/files";
 import { stampSuite } from "../../src/core/files";
+import * as select from "../../src/core/select";
 import { renderStatusLine, suiteStatus } from "../../src/core/status";
 import { FORGE_VERSION } from "../../src/core/version";
 import { fixturePath, REPOSITORY } from "../helpers/repository";
@@ -293,6 +294,20 @@ describe("suiteStatus and renderStatusLine", () => {
 		}
 	});
 
+	test("a failure in selectCases that is not a ForgeError is a bug too, and propagates", async () => {
+		const directory = await suiteCopy("selectbug");
+		const selection = spyOn(select, "selectCases").mockImplementation(() => {
+			throw new TypeError("a bug in the selection");
+		});
+		try {
+			await expect(
+				suiteStatus("evals/selectbug", directory, FORGE_VERSION),
+			).rejects.toThrow(new TypeError("a bug in the selection"));
+		} finally {
+			selection.mockRestore();
+		}
+	});
+
 	test("renders a suite with no feature.yaml yet as ok with no feature and zero counts", async () => {
 		const root = await mkdtemp(join(tmpdir(), "forge-status-"));
 		await mkdir(join(root, ".forge"));
@@ -422,17 +437,66 @@ describe("suiteStatus and renderStatusLine", () => {
 		return { directory, casesFile };
 	}
 
-	test("an approved case whose input keys are not the feature's inputs is an error row with selectCases' message, never ok", async () => {
+	/** What the fixture suite reads as, before selectCases has its say. */
+	const fixtureSummary = {
+		feature: "extract-job-application-questions",
+		featureStatus: "approved",
+		scenarios: { approved: 14, pending: 0, rejected: 0 },
+		cases: { approved: 42, pending: 0 },
+		lastRun: { passRate: 0.6786, date: "2026-09-25" },
+		warning: null,
+	};
+
+	test("an approved case whose input keys are not the feature's inputs is an error row with selectCases' message, never ok, and keeps the suite's counts", async () => {
 		const { directory, casesFile } = await suiteWithRenamedKey(
 			"renamed",
 			"approved",
 		);
 		const status = await suiteStatus("evals/renamed", directory, FORGE_VERSION);
+		const error = `case standard-multi-field-form-01's input keys do not match the feature's inputs (missing: page; extra: pages); rename them in its input: or in feature.yaml (file: ${casesFile}, id: standard-multi-field-form-01)`;
 		expect(status).toEqual({
 			entry: "evals/renamed",
 			state: "error",
-			error: `case standard-multi-field-form-01's input keys do not match the feature's inputs (missing: page; extra: pages); rename them in its input: or in feature.yaml (file: ${casesFile}, id: standard-multi-field-form-01)`,
+			error,
+			...fixtureSummary,
 		});
+		expect(renderStatusLine(status)).toBe(
+			`evals/renamed   extract-job-application-questions   14 scenarios approved, 0 pending · 42 cases approved, 0 pending · last run 67.9% (2026-09-25)   error: ${error}`,
+		);
+	});
+
+	test("a refused suite's row keeps the feature pending marker and the version warning", async () => {
+		const { directory } = await suiteWithRenamedKey(
+			"refusedpending",
+			"approved",
+		);
+		const forge = join(directory, ".forge");
+		await writeFile(
+			join(forge, "feature.yaml"),
+			(await readFile(join(forge, "feature.yaml"), "utf8")).replace(
+				/^status: approved$/m,
+				"status: pending",
+			),
+		);
+		// stampSuite never lowers a stamp, so the older one is written by hand.
+		const suiteFile = join(forge, "suite.yaml");
+		const suiteText = await readFile(suiteFile, "utf8");
+		const older = suiteText.replace(
+			/^forge_version: .*$/m,
+			"forge_version: 0.0.1",
+		);
+		expect(older).not.toBe(suiteText);
+		await writeFile(suiteFile, older);
+		const line = renderStatusLine(
+			await suiteStatus("evals/refusedpending", directory, FORGE_VERSION),
+		);
+		expect(line).toStartWith(
+			"evals/refusedpending   extract-job-application-questions (feature pending)   14 scenarios approved",
+		);
+		expect(line).toContain("   error: case standard-multi-field-form-01's");
+		expect(line).toMatch(
+			/\) {2}⚠ this suite was written by llm-tests-forge 0\.0\.1; /,
+		);
 	});
 
 	test("a rejected case with mismatched input keys is not selected, so the suite stays ok", async () => {
@@ -487,6 +551,7 @@ describe("suiteStatus and renderStatusLine", () => {
 			entry: "evals/badinclude",
 			state: "error",
 			error: `scenario "gone" in suite.include not found (file: ${suiteFile}, id: gone)`,
+			...fixtureSummary,
 		});
 	});
 
