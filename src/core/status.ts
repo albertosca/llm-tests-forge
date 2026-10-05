@@ -11,6 +11,7 @@ import {
 } from "./files";
 import { isoDay, ReportSchema } from "./report";
 import type { Case, Feature, Scenario } from "./schemas";
+import { selectCases } from "./select";
 import { versionWarning } from "./version";
 
 /**
@@ -54,11 +55,23 @@ async function readOk(
 ): Promise<SuiteStatus> {
 	const feature = await readFeatureIfPresent(forgeDirectory);
 	const scenarios = await readScenarios(forgeDirectory);
-	const cases: Case[] = [
-		...(await readAllCases(forgeDirectory)).values(),
-	].flat();
+	const casesByScenario = await readAllCases(forgeDirectory);
+	const cases: Case[] = [...casesByScenario.values()].flat();
 	const present = await readSuiteIfPresent(forgeDirectory);
-	const reportPath = forgePaths(forgeDirectory).reportJson;
+	const paths = forgePaths(forgeDirectory);
+	// The selection emit, estimate and report would make, for its refusals
+	// alone (a case whose input keys are not the feature's inputs, an
+	// include naming no scenario): a suite they refuse is never shown as ok.
+	// Its blockers are what the counts already show as pending.
+	if (feature !== undefined && present !== null)
+		selectCases({
+			suite: present.suite,
+			scenarios,
+			casesByScenario,
+			paths,
+			feature,
+		});
+	const reportPath = paths.reportJson;
 	const report = (await exists(reportPath))
 		? await readYamlFile(reportPath, ReportSchema)
 		: null;

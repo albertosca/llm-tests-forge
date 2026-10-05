@@ -389,6 +389,89 @@ describe("suiteStatus and renderStatusLine", () => {
 			expect(guide).toContain(`\`${name}\``);
 	});
 
+	/** The suite copy with the first case of standard-multi-field-form given `status` and its `page:` key renamed `pages:`. */
+	async function suiteWithRenamedKey(
+		name: string,
+		status: string,
+	): Promise<{ directory: string; casesFile: string }> {
+		const directory = await suiteCopy(name);
+		const casesFile = join(
+			directory,
+			".forge",
+			"cases",
+			"standard-multi-field-form.yaml",
+		);
+		const text = await readFile(casesFile, "utf8");
+		const rewritten = text
+			.replace(/^ {4}page: /m, "    pages: ")
+			.replace(/^ {2}status: approved$/m, `  status: ${status}`);
+		expect(rewritten).not.toBe(text);
+		await writeFile(casesFile, rewritten);
+		return { directory, casesFile };
+	}
+
+	test("an approved case whose input keys are not the feature's inputs is an error row with selectCases' message, never ok", async () => {
+		const { directory, casesFile } = await suiteWithRenamedKey(
+			"renamed",
+			"approved",
+		);
+		const status = await suiteStatus("evals/renamed", directory, FORGE_VERSION);
+		expect(status).toEqual({
+			entry: "evals/renamed",
+			state: "error",
+			error: `case standard-multi-field-form-01's input keys do not match the feature's inputs (missing: page; extra: pages); rename them in its input: or in feature.yaml (file: ${casesFile}, id: standard-multi-field-form-01)`,
+		});
+	});
+
+	test("a rejected case with mismatched input keys is not selected, so the suite stays ok", async () => {
+		const { directory } = await suiteWithRenamedKey(
+			"renamedrejected",
+			"rejected",
+		);
+		const status = await suiteStatus(
+			"evals/renamedrejected",
+			directory,
+			FORGE_VERSION,
+		);
+		expect(status.state).toBe("ok");
+	});
+
+	test("with no suite.yaml yet nothing is selected, so mismatched input keys leave the suite ok (emit asks for suite.yaml first)", async () => {
+		const { directory } = await suiteWithRenamedKey(
+			"renamednosuite",
+			"approved",
+		);
+		await unlink(join(directory, ".forge", "suite.yaml"));
+		const status = await suiteStatus(
+			"evals/renamednosuite",
+			directory,
+			FORGE_VERSION,
+		);
+		expect(status.state).toBe("ok");
+	});
+
+	test("an include naming no scenario is the error row selectCases refuses it with", async () => {
+		const directory = await suiteCopy("badinclude");
+		const suiteFile = join(directory, ".forge", "suite.yaml");
+		await writeFile(
+			suiteFile,
+			(await readFile(suiteFile, "utf8")).replace(
+				/^include: \[\]$/m,
+				"include: [gone]",
+			),
+		);
+		const status = await suiteStatus(
+			"evals/badinclude",
+			directory,
+			FORGE_VERSION,
+		);
+		expect(status).toEqual({
+			entry: "evals/badinclude",
+			state: "error",
+			error: `scenario "gone" in suite.include not found (file: ${suiteFile}, id: gone)`,
+		});
+	});
+
 	test("renders a report.json that does not match the schema as an error naming it", async () => {
 		const directory = await suiteCopy("badreport");
 		const reportFile = join(directory, ".forge", "report.json");
