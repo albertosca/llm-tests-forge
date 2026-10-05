@@ -197,7 +197,7 @@ describe.skipIf(!packages || HOST === undefined)("install.sh", () => {
 		expect(await readdir(target)).toEqual([]);
 	}, 600_000);
 
-	test("an unsupported platform exits 1 naming it, in npm-style names, and installs nothing", async () => {
+	test("an unsupported platform exits 1 naming what uname returned and the asset it would have wanted, and installs nothing", async () => {
 		const { work, intactUrl } = await built();
 		for (const [kernelName, machineName, expected] of [
 			["FreeBSD", "amd64", "freebsd-x64"],
@@ -211,8 +211,8 @@ describe.skipIf(!packages || HOST === undefined)("install.sh", () => {
 				PATH: `${fake}:${process.env.PATH ?? ""}`,
 			});
 			expect(finished.exitCode).toBe(1);
-			expect(finished.stderr).toContain(
-				`llm-tests-forge has no binary for ${expected}; see https://github.com/albertosca/llm-tests-forge`,
+			expect(finished.stderr).toBe(
+				`llm-tests-forge has no binary for ${kernelName} ${machineName} (uname -s, uname -m): the release has no asset llm-tests-forge-${expected}; see https://github.com/albertosca/llm-tests-forge\n`,
 			);
 			expect(await readdir(target)).toEqual([]);
 		}

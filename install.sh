@@ -60,7 +60,7 @@ x86_64 | amd64) architecture="x64" ;;
 esac
 case "$operating_system-$architecture" in
 darwin-arm64 | darwin-x64 | linux-arm64 | linux-x64) ;;
-*) fail "$BINARY_NAME has no binary for $operating_system-$architecture; see $REPOSITORY_URL" ;;
+*) fail "$BINARY_NAME has no binary for $kernel_name $machine_name (uname -s, uname -m): the release has no asset $BINARY_NAME-$operating_system-$architecture; see $REPOSITORY_URL" ;;
 esac
 asset_name="$BINARY_NAME-$operating_system-$architecture"
 
