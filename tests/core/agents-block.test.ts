@@ -403,12 +403,8 @@ describe("upsertAgentsBlock: what opens and closes a code fence", () => {
 		expect(planned.replaced).toBe(true);
 		expect(planned.text).toBe(`Use \`\`\` inline.\n${block}\nand \`\`\`\n`);
 	});
-	test("an info string may hold a line separator or a lone carriage return: the fence still quotes the pair", () => {
-		for (const info of [
-			`js${LINE_SEPARATOR}x`,
-			`js${PARAGRAPH_SEPARATOR}x`,
-			"js\rx",
-		]) {
+	test("an info string may hold a line separator: the fence still quotes the pair (a lone carriage return is refused, see below)", () => {
+		for (const info of [`js${LINE_SEPARATOR}x`, `js${PARAGRAPH_SEPARATOR}x`]) {
 			const existing = `\`\`\`${info}\n${quotedPair}\`\`\`\n`;
 			const planned = planAgentsBlock("AGENTS.md", existing);
 			expect(planned.replaced).toBe(false);
@@ -704,11 +700,121 @@ describe("upsertAgentsBlock: never overwrites what CommonMark reads as code", ()
 	});
 });
 
+describe("upsertAgentsBlock: link definitions, raw HTML, carriage returns, a byte order mark and depth", () => {
+	const block = agentsBlock();
+	const quotedPair = `${AGENTS_START}\nuser text\n${AGENTS_END}\n`;
+	const realPair = `${AGENTS_START}\nold\n${AGENTS_END}\n`;
+	function expectQuoted(existing: string): void {
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect({ existing, replaced: planned.replaced }).toEqual({
+			existing,
+			replaced: false,
+		});
+		expect(planned.text).toBe(`${existing}\n${block}\n`);
+	}
+
+	test("an underline under a paragraph of link definitions alone is paragraph text, not a heading", () => {
+		expectQuoted(`[a]: /url\n===\n<span>\n\`\`\`\n${quotedPair}\`\`\`\n`);
+		// `10.` cannot interrupt the paragraph, and the blank line ends it:
+		// the end marker is indented code, so the start marker is left open.
+		expect(() =>
+			planAgentsBlock(
+				"AGENTS.md",
+				`[a]: /url\n===\n10. ${AGENTS_START}\n    \n    ${AGENTS_END}\n`,
+			),
+		).toThrow(
+			"AGENTS.md line 3 opens the llm-tests-forge block and nothing closes it",
+		);
+	});
+	test("a lone carriage return, or CR CR LF, is refused by line, before any reading", () => {
+		for (const [existing, line] of [
+			[`\`\`\`\r\n${AGENTS_START}\r\nmine\r\n${AGENTS_END}\r\n\`\`\`\r\r\n`, 5],
+			[`a\rb\n${realPair}`, 1],
+			[`a\n${AGENTS_START}\r`, 2],
+			[`\r${realPair}`, 1],
+		] as const)
+			expect(() => planAgentsBlock("AGENTS.md", existing)).toThrow(
+				`AGENTS.md line ${line} holds a carriage return that does not end the line (a lone CR, or CR CR LF); normalise its line endings to LF or CRLF and run init again`,
+			);
+	});
+	test("a pair inside raw HTML that only its end pattern closes is content, never replaced", () => {
+		for (const [opener, closer] of [
+			["<script>", "</script>"],
+			["<pre>", "</pre>"],
+			["<style>", "</style>"],
+			["<textarea>", "</textarea>"],
+			["<?php", "?>"],
+			["<![CDATA[", "]]>"],
+		])
+			expectQuoted(`${opener}\n${quotedPair}${closer}\n`);
+		// A comment and a declaration end at the first `-->` or `>`, which
+		// the start marker holds: it is their last line, so it is content,
+		// and the end marker after it is left alone, unpaired.
+		for (const opener of ["<!--", "<!X"])
+			expect(() =>
+				planAgentsBlock("AGENTS.md", `${opener}\n${quotedPair}\n`),
+			).toThrow(
+				"AGENTS.md line 4 closes an llm-tests-forge block that was never opened",
+			);
+	});
+	test("a pair inside an HTML block that a blank line ends is replaced", () => {
+		for (const [opener, closer] of [
+			["<div>", "</div>"],
+			["<details>", "</details>"],
+			["<x-y a='1'>", "</x-y>"],
+		])
+			expect(
+				upsertAgentsBlock("AGENTS.md", `${opener}\n${realPair}${closer}\n`),
+			).toBe(`${opener}\n${block}\n${closer}\n`);
+	});
+	test("a leading byte order mark is read past, so the line after it may be indented code, and it stays in the file", () => {
+		const bom = String.fromCodePoint(0xfeff);
+		expectQuoted(
+			`${bom}    ${AGENTS_START}\n    user text\n    ${AGENTS_END}\n`,
+		);
+		expect(upsertAgentsBlock("AGENTS.md", `${bom}${realPair}`)).toBe(
+			`${bom}${block}\n`,
+		);
+	});
+	test("a fence still open at the end of the file, inside a blockquote, closed with the quote at the last empty line, so it quotes as CommonMark does", () => {
+		expectQuoted(
+			`> \`\`\`\n${quotedPair.replace(/^/gm, "> ").replace(/> $/, "")}`,
+		);
+	});
+	test("a fence still open at the end of the file, inside a list item, is no fence: the one place the reader reads less as code than CommonMark", () => {
+		expect(
+			upsertAgentsBlock(
+				"AGENTS.md",
+				`- \`\`\`\n  ${AGENTS_START}\n  old\n  ${AGENTS_END}\n`,
+			),
+		).toBe(
+			`- \`\`\`\n${block
+				.split("\n")
+				.map((line) => `  ${line}`)
+				.join("\n")}\n`,
+		);
+	});
+	test("nesting past 100 blockquotes and list items is refused by line, quickly", () => {
+		const started = performance.now();
+		expect(() =>
+			planAgentsBlock("AGENTS.md", `intro\n${"- ".repeat(20_000)}x\n`),
+		).toThrow(
+			"AGENTS.md line 2 nests more than 100 blockquotes and list items; llm-tests-forge does not read that deep",
+		);
+		expect(performance.now() - started).toBeLessThan(5_000);
+		const deepest = `${"> ".repeat(100)}${AGENTS_START}\n${"> ".repeat(100)}${AGENTS_END}\n`;
+		expect(planAgentsBlock("AGENTS.md", deepest).replaced).toBe(true);
+		expect(() =>
+			planAgentsBlock("AGENTS.md", `${"> ".repeat(101)}${AGENTS_START}\n`),
+		).toThrow("AGENTS.md line 1 nests more than 100");
+	});
+});
+
 describe("quotedLines: the lines CommonMark reads as code", () => {
 	/** The 1-based numbers of the lines quoted, blank lines left out (they can never be a marker). */
 	function quotedNumbers(text: string): number[] {
 		const lines = text.split("\n");
-		return quotedLines(lines).flatMap((quoted, index) =>
+		return quotedLines("AGENTS.md", lines).flatMap((quoted, index) =>
 			quoted && lines[index]?.trim() !== "" ? [index + 1] : [],
 		);
 	}
@@ -733,18 +839,23 @@ describe("quotedLines: the lines CommonMark reads as code", () => {
 		],
 		["a fence inside an HTML block is HTML", "<div>\n```\nx\n```\n", []],
 		[
-			"an HTML comment ends at `-->`, and code may follow",
-			"<!--\nx\n-->\n    code\n",
-			[4],
+			"an HTML comment's lines are quoted up to its `-->`, and no further",
+			"<!--\nx\n-->\ntext\n",
+			[2, 3],
 		],
 		[
 			"an HTML block's end is looked for past the blockquote marker",
-			"> <!DOCTYPE html\n>     code\n",
-			[],
+			"> <!DOCTYPE html\n> text\n",
+			[2],
 		],
 		[
 			"on each line of the HTML block too",
-			"> <!DOCTYPE html\n> x\n>     code\n",
+			"> <!DOCTYPE html\n> x\n> text\n",
+			[2, 3],
+		],
+		[
+			"a NUL reads as U+FFFD, which an unquoted attribute value may hold",
+			"<a b=x\0y>\n```\nx\n```\n",
 			[],
 		],
 		[
@@ -820,27 +931,27 @@ describe("quotedLines: the lines CommonMark reads as code", () => {
 		[
 			"a blank line does not end an HTML comment",
 			"<!--\n\n    code\n-->\n",
-			[],
+			[3, 4],
 		],
 		[
 			"a declaration interrupts a paragraph and runs to its `>`",
-			"intro\n<!DOCTYPE\n```\nx\n```\n",
-			[],
+			"intro\n<!DOCTYPE\nx\n>\n    code\n",
+			[3, 4, 5],
 		],
 		[
-			"a declaration after text is text",
-			"intro\nx <!D\n```\nx\n```\n",
-			[3, 4, 5],
+			"a declaration after text is text (the `>` is a blockquote)",
+			"intro\nx <!D\nx\n>\n    code\n",
+			[5],
 		],
 		[
 			"a CDATA section interrupts a paragraph",
-			"intro\n<![CDATA[\n```\nx\n```\n",
-			[],
+			"intro\n<![CDATA[\nx\n]]>\n    code\n",
+			[3, 4, 5],
 		],
 		[
 			"a CDATA section after text is text",
-			"intro\nx <![CDATA[\n```\nx\n```\n",
-			[3, 4, 5],
+			"intro\nx <![CDATA[\nx\n]]>\n    code\n",
+			[],
 		],
 		["a heading tag is a block tag", "intro\n<h1>\n```\nx\n```\n", []],
 		["text after a break makes list items", "* * * x\n    code\n", []],
@@ -859,17 +970,21 @@ describe("quotedLines: the lines CommonMark reads as code", () => {
 		["a list marker after text is text", "x -     code\n", []],
 		[
 			"a `<pre>` after text is text",
-			"intro\nx <pre>\n```\nx\n```\n",
-			[3, 4, 5],
+			"intro\nx <pre>\nx\n</pre>\n    code\n",
+			[],
 		],
 		[
 			"`<pre` cut at the line's end starts HTML",
-			"intro\n<pre\n```\nx\n```\n",
-			[],
+			"intro\n<pre\nx\n</pre>\n    code\n",
+			[3, 4, 5],
 		],
-		["`<pre` and a space starts HTML", "intro\n<pre x>\n```\nx\n```\n", []],
-		["a `<?` after text is text", "intro\nx <?\n```\nx\n```\n", [3, 4, 5]],
-		["`<?` starts HTML", "intro\n<?\n```\nx\n```\n", []],
+		[
+			"`<pre` and a space starts HTML",
+			"intro\n<pre x>\nx\n</pre>\n    code\n",
+			[3, 4, 5],
+		],
+		["a `<?` after text is text", "intro\nx <?\nx\n?>\n    code\n", []],
+		["`<?` starts HTML", "intro\n<?\nx\n?>\n    code\n", [3, 4, 5]],
 		[
 			"backticks anywhere after a backtick run make it no fence (marked)",
 			"```ab`\nx\n```\n",
@@ -878,6 +993,81 @@ describe("quotedLines: the lines CommonMark reads as code", () => {
 		["a tilde run after text is no fence (marked)", "a ~~~\nx\n~~~\n", []],
 		["one tilde is no fence (marked)", "~\nx\n~~~\n", []],
 	];
+	// A setext underline makes no heading under a paragraph of link
+	// reference definitions alone: then the paragraph goes on, and the
+	// indented line after the underline is its lazy text, not code.
+	const underDefinitions = (lines: string): string =>
+		`${lines}\n===\n    code\n`;
+	const heading = (lines: string): number[] => [lines.split("\n").length + 2];
+	const definitionCases: [string, string, boolean][] = [
+		["a destination alone", "[a]: /url", false],
+		["two spaces before the destination", "[a]:  /u", false],
+		["a definition, then text", "[a]: /url\nTitle", true],
+		["balanced parentheses", "[a]: (x)", false],
+		["nested parentheses", "[a]: a((b))", false],
+		["a `)` with none open ends it", "[a]: a)b", true],
+		["a `(` never closed", "[a]: a(b", true],
+		["an empty destination before `)`", "[a]: )", true],
+		["no destination at all", "[a]: ", true],
+		["`<…>` may hold a space", "[a]: <x y>", false],
+		["a `<` never closed", "[a]: <x", true],
+		["an escaped parenthesis", "[a]: a\\(b", false],
+		["a backslash at the end", "[a]: a\\", false],
+		["a single-quoted title", "[a]: /u 'title'", false],
+		["a double-quoted title", '[a]: /u "title"', false],
+		["a parenthesised title", "[a]: /u (title)", false],
+		["an escaped space in a double-quoted title", '[a]: /u "a\\ b"', false],
+		["an escaped quote in a double-quoted title", '[a]: /u "a\\"b"', false],
+		["an escaped space in a single-quoted title", "[a]: /u 'a\\ b'", false],
+		["an escaped space in a parenthesised title", "[a]: /u (a\\ b)", false],
+		["an escaped `)` in a parenthesised title", "[a]: /u (a\\)b)", false],
+		["a title right after a `<…>` destination", "[a]: <x>'t'", true],
+		["a `<…>` after other text in the destination", "[a]: x<y>", false],
+		["a `)` with none open, then a `(`", "[a]: a)(b", true],
+		["a backslash before a space ends the destination", "[a]: a\\ b", true],
+		["a vertical tab ends the destination", "[a]: /u\vx", true],
+		["a label of a NUL, read as U+FFFD", "[\0]: /u", false],
+		["a label after other text", "abc:[x]", true],
+		["a definition after the destination's text", "[a]: /u [b]: /v", true],
+		["a title-like text two lines down", "[a]: /u\nxy\n[b]: /v''", true],
+		["an escape in a title", "[a]: /u 'a\\'b'", false],
+		["a `(` inside a parenthesised title", "[a]: /u (a(b)", true],
+		["text after the title", "[a]: /u 'title' x", true],
+		["text after the destination", "[a]: /u x", true],
+		["spaces after the destination", "[a]: /u   ", false],
+		["a tab after the destination", "[a]: /u\t", true],
+		["a title on the next line", "[a]: /u\n'title'", false],
+		["a title with text after, next line", "[a]: /u\n'title' x", true],
+		["a destination on the next line", "[a]:\n/url", false],
+		["two definitions", "[a]: /u\n[b]: /v", false],
+		["a blank label", "[ ]: /u", true],
+		["text between label and colon", "[a]x: /u", true],
+		["no colon", "[a] /u", true],
+		["an escaped bracket in the label", "[a\\]]: /u", false],
+		["a 999-character label", `[${"x".repeat(999)}]: /u`, false],
+		["a 1000-character label", `[${"x".repeat(1000)}]: /u`, true],
+	];
+	for (const [name, lines, makesHeading] of definitionCases)
+		cases.push([
+			`under ${name}, an underline ${makesHeading ? "makes a heading" : "is text"}`,
+			underDefinitions(lines),
+			makesHeading ? heading(lines) : [],
+		]);
+	// A paragraph's text is read from its first character, past blockquote
+	// markers and list items, and past a tab as it is written.
+	cases.push(
+		["a definition in a blockquote", "> [a]: /u\n> ===\n>     code\n", []],
+		[
+			"a definition in a list item after a tab",
+			"-\t[a]: /u\n    ===\n        code\n",
+			[],
+		],
+		[
+			"a definition in a list item after a tab and a space",
+			"-\t [a]: /u\n     ===\n          code\n",
+			[],
+		],
+	);
 	for (const [name, text, expected] of cases)
 		test(name, () => {
 			expect({ text, quoted: quotedNumbers(text) }).toEqual({

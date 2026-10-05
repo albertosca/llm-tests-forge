@@ -112,23 +112,133 @@ const HTML_BLOCKS: { opener: RegExp; end?: RegExp }[] = [
 	},
 ];
 
+// commonmark.js's link reference definition (its parseReference), which
+// decides whether a setext underline makes a heading: not when the
+// paragraph above it holds definitions alone.
+//
+// Rewritten where the meaning stays the same, each proved by the
+// definitions fuzz against commonmark.js:
+// - ESCAPABLE and DESTINATION_STOP test one character, so they need no anchor;
+// - SPACES_AND_ONE_LINE_BREAK may match nothing, so it always matches at the start;
+// - a paragraph's text always ends with a line break, so a line's end is
+//   a line break, never the end of the text;
+// - commonmark.js spells an escape in a title as an escapable character or
+//   any other but a backslash, which together are any character;
+// - a `)` with none open makes the line no definition, however it is read.
+const LINK_LABEL = /^\[(?:[^\\[\]]|\\.){0,1000}\]/s;
+const ESCAPABLE = /[!"#$%&'()*+,./:;<=>?@[\\\]^_`{|}~-]/;
+const DESTINATION_IN_BRACES = /^<(?:[^<>\n\\]|\\.)*>/;
+const LINK_TITLE =
+	/^(?:"(?:\\[\s\S]|[^\\"])*"|'(?:\\[\s\S]|[^\\'])*'|\((?:\\[\s\S]|[^\\()])*\))/;
+const SPACES_AND_ONE_LINE_BREAK = / *(?:\n *)?/;
+const SPACES_TO_LINE_END = /^ *\n/;
+const DESTINATION_STOP = /[ \t\n\v\f\r]/;
+
+/** The position past the spaces, and at most one line break, from `position` on. */
+function pastSpaces(subject: string, position: number): number {
+	return (
+		subject.length -
+		subject.slice(position).replace(SPACES_AND_ONE_LINE_BREAK, "").length
+	);
+}
+
+/** Where a link destination from `start` ends, if one does. */
+function destinationEnd(subject: string, start: number): number | undefined {
+	const braced = DESTINATION_IN_BRACES.exec(subject.slice(start));
+	if (braced !== null) return start + braced[0].length;
+	if (subject.charAt(start) === "<") return undefined;
+	let position = start;
+	let parentheses = 0;
+	let character = subject.charAt(position);
+	while (character !== "" && !DESTINATION_STOP.test(character)) {
+		if (character === "\\" && ESCAPABLE.test(subject.charAt(position + 1)))
+			position += 1;
+		else if (character === "(") parentheses += 1;
+		else if (character === ")") {
+			if (parentheses === 0) return undefined;
+			parentheses -= 1;
+		}
+		position += 1;
+		character = subject.charAt(position);
+	}
+	// An empty destination stops at a tab, a vertical tab or a form feed
+	// (spaces and the one line break allowed were skipped before it, and a
+	// second line break would end the paragraph), so no line end follows
+	// and the definition fails anyway: it needs no check of its own.
+	return parentheses === 0 ? position : undefined;
+}
+
+/** Where the line from `position` ends past its trailing spaces and line break, if nothing else stands there. */
+function lineEnd(subject: string, position: number): number | undefined {
+	const found = SPACES_TO_LINE_END.exec(subject.slice(position));
+	return found === null ? undefined : position + found[0].length;
+}
+
+/** The length of the link reference definition `subject` starts with, or 0. */
+function definitionLength(subject: string): number {
+	const label = LINK_LABEL.exec(subject)?.[0];
+	if (
+		label === undefined ||
+		label.length > 1001 ||
+		subject.charAt(label.length) !== ":"
+	)
+		return 0;
+	const destination = destinationEnd(
+		subject,
+		pastSpaces(subject, label.length + 1),
+	);
+	// Stryker disable next-line ConditionalExpression: with no destination the lines below read the subject from its start, a `[`, which is neither a title nor a line end, so 0 comes back either way; the check is for the type
+	if (destination === undefined) return 0;
+	const titleStart = pastSpaces(subject, destination);
+	const title =
+		titleStart === destination
+			? null
+			: LINK_TITLE.exec(subject.slice(titleStart));
+	// A title that does not end its line is dropped, and the destination
+	// must end it instead.
+	const end =
+		(title === null
+			? undefined
+			: lineEnd(subject, titleStart + title[0].length)) ??
+		lineEnd(subject, destination);
+	return end === undefined || label.slice(1, -1).trim() === "" ? 0 : end;
+}
+
+/** Whether a paragraph's text is link reference definitions and nothing else. */
+function onlyDefinitions(text: string): boolean {
+	let rest = text;
+	while (rest !== "") {
+		const length = definitionLength(rest);
+		if (length === 0) return false;
+		rest = rest.slice(length);
+	}
+	return true;
+}
+
 /** A block the scan is inside: containers first, then at most one leaf. */
 type Block =
 	| { kind: "quote" }
 	/** `width` is how far a line must be indented to stay in the item; `empty`, whether nothing is in it yet. */
 	| { kind: "item"; width: number; empty: boolean }
-	| { kind: "paragraph" }
+	/** `text` is the paragraph's lines as CommonMark keeps them: from their first character that is not a space, each with its line break. */
+	| { kind: "paragraph"; text: string }
 	| { kind: "fence"; character: string; length: number }
+	/** `end` is the pattern that ends the block on the line it reaches; none for the kinds a blank line ends. */
 	| { kind: "html"; end: RegExp | undefined };
 
-/** `blocks` with `block` opened inside the last one: an empty list item then holds something. Without `block`, a leaf opened and closed on the same line. */
+/** Containers a line may nest before the reader refuses the file: past this, each line would cost time with no file that needs it. */
+const DEEPEST = 100;
+
+/**
+ * `blocks` with `block` opened inside the last one, which then holds
+ * something: an empty list item stops being empty (only an item reads
+ * `empty`). Without `block`, a leaf opened and closed on the same line.
+ */
 function openInside(blocks: Block[], block?: Block): Block[] {
-	const last = blocks.at(-1);
-	const filled =
-		// Stryker disable next-line ConditionalExpression: only an item reads `empty`, so a blockquote copied with it reads the same; the copy's new identity can move quotedLines' last change only past lines that open no fence (an opener is itself a change)
-		last?.kind === "item"
-			? [...blocks.slice(0, -1), { ...last, empty: false }]
-			: blocks;
+	const filled = [
+		...blocks.slice(0, -1),
+		...blocks.slice(-1).map((last) => ({ ...last, empty: false })),
+	];
 	return block === undefined ? filled : [...filled, block];
 }
 
@@ -155,13 +265,23 @@ const textLine = (blocks: Block[]) => ({ blocks, quoted: false });
  * - what is left is a paragraph's line, a lazy one when the paragraph's
  *   containers did not all continue.
  * `mayOpen` false reads a fence opener as text (see `quotedLines`).
+ * A line inside a raw HTML block that only its end pattern closes
+ * (`<script>`, `<pre>`, `<style>`, `<textarea>`, a comment, `<?`, `<!X`,
+ * CDATA) is quoted like code; one inside a block a blank line ends
+ * (`<div>`, a lone tag) is not. `place` names the line in a refusal.
  */
 function readLine(
 	blocks: Block[],
 	line: string,
 	mayOpen: boolean,
+	place: string,
 ): { blocks: Block[]; quoted: boolean } {
-	const text = expandTabs(line.endsWith("\r") ? line.slice(0, -1) : line);
+	// A CRLF line's CR is its line break; CommonMark reads a NUL as U+FFFD.
+	const source = (line.endsWith("\r") ? line.slice(0, -1) : line).replaceAll(
+		"\0",
+		"�",
+	);
+	const text = expandTabs(source);
 	let offset = 0;
 	let matched = 0;
 	for (const block of blocks) {
@@ -185,15 +305,26 @@ function readLine(
 		} else if (block.kind === "html") {
 			if (blank && block.end === undefined) break;
 			const ends = block.end?.test(text.slice(offset)) === true;
-			return textLine(ends ? blocks.slice(0, matched) : blocks);
+			const next = ends ? blocks.slice(0, matched) : blocks;
+			return block.end === undefined ? textLine(next) : codeLine(next);
 		}
 		// A paragraph continues here on any line: a blank one ends it below,
 		// where the paragraph is never kept for a blank line.
 		matched += 1;
 	}
-	const paragraphOpen = blocks.at(-1)?.kind === "paragraph";
+	const tip = blocks.at(-1);
+	const paragraph = tip?.kind === "paragraph" ? tip : undefined;
+	const paragraphOpen = paragraph !== undefined;
 	// The paragraph itself continued: CommonMark calls it the container.
-	const inParagraph = paragraphOpen && matched === blocks.length;
+	const inParagraph = paragraph !== undefined && matched === blocks.length;
+	/** `open` with a blockquote or list item inside it, refused past DEEPEST. */
+	const openContainer = (container: Block): Block[] => {
+		if (open.length >= DEEPEST)
+			throw new ForgeError(
+				`${place} nests more than ${DEEPEST} blockquotes and list items; llm-tests-forge does not read that deep`,
+			);
+		return openInside(open, container);
+	};
 	// What a new block opens inside: a block that starts ends the paragraph.
 	let open = blocks.slice(0, inParagraph ? matched - 1 : matched);
 	let started = false;
@@ -210,7 +341,7 @@ function readLine(
 			return codeLine(openInside(open));
 		}
 		if (rest.startsWith(">")) {
-			open = openInside(open, { kind: "quote" });
+			open = openContainer({ kind: "quote" });
 			offset = rest.charAt(1) === " " ? nonspace + 2 : nonspace + 1;
 			started = true;
 			continue;
@@ -234,7 +365,14 @@ function readLine(
 					? openInside(open)
 					: openInside(open, { kind: "html", end: html.end }),
 			);
-		if (inParagraph && !started && SETEXT_UNDERLINE.test(rest))
+		// An underline under definitions alone makes no heading: the
+		// paragraph goes on, and the line is its text.
+		if (
+			inParagraph &&
+			!started &&
+			SETEXT_UNDERLINE.test(rest) &&
+			!onlyDefinitions(paragraph.text)
+		)
 			return textLine(open);
 		if (THEMATIC_BREAK.test(rest)) return textLine(openInside(open));
 		const item = LIST_ITEM.exec(rest);
@@ -250,7 +388,7 @@ function readLine(
 		)
 			break;
 		const padding = item[0].length + (emptyItem || spaces > 4 ? 1 : spaces);
-		open = openInside(open, {
+		open = openContainer({
 			kind: "item",
 			width: nonspace - offset + padding,
 			empty: true,
@@ -258,11 +396,28 @@ function readLine(
 		offset = Math.min(nonspace + padding, text.length);
 		started = true;
 	}
-	const blank = offset + indentOf(text.slice(offset)) === text.length;
-	if (blank) return textLine(open);
+	const contentStart = offset + indentOf(text.slice(offset));
+	if (contentStart === text.length) return textLine(open);
+	const content = `${sourceFrom(source, contentStart)}\n`;
 	// A paragraph's next line, or a lazy one: nothing closes.
-	if (paragraphOpen && !started) return textLine(blocks);
-	return textLine(openInside(open, { kind: "paragraph" }));
+	if (paragraph !== undefined && !started)
+		return textLine([
+			...blocks.slice(0, -1),
+			{ kind: "paragraph", text: paragraph.text + content },
+		]);
+	return textLine(openInside(open, { kind: "paragraph", text: content }));
+}
+
+/**
+ * `source` from the character that expands to `column` (see `expandTabs`):
+ * a paragraph's text is the line as written, tabs and all, since a tab
+ * after a link destination keeps it from being a definition.
+ */
+function sourceFrom(source: string, column: number): string {
+	let index = 0;
+	for (let reached = 0; reached < column; index += 1)
+		reached += source.charAt(index) === "\t" ? 4 - (reached % 4) : 1;
+	return source.slice(index);
 }
 
 /**
@@ -273,19 +428,32 @@ function readLine(
  * file code, but a person never meant that. When the line closes a fence,
  * or starts something else, no fence opens after it anyway. Exported for
  * its test.
+ *
+ * This is the one place the reader knowingly reads less as code than
+ * CommonMark: a fence still open at the end of the file. Inside a
+ * blockquote the file's last, empty line ends the quote and the fence with
+ * it, so such a fence did close and quotes what it holds, as CommonMark
+ * does; inside a list item the empty line keeps the item, the fence stays
+ * open, and what it holds is read as text (the tests "a fence still open at
+ * the end of the file, inside a blockquote…" and "…inside a list item…"
+ * pin both). Everything else follows commonmark.js 0.31.2: a carriage
+ * return that does not end a line, which it would read as a line break, is
+ * refused by planAgentsBlock, and a byte order mark is read past there
+ * (towards more code).
  */
-export function quotedLines(lines: string[]): boolean[] {
+export function quotedLines(file: string, lines: string[]): boolean[] {
 	let blocks = NOTHING_OPEN;
 	let lastChange = 0;
+	const place = (index: number): string => `${file} line ${index + 1}`;
 	for (const [index, line] of lines.entries()) {
-		const next = readLine(blocks, line, true).blocks;
+		const next = readLine(blocks, line, true, place(index)).blocks;
 		// readLine hands back the same blocks while a fence stays open.
 		if (next.at(-1) !== blocks.at(-1)) lastChange = index;
 		blocks = next;
 	}
 	blocks = NOTHING_OPEN;
 	return lines.map((line, index) => {
-		const read = readLine(blocks, line, index < lastChange);
+		const read = readLine(blocks, line, index < lastChange, place(index));
 		blocks = read.blocks;
 		return read.quoted;
 	});
@@ -305,7 +473,7 @@ function findBlocks(file: string, lines: string[]): MarkedBlock[] {
 	const blocks: MarkedBlock[] = [];
 	let openAt: number | null = null;
 	let openDepth = 0;
-	const quoted = quotedLines(lines);
+	const quoted = quotedLines(file, lines);
 	for (const [index, line] of lines.entries()) {
 		if (quoted[index]) continue;
 		const prefix = markerPrefix(line);
@@ -345,13 +513,37 @@ function findBlocks(file: string, lines: string[]): MarkedBlock[] {
  * in the block too, and a replaced block keeps the start marker's
  * indentation, blockquote and list item: its prefix on the first line, and
  * that prefix with list markers turned to spaces on the rest. Pure.
+ *
+ * A leading byte order mark stays in the file but is read past. CommonMark
+ * reads it as text, so the reader errs here towards more code: an indented
+ * first line after the mark is indented code to it, and never replaced (the
+ * test "a leading byte order mark…" pins it). A carriage return that does
+ * not end a line is refused: CommonMark breaks the line there and the
+ * reader would not.
  */
 export function planAgentsBlock(
 	file: string,
 	existing: string | null,
 ): { text: string; replaced: boolean } {
+	if (existing === null) return { text: `${agentsBlock()}\n`, replaced: false };
+	const mark = existing.startsWith(BYTE_ORDER_MARK) ? BYTE_ORDER_MARK : "";
+	const planned = planWithoutMark(file, existing.slice(mark.length));
+	return { text: mark + planned.text, replaced: planned.replaced };
+}
+
+const BYTE_ORDER_MARK = "﻿";
+
+/** `planAgentsBlock` for a file with no byte order mark. */
+function planWithoutMark(
+	file: string,
+	existing: string,
+): { text: string; replaced: boolean } {
 	const block = agentsBlock();
-	if (existing === null) return { text: `${block}\n`, replaced: false };
+	const loneCarriage = existing.search(/\r(?!\n)/);
+	if (loneCarriage >= 0)
+		throw new ForgeError(
+			`${file} line ${existing.slice(0, loneCarriage).split("\n").length} holds a carriage return that does not end the line (a lone CR, or CR CR LF); normalise its line endings to LF or CRLF and run init again`,
+		);
 	// The ending of the last line break; LF when there is none.
 	const lastBreak = existing.lastIndexOf("\n");
 	const ending = existing.charAt(lastBreak - 1) === "\r" ? "\r\n" : "\n";
