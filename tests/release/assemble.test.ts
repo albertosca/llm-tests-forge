@@ -13,14 +13,18 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { assembleRelease, runAssemble } from "../../scripts/release/assemble";
 import { writeChecksums } from "../../scripts/release/checksums";
-import { gemFileName } from "../../scripts/release/gems";
+import { fallbackGemFileName, gemFileName } from "../../scripts/release/gems";
 import { platformDirectoryName } from "../../scripts/release/npm-packages";
 import {
 	CHECKSUMS_FILE_NAME,
 	RELEASE_TARGETS,
 } from "../../scripts/release/targets";
 import { stampVersion } from "../../scripts/release/version";
-import { pep440Version, wheelFileName } from "../../scripts/release/wheels";
+import {
+	fallbackWheelFileName,
+	pep440Version,
+	wheelFileName,
+} from "../../scripts/release/wheels";
 import { ForgeError, UsageError } from "../../src/core/errors";
 import { FORGE_VERSION } from "../../src/core/version";
 
@@ -122,8 +126,17 @@ describe("assembleRelease", () => {
 			join(out, "wheels"),
 			join(out, "hex"),
 			join(out, "gems"),
+			join(out, "fallbacks"),
 			join(out, "homebrew/llm-tests-forge.rb"),
 		]);
+		// The fallbacks sit apart from the platform packages, so the publish
+		// jobs can upload them only after every platform package.
+		expect((await readdir(join(out, "fallbacks"))).sort()).toEqual(
+			[
+				fallbackWheelFileName(FORGE_VERSION),
+				fallbackGemFileName(FORGE_VERSION),
+			].sort(),
+		);
 		expect((await readdir(join(out, "npm"))).sort()).toEqual(
 			["main", ...RELEASE_TARGETS.map(platformDirectoryName)].sort(),
 		);
@@ -226,6 +239,12 @@ describe("assembleRelease", () => {
 		expect((await readdir(join(out, "gems"))).sort()).toEqual(
 			RELEASE_TARGETS.map((target) => gemFileName(version, target)).sort(),
 		);
+		expect((await readdir(join(out, "fallbacks"))).sort()).toEqual(
+			[
+				"llm_tests_forge-0.1.0rc1-py3-none-any.whl",
+				fallbackGemFileName(version),
+			].sort(),
+		);
 		const mainManifest = JSON.parse(
 			await readFile(join(out, "npm/main/package.json"), "utf8"),
 		);
@@ -323,7 +342,7 @@ describe("runAssemble", () => {
 			{ ...(await fakeTools()) },
 		);
 		expect(code).toBe(0);
-		expect(printed).toHaveLength(5);
+		expect(printed).toHaveLength(6);
 		expect(printed[0]).toBe(join(resolve(out), "npm"));
 	}, 30_000);
 

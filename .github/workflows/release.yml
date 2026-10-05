@@ -310,12 +310,17 @@ jobs:
         uses: astral-sh/setup-uv@v10.2.0
       # uv reads the token from UV_PUBLISH_TOKEN, so it is never on the command
       # line; --check-url skips a file the index already holds, so a re-run after
-      # a partial publish uploads only what is missing.
+      # a partial publish uploads only what is missing. The py3-none-any fallback
+      # goes last: pip takes a newer version over a platform tag, so a fallback
+      # published beside a missing platform wheel would replace the binary with
+      # the unsupported-platform message on that platform.
       - name: Publish the wheels
         if: env.PYPI_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
-        run: uv publish --check-url https://pypi.org/simple/ assembled/wheels/*.whl
+        run: |
+          uv publish --check-url https://pypi.org/simple/ assembled/wheels/*.whl
+          uv publish --check-url https://pypi.org/simple/ assembled/fallbacks/*.whl
 
   publish-hex:
     needs: [release, assemble, packages]
@@ -375,13 +380,16 @@ jobs:
           ruby-version: "3.3"
       # A re-run after a partial publish skips a gem RubyGems already holds: it
       # answers "Repushing of gem versions is not allowed" for one; any other
-      # failure stops the job.
+      # failure stops the job. The ruby-platform fallback goes last: RubyGems
+      # takes a newer version over a platform match, so a fallback pushed
+      # beside a missing platform gem would replace the binary with the
+      # unsupported-platform message on that platform.
       - name: Push the gems
         if: env.GEM_HOST_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
         env:
           GEM_HOST_API_KEY: ${{ secrets.GEM_HOST_API_KEY }}
         run: |
-          for gem_file in assembled/gems/*.gem; do
+          for gem_file in assembled/gems/*.gem assembled/fallbacks/*.gem; do
             status=0
             output="$(gem push "$gem_file" 2>&1)" || status=$?
             printf '%s\n' "$output"

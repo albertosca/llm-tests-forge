@@ -361,9 +361,10 @@ describe("secrets and publishing", () => {
 		expect(step.env).toEqual({
 			UV_PUBLISH_TOKEN: `\${{ secrets.PYPI_TOKEN }}`,
 		});
-		expect(scriptOf(step).trim()).toBe(
+		expect(scriptOf(step).trim().split("\n")).toEqual([
 			"uv publish --check-url https://pypi.org/simple/ assembled/wheels/*.whl",
-		);
+			"uv publish --check-url https://pypi.org/simple/ assembled/fallbacks/*.whl",
+		]);
 	});
 
 	test("the Homebrew job commits the rendered formula to albertosca/homebrew-tap", () => {
@@ -449,11 +450,99 @@ describe("re-running a publish step after a partial publish", () => {
 		]);
 	}, 120_000);
 
+	test("PyPI gets the platform wheels before the fallback wheel, and a failed platform upload keeps the fallback back", async () => {
+		const workspace = await mkdtemp(join(tmpdir(), "forge-publish-pypi-"));
+		await mkdir(join(workspace, "assembled/wheels"), { recursive: true });
+		await mkdir(join(workspace, "assembled/fallbacks"), { recursive: true });
+		for (const name of [
+			"a-1.2.3-py3-none-linux.whl",
+			"b-1.2.3-py3-none-win.whl",
+		])
+			await writeFile(join(workspace, "assembled/wheels", name), "wheel\n");
+		// The fallback's name sorts before the platform wheels', so only the
+		// step's own order can put it last.
+		await writeFile(
+			join(workspace, "assembled/fallbacks/0-1.2.3-py3-none-any.whl"),
+			"wheel\n",
+		);
+		await writeFile(
+			join(workspace, "assembled/fallbacks/0-1.2.3.gem"),
+			"gem\n",
+		);
+		const script = scriptOf(
+			stepNamed(jobNamed("publish-pypi"), "Publish the wheels"),
+		);
+		const calls = join(workspace, "uv-calls.txt");
+		const uploading = await toolsWith({
+			uv: `#!/bin/sh\necho "$*" >> "${calls}"\n`,
+		});
+		expect(
+			runStep(script, workspace, {
+				PATH: `${uploading}:${process.env.PATH ?? ""}`,
+			}).exitCode,
+		).toBe(0);
+		expect((await readFile(calls, "utf8")).trim().split("\n")).toEqual([
+			"publish --check-url https://pypi.org/simple/ assembled/wheels/a-1.2.3-py3-none-linux.whl assembled/wheels/b-1.2.3-py3-none-win.whl",
+			"publish --check-url https://pypi.org/simple/ assembled/fallbacks/0-1.2.3-py3-none-any.whl",
+		]);
+		const refusedCalls = join(workspace, "refused-calls.txt");
+		const refusing = await toolsWith({
+			uv: `#!/bin/sh\necho "$*" >> "${refusedCalls}"\necho "403 Forbidden" >&2\nexit 1\n`,
+		});
+		const stopped = runStep(script, workspace, {
+			PATH: `${refusing}:${process.env.PATH ?? ""}`,
+		});
+		expect(stopped.exitCode).toBe(1);
+		expect(stopped.output).toContain("403 Forbidden");
+		expect((await readFile(refusedCalls, "utf8")).trim().split("\n")).toEqual([
+			"publish --check-url https://pypi.org/simple/ assembled/wheels/a-1.2.3-py3-none-linux.whl assembled/wheels/b-1.2.3-py3-none-win.whl",
+		]);
+	}, 30_000);
+
+	test("gem push pushes the platform gems before the fallback gem", async () => {
+		const workspace = await mkdtemp(join(tmpdir(), "forge-publish-gem-"));
+		await mkdir(join(workspace, "assembled/gems"), { recursive: true });
+		await mkdir(join(workspace, "assembled/fallbacks"), { recursive: true });
+		for (const name of [
+			"a-1.2.3-x86_64-linux-gnu.gem",
+			"b-1.2.3-arm64-darwin.gem",
+		])
+			await writeFile(join(workspace, "assembled/gems", name), "gem\n");
+		await writeFile(
+			join(workspace, "assembled/fallbacks/0-1.2.3.gem"),
+			"gem\n",
+		);
+		await writeFile(
+			join(workspace, "assembled/fallbacks/0-1.2.3-py3-none-any.whl"),
+			"wheel\n",
+		);
+		const calls = join(workspace, "gem-calls.txt");
+		const pushing = await toolsWith({
+			gem: `#!/bin/sh\necho "$*" >> "${calls}"\necho "Successfully registered gem: $2"\n`,
+		});
+		const result = runStep(
+			scriptOf(stepNamed(jobNamed("publish-gem"), "Push the gems")),
+			workspace,
+			{ PATH: `${pushing}:${process.env.PATH ?? ""}` },
+		);
+		expect(result.exitCode).toBe(0);
+		expect((await readFile(calls, "utf8")).trim().split("\n")).toEqual([
+			"push assembled/gems/a-1.2.3-x86_64-linux-gnu.gem",
+			"push assembled/gems/b-1.2.3-arm64-darwin.gem",
+			"push assembled/fallbacks/0-1.2.3.gem",
+		]);
+	}, 30_000);
+
 	test("gem push treats RubyGems' refusal to repush a version as a skip, and any other failure stops the step", async () => {
 		const workspace = await mkdtemp(join(tmpdir(), "forge-publish-gem-"));
 		await mkdir(join(workspace, "assembled/gems"), { recursive: true });
+		await mkdir(join(workspace, "assembled/fallbacks"), { recursive: true });
 		for (const name of ["a-already.gem", "b-new.gem"])
 			await writeFile(join(workspace, "assembled/gems", name), "gem\n");
+		await writeFile(
+			join(workspace, "assembled/fallbacks/c-fallback.gem"),
+			"gem\n",
+		);
 		const script = scriptOf(
 			stepNamed(jobNamed("publish-gem"), "Push the gems"),
 		);
@@ -486,6 +575,7 @@ describe("re-running a publish step after a partial publish", () => {
 		expect(stopped.exitCode).toBe(1);
 		expect(stopped.output).toContain("Access Denied");
 		expect(stopped.output).not.toContain("b-new.gem");
+		expect(stopped.output).not.toContain("c-fallback.gem");
 	}, 30_000);
 });
 

@@ -3,14 +3,14 @@ import { basename, join, resolve } from "node:path";
 import { ForgeError, UsageError } from "../../src/core/errors";
 import { verifyChecksums } from "./checksums";
 import { runMain } from "./entry";
-import { renderGems } from "./gems";
+import { renderFallbackGem, renderGems } from "./gems";
 import { renderHexChecksums } from "./hex-checksums";
 import { renderFormula } from "./homebrew-formula";
 import { copyLicense } from "./license";
 import { renderNpmPackages } from "./npm-packages";
 import { CHECKSUMS_FILE_NAME, RELEASE_TARGETS } from "./targets";
 import { checkVersions, releaseVersion } from "./version";
-import { pep440Version, renderWheels } from "./wheels";
+import { pep440Version, renderFallbackWheel, renderWheels } from "./wheels";
 
 const REPOSITORY_ROOT = resolve(import.meta.dir, "../..");
 
@@ -33,7 +33,11 @@ export interface AssembleTools {
  * Turns a directory of downloaded release binaries (with their `SHA256SUMS`)
  * into every package the publish jobs upload, under `outDirectory`: `npm/`
  * (the main and platform packages), `wheels/`, `hex/` (a copy of the Hex
- * package with its `checksums.exs` rendered in and the LICENSE beside it), `gems/`, and
+ * package with its `checksums.exs` rendered in and the LICENSE beside it), `gems/`,
+ * `fallbacks/` (the `py3-none-any` wheel and the `ruby` gem, which ship no
+ * binary; kept apart so the publish jobs upload them after every platform
+ * package, since an installer takes a newer fallback over an older platform
+ * package), and
  * `homebrew/llm-tests-forge.rb`. Nothing is written until the binaries match
  * `SHA256SUMS` and every manifest carries package.json's version. The
  * binaries are made executable first, since an artifact download drops the
@@ -74,6 +78,7 @@ export async function assembleRelease(
 	const wheelsDirectory = join(absoluteOut, "wheels");
 	const hexDirectory = join(absoluteOut, "hex");
 	const gemsDirectory = join(absoluteOut, "gems");
+	const fallbacksDirectory = join(absoluteOut, "fallbacks");
 	const formulaPath = join(absoluteOut, "homebrew/llm-tests-forge.rb");
 	await renderNpmPackages(binariesDirectory, npmDirectory, root);
 	await renderWheels(binariesDirectory, wheelsDirectory, root, tools.uvCommand);
@@ -88,6 +93,8 @@ export async function assembleRelease(
 		join(hexDirectory, "checksums.exs"),
 	);
 	await renderGems(binariesDirectory, gemsDirectory, root, tools.gemCommand);
+	await renderFallbackWheel(fallbacksDirectory, root, tools.uvCommand);
+	await renderFallbackGem(fallbacksDirectory, root, tools.gemCommand);
 	const sumsPath = join(binariesDirectory, CHECKSUMS_FILE_NAME);
 	const formula = await renderFormula(
 		version,
@@ -103,6 +110,7 @@ export async function assembleRelease(
 		wheelsDirectory,
 		hexDirectory,
 		gemsDirectory,
+		fallbacksDirectory,
 		formulaPath,
 	];
 }
