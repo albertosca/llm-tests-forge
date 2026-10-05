@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { parseYamlText } from "../../src/core/files";
+import type { core } from "zod";
+import { describeIssue, parseYamlText } from "../../src/core/files";
 import type { Case, Feature, Scenario } from "../../src/core/schemas";
 import {
 	CaseSchema,
@@ -314,11 +315,20 @@ describe("SuiteSchema.target.kind", () => {
 		expect(http.target.response).toBe("json.output.label");
 	});
 	test("a target refusal reads as its path and message alone, never zod's code, which the StringLiteral disables on each code rely on", () => {
-		const issue = SuiteSchema.safeParse({
+		const data = {
 			target: { kind: "exec", models: ["m/x"] },
 			judges: ["google/gemini-3.5-flash"],
-		}).error?.issues[0];
-		expect(issue?.code).toBe("custom");
+		};
+		const [issue] = SuiteSchema.safeParse(data).error?.issues ?? [];
+		if (issue === undefined) throw new Error("expected a refusal");
+		// The same issue under another code reads the same.
+		const recoded: core.$ZodIssue = {
+			code: "invalid_type",
+			expected: "string",
+			path: issue.path,
+			message: issue.message,
+		};
+		expect(describeIssue(recoded, data)).toBe(describeIssue(issue, data));
 		expect(() =>
 			parseYamlText(
 				"suite.yaml",
