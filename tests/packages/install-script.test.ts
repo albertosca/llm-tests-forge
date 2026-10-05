@@ -50,42 +50,100 @@ const INSTALL_SHELL = process.env.FORGE_INSTALL_SHELL ?? "sh";
 const SIGNER_WORKFLOW =
 	"albertosca/llm-tests-forge/.github/workflows/release.yml";
 
-/** What a fake `gh attestation verify` does: the answers the real gh 2.101.0 gives, measured. */
-type FakeGh =
-	| "verified"
-	| "no-attestation"
-	| "unreachable"
-	| "logged-out"
-	| "hangs";
+/**
+ * What a fake `gh attestation verify` answers with GH_HOST=github.com set,
+ * as the real gh answers (measured with gh 2.101.0 and 2.102.0, except
+ * where marked): verified (exit 0, silent), a refusal or a network error
+ * (exit 1, one line), or no answer at all.
+ */
+const FAKE_GH_ANSWERS = {
+	verified: { exitCode: 0, said: "" },
+	"no-attestation": { exitCode: 1, said: "Error: no attestations found" },
+	"not-found": {
+		exitCode: 1,
+		said: "Error: HTTP 404: Not Found (https://api.github.com/repos/albertosca/llm-tests-forge/attestations/sha256:0000?per_page=30&predicate_type=https%3A%2F%2Fslsa.dev%2Fprovenance%2Fv1)",
+	},
+	// Not measured: the unauthenticated quota on this machine could not be reached
+	// without a token (gh reads the keychain's for GH_HOST). gh formats every API
+	// error as "HTTP <status>: <GitHub's message> (<url>)", and this is GitHub's message.
+	"rate-limited": {
+		exitCode: 1,
+		said: "Error: HTTP 403: API rate limit exceeded for 203.0.113.7. (But here's the good news: Authenticated requests get a higher rate limit. Check out the documentation for more details.) (https://api.github.com/repos/albertosca/llm-tests-forge/attestations/sha256:0000?per_page=30&predicate_type=https%3A%2F%2Fslsa.dev%2Fprovenance%2Fv1)",
+	},
+	"bad-token": {
+		exitCode: 1,
+		said: "Error: HTTP 401: Bad credentials (https://api.github.com/repos/albertosca/llm-tests-forge/attestations/sha256:0000?per_page=30&predicate_type=https%3A%2F%2Fslsa.dev%2Fprovenance%2Fv1)",
+	},
+	unreachable: {
+		exitCode: 1,
+		said: "error creating Sigstore verifier: no valid Sigstore verifiers could be initialized",
+	},
+	"wrong-signer": {
+		exitCode: 1,
+		said: 'Error: verifying with issuer "sigstore.dev"',
+	},
+	"wrong-ref": {
+		exitCode: 1,
+		said: "Error: expected SourceRepositoryRef to be refs/tags/v1.2.3, got refs/tags/v1.2.2",
+	},
+	// A gh that asked for a login even with GH_HOST set (none measured does): exit 4.
+	"login-required": {
+		exitCode: 4,
+		said: "To get started with GitHub CLI, please run:  gh auth login",
+	},
+	hangs: { exitCode: 0, said: "" },
+} as const;
+type FakeGh = keyof typeof FAKE_GH_ANSWERS | "too-old";
 
 /**
- * A directory holding a `gh` that records its arguments, the environment
- * install.sh gives it, its own pid, and a copy of the file it was asked to
- * verify, then answers as `behavior` says, to put first on the PATH.
+ * A directory holding a `gh`, to put first on the PATH. Like a real gh that
+ * was never logged in, it exits 4 asking for a login unless GH_HOST is set
+ * (with GH_HOST, gh verifies anonymously); `too-old` has no `attestation`
+ * command at all, as gh before 2.49. The verify call records its arguments,
+ * the environment install.sh gives it, its own pid, and a copy of the file
+ * it was asked to verify.
  */
 async function fakeGh(behavior: FakeGh): Promise<string> {
 	const directory = await mkdtemp(join(tmpdir(), "forge-fake-gh-"));
 	workDirectories.push(directory);
-	const answers: Record<FakeGh, string> = {
-		verified: "exit 0",
-		"no-attestation": 'echo "Error: no attestations found" >&2\nexit 1',
-		unreachable:
-			'echo "error creating Sigstore verifier: no valid Sigstore verifiers could be initialized" >&2\nexit 1',
-		"logged-out":
-			'echo "To get started with GitHub CLI, please run:  gh auth login" >&2\necho "Alternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token." >&2\nexit 4',
-		hangs: "exec sleep 60",
-	};
+	const lines =
+		behavior === "too-old"
+			? [
+					'echo "unknown command \\"$1\\" for \\"gh\\"" >&2',
+					`echo "$*" >> "${directory}/calls"`,
+					"exit 1",
+				]
+			: [
+					`echo "$*" >> "${directory}/calls"`,
+					'for argument; do last="$argument"; done',
+					'if [ "$last" = "--help" ]; then exit 0; fi',
+					`printf '%s\\n' "$@" > "${directory}/arguments"`,
+					`printf '%s\\n' "GH_PROMPT_DISABLED=\${GH_PROMPT_DISABLED:-unset}" "GH_HOST=\${GH_HOST:-unset}" > "${directory}/environment"`,
+					`echo "$$" > "${directory}/pid"`,
+					`cp "$3" "${directory}/subject" 2>/dev/null || true`,
+					`if [ -z "\${GH_HOST:-}" ]; then`,
+					'  echo "To get started with GitHub CLI, please run:  gh auth login" >&2',
+					'  echo "Alternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token." >&2',
+					"  exit 4",
+					"fi",
+					...(behavior === "hangs"
+						? ["exec sleep 60"]
+						: [
+								// gh 2.101.0 prints an empty line before an "Error:" line.
+								...(FAKE_GH_ANSWERS[behavior].said.startsWith("Error:")
+									? ["echo >&2"]
+									: []),
+								...(FAKE_GH_ANSWERS[behavior].said === ""
+									? []
+									: [
+											`printf '%s\\n' '${FAKE_GH_ANSWERS[behavior].said.replaceAll("'", "'\\''")}' >&2`,
+										]),
+								`exit ${FAKE_GH_ANSWERS[behavior].exitCode}`,
+							]),
+				];
 	await writeFile(
 		join(directory, "gh"),
-		[
-			"#!/bin/sh",
-			`printf '%s\\n' "$@" > "${directory}/arguments"`,
-			`printf '%s\\n' "GH_PROMPT_DISABLED=\${GH_PROMPT_DISABLED:-unset}" "GH_HOST=\${GH_HOST:-unset}" > "${directory}/environment"`,
-			`echo "$$" > "${directory}/pid"`,
-			`cp "$3" "${directory}/subject" 2>/dev/null || true`,
-			answers[behavior],
-			"",
-		].join("\n"),
+		["#!/bin/sh", ...lines, ""].join("\n"),
 	);
 	await chmod(join(directory, "gh"), 0o755);
 	return directory;
@@ -253,13 +311,40 @@ async function toolsWithoutGh(work: string): Promise<string> {
 
 /** The command install.sh prints for checking an installed binary by hand. */
 function verifyCommand(installedPath: string): string {
-	return `gh attestation verify "${installedPath}" --repo albertosca/llm-tests-forge --signer-workflow ${SIGNER_WORKFLOW}`;
+	return `gh attestation verify "${installedPath}" --repo albertosca/llm-tests-forge --signer-workflow ${SIGNER_WORKFLOW} --deny-self-hosted-runners`;
 }
+
+const SKIP_HINT =
+	"To install anyway on the checksum alone, which does not prove who built the binary, run install.sh again with LLM_TESTS_FORGE_PROVENANCE=skip, for example: curl -fsSL https://github.com/albertosca/llm-tests-forge/releases/latest/download/install.sh | LLM_TESTS_FORGE_PROVENANCE=skip sh";
+const HOSTS_HINT =
+	"Check: gh needs https://api.github.com, https://tuf-repo-cdn.sigstore.dev and https://tuf-repo.github.com; a proxy or firewall may block one.";
+
+/** What install.sh says to check, for each way gh refuses. */
+const REFUSAL_HINTS: Record<
+	Exclude<FakeGh, "verified" | "hangs" | "too-old">,
+	string
+> = {
+	"no-attestation":
+		"Check: the release may predate attestations, or the binary may not come from albertosca/llm-tests-forge; try a newer release (--version), and see https://github.com/albertosca/llm-tests-forge/attestations.",
+	"not-found":
+		"Check: the release may predate attestations, or the binary may not come from albertosca/llm-tests-forge; try a newer release (--version), and see https://github.com/albertosca/llm-tests-forge/attestations.",
+	"rate-limited":
+		"Check: GitHub's rate limit for anonymous API requests (60 an hour per address) was reached; wait for it to reset, or log gh in (gh auth login) for a higher limit.",
+	"bad-token":
+		"Check: GitHub rejected gh's token (revoked, expired, or a GitHub Enterprise token in GH_TOKEN or GITHUB_TOKEN); run gh auth status and gh auth login, or unset GH_TOKEN and GITHUB_TOKEN to check anonymously.",
+	unreachable: HOSTS_HINT,
+	"wrong-signer":
+		"Check: an attestation exists, but not from albertosca/llm-tests-forge's release workflow for this release; do not run this binary, and report it at https://github.com/albertosca/llm-tests-forge/issues.",
+	"wrong-ref":
+		"Check: an attestation exists, but not from albertosca/llm-tests-forge's release workflow for this release; do not run this binary, and report it at https://github.com/albertosca/llm-tests-forge/issues.",
+	"login-required":
+		"Check: this gh asks for a login even for an anonymous check; run gh auth login.",
+};
 
 describe.skipIf(!packages || HOST === undefined)(
 	"install.sh's provenance check",
 	() => {
-		test("with gh on the PATH, the downloaded bytes are verified against the release workflow of albertosca/llm-tests-forge on github.com, without prompting, and one line says so", async () => {
+		test("with gh on the PATH, never logged in, the downloaded bytes are verified anonymously against the release workflow of albertosca/llm-tests-forge on github.com, without prompting, and one line says so", async () => {
 			const { work, intactUrl } = await built();
 			if (HOST === undefined) throw new Error("this machine is not a target");
 			const fakeGhDirectory = await fakeGh("verified");
@@ -293,6 +378,7 @@ describe.skipIf(!packages || HOST === undefined)(
 					"albertosca/llm-tests-forge",
 					"--signer-workflow",
 					SIGNER_WORKFLOW,
+					"--deny-self-hosted-runners",
 				],
 			);
 			expect(await readFile(join(fakeGhDirectory, "environment"), "utf8")).toBe(
@@ -310,14 +396,41 @@ describe.skipIf(!packages || HOST === undefined)(
 			]);
 		}, 600_000);
 
-		for (const [behavior, said] of [
-			["no-attestation", "Error: no attestations found"],
-			[
-				"unreachable",
-				"error creating Sigstore verifier: no valid Sigstore verifiers could be initialized",
-			],
-		] as const)
-			test(`a verification gh refuses (${behavior}) refuses to install, naming the asset, gh's exit status and what gh said`, async () => {
+		test("--version also pins the tag the attestation was built from (--source-ref), with or without its v", async () => {
+			const { work, intactUrl } = await built();
+			for (const version of ["1.2.3", "v1.2.3"]) {
+				const fakeGhDirectory = await fakeGh("verified");
+				const installDirectory = join(
+					await mkdtemp(join(work, "target-")),
+					"bin",
+				);
+				const finished = await runScript(
+					["--dir", installDirectory, "--version", version],
+					{ LLM_TESTS_FORGE_BASE_URL: intactUrl },
+					fakeGhDirectory,
+				);
+				expect(finished.exitCode).toBe(0);
+				const argumentsList = (
+					await readFile(join(fakeGhDirectory, "arguments"), "utf8")
+				)
+					.trimEnd()
+					.split("\n");
+				expect(argumentsList.slice(3)).toEqual([
+					"--repo",
+					"albertosca/llm-tests-forge",
+					"--signer-workflow",
+					SIGNER_WORKFLOW,
+					"--deny-self-hosted-runners",
+					"--source-ref",
+					"refs/tags/v1.2.3",
+				]);
+			}
+		}, 600_000);
+
+		for (const behavior of Object.keys(
+			REFUSAL_HINTS,
+		) as (keyof typeof REFUSAL_HINTS)[])
+			test(`a verification gh refuses (${behavior}) refuses to install, naming the asset, gh's exit status, what gh said, what to check, and the skip escape`, async () => {
 				const { work, intactUrl } = await built();
 				if (HOST === undefined) throw new Error("this machine is not a target");
 				const target = await mkdtemp(join(work, "target-"));
@@ -326,10 +439,11 @@ describe.skipIf(!packages || HOST === undefined)(
 					{ LLM_TESTS_FORGE_BASE_URL: intactUrl },
 					await fakeGh(behavior),
 				);
+				const { exitCode, said } = FAKE_GH_ANSWERS[behavior];
 				expect(finished.exitCode).toBe(1);
 				expect(finished.stdout).not.toContain("Installed");
 				expect(finished.stderr).toBe(
-					`provenance check failed for ${HOST.assetName}: gh attestation verify exited 1, so nothing proves it was built by ${SIGNER_WORKFLOW}; nothing was installed. gh said:\n${said}\n`,
+					`provenance check failed for ${HOST.assetName}: gh attestation verify exited ${exitCode}, so nothing proves it was built by ${SIGNER_WORKFLOW}; nothing was installed. gh said:\n${said}\n${REFUSAL_HINTS[behavior]}\n${SKIP_HINT}\n`,
 				);
 				expect(await readdir(target)).toEqual([]);
 			}, 600_000);
@@ -351,7 +465,7 @@ describe.skipIf(!packages || HOST === undefined)(
 			expect(performance.now() - started).toBeLessThan(30_000);
 			expect(finished.exitCode).toBe(1);
 			expect(finished.stderr).toBe(
-				`provenance check failed for ${HOST.assetName}: gh attestation verify did not answer within 2 seconds (can this machine reach api.github.com?); nothing was installed\n`,
+				`provenance check failed for ${HOST.assetName}: gh attestation verify did not answer within 2 seconds; nothing was installed.\n${HOSTS_HINT}\n${SKIP_HINT}\n`,
 			);
 			expect(await readdir(target)).toEqual([]);
 			// The hung gh was stopped, not left running.
@@ -425,8 +539,9 @@ describe.skipIf(!packages || HOST === undefined)(
 			expect(await readdir(target)).toEqual([]);
 		}, 600_000);
 
-		test("with gh not logged in, the binary is installed on its checksum, and stderr says provenance was not checked and how to check it", async () => {
+		test("a gh without the attestation command (before 2.49) is treated as no gh: the binary is installed on its checksum, and stderr says which gh can check it, and how", async () => {
 			const { work, intactUrl } = await built();
+			const fakeGhDirectory = await fakeGh("too-old");
 			const installDirectory = join(
 				await mkdtemp(join(work, "target-")),
 				"bin",
@@ -435,13 +550,57 @@ describe.skipIf(!packages || HOST === undefined)(
 			const finished = await runScript(
 				["--dir", installDirectory],
 				{ LLM_TESTS_FORGE_BASE_URL: intactUrl },
-				await fakeGh("logged-out"),
+				fakeGhDirectory,
 			);
 			expect(finished.exitCode).toBe(0);
 			expect(finished.stdout).toContain(`Installed ${installedPath}`);
 			expect(finished.stderr).toBe(
-				`provenance not checked: gh is not logged in (gh auth login), so it cannot fetch the attestation; the binary matched SHA256SUMS. To check it: ${verifyCommand(installedPath)}\n`,
+				`provenance not checked: this gh has no attestation command (gh 2.49 or newer has it); the binary matched SHA256SUMS, which proves it arrived intact, not who built it. To check it after upgrading gh: ${verifyCommand(installedPath)}\n`,
 			);
+			// Only the probe ran: nothing was asked to verify.
+			expect(await readFile(join(fakeGhDirectory, "calls"), "utf8")).toBe(
+				"attestation verify --help\n",
+			);
+		}, 600_000);
+
+		test("LLM_TESTS_FORGE_PROVENANCE=skip installs on the checksum alone without asking gh, and warns loudly; any other value is refused before downloading", async () => {
+			const { work, intactUrl } = await built();
+			const fakeGhDirectory = await fakeGh("no-attestation");
+			const installDirectory = join(
+				await mkdtemp(join(work, "target-")),
+				"bin",
+			);
+			const installedPath = join(installDirectory, "llm-tests-forge");
+			const finished = await runScript(
+				["--dir", installDirectory],
+				{
+					LLM_TESTS_FORGE_BASE_URL: intactUrl,
+					LLM_TESTS_FORGE_PROVENANCE: "skip",
+				},
+				fakeGhDirectory,
+			);
+			expect(finished.exitCode).toBe(0);
+			expect(finished.stdout).toContain(`Installed ${installedPath}`);
+			expect(finished.stderr).toBe(
+				`WARNING: provenance NOT checked (LLM_TESTS_FORGE_PROVENANCE=skip): the binary matched SHA256SUMS, which proves it arrived intact, not who built it. To check it: ${verifyCommand(installedPath)}\n`,
+			);
+			expect(await Bun.file(join(fakeGhDirectory, "calls")).exists()).toBe(
+				false,
+			);
+			const target = await mkdtemp(join(work, "target-"));
+			for (const value of ["SKIP", "no", "1"]) {
+				const refused = await runScript(["--dir", join(target, "bin")], {
+					LLM_TESTS_FORGE_BASE_URL: intactUrl,
+					LLM_TESTS_FORGE_PROVENANCE: value,
+				});
+				expect({ value, ...refused }).toEqual({
+					value,
+					exitCode: 2,
+					stdout: "",
+					stderr: `LLM_TESTS_FORGE_PROVENANCE must be unset or skip, not '${value}'\n`,
+				});
+			}
+			expect(await readdir(target)).toEqual([]);
 		}, 600_000);
 
 		test("with no gh on the PATH, the binary is installed on its checksum, and stderr says provenance was not checked and how to check it", async () => {
@@ -462,7 +621,7 @@ describe.skipIf(!packages || HOST === undefined)(
 			expect(finished.exitCode).toBe(0);
 			expect(finished.stdout).toContain(`Installed ${installedPath}`);
 			expect(finished.stderr).toBe(
-				`provenance not checked: gh (the GitHub CLI, https://cli.github.com) is not installed; the binary matched SHA256SUMS. To check it: ${verifyCommand(installedPath)}\n`,
+				`provenance not checked: gh (the GitHub CLI, https://cli.github.com) is not installed; the binary matched SHA256SUMS, which proves it arrived intact, not who built it. To check it with gh 2.49 or newer: ${verifyCommand(installedPath)}\n`,
 			);
 		}, 600_000);
 	},

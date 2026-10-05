@@ -13,18 +13,22 @@
 #
 # SHA256SUMS proves the download is intact (integrity), not who built it: it
 # comes from the same release as the binary. Provenance comes from the GitHub
-# artifact attestation the release workflow signs. When gh (the GitHub CLI) is
-# on the PATH, `gh attestation verify` checks it, and:
-#   - verified: one line says so, and the binary is installed;
-#   - gh is not logged in (gh's exit status 4, "requires authentication"):
-#     installed on the checksum, with a note on stderr and the command to
-#     check it later; refusing would fail every user whose gh is not logged in;
-#   - any other failure (no attestation, a mismatch, a network error, a bad
-#     token: gh exits 1 for all of them) or no answer within
-#     LLM_TESTS_FORGE_GH_TIMEOUT seconds (default 60): nothing is installed.
-#     Telling a network error from a refusal would mean reading gh's English
-#     error text, and a rewording would silently turn a refusal into a pass.
-# Without gh, the binary is installed on the checksum, with the same note.
+# artifact attestation the release workflow signs. When gh (the GitHub CLI,
+# 2.49 or newer) is on the PATH, `gh attestation verify` checks it, with
+# GH_HOST=github.com: that makes gh check anonymously when it is not logged in
+# (without GH_HOST, a gh that was never logged in exits 4 asking for a login),
+# and keeps a GH_HOST the user set for another host out of it. Then:
+#   - verified (exit 0): one line says so, and the binary is installed;
+#   - any failure (gh exits 1 for no attestation, a mismatch, a network
+#     error, a rejected token or a rate limit alike, and 4 if some gh still
+#     asks for a login) or no answer within LLM_TESTS_FORGE_GH_TIMEOUT seconds
+#     (default 60): nothing is installed. gh's message only picks the hint
+#     printed after it, never whether to install: a rewording in a future gh
+#     can blur the hint, not turn a refusal into a pass.
+# Without gh, or with a gh that has no `attestation` command, the binary is
+# installed on the checksum, with a note on stderr and the command to check
+# it. LLM_TESTS_FORGE_PROVENANCE=skip installs on the checksum without asking
+# gh, and says so with a WARNING; every refusal names it.
 set -eu
 
 REPOSITORY="albertosca/llm-tests-forge"
@@ -71,6 +75,17 @@ case "$gh_timeout" in
 	exit 2
 	;;
 esac
+provenance_mode="${LLM_TESTS_FORGE_PROVENANCE-}"
+case "$provenance_mode" in
+'' | skip) ;;
+*)
+	printf '%s\n' "LLM_TESTS_FORGE_PROVENANCE must be unset or skip, not '$provenance_mode'" >&2
+	exit 2
+	;;
+esac
+if [ -n "$version" ]; then
+	case "$version" in v*) ;; *) version="v$version" ;; esac
+fi
 
 # The names are the npm ones (darwin/linux, x64/arm64, ia32 for every 32-bit
 # x86), which are also the asset names.
@@ -118,7 +133,6 @@ asset_name="$BINARY_NAME-$operating_system-$architecture"
 if [ -n "${LLM_TESTS_FORGE_BASE_URL:-}" ]; then
 	base_url="${LLM_TESTS_FORGE_BASE_URL%/}"
 elif [ -n "$version" ]; then
-	case "$version" in v*) ;; *) version="v$version" ;; esac
 	base_url="$REPOSITORY_URL/releases/download/$version"
 else
 	base_url="$REPOSITORY_URL/releases/latest/download"
@@ -178,15 +192,55 @@ if [ "$actual_hash" != "$expected_hash" ]; then
 fi
 
 target_path="$install_directory/$BINARY_NAME"
-verify_command="gh attestation verify \"$target_path\" --repo $REPOSITORY --signer-workflow $SIGNER_WORKFLOW"
+# Who must have built it: this repository's release workflow (gh 2.101.0
+# anchors --signer-workflow at the start of the certificate's workflow path
+# and accepts nothing but an @ref after it, measured: neither
+# ".../deployment.ym" nor ".../workflows/" matched ".../deployment.yml"),
+# on a GitHub-hosted runner, and, when --version names the release, from
+# that tag. The arguments live in "$@", which the option loop emptied.
+set -- --repo "$REPOSITORY" --signer-workflow "$SIGNER_WORKFLOW" --deny-self-hosted-runners
+if [ -n "$version" ]; then
+	set -- "$@" --source-ref "refs/tags/$version"
+fi
+verify_command="gh attestation verify \"$target_path\" $*"
+intact_only="the binary matched SHA256SUMS, which proves it arrived intact, not who built it"
+skip_hint="To install anyway on the checksum alone, which does not prove who built the binary, run install.sh again with LLM_TESTS_FORGE_PROVENANCE=skip, for example: curl -fsSL $REPOSITORY_URL/releases/latest/download/install.sh | LLM_TESTS_FORGE_PROVENANCE=skip sh"
+hosts_hint="Check: gh needs https://api.github.com, https://tuf-repo-cdn.sigstore.dev and https://tuf-repo.github.com; a proxy or firewall may block one."
+
+# What to check after a refusal, from gh's exit status and message ($1, $2).
+# It only words the hint: the refusal itself never depends on the message.
+refusal_hint() {
+	if [ "$1" = 4 ]; then
+		printf '%s\n' "Check: this gh asks for a login even for an anonymous check; run gh auth login."
+		return
+	fi
+	case "$2" in
+	*"rate limit"*) printf '%s\n' "Check: GitHub's rate limit for anonymous API requests (60 an hour per address) was reached; wait for it to reset, or log gh in (gh auth login) for a higher limit." ;;
+	*"HTTP 401"* | *"Bad credentials"*) printf '%s\n' "Check: GitHub rejected gh's token (revoked, expired, or a GitHub Enterprise token in GH_TOKEN or GITHUB_TOKEN); run gh auth status and gh auth login, or unset GH_TOKEN and GITHUB_TOKEN to check anonymously." ;;
+	*"no attestations found"* | *"HTTP 404"*) printf '%s\n' "Check: the release may predate attestations, or the binary may not come from $REPOSITORY; try a newer release (--version), and see $REPOSITORY_URL/attestations." ;;
+	*"verifying with issuer"* | *"expected Source"* | *"SAN"* | *"self-hosted"*) printf '%s\n' "Check: an attestation exists, but not from $REPOSITORY's release workflow for this release; do not run this binary, and report it at $REPOSITORY_URL/issues." ;;
+	*"Sigstore verifier"* | *"dial tcp"* | *"no such host"* | *"connection refused"* | *"i/o timeout"* | *"TLS"* | *"proxyconnect"* | *"deadline exceeded"*) printf '%s\n' "$hosts_hint" ;;
+	*) printf '%s\n' "Check: what gh said above." ;;
+	esac
+}
+
 provenance_note=""
-if command -v gh >/dev/null 2>&1; then
+if [ "$provenance_mode" = skip ]; then
+	provenance_note="WARNING: provenance NOT checked (LLM_TESTS_FORGE_PROVENANCE=skip): $intact_only. To check it: $verify_command"
+elif ! command -v gh >/dev/null 2>&1; then
+	provenance_note="provenance not checked: gh (the GitHub CLI, https://cli.github.com) is not installed; $intact_only. To check it with gh 2.49 or newer: $verify_command"
+elif ! GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 gh attestation verify --help >/dev/null 2>&1 </dev/null; then
+	# gh before 2.49 has no attestation command: as good as no gh.
+	provenance_note="provenance not checked: this gh has no attestation command (gh 2.49 or newer has it); $intact_only. To check it after upgrading gh: $verify_command"
+else
 	gh_output="$work_directory/gh-output"
 	gh_timed_out="$work_directory/gh-timed-out"
-	# GH_HOST pins github.com over a GH_HOST the user set for another host;
-	# GH_PROMPT_DISABLED keeps gh from ever waiting on a prompt.
+	# GH_HOST=github.com makes a gh that is not logged in check anonymously
+	# (without it, gh exits 4 asking for a login) and overrides a GH_HOST the
+	# user set for another host; GH_PROMPT_DISABLED keeps gh from waiting on a
+	# prompt.
 	GH_HOST=github.com GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 \
-		gh attestation verify "$work_directory/$asset_name" --repo "$REPOSITORY" --signer-workflow "$SIGNER_WORKFLOW" \
+		gh attestation verify "$work_directory/$asset_name" "$@" \
 		>"$gh_output" 2>&1 </dev/null &
 	gh_process=$!
 	# A watchdog, as POSIX sh has no timeout: it stops gh after $gh_timeout
@@ -212,19 +266,18 @@ if command -v gh >/dev/null 2>&1; then
 	gh_process=""
 	watchdog_process=""
 	if [ -e "$gh_timed_out" ]; then
-		fail "provenance check failed for $asset_name: gh attestation verify did not answer within $gh_timeout seconds (can this machine reach api.github.com?); nothing was installed"
-	fi
-	case "$gh_status" in
-	0) printf 'Provenance verified: %s was built by %s\n' "$asset_name" "$SIGNER_WORKFLOW" ;;
-	4) provenance_note="provenance not checked: gh is not logged in (gh auth login), so it cannot fetch the attestation; the binary matched SHA256SUMS. To check it: $verify_command" ;;
-	*)
-		printf '%s\n' "provenance check failed for $asset_name: gh attestation verify exited $gh_status, so nothing proves it was built by $SIGNER_WORKFLOW; nothing was installed. gh said:" >&2
-		cat "$gh_output" >&2
+		printf '%s\n' "provenance check failed for $asset_name: gh attestation verify did not answer within $gh_timeout seconds; nothing was installed." "$hosts_hint" "$skip_hint" >&2
 		exit 1
-		;;
-	esac
-else
-	provenance_note="provenance not checked: gh (the GitHub CLI, https://cli.github.com) is not installed; the binary matched SHA256SUMS. To check it: $verify_command"
+	fi
+	if [ "$gh_status" -ne 0 ]; then
+		# gh puts an empty line before its "Error:" line; the refusal drops it.
+		gh_said="$(sed '/^[[:space:]]*$/d' "$gh_output")"
+		printf '%s\n' "provenance check failed for $asset_name: gh attestation verify exited $gh_status, so nothing proves it was built by $SIGNER_WORKFLOW; nothing was installed. gh said:" "$gh_said" >&2
+		refusal_hint "$gh_status" "$gh_said" >&2
+		printf '%s\n' "$skip_hint" >&2
+		exit 1
+	fi
+	printf 'Provenance verified: %s was built by %s\n' "$asset_name" "$SIGNER_WORKFLOW"
 fi
 
 mkdir -p "$install_directory"
