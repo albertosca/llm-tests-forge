@@ -244,24 +244,35 @@ describe("the release workflow's shape", () => {
 		expect(smoke.strategy?.["fail-fast"]).toBe(false);
 	});
 
-	test("every action is pinned by major version, and bun is the version CI uses", () => {
+	test("every action in every workflow is pinned by its current major version (setup-uv, which publishes no major tags, by its release), and bun is the version CI uses", async () => {
 		const allowed = new Set([
-			"actions/checkout@v4",
+			"actions/checkout@v7",
 			"oven-sh/setup-bun@v2",
-			"actions/upload-artifact@v4",
-			"actions/download-artifact@v4",
+			"actions/upload-artifact@v7",
+			"actions/download-artifact@v8",
 			"ruby/setup-ruby@v1",
-			"astral-sh/setup-uv@v6",
-			"actions/setup-node@v4",
+			"astral-sh/setup-uv@v10.2.0",
+			"actions/setup-node@v7",
 			"erlef/setup-beam@v1",
 		]);
-		for (const job of Object.values(workflow.jobs))
-			for (const step of job.steps) {
-				if (step.uses === undefined) continue;
-				expect(allowed).toContain(step.uses);
-				if (step.uses === "oven-sh/setup-bun@v2")
-					expect(step.with).toEqual({ "bun-version": "1.4.2" });
-			}
+		for (const path of [
+			RELEASE_WORKFLOW,
+			CI_WORKFLOW,
+			LINT_WORKFLOW,
+			MUTATION_WORKFLOW,
+		])
+			for (const job of Object.values((await readWorkflow(path)).jobs))
+				for (const step of job.steps) {
+					if (step.uses === undefined) continue;
+					// The failure names the workflow and the action.
+					expect({
+						path,
+						uses: step.uses,
+						allowed: allowed.has(step.uses),
+					}).toEqual({ path, uses: step.uses, allowed: true });
+					if (step.uses === "oven-sh/setup-bun@v2")
+						expect(step.with).toEqual({ "bun-version": "1.4.2" });
+				}
 	});
 });
 
@@ -358,7 +369,7 @@ describe("secrets and publishing", () => {
 	test("the Homebrew job commits the rendered formula to albertosca/homebrew-tap", () => {
 		const job = jobNamed("publish-homebrew");
 		const checkout = stepNamed(job, "Check out the tap");
-		expect(checkout.uses).toBe("actions/checkout@v4");
+		expect(checkout.uses).toBe("actions/checkout@v7");
 		expect(checkout.with).toEqual({
 			repository: "albertosca/homebrew-tap",
 			token: `\${{ secrets.HOMEBREW_TAP_TOKEN }}`,
@@ -758,11 +769,11 @@ describe("the package tests in CI", () => {
 			expect(packagesJob?.permissions).toEqual({ contents: "read" });
 			const steps = packagesJob?.steps ?? [];
 			expect(steps.map((step) => step.uses ?? step.run)).toEqual([
-				"actions/checkout@v4",
+				"actions/checkout@v7",
 				"oven-sh/setup-bun@v2",
 				"bun install --frozen-lockfile",
-				"actions/setup-node@v4",
-				"astral-sh/setup-uv@v6",
+				"actions/setup-node@v7",
+				"astral-sh/setup-uv@v10.2.0",
 				"ruby/setup-ruby@v1",
 				"erlef/setup-beam@v1",
 				"mix local.hex --force",
@@ -773,7 +784,7 @@ describe("the package tests in CI", () => {
 			expect(withOf("oven-sh/setup-bun@v2")).toEqual({
 				"bun-version": "1.4.2",
 			});
-			expect(withOf("actions/setup-node@v4")).toEqual({ "node-version": "22" });
+			expect(withOf("actions/setup-node@v7")).toEqual({ "node-version": "22" });
 			expect(withOf("ruby/setup-ruby@v1")).toEqual({ "ruby-version": "3.3" });
 			expect(withOf("erlef/setup-beam@v1")).toEqual({
 				"otp-version": "27",
@@ -820,7 +831,7 @@ describe("the Ruby lint in CI", () => {
 		{
 			script: "lint:python",
 			command: "uvx ruff@0.16.9 format --check packages/pypi",
-			setup: "astral-sh/setup-uv@v6",
+			setup: "astral-sh/setup-uv@v10.2.0",
 		},
 	])
 		test(`lint.yml has a job that runs ${script} (${command}) after ${setup}`, async () => {
@@ -881,7 +892,7 @@ describe("the mutation workflow", () => {
 				expect(step["continue-on-error"]).toBeUndefined();
 		}
 		const upload = jobs[0]?.steps.find(
-			(step) => step.uses === "actions/upload-artifact@v4",
+			(step) => step.uses === "actions/upload-artifact@v7",
 		);
 		expect(upload?.if).toBe("always()");
 	});
@@ -893,12 +904,12 @@ describe("the mutation workflow", () => {
 		expect(jobs).toHaveLength(1);
 		const steps = jobs[0]?.steps ?? [];
 		expect(steps.map((step) => step.uses ?? step.run)).toEqual([
-			"actions/checkout@v4",
+			"actions/checkout@v7",
 			"oven-sh/setup-bun@v2",
-			"actions/setup-node@v4",
+			"actions/setup-node@v7",
 			"bun install --frozen-lockfile",
 			"bun run mutation",
-			"actions/upload-artifact@v4",
+			"actions/upload-artifact@v7",
 		]);
 		expect(steps[1]?.with).toEqual({ "bun-version": "1.4.2" });
 		expect(steps[5]?.with).toEqual({

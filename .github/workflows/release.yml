@@ -16,7 +16,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
@@ -44,15 +44,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.2.0
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
@@ -69,14 +69,14 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
       - run: bun run release:build
       - run: bun scripts/release/checksums.ts dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binaries
           path: |
@@ -114,8 +114,8 @@ jobs:
     steps:
       # .gitattributes checks the fixture out byte for byte, so the Windows
       # runner reads the same line endings the committed outputs were made from.
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: binaries
           path: binaries
@@ -180,23 +180,23 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.2.0
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: binaries
           path: binaries
       - run: bun scripts/release/assemble.ts binaries assembled
       # A tar keeps the npm binaries' exec bit, which an artifact drops.
       - run: tar -cf packages.tar assembled
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages
           path: packages.tar
@@ -208,8 +208,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: binaries
           path: binaries
@@ -246,14 +246,14 @@ jobs:
       - if: contains(github.ref_name, '-')
         run: echo "::notice::npm not published for a prerelease tag"
       - if: env.NPM_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
       - name: Unpack the packages
         if: env.NPM_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         run: tar -xf packages.tar
       - if: env.NPM_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           registry-url: https://registry.npmjs.org
@@ -295,14 +295,14 @@ jobs:
       - if: contains(github.ref_name, '-')
         run: echo "::notice::PyPI not published for a prerelease tag"
       - if: env.PYPI_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
       - name: Unpack the packages
         if: env.PYPI_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         run: tar -xf packages.tar
       - if: env.PYPI_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v10.2.0
       # uv reads the token from UV_PUBLISH_TOKEN, so it is never on the command
       # line; --check-url skips a file the index already holds, so a re-run after
       # a partial publish uploads only what is missing.
@@ -325,7 +325,7 @@ jobs:
       - if: contains(github.ref_name, '-')
         run: echo "::notice::Hex not published for a prerelease tag"
       - if: env.HEX_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
       - name: Unpack the packages
@@ -358,7 +358,7 @@ jobs:
       - if: contains(github.ref_name, '-')
         run: echo "::notice::RubyGems not published for a prerelease tag"
       - if: env.GEM_HOST_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
       - name: Unpack the packages
@@ -400,7 +400,7 @@ jobs:
       - if: contains(github.ref_name, '-')
         run: echo "::notice::Homebrew not published for a prerelease tag"
       - if: env.HOMEBREW_TAP_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
       - name: Unpack the packages
@@ -409,7 +409,7 @@ jobs:
       # The token goes to the checkout, which keeps it for the push below.
       - name: Check out the tap
         if: env.HOMEBREW_TAP_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: albertosca/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
