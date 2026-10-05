@@ -2,7 +2,9 @@
 
 require "rubygems"
 
-# Locates and runs the llm-tests-forge binary that ships inside this gem.
+# Locates and runs the llm-tests-forge binary that ships inside this gem. The
+# fallback gem (platform ruby), which RubyGems installs only where no platform
+# gem fits, ships none: its shim names the platform and points at install.sh.
 module LlmTestsForge
   REPOSITORY_URL = "https://github.com/albertosca/llm-tests-forge"
   EXECUTABLES_DIRECTORY = File.expand_path("../exe", __dir__)

@@ -10,7 +10,13 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { gemFileName, renderGems, runGems } from "../../scripts/release/gems";
+import {
+	fallbackGemFileName,
+	gemFileName,
+	renderFallbackGem,
+	renderGems,
+	runGems,
+} from "../../scripts/release/gems";
 import { RELEASE_TARGETS } from "../../scripts/release/targets";
 import {
 	checkVersions,
@@ -230,5 +236,61 @@ describe("gems", () => {
 			await expect(runGems(argumentsList, () => {})).rejects.toBeInstanceOf(
 				UsageError,
 			);
+	}, 30_000);
+});
+
+describe("the fallback gem", () => {
+	test("one gem build on a scratch copy holding the LICENSE, with the platform ruby and no binary variable, even when the caller's environment sets one", async () => {
+		const tool = await fakeGemTool();
+		const out = join(
+			await mkdtemp(join(tmpdir(), "forge-gems-out-")),
+			"fallbacks",
+		);
+		const previousBinary = process.env.FORGE_GEM_BINARY;
+		process.env.FORGE_GEM_BINARY = "/a/binary/the/caller/left/set";
+		let written: string;
+		try {
+			written = await renderFallbackGem(out, REPOSITORY, tool.command);
+		} finally {
+			if (previousBinary === undefined) delete process.env.FORGE_GEM_BINARY;
+			else process.env.FORGE_GEM_BINARY = previousBinary;
+		}
+		expect(written).toBe(join(out, fallbackGemFileName(FORGE_VERSION)));
+		expect(await Bun.file(written).exists()).toBe(true);
+		const lines = (await readFile(tool.calls, "utf8")).trim().split("\n");
+		expect(lines).toHaveLength(1);
+		const [platform, binary, directory, command, license] = (
+			lines[0] ?? ""
+		).split("|");
+		expect({ platform, binary, command, license }).toEqual({
+			platform: "ruby",
+			binary: "",
+			command: `build llm-tests-forge.gemspec --output ${written}`,
+			license: "the-repository-license",
+		});
+		expect(directory).not.toContain(REPOSITORY);
+	}, 30_000);
+
+	test("the fallback gem's file name carries the version and no platform, as RubyGems names a ruby-platform gem", () => {
+		expect(fallbackGemFileName("1.2.3")).toBe("llm-tests-forge-1.2.3.gem");
+	});
+
+	test("a gemspec left at another version refuses the fallback build too, before gem runs", async () => {
+		const root = await rootWithGemPackage("9.9.9");
+		const tool = await fakeGemTool();
+		await expect(
+			renderFallbackGem(join(root, "out"), root, tool.command),
+		).rejects.toThrow(
+			`not stamped with 9.9.9 (run release:stamp): packages/gem/llm-tests-forge.gemspec has ${FORGE_VERSION}`,
+		);
+		expect(await Bun.file(tool.calls).exists()).toBe(false);
+	});
+
+	test("a failing gem build of the fallback is refused naming the platform ruby and what gem said", async () => {
+		const tool = await fakeGemTool("fails");
+		const out = await mkdtemp(join(tmpdir(), "forge-gems-out-"));
+		await expect(
+			renderFallbackGem(out, REPOSITORY, tool.command),
+		).rejects.toThrow("gem build failed for ruby (exit 3): cannot build");
 	}, 30_000);
 });

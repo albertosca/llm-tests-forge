@@ -3,16 +3,23 @@
  * from it by `gem build`, and the host gem installed into a temporary
  * `--install-dir`, where the shim must run the binary; a gem for another
  * platform must not run its binary, and the gemspec must refuse to build
- * without its two variables. Off by default; run with `bun run
+ * without its two variables. The `ruby`-platform fallback gem must lose to
+ * the platform gem wherever one fits, and name the platform where none
+ * does. Off by default; run with `bun run
  * test:packages` (sets FORGE_PACKAGES=1). It needs ruby and gem on the PATH.
  */
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { chmod, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { buildBinaries } from "../../scripts/release/build-binaries";
-import { gemFileName, renderGems } from "../../scripts/release/gems";
+import {
+	gemFileName,
+	renderFallbackGem,
+	renderGems,
+} from "../../scripts/release/gems";
 import {
 	RELEASE_TARGETS,
 	type ReleaseTarget,
@@ -79,12 +86,13 @@ interface Built {
 	work: string;
 	hostGem: string;
 	foreignGem: string;
+	fallbackGem: string;
 	binaries: string;
 }
 
 let builtOnce: Promise<Built> | undefined;
 
-/** The host and the foreign gem, built once for all the tests; the foreign one carries the host binary under its own name. */
+/** The host, the foreign and the fallback gem, built once for all the tests; the foreign one carries the host binary under its own name. */
 function builtGems(): Promise<Built> {
 	builtOnce ??= (async () => {
 		if (HOST === undefined || FOREIGN === undefined)
@@ -106,7 +114,12 @@ function builtGems(): Promise<Built> {
 		);
 		if (hostGem === undefined || foreignGem === undefined)
 			throw new Error("gem build wrote no gem");
-		return { work, hostGem, foreignGem, binaries };
+		const fallbackGem = await renderFallbackGem(
+			join(work, "fallbacks"),
+			REPOSITORY,
+			"gem",
+		);
+		return { work, hostGem, foreignGem, fallbackGem, binaries };
 	})();
 	return builtOnce;
 }
@@ -426,6 +439,229 @@ describe.skipIf(!packages)("rubygems gems", () => {
 				work,
 			),
 		).toEqual({ exitCode: 7, stdout: "args: one two\n", stderr: "" });
+	}, 600_000);
+});
+
+/**
+ * Writes the legacy RubyGems index (specs.4.8.gz, latest_specs.4.8.gz,
+ * prerelease_specs.4.8.gz and quick/Marshal.4.8/) for the gems under
+ * `<ARGV[0]>/gems`: what `gem install --source` reads, so the install goes
+ * through the resolver that chooses among rubygems.org's gems. The fallback
+ * is listed first when ARGV[1] is "fallback-first" and last otherwise, so a
+ * test that runs both orders cannot pass on the index's order.
+ */
+const WRITE_GEM_INDEX = `
+require "rubygems/package"
+require "fileutils"
+Dir.chdir(ARGV.fetch(0)) do
+  specifications = Dir["gems/*.gem"].sort.map { |file| Gem::Package.new(file).spec }
+  fallbacks, platforms = specifications.partition { |specification| specification.platform == Gem::Platform::RUBY }
+  ordered = ARGV.fetch(1) == "fallback-first" ? fallbacks + platforms : platforms + fallbacks
+  tuples = ordered.map { |specification| [specification.name, specification.version, specification.original_platform] }
+  File.binwrite("specs.4.8.gz", Gem::Util.gzip(Marshal.dump(tuples)))
+  File.binwrite("latest_specs.4.8.gz", Gem::Util.gzip(Marshal.dump(tuples)))
+  File.binwrite("prerelease_specs.4.8.gz", Gem::Util.gzip(Marshal.dump([])))
+  FileUtils.mkdir_p("quick/Marshal.4.8")
+  ordered.each do |specification|
+    File.binwrite("quick/Marshal.4.8/#{specification.full_name}.gemspec.rz", Gem.deflate(Marshal.dump(specification)))
+  end
+end
+`;
+
+type IndexOrder = "fallback-first" | "fallback-last";
+
+/**
+ * A gem repository holding copies of `gems` and their index, served by
+ * file://. Not `gem install --local` from a directory: that takes the first
+ * gem of the highest version it reads from the directory, whatever its
+ * platform, so it answers by file order (measured: renaming the fallback to
+ * sort first made it install the fallback beside the host gem).
+ */
+async function gemRepository(
+	gems: string[],
+	order: IndexOrder,
+): Promise<string> {
+	const { work } = await builtGems();
+	const repository = await mkdtemp(join(work, "repository-"));
+	await mkdir(join(repository, "gems"));
+	for (const gem of gems)
+		await cp(gem, join(repository, "gems", basename(gem)));
+	await mustRun(["ruby", "-e", WRITE_GEM_INDEX, repository, order], work);
+	return repository;
+}
+
+/**
+ * llm-tests-forge installed by name from `repository` alone, so RubyGems'
+ * resolver chooses the gem, as `gem install llm-tests-forge` does against
+ * rubygems.org; `platform`, when given, stands for the local platform
+ * (`--platform`).
+ */
+async function installedFrom(
+	repository: string,
+	platform?: string,
+): Promise<Installed> {
+	const home = await mkdtemp(join(repository, "..", "home-"));
+	const installation = await run(
+		[
+			"gem",
+			"install",
+			"--no-document",
+			"--clear-sources",
+			"--source",
+			`${pathToFileURL(repository).href}/`,
+			"--ignore-dependencies",
+			"--install-dir",
+			home,
+			"--bindir",
+			join(home, "bin"),
+			...(platform === undefined ? [] : ["--platform", platform]),
+			"llm-tests-forge",
+		],
+		home,
+		{ ...process.env, GEM_SPEC_CACHE: join(home, "spec-cache") },
+	);
+	if (installation.exitCode !== 0)
+		throw new Error(
+			`gem install exited ${installation.exitCode}: ${installation.stderr}`,
+		);
+	return {
+		home,
+		entry: join(
+			home,
+			"bin",
+			process.platform === "win32" ? "llm-tests-forge.bat" : "llm-tests-forge",
+		),
+		environment: { ...process.env, GEM_HOME: home, GEM_PATH: home },
+	};
+}
+
+/** The platform of each llm-tests-forge spec installed under `home`: the gem RubyGems chose. */
+async function installedPlatforms(home: string): Promise<string> {
+	return mustRun(
+		[
+			"ruby",
+			"-e",
+			'print Dir.glob(File.join(ARGV.fetch(0), "specifications", "llm-tests-forge-*.gemspec")).map { |path| Gem::Specification.load(path).platform.to_s }.sort.join(",")',
+			home,
+		],
+		home,
+	);
+}
+
+const UNSUPPORTED_MESSAGE = `llm-tests-forge has no binary for ${NPM_PLATFORM_NAME}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`;
+
+describe.skipIf(!packages)("the fallback gem", () => {
+	test("with the host gem and the fallback in one repository, in either index order, gem install by name installs the host gem, and the shim runs the binary", async () => {
+		if (HOST === undefined) throw new Error("this machine is not a target");
+		const { hostGem, fallbackGem, work } = await builtGems();
+		for (const order of ["fallback-first", "fallback-last"] as const) {
+			const { home, entry, environment } = await installedFrom(
+				await gemRepository([fallbackGem, hostGem], order),
+			);
+			expect({ order, installed: await installedPlatforms(home) }).toEqual({
+				order,
+				installed: HOST.gemPlatform,
+			});
+			expect(await run([entry, "--version"], work, environment)).toEqual({
+				exitCode: 0,
+				stdout: `${FORGE_VERSION}\n`,
+				stderr: "",
+			});
+		}
+	}, 600_000);
+
+	test("with only the fallback in the repository, gem install by name installs it, and the shim names this platform and install.sh and exits 1", async () => {
+		const { fallbackGem, work } = await builtGems();
+		const { home, entry, environment } = await installedFrom(
+			await gemRepository([fallbackGem], "fallback-last"),
+		);
+		expect(await installedPlatforms(home)).toBe("ruby");
+		expect(await run([entry, "--version"], work, environment)).toEqual({
+			exitCode: 1,
+			stdout: "",
+			stderr: UNSUPPORTED_MESSAGE,
+		});
+	}, 600_000);
+
+	test("the fallback gem is a ruby-platform gem with the stamped version, the shim, the library and the LICENSE, and no binary", async () => {
+		const { fallbackGem, work } = await builtGems();
+		const inspected = JSON.parse(
+			await mustRun(
+				[
+					"ruby",
+					"-rjson",
+					"-e",
+					'require "rubygems/package"; spec = Gem::Package.new(ARGV.fetch(0)).spec; print JSON.generate(platform: spec.platform.to_s, version: spec.version.to_s, files: spec.files.sort, executables: spec.executables)',
+					fallbackGem,
+				],
+				work,
+			),
+		);
+		expect(inspected).toEqual({
+			platform: "ruby",
+			version: FORGE_VERSION,
+			files: ["LICENSE", "exe/llm-tests-forge", "lib/llm_tests_forge.rb"],
+			executables: ["llm-tests-forge"],
+		});
+	}, 600_000);
+
+	test("for each platform RubyGems is told it runs on, a repository of every target's gem and the fallback, in either index order, installs that platform's gem, and the fallback where no target fits", async () => {
+		const work = await mkdtemp(join(tmpdir(), "forge-gem-platforms-"));
+		workDirectories.push(work);
+		const binaries = join(work, "binaries");
+		await mkdir(binaries);
+		for (const target of RELEASE_TARGETS)
+			await writeFile(join(binaries, target.assetName), "a stand-in binary\n");
+		const gems = [
+			...(await renderGems(binaries, join(work, "gems"), REPOSITORY, "gem")),
+			await renderFallbackGem(join(work, "gems"), REPOSITORY, "gem"),
+		];
+		// [the platform given to --platform, the platform of the gem it must install]
+		const cases: [string, string][] = [
+			["arm64-darwin-25", "arm64-darwin"],
+			["x86_64-darwin-23", "x86_64-darwin"],
+			["x86_64-linux", "x86_64-linux-gnu"],
+			["aarch64-linux", "aarch64-linux-gnu"],
+			["x64-mingw-ucrt", "x64-mingw-ucrt"],
+			["x86_64-linux-musl", "ruby"],
+			["aarch64-linux-musl", "ruby"],
+			["x86_64-freebsd", "ruby"],
+			["arm-linux", "ruby"],
+		];
+		for (const order of ["fallback-first", "fallback-last"] as const) {
+			const repository = await gemRepository(gems, order);
+			for (const [platform, chosen] of cases) {
+				const { home } = await installedFrom(repository, platform);
+				expect({
+					order,
+					platform,
+					installed: await installedPlatforms(home),
+				}).toEqual({ order, platform, installed: chosen });
+			}
+		}
+	}, 600_000);
+
+	test("the gemspec refuses a binary for the platform ruby, since the fallback ships none", async () => {
+		const { work, binaries } = await builtGems();
+		const finished = await run(
+			[
+				"gem",
+				"build",
+				join(REPOSITORY, "packages/gem/llm-tests-forge.gemspec"),
+				"--output",
+				join(work, "refused.gem"),
+			],
+			work,
+			{
+				...process.env,
+				FORGE_GEM_PLATFORM: "ruby",
+				FORGE_GEM_BINARY: join(binaries, "unused"),
+			},
+		);
+		expect(finished.exitCode).not.toBe(0);
+		expect(finished.stderr).toContain(
+			"FORGE_GEM_BINARY is set, but the ruby gem is the fallback and ships no binary",
+		);
 	}, 600_000);
 });
 
