@@ -20,6 +20,9 @@ defmodule Mix.Tasks.LlmTestsForge.Install do
   and an HTTP one through `http_proxy`/`HTTP_PROXY`, minus the hosts in
   `no_proxy`/`NO_PROXY`, as curl reads them (`:httpc` reads none of them on
   its own); see `LlmTestsForge.proxy_for!/2`. Only `http://` proxies work.
+  GitHub redirects the download to `release-assets.githubusercontent.com`;
+  NO_PROXY's host and domain entries apply there too, its `host:port`
+  entries do not.
 
   Windows on ARM gets the x64 binary, which runs there under emulation.
   """

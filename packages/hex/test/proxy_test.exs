@@ -94,6 +94,42 @@ defmodule LlmTestsForgeProxyTest do
       assert request =~ "proxy-authorization: Basic #{Base.encode64("user:secret")}\r\n"
     end
 
+    test "a redirect to a host NO_PROXY names leaves the proxy: :httpc re-checks every hop" do
+      target = listener(@ok)
+      # A forward proxy that answers every request with a redirect to the
+      # target, under a name only NO_PROXY can send around the proxy.
+      {:ok, socket} =
+        :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
+      {:ok, proxy} = :inet.port(socket)
+      test_process = self()
+
+      redirect =
+        "HTTP/1.1 302 Found\r\nlocation: http://localhost:#{target}/x\r\n" <>
+          "content-length: 0\r\nconnection: close\r\n\r\n"
+
+      spawn_link(fn ->
+        Stream.repeatedly(fn ->
+          {:ok, connection} = :gen_tcp.accept(socket)
+          {:ok, received} = :gen_tcp.recv(connection, 0, 10_000)
+          send(test_process, {:proxied, received})
+          :gen_tcp.send(connection, redirect)
+          :gen_tcp.close(connection)
+        end)
+        |> Stream.run()
+      end)
+
+      assert {:ok, {{_version, 200, _reason}, _headers, "ok"}} =
+               LlmTestsForge.http_get("http://release.invalid/x", %{
+                 "HTTP_PROXY" => "http://127.0.0.1:#{proxy}",
+                 "NO_PROXY" => "localhost"
+               })
+
+      assert received(target) =~ ~r{\AGET /x HTTP/1.1\r\n}
+      assert_received {:proxied, "GET http://release.invalid/x HTTP/1.1\r\n" <> _rest}
+      refute_received {:proxied, _second}
+    end
+
     test "a host NO_PROXY names goes straight to the target even with a proxy set" do
       target = listener(@ok)
 
@@ -251,6 +287,32 @@ defmodule LlmTestsForgeProxyTest do
                  address: {~c"127.0.0.1", 3128},
                  auth: {~c"user", ~c"s3cr3t/x"}
                }
+    end
+  end
+
+  describe "httpc_no_proxy/2, NO_PROXY as :httpc matches it on every redirect" do
+    test "a host and a .domain both become the host itself and *.. plus the domain, so :httpc's suffix match needs the dot" do
+      # :httpc matches "*." <> rest by lists:suffix(rest, host), and any
+      # other host name exactly (httpc_handler:is_no_proxy_dest/2).
+      assert LlmTestsForge.httpc_no_proxy("https://first.invalid/x", %{
+               "NO_PROXY" => "Example.com, .release-assets.githubusercontent.com"
+             }) == [
+               ~c"example.com",
+               ~c"*..example.com",
+               ~c"release-assets.githubusercontent.com",
+               ~c"*..release-assets.githubusercontent.com"
+             ]
+    end
+
+    test "a host:port entry, which :httpc cannot express, is left out; the first URL's own host is in when NO_PROXY bypasses it" do
+      assert LlmTestsForge.httpc_no_proxy("https://Mirror.invalid:8443/x", %{
+               "no_proxy" => "mirror.invalid:8443, other.invalid:443"
+             }) == [~c"Mirror.invalid"]
+
+      assert LlmTestsForge.httpc_no_proxy("https://h.invalid/x", %{}) == []
+
+      assert LlmTestsForge.httpc_no_proxy("https://h.invalid/x", %{"NO_PROXY" => "a.invalid,*"}) ==
+               :all
     end
   end
 

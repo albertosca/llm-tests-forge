@@ -191,29 +191,67 @@ defmodule LlmTestsForge do
       directly, compared case-insensitively: `example.com` and `.example.com`
       both cover `example.com` and every host under it, `host:port` covers
       that port only, and `*` covers everything. CIDR ranges are not
-      supported: `10.0.0.0/8` matches no host.
+      supported: `10.0.0.0/8` matches no host. A redirect (GitHub sends the
+      download to `release-assets.githubusercontent.com`) is judged by
+      `:httpc` against `httpc_no_proxy/2`, which honours host and domain
+      entries but not `host:port` ones, and compares case-sensitively; a
+      redirect to another scheme keeps the first URL's proxy choice.
 
   Returns `%{option: :proxy | :https_proxy, address: {host, port}, auth:
   {user, password} | nil}`. Raises a `Mix.Error` naming the variable when its
   value is not a usable proxy URL; the message never shows credentials.
   """
   def proxy_for!(url, environment) do
-    target = URI.parse(url)
+    if bypassed?(URI.parse(url), no_proxy_entries(environment)),
+      do: nil,
+      else: configured_proxy!(url, environment)
+  end
 
+  # The proxy the variable for `url`'s scheme names, NO_PROXY aside.
+  defp configured_proxy!(url, environment) do
     {variable, option} =
-      if target.scheme == "https", do: {"https_proxy", :https_proxy}, else: {"http_proxy", :proxy}
+      if URI.parse(url).scheme == "https",
+        do: {"https_proxy", :https_proxy},
+        else: {"http_proxy", :proxy}
 
     case proxy_variable(environment, variable) do
       nil ->
         nil
 
       {name, value} ->
-        if bypassed?(target, proxy_variable(environment, "no_proxy")) do
-          nil
-        else
-          {address, auth} = parse_proxy!(name, value)
-          %{option: option, address: address, auth: auth}
-        end
+        {address, auth} = parse_proxy!(name, value)
+        %{option: option, address: address, auth: auth}
+    end
+  end
+
+  @doc """
+  NO_PROXY in the form `:httpc` matches against every host a download
+  reaches, redirects included, or `:all` for `*`.
+
+  `:httpc` compares a host name entry exactly, and an entry `"*." <> rest`
+  by `lists:suffix(rest, host)` (`httpc_handler:is_no_proxy_dest/2`), without
+  the dot and case-sensitively. So `example.com` and `.example.com` both
+  become `example.com` and `*..example.com`: the host itself, and the hosts
+  that end in `.example.com`, never `notexample.com`. A `host:port` entry
+  cannot be expressed and is left out, and entries are lowercased, so on a
+  redirect (to `release-assets.githubusercontent.com`, for a GitHub Release)
+  those two are not honoured; the first URL is always judged by
+  `proxy_for!/2`, whose own host is listed when NO_PROXY bypasses it.
+  """
+  def httpc_no_proxy(url, environment) do
+    target = URI.parse(url)
+
+    case no_proxy_entries(environment) do
+      :all ->
+        :all
+
+      entries ->
+        first = if bypassed?(target, entries), do: [String.to_charlist(target.host)], else: []
+
+        first ++
+          for {domain, nil} <- entries,
+              form <- [domain, "*.." <> domain],
+              do: String.to_charlist(form)
     end
   end
 
@@ -225,19 +263,23 @@ defmodule LlmTestsForge do
     |> Enum.find(fn {_name, value} -> value != "" end)
   end
 
-  defp bypassed?(_target, nil), do: false
+  # NO_PROXY's entries as `{domain, port | nil}`, lowercased, without a
+  # leading dot or IPv6 brackets; `:all` when one is `*`.
+  defp no_proxy_entries(environment) do
+    entries =
+      case proxy_variable(environment, "no_proxy") do
+        nil ->
+          []
 
-  defp bypassed?(%URI{host: host, port: port}, {_name, value}) do
-    host = String.downcase(host || "")
+        {_name, value} ->
+          value |> String.split(",") |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+      end
+      |> Enum.reject(&(&1 == ""))
 
-    value
-    |> String.split(",")
-    |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.any?(fn entry -> entry == "*" or no_proxy_entry_matches?(entry, host, port) end)
+    if "*" in entries, do: :all, else: Enum.map(entries, &no_proxy_entry/1)
   end
 
-  defp no_proxy_entry_matches?(entry, host, port) do
+  defp no_proxy_entry(entry) do
     {entry_host, entry_port} =
       case Regex.run(~r/\A(.*?):(\d+)\z/, entry) do
         [_entry, entry_host, entry_port] -> {entry_host, String.to_integer(entry_port)}
@@ -250,8 +292,18 @@ defmodule LlmTestsForge do
       |> String.trim_leading("[")
       |> String.trim_trailing("]")
 
-    (entry_port == nil or entry_port == port) and
-      (host == domain or String.ends_with?(host, "." <> domain))
+    {domain, entry_port}
+  end
+
+  defp bypassed?(_target, :all), do: true
+
+  defp bypassed?(%URI{host: host, port: port}, entries) do
+    host = String.downcase(host || "")
+
+    Enum.any?(entries, fn {domain, entry_port} ->
+      (entry_port == nil or entry_port == port) and
+        (host == domain or String.ends_with?(host, "." <> domain))
+    end)
   end
 
   defp parse_proxy!(name, value) do
@@ -351,7 +403,11 @@ defmodule LlmTestsForge do
     {:ok, _started} = Application.ensure_all_started(:ssl)
 
     request = {String.to_charlist(url), [{~c"user-agent", ~c"llm_tests_forge-mix"}]}
-    proxy = proxy_for!(url, environment)
+    no_proxy = httpc_no_proxy(url, environment)
+    # The first URL is judged by proxy_for!/2; the proxy is set whenever its
+    # variable is (unless NO_PROXY is `*`), with NO_PROXY as :httpc matches
+    # it, so a redirect to another host is judged again.
+    proxy = if no_proxy != :all, do: configured_proxy!(url, environment)
 
     http_options =
       [timeout: 300_000, connect_timeout: 30_000, autoredirect: true] ++
@@ -360,7 +416,9 @@ defmodule LlmTestsForge do
     with_httpc_profile(fn profile ->
       # Only the option for this URL's scheme: with `https_proxy` unset,
       # :httpc would send an https request through `proxy`.
-      if proxy, do: :ok = :httpc.set_options([{proxy.option, {proxy.address, []}}], profile)
+      if proxy,
+        do: :ok = :httpc.set_options([{proxy.option, {proxy.address, no_proxy}}], profile)
+
       :httpc.request(:get, request, http_options, [body_format: :binary], profile)
     end)
   end
