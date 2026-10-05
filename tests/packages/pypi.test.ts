@@ -20,6 +20,7 @@ import {
 	renderWheels,
 } from "../../scripts/release/wheels";
 import { FORGE_VERSION } from "../../src/core/version";
+import { muslMessage } from "../helpers/platform-messages";
 
 const packages = process.env.FORGE_PACKAGES === "1";
 const REPOSITORY = resolve(import.meta.dir, "../..");
@@ -415,11 +416,6 @@ async function installedTags(python: string, work: string): Promise<string[]> {
 /** What the fallback wheel says on a platform that has a platform wheel (`name` in npm's spelling, `platformTag` that wheel's tag). */
 function fallbackWheelChosenMessage(name: string, platformTag: string): string {
 	return `llm-tests-forge: this is the py3-none-any fallback wheel, which has no binary, but ${name} has a platform wheel (${platformTag}); the installer was asked for another platform (pip --platform, uv --python-platform) and chose the fallback. Let the installer pick (pip install llm-tests-forge), or ask for that wheel with --platform ${platformTag}`;
-}
-
-/** What the entry says on musl Linux, which no release binary runs on (`name` in npm's spelling, linux-x64). */
-function muslMessage(name: string): string {
-	return `llm-tests-forge has no binary for musl/Alpine yet (${name}-musl): the ${name} binary needs glibc; see https://github.com/albertosca/llm-tests-forge`;
 }
 
 /** missing_binary_message(system_platform, machine, libc, fallback) as the installed package computes it, through `python`. */

@@ -37,6 +37,18 @@ function fillTemplate(text: string, values: Record<string, string>): string {
 }
 
 /**
+ * The platform package.json with `"libc": ["glibc"]` on Linux, where every
+ * binary is built against glibc: npm 9.6 and later skip a package whose
+ * libc is not the machine's, so musl never installs a binary it cannot load
+ * (measured: npm 9.6.5, 10.0.0 and 12.1.0 skip it, 8.19.4 and 9.5.1 install
+ * it, and the launcher refuses on musl for those).
+ */
+function withLibc(manifestText: string, target: ReleaseTarget): string {
+	if (target.npmOs !== "linux") return manifestText;
+	return `${JSON.stringify({ ...JSON.parse(manifestText), libc: ["glibc"] }, null, "\t")}\n`;
+}
+
+/**
  * Writes one package per release target under `outDirectory/<os>-<cpu>/`
  * (the template's package.json plus `bin/<binary>` copied from the asset,
  * executable) and a copy of the main package under `outDirectory/main/`,
@@ -75,11 +87,14 @@ export async function renderNpmPackages(
 		await mkdir(join(directory, "bin"), { recursive: true });
 		await writeFile(
 			join(directory, "package.json"),
-			fillTemplate(template, {
-				os: target.npmOs,
-				cpu: target.npmCpu,
-				binary: binaryName,
-			}),
+			withLibc(
+				fillTemplate(template, {
+					os: target.npmOs,
+					cpu: target.npmCpu,
+					binary: binaryName,
+				}),
+				target,
+			),
 		);
 		const destination = join(directory, "bin", binaryName);
 		await copyFile(join(binariesDirectory, target.assetName), destination);

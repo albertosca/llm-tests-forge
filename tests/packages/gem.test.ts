@@ -26,6 +26,7 @@ import {
 } from "../../scripts/release/targets";
 import { GEM_MANIFESTS, stampVersion } from "../../scripts/release/version";
 import { FORGE_VERSION } from "../../src/core/version";
+import { muslMessage } from "../helpers/platform-messages";
 
 const packages = process.env.FORGE_PACKAGES === "1";
 const REPOSITORY = resolve(import.meta.dir, "../..");
@@ -550,11 +551,6 @@ async function installedPlatforms(home: string): Promise<string> {
 		],
 		home,
 	);
-}
-
-/** What the shim says on musl Linux, which no release binary runs on (`name` in npm's spelling, linux-x64). */
-function muslMessage(name: string): string {
-	return `llm-tests-forge has no binary for musl/Alpine yet (${name}-musl): the ${name} binary needs glibc; see https://github.com/albertosca/llm-tests-forge`;
 }
 
 /** What the fallback gem says on a platform that has a native gem (`name` in npm's spelling, `native` the native gem's platform). */

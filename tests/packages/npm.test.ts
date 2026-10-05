@@ -21,6 +21,7 @@ import { buildBinaries } from "../../scripts/release/build-binaries";
 import { renderNpmPackages } from "../../scripts/release/npm-packages";
 import { RELEASE_TARGETS } from "../../scripts/release/targets";
 import { FORGE_VERSION } from "../../src/core/version";
+import { muslMessage } from "../helpers/platform-messages";
 
 const packages = process.env.FORGE_PACKAGES === "1";
 const HOST = RELEASE_TARGETS.find(
@@ -259,3 +260,151 @@ describe.skipIf(!packages)("npm packages", () => {
 		}
 	}, 600_000);
 });
+
+/**
+ * The real launcher in an installed-looking tree, run by node with a preload
+ * that makes it see Linux on this cpu, with a process report whose header
+ * has glibcVersionRuntime (glibc) or lacks it (musl, as Node reports there).
+ * With `platformPackagePresent`, the linux-<cpu> package holds a stand-in
+ * binary that prints "ran": what an npm older than 9.6, which ignores the
+ * libc field, would install on musl.
+ */
+async function runAsLinux(
+	libc: "glibc" | "musl",
+	platformPackagePresent: boolean,
+): Promise<Finished> {
+	const prefix = await mkdtemp(join(tmpdir(), "forge-npm-libc-"));
+	try {
+		const launcherDirectory = join(prefix, "node_modules/llm-tests-forge/bin");
+		await mkdir(launcherDirectory, { recursive: true });
+		for (const file of ["llm-tests-forge.js", "platform.js"])
+			await copyFile(join(MAIN_BIN, file), join(launcherDirectory, file));
+		if (platformPackagePresent) {
+			const binaryDirectory = join(
+				prefix,
+				`node_modules/@llm-tests-forge/linux-${process.arch}/bin`,
+			);
+			await mkdir(binaryDirectory, { recursive: true });
+			await writeFile(
+				join(binaryDirectory, "llm-tests-forge"),
+				"#!/bin/sh\necho ran\n",
+				{ mode: 0o755 },
+			);
+		}
+		const preload = join(prefix, "as-linux.js");
+		await writeFile(
+			preload,
+			[
+				'Object.defineProperty(process, "platform", { value: "linux" });',
+				`const header = ${libc === "glibc" ? '{ glibcVersionRuntime: "2.39" }' : "{}"};`,
+				'Object.defineProperty(process, "report", { value: { getReport: () => ({ header }) } });',
+				"",
+			].join("\n"),
+		);
+		return await run(
+			[
+				"node",
+				"--require",
+				preload,
+				join(launcherDirectory, "llm-tests-forge.js"),
+				"--version",
+			],
+			prefix,
+		);
+	} finally {
+		await rm(prefix, { recursive: true, force: true });
+	}
+}
+
+describe.skipIf(!packages || process.platform === "win32")(
+	"the launcher on Linux, by C library",
+	() => {
+		test("npm, told the machine is Linux on x64, skips the rendered linux-x64 package as an optional dependency under musl and installs it under glibc", async () => {
+			const work = await mkdtemp(join(tmpdir(), "forge-npm-libc-field-"));
+			try {
+				const binaries = join(work, "binaries");
+				await mkdir(binaries);
+				for (const target of RELEASE_TARGETS)
+					await writeFile(join(binaries, target.assetName), "stand-in\n");
+				const out = join(work, "npm");
+				await renderNpmPackages(binaries, out);
+				const output = await mustRun(
+					["npm", "pack", "--pack-destination", work, "--json"],
+					join(out, "linux-x64"),
+				);
+				const [entry] = Object.values(
+					JSON.parse(output) as Record<string, { filename: string }>,
+				);
+				if (entry === undefined) throw new Error("npm pack listed no file");
+				const installed: Record<string, boolean> = {};
+				for (const libc of ["musl", "glibc"]) {
+					const consumer = join(work, `consumer-${libc}`);
+					await mkdir(consumer);
+					await writeFile(
+						join(consumer, "package.json"),
+						JSON.stringify({
+							name: "consumer",
+							version: "1.0.0",
+							optionalDependencies: {
+								"@llm-tests-forge/linux-x64": `file:${join(work, entry.filename)}`,
+							},
+						}),
+					);
+					await mustRun(
+						[
+							"npm",
+							"install",
+							"--os=linux",
+							"--cpu=x64",
+							`--libc=${libc}`,
+							"--registry",
+							"http://127.0.0.1:9",
+							"--fetch-retries=0",
+							"--no-audit",
+							"--no-fund",
+						],
+						consumer,
+					);
+					installed[libc] = await Bun.file(
+						join(
+							consumer,
+							"node_modules/@llm-tests-forge/linux-x64/package.json",
+						),
+					).exists();
+				}
+				expect(installed).toEqual({ musl: false, glibc: true });
+			} finally {
+				await rm(work, { recursive: true, force: true });
+			}
+		}, 600_000);
+
+		test("on musl, with no platform package (npm 9.6 and later skip the glibc one), the launcher says musl has no binary yet", async () => {
+			expect(await runAsLinux("musl", false)).toEqual({
+				exitCode: 1,
+				stdout: "",
+				stderr: `${muslMessage(`linux-${process.arch}`)}\n`,
+			});
+		}, 120_000);
+
+		test("on musl, with the glibc package installed anyway (an npm older than 9.6 ignores libc), the launcher refuses instead of running a binary that cannot load", async () => {
+			expect(await runAsLinux("musl", true)).toEqual({
+				exitCode: 1,
+				stdout: "",
+				stderr: `${muslMessage(`linux-${process.arch}`)}\n`,
+			});
+		}, 120_000);
+
+		test("on glibc the launcher runs the platform package's binary, and without one keeps the plain message", async () => {
+			expect(await runAsLinux("glibc", true)).toEqual({
+				exitCode: 0,
+				stdout: "ran\n",
+				stderr: "",
+			});
+			expect(await runAsLinux("glibc", false)).toEqual({
+				exitCode: 1,
+				stdout: "",
+				stderr: `llm-tests-forge has no binary for linux-${process.arch}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`,
+			});
+		}, 120_000);
+	},
+);

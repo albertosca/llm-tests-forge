@@ -120,6 +120,15 @@ describe("npm-packages", () => {
 				cpu: [target.npmCpu],
 				files: [`bin/${binaryName}`],
 			});
+			// Every Linux binary is built against glibc: npm 9.6 and later skip a
+			// package whose libc is not the machine's, so musl never installs it.
+			const manifest = JSON.parse(
+				await readFile(join(directory, "package.json"), "utf8"),
+			);
+			expect({ target: target.npmOs, libc: manifest.libc }).toEqual({
+				target: target.npmOs,
+				libc: target.npmOs === "linux" ? ["glibc"] : undefined,
+			});
 			const binary = join(directory, "bin", binaryName);
 			expect(await readFile(binary, "utf8")).toBe(
 				`#!/bin/sh\n# ${target.assetName}\n`,

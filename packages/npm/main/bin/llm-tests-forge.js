@@ -3,15 +3,28 @@
 
 const { spawnSync } = require("node:child_process");
 const os = require("node:os");
-const { platformPackage, unsupportedMessage } = require("./platform.js");
+const {
+	libcFamily,
+	platformPackage,
+	unsupportedMessage,
+} = require("./platform.js");
+
+const libc = libcFamily(
+	process.platform,
+	process.platform === "linux" && process.report
+		? process.report.getReport().header
+		: undefined,
+);
 
 function refuseUnsupported() {
-	console.error(unsupportedMessage(process.platform, process.arch));
+	console.error(unsupportedMessage(process.platform, process.arch, libc));
 	process.exit(1);
 }
 
 const target = platformPackage(process.platform, process.arch);
-if (target === undefined) refuseUnsupported();
+// On musl the glibc binary cannot load. npm 9.6 and later skip its package
+// (the libc field); an older npm installs it anyway, so refuse here too.
+if (target === undefined || libc === "musl") refuseUnsupported();
 
 let binaryPath;
 try {

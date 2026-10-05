@@ -21,9 +21,29 @@ function platformPackage(platform, architecture) {
 	return { packageName, binaryPath: `${packageName}/bin/${binaryFile}` };
 }
 
-/** What the launcher prints when the platform has no binary or its package is not installed. */
-function unsupportedMessage(platform, architecture) {
-	return `llm-tests-forge has no binary for ${platform}-${architecture}; see https://github.com/albertosca/llm-tests-forge for install.sh`;
+/**
+ * The C library of a Linux machine from its process report's header:
+ * glibc when the header carries glibcVersionRuntime (Node leaves it out on
+ * musl), unknown without a report, undefined off Linux.
+ */
+function libcFamily(platform, reportHeader) {
+	if (platform !== "linux") return undefined;
+	if (reportHeader === undefined) return "unknown";
+	return typeof reportHeader.glibcVersionRuntime === "string"
+		? "glibc"
+		: "musl";
 }
 
-module.exports = { platformPackage, unsupportedMessage };
+/**
+ * What the launcher prints when the platform has no binary or its package is
+ * not installed. On musl Linux no release binary runs (the Linux ones need
+ * glibc), so it says so rather than pointing at install.sh.
+ */
+function unsupportedMessage(platform, architecture, libc) {
+	const name = `${platform}-${architecture}`;
+	if (libc === "musl")
+		return `llm-tests-forge has no binary for musl/Alpine yet (${name}-musl): the ${name} binary needs glibc; see https://github.com/albertosca/llm-tests-forge`;
+	return `llm-tests-forge has no binary for ${name}; see https://github.com/albertosca/llm-tests-forge for install.sh`;
+}
+
+module.exports = { libcFamily, platformPackage, unsupportedMessage };
