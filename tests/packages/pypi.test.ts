@@ -10,11 +10,15 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { buildBinaries } from "../../scripts/release/build-binaries";
 import { RELEASE_TARGETS } from "../../scripts/release/targets";
 import { PYPI_MANIFESTS, stampVersion } from "../../scripts/release/version";
-import { renderWheels } from "../../scripts/release/wheels";
+import {
+	pep440Version,
+	renderFallbackWheel,
+	renderWheels,
+} from "../../scripts/release/wheels";
 import { FORGE_VERSION } from "../../src/core/version";
 
 const packages = process.env.FORGE_PACKAGES === "1";
@@ -75,11 +79,12 @@ interface Built {
 	work: string;
 	hostWheel: string;
 	foreignWheel: string;
+	fallbackWheel: string;
 }
 
 let builtOnce: Promise<Built> | undefined;
 
-/** The host and the foreign wheel, built once for all the tests; the foreign one carries the host binary under its own name. */
+/** The host, the foreign and the fallback wheel, built once for all the tests; the foreign one carries the host binary under its own name. */
 function builtWheels(): Promise<Built> {
 	builtOnce ??= (async () => {
 		if (HOST === undefined || FOREIGN === undefined)
@@ -101,7 +106,12 @@ function builtWheels(): Promise<Built> {
 		);
 		if (hostWheel === undefined || foreignWheel === undefined)
 			throw new Error("uv build wrote no wheel");
-		return { work, hostWheel, foreignWheel };
+		const fallbackWheel = await renderFallbackWheel(
+			join(work, "fallbacks"),
+			REPOSITORY,
+			"uv",
+		);
+		return { work, hostWheel, foreignWheel, fallbackWheel };
 	})();
 	return builtOnce;
 }
@@ -349,6 +359,217 @@ describe.skipIf(!packages)("pypi wheels", () => {
 			stdout: "",
 			stderr: `llm-tests-forge has no binary for ${process.platform}-${process.arch}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`,
 		});
+	}, 600_000);
+});
+
+/** A directory holding copies of `wheels` and nothing else, for `--find-links`: a local index of exactly these files. */
+async function localIndex(wheels: string[]): Promise<string> {
+	const { work } = await builtWheels();
+	const index = await mkdtemp(join(work, "index-"));
+	for (const wheel of wheels) await cp(wheel, join(index, basename(wheel)));
+	return index;
+}
+
+/** A fresh venv with llm-tests-forge installed by name from `index` alone, so the installer chooses the wheel, as `pip install llm-tests-forge` does. */
+async function venvInstalledFrom(
+	index: string,
+): Promise<ReturnType<typeof venvPaths>> {
+	const { work } = await builtWheels();
+	const venv = await mkdtemp(join(work, "venv-"));
+	const paths = venvPaths(venv);
+	await mustRun(["uv", "venv", venv], work);
+	await mustRun(
+		[
+			"uv",
+			"pip",
+			"install",
+			"--offline",
+			"--no-index",
+			"--find-links",
+			index,
+			"--python",
+			paths.python,
+			"llm-tests-forge",
+		],
+		work,
+	);
+	return paths;
+}
+
+/** The `Tag:` lines of the WHEEL file of the llm-tests-forge installed for `python`: the wheel the installer chose. */
+async function installedTags(python: string, work: string): Promise<string[]> {
+	const wheelText = await mustRun(
+		[
+			python,
+			"-c",
+			"from importlib.metadata import distribution; print(distribution('llm-tests-forge').read_text('WHEEL'))",
+		],
+		work,
+	);
+	return wheelText.split("\n").filter((line) => line.startsWith("Tag: "));
+}
+
+const UNSUPPORTED_MESSAGE = `llm-tests-forge has no binary for ${process.platform}-${process.arch}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`;
+
+describe.skipIf(!packages)("the fallback wheel", () => {
+	test("with the host wheel and the fallback in one local index, uv installs the host wheel, and the entry runs the binary", async () => {
+		if (HOST === undefined) throw new Error("this machine is not a target");
+		const { work, hostWheel, fallbackWheel } = await builtWheels();
+		const paths = await venvInstalledFrom(
+			await localIndex([fallbackWheel, hostWheel]),
+		);
+		expect(await installedTags(paths.python, work)).toEqual(
+			HOST.wheelTag
+				.split(".")
+				.map((platformTag) => `Tag: py3-none-${platformTag}`),
+		);
+		expect(await run([paths.entry, "--version"], work)).toEqual({
+			exitCode: 0,
+			stdout: `${FORGE_VERSION}\n`,
+			stderr: "",
+		});
+	}, 600_000);
+
+	test("with only the fallback in the index, uv installs it, and the entry names this platform and install.sh and exits 1", async () => {
+		const { work, fallbackWheel } = await builtWheels();
+		const paths = await venvInstalledFrom(await localIndex([fallbackWheel]));
+		expect(await installedTags(paths.python, work)).toEqual([
+			"Tag: py3-none-any",
+		]);
+		expect(await run([paths.entry, "--version"], work)).toEqual({
+			exitCode: 1,
+			stdout: "",
+			stderr: UNSUPPORTED_MESSAGE,
+		});
+		expect(
+			await run([paths.python, "-m", "llm_tests_forge", "--version"], work),
+		).toEqual({ exitCode: 1, stdout: "", stderr: UNSUPPORTED_MESSAGE });
+	}, 600_000);
+
+	test("the fallback wheel is pure Python with the stamped version: Root-Is-Purelib true, no binary inside, the LICENSE inside", async () => {
+		const { work, fallbackWheel } = await builtWheels();
+		const paths = await installedVenv();
+		const inspected = JSON.parse(
+			await mustRun(
+				[
+					paths.python,
+					"-c",
+					[
+						"import json, sys, zipfile",
+						"archive = zipfile.ZipFile(sys.argv[1])",
+						"names = archive.namelist()",
+						"wheel = next(name for name in names if name.endswith('.dist-info/WHEEL'))",
+						"metadata = next(name for name in names if name.endswith('.dist-info/METADATA'))",
+						"version = next(line for line in archive.read(metadata).decode().splitlines() if line.startswith('Version: '))",
+						"print(json.dumps({'wheel': archive.read(wheel).decode(), 'version': version, 'binaries': [name for name in names if '/bin/' in name], 'license': archive.read('llm_tests_forge/LICENSE').decode() if 'llm_tests_forge/LICENSE' in names else None}))",
+					].join("\n"),
+					fallbackWheel,
+				],
+				work,
+			),
+		);
+		expect(inspected.wheel.split("\n")).toContain("Root-Is-Purelib: true");
+		expect(inspected.wheel.split("\n")).toContain("Tag: py3-none-any");
+		expect(inspected.version).toBe(`Version: ${FORGE_VERSION}`);
+		expect(inspected.binaries).toEqual([]);
+		expect(inspected.license).toBe(
+			await Bun.file(join(REPOSITORY, "LICENSE")).text(),
+		);
+	}, 600_000);
+
+	test("for each platform uv can install for, an index of every target's wheel and the fallback resolves to that platform's wheel, and to the fallback where no target fits", async () => {
+		const work = await mkdtemp(join(tmpdir(), "forge-pypi-platforms-"));
+		workDirectories.push(work);
+		const binaries = join(work, "binaries");
+		await mkdir(binaries);
+		for (const target of RELEASE_TARGETS)
+			await writeFile(join(binaries, target.assetName), "a stand-in binary\n");
+		const index = join(work, "index");
+		await renderWheels(binaries, index, REPOSITORY, "uv");
+		await renderFallbackWheel(index, REPOSITORY, "uv");
+		const venv = join(work, "venv");
+		await mustRun(["uv", "venv", venv], work);
+		// [uv's --python-platform, the platform tag (compressed, as in the wheel's file name) of the wheel it must choose]
+		const cases: [string, string][] = [
+			["aarch64-apple-darwin", "macosx_11_0_arm64"],
+			["x86_64-apple-darwin", "macosx_10_12_x86_64"],
+			[
+				"x86_64-unknown-linux-gnu",
+				"manylinux_2_17_x86_64.manylinux2014_x86_64",
+			],
+			[
+				"aarch64-unknown-linux-gnu",
+				"manylinux_2_17_aarch64.manylinux2014_aarch64",
+			],
+			["x86_64-pc-windows-msvc", "win_amd64"],
+			["x86_64-unknown-linux-musl", "any"],
+			["aarch64-unknown-linux-musl", "any"],
+			["aarch64-pc-windows-msvc", "any"],
+			["i686-pc-windows-msvc", "any"],
+		];
+		for (const [pythonPlatform, platformTag] of cases) {
+			const target = join(work, `target-${pythonPlatform}`);
+			await mustRun(
+				[
+					"uv",
+					"pip",
+					"install",
+					"--offline",
+					"--no-index",
+					"--find-links",
+					index,
+					"--python",
+					venvPaths(venv).python,
+					"--python-platform",
+					pythonPlatform,
+					"--target",
+					target,
+					"llm-tests-forge",
+				],
+				work,
+			);
+			const wheelText = await Bun.file(
+				join(
+					target,
+					`llm_tests_forge-${pep440Version(FORGE_VERSION)}.dist-info/WHEEL`,
+				),
+			).text();
+			const chosen = wheelText
+				.split("\n")
+				.filter((line) => line.startsWith("Tag: "))
+				.sort();
+			expect({ pythonPlatform, chosen }).toEqual({
+				pythonPlatform,
+				chosen: platformTag
+					.split(".")
+					.map((single) => `Tag: py3-none-${single}`)
+					.sort(),
+			});
+		}
+	}, 600_000);
+
+	test("the build refuses a binary for the platform any, since the fallback ships none", async () => {
+		const { work } = await builtWheels();
+		const finished = await run(
+			[
+				"uv",
+				"build",
+				"--wheel",
+				"--out-dir",
+				join(work, "refused"),
+				join(REPOSITORY, "packages/pypi"),
+			],
+			work,
+			{
+				...withoutForgeWheelVariables(),
+				FORGE_WHEEL_PLATFORM: "any",
+				FORGE_WHEEL_BINARY: join(work, "binaries", "llm-tests-forge"),
+			},
+		);
+		expect(finished.exitCode).not.toBe(0);
+		expect(finished.stderr).toContain(
+			"FORGE_WHEEL_BINARY is set, but the any wheel is the fallback and ships no binary",
+		);
 	}, 600_000);
 });
 

@@ -18,7 +18,9 @@ import {
 	stampVersion,
 } from "../../scripts/release/version";
 import {
+	fallbackWheelFileName,
 	pep440Version,
+	renderFallbackWheel,
 	renderWheels,
 	runWheels,
 	wheelFileName,
@@ -286,5 +288,57 @@ describe("wheels", () => {
 			await expect(runWheels(argumentsList, () => {})).rejects.toBeInstanceOf(
 				UsageError,
 			);
+	}, 30_000);
+});
+
+describe("the fallback wheel", () => {
+	test("one uv build with the platform any and no binary variable, even when the caller's environment sets one", async () => {
+		const tool = await fakeUvTool();
+		const out = join(
+			await mkdtemp(join(tmpdir(), "forge-wheels-out-")),
+			"fallbacks",
+		);
+		const previousBinary = process.env.FORGE_WHEEL_BINARY;
+		process.env.FORGE_WHEEL_BINARY = "/a/binary/the/caller/left/set";
+		let written: string;
+		try {
+			written = await renderFallbackWheel(out, REPOSITORY, tool.command);
+		} finally {
+			if (previousBinary === undefined) delete process.env.FORGE_WHEEL_BINARY;
+			else process.env.FORGE_WHEEL_BINARY = previousBinary;
+		}
+		expect(written).toBe(join(out, fallbackWheelFileName(FORGE_VERSION)));
+		expect(await Bun.file(written).exists()).toBe(true);
+		expect((await readFile(tool.calls, "utf8")).trim().split("\n")).toEqual([
+			`any||build --wheel --out-dir ${out} ${join(REPOSITORY, "packages/pypi")}`,
+		]);
+	}, 30_000);
+
+	test("the fallback wheel's file name is py3-none-any, with the version uv writes", () => {
+		expect(fallbackWheelFileName("1.2.3")).toBe(
+			"llm_tests_forge-1.2.3-py3-none-any.whl",
+		);
+		expect(fallbackWheelFileName("0.1.0-rc.1")).toBe(
+			"llm_tests_forge-0.1.0rc1-py3-none-any.whl",
+		);
+	});
+
+	test("a pyproject.toml left at another version refuses the fallback build too, before uv runs", async () => {
+		const root = await rootWithWheelPackage("9.9.9");
+		const tool = await fakeUvTool();
+		await expect(
+			renderFallbackWheel(join(root, "out"), root, tool.command),
+		).rejects.toThrow(
+			`not stamped with 9.9.9 (run release:stamp): packages/pypi/pyproject.toml has ${FORGE_VERSION}`,
+		);
+		expect(await Bun.file(tool.calls).exists()).toBe(false);
+	});
+
+	test("a failing uv build of the fallback is refused naming the platform any and what uv said", async () => {
+		const tool = await fakeUvTool("fails");
+		const out = await mkdtemp(join(tmpdir(), "forge-wheels-out-"));
+		await expect(
+			renderFallbackWheel(out, REPOSITORY, tool.command),
+		).rejects.toThrow("uv build failed for any (exit 3): no index reachable");
 	}, 30_000);
 });

@@ -46,9 +46,94 @@ export function pep440Version(version: string): string {
 	return `${release}${PEP_440_PRERELEASES[label]}${prerelease[2]}`;
 }
 
+/**
+ * The platform tag of the fallback wheel, which ships no binary. Installers
+ * rank `py3-none-any` below every platform tag, so they pick it only on a
+ * platform no target wheel fits (musl Linux, Windows on Arm, …), where its
+ * console entry names the platform and points at install.sh.
+ */
+export const FALLBACK_WHEEL_TAG = "any";
+
+function wheelName(version: string, platformTag: string): string {
+	return `llm_tests_forge-${pep440Version(version)}-py3-none-${platformTag}.whl`;
+}
+
 /** The file name `uv build --wheel` gives the wheel of one target. */
 export function wheelFileName(version: string, target: ReleaseTarget): string {
-	return `llm_tests_forge-${pep440Version(version)}-py3-none-${target.wheelTag}.whl`;
+	return wheelName(version, target.wheelTag);
+}
+
+/** The file name `uv build --wheel` gives the fallback wheel. */
+export function fallbackWheelFileName(version: string): string {
+	return wheelName(version, FALLBACK_WHEEL_TAG);
+}
+
+/**
+ * The release version, once pyproject.toml carries it and the wheels can:
+ * a stale manifest, a version PEP 440 cannot express and a missing LICENSE
+ * (which the build hook copies in) are each refused before anything is built.
+ */
+async function stampedVersion(root: string): Promise<string> {
+	const stale = await checkVersions(root, PYPI_MANIFESTS);
+	if (stale.length > 0)
+		throw new ForgeError(
+			`not stamped with ${await releaseVersion(root)} (run release:stamp): ${stale.map(({ path, found }) => `${path} has ${found ?? "no version"}`).join(", ")}`,
+			{ file: join(root, stale[0]?.path ?? "package.json") },
+		);
+	const version = await releaseVersion(root);
+	pep440Version(version);
+	await licensePath(root);
+	return version;
+}
+
+/**
+ * Runs `uv build --wheel` on `packages/pypi` into `absoluteOut` with
+ * `platformTag` and `binary` in the two variables the build hook reads; with
+ * no binary, the variable is removed from the inherited environment, so the
+ * hook builds the fallback. Returns the path of the wheel, `wheel`.
+ */
+async function buildWheel(
+	root: string,
+	uvCommand: string,
+	absoluteOut: string,
+	platformTag: string,
+	binary: string | undefined,
+	wheel: string,
+): Promise<string> {
+	const { FORGE_WHEEL_BINARY: _inherited, ...inheritedEnvironment } =
+		process.env;
+	const child = Bun.spawn(
+		[
+			uvCommand,
+			"build",
+			"--wheel",
+			"--out-dir",
+			absoluteOut,
+			join(root, "packages/pypi"),
+		],
+		{
+			env: {
+				...inheritedEnvironment,
+				FORGE_WHEEL_PLATFORM: platformTag,
+				...(binary === undefined ? {} : { FORGE_WHEEL_BINARY: binary }),
+			},
+			stdout: "pipe",
+			stderr: "pipe",
+		},
+	);
+	const [stderr, exitCode] = await Promise.all([
+		new Response(child.stderr).text(),
+		child.exited,
+		new Response(child.stdout).text(),
+	]);
+	if (exitCode !== 0)
+		throw new ForgeError(
+			`uv build failed for ${platformTag} (exit ${exitCode}): ${stderr.trim()}`,
+			{ file: wheel },
+		);
+	if (!(await Bun.file(wheel).exists()))
+		throw new ForgeError("uv build did not write the wheel", { file: wheel });
+	return wheel;
 }
 
 /**
@@ -65,17 +150,7 @@ export async function renderWheels(
 	uvCommand = "uv",
 	targets: readonly ReleaseTarget[] = RELEASE_TARGETS,
 ): Promise<string[]> {
-	const stale = await checkVersions(root, PYPI_MANIFESTS);
-	if (stale.length > 0)
-		throw new ForgeError(
-			`not stamped with ${await releaseVersion(root)} (run release:stamp): ${stale.map(({ path, found }) => `${path} has ${found ?? "no version"}`).join(", ")}`,
-			{ file: join(root, stale[0]?.path ?? "package.json") },
-		);
-	const version = await releaseVersion(root);
-	// A version the wheel cannot carry is refused before anything is built,
-	// and so is a missing LICENSE, which the build hook copies in.
-	pep440Version(version);
-	await licensePath(root);
+	const version = await stampedVersion(root);
 	for (const target of targets) {
 		const source = join(binariesDirectory, target.assetName);
 		if (!(await Bun.file(source).exists()))
@@ -84,42 +159,41 @@ export async function renderWheels(
 	const absoluteOut = resolve(outDirectory);
 	await mkdir(absoluteOut, { recursive: true });
 	const written: string[] = [];
-	for (const target of targets) {
-		const child = Bun.spawn(
-			[
+	for (const target of targets)
+		written.push(
+			await buildWheel(
+				root,
 				uvCommand,
-				"build",
-				"--wheel",
-				"--out-dir",
 				absoluteOut,
-				join(root, "packages/pypi"),
-			],
-			{
-				env: {
-					...process.env,
-					FORGE_WHEEL_PLATFORM: target.wheelTag,
-					FORGE_WHEEL_BINARY: resolve(binariesDirectory, target.assetName),
-				},
-				stdout: "pipe",
-				stderr: "pipe",
-			},
+				target.wheelTag,
+				resolve(binariesDirectory, target.assetName),
+				join(absoluteOut, wheelFileName(version, target)),
+			),
 		);
-		const [stderr, exitCode] = await Promise.all([
-			new Response(child.stderr).text(),
-			child.exited,
-			new Response(child.stdout).text(),
-		]);
-		const wheel = join(absoluteOut, wheelFileName(version, target));
-		if (exitCode !== 0)
-			throw new ForgeError(
-				`uv build failed for ${target.wheelTag} (exit ${exitCode}): ${stderr.trim()}`,
-				{ file: wheel },
-			);
-		if (!(await Bun.file(wheel).exists()))
-			throw new ForgeError("uv build did not write the wheel", { file: wheel });
-		written.push(wheel);
-	}
 	return written;
+}
+
+/**
+ * Builds the fallback wheel (`py3-none-any`, no binary) into `outDirectory`
+ * from the same `packages/pypi`, so it carries the same stamped version;
+ * returns its path. `uvCommand` exists for the tests.
+ */
+export async function renderFallbackWheel(
+	outDirectory: string,
+	root: string = REPOSITORY_ROOT,
+	uvCommand = "uv",
+): Promise<string> {
+	const version = await stampedVersion(root);
+	const absoluteOut = resolve(outDirectory);
+	await mkdir(absoluteOut, { recursive: true });
+	return buildWheel(
+		root,
+		uvCommand,
+		absoluteOut,
+		FALLBACK_WHEEL_TAG,
+		undefined,
+		join(absoluteOut, fallbackWheelFileName(version)),
+	);
 }
 
 /** `wheels.ts <binaries-directory> <out-directory>`: returns the exit code. */

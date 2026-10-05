@@ -1,4 +1,9 @@
-"""Runs the llm-tests-forge binary that ships inside this platform's wheel."""
+"""Runs the llm-tests-forge binary that ships inside this platform's wheel.
+
+The fallback wheel (py3-none-any), which an installer chooses only where no
+platform wheel fits, ships no binary: its entry names the platform and points
+at install.sh.
+"""
 
 import os
 import platform
