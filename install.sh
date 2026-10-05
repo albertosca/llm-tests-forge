@@ -66,12 +66,16 @@ darwin-arm64 | darwin-x64 | linux-arm64 | linux-x64) ;;
 esac
 
 # musl Linux (Alpine) cannot load the Linux binaries, which are built against
-# glibc. Detected as rustup-init.sh does (ldd --version names musl, on
-# stderr), and by musl's dynamic loader, for a system whose ldd says nothing.
+# glibc. ldd --version decides, as in rustup-init.sh: musl's names musl (on
+# stderr), glibc's names GLIBC or GNU libc, and that is decisive even beside
+# a musl loader (Debian with the musl package installs /lib/ld-musl-*). Only
+# when ldd names neither does musl's dynamic loader count.
 is_musl() {
-	if ldd --version 2>&1 | grep -q musl; then
-		return 0
-	fi
+	ldd_version="$(ldd --version 2>&1 || true)"
+	case "$ldd_version" in
+	*musl*) return 0 ;;
+	*GLIBC* | *"GNU libc"* | *"GNU C Library"*) return 1 ;;
+	esac
 	for loader in "${LLM_TESTS_FORGE_LIBRARY_DIRECTORY:-/lib}"/ld-musl-*; do
 		if [ -e "$loader" ]; then
 			return 0
