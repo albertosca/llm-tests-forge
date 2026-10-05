@@ -191,12 +191,16 @@ describe("the release workflow's shape", () => {
 			});
 	});
 
-	test("the jobs run in order: check, build, smoke and assemble, release, then the publishers", () => {
+	test("the jobs run in order: check, build, smoke and assemble and packages, release, then the publishers", () => {
 		expect(needsOf(jobNamed("check"))).toEqual([]);
 		expect(needsOf(jobNamed("build"))).toEqual(["check"]);
 		expect(needsOf(jobNamed("smoke"))).toEqual(["build"]);
 		expect(needsOf(jobNamed("assemble"))).toEqual(["build"]);
-		expect(needsOf(jobNamed("release")).sort()).toEqual(["assemble", "smoke"]);
+		expect(needsOf(jobNamed("release")).sort()).toEqual([
+			"assemble",
+			"packages",
+			"smoke",
+		]);
 		expect(needsOf(jobNamed("packages"))).toEqual(["check"]);
 		expect(Object.keys(workflow.jobs).sort()).toEqual(
 			[
@@ -783,6 +787,10 @@ describe("the package tests in CI", () => {
 				job: publish.job,
 				needsPackages: needsOf(jobNamed(publish.job)).includes("packages"),
 			}).toEqual({ job: publish.job, needsPackages: true });
+	});
+
+	test("the GitHub Release needs the packages job too, so a red package test holds back the binaries, SHA256SUMS and install.sh", () => {
+		expect(needsOf(jobNamed("release"))).toContain("packages");
 	});
 });
 

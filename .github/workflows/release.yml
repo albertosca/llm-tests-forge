@@ -1,7 +1,8 @@
 name: release
 # Runs on a version tag: checks, builds the five binaries, smoke-tests each on
-# its native runner, creates the GitHub Release, then publishes to each
-# registry whose token is set. A tag holding a hyphen (v0.2.0-rc.1) makes a
+# its native runner, creates the GitHub Release once the package tests pass,
+# then publishes to each registry whose token is set. A tag holding a hyphen
+# (v0.2.0-rc.1) makes a
 # draft release and publishes nowhere: a draft has no public download URLs,
 # which the Hex task, the Homebrew formula and install.sh point at.
 on:
@@ -35,7 +36,8 @@ jobs:
       - run: gem install rubocop -v 1.91.0
       - run: bun run lint:ruby
 
-  # The package tests (see ci.yml): every publish job waits for them.
+  # The package tests (see ci.yml): the GitHub Release and every publish job
+  # wait for them.
   packages:
     needs: check
     runs-on: ubuntu-24.04
@@ -201,7 +203,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [smoke, assemble]
+    needs: [smoke, assemble, packages]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
