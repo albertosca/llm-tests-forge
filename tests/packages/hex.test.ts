@@ -259,8 +259,42 @@ describe.skipIf(!packages)("hex package", () => {
 				project,
 				{ LLM_TESTS_FORGE_BASE_URL: intactUrl },
 			);
-			expect(afterSuite).toEqual(finished);
+			// The named command keeps the --suite it was given, in its own spelling.
+			expect(afterSuite).toEqual({
+				...finished,
+				stderr: finished.stderr.replace(
+					"llm-tests-forge review",
+					`llm-tests-forge ${suiteFlag.join(" ")} review`,
+				),
+			});
 		}
+	}, 600_000);
+
+	test("install honours HTTP_PROXY: the download goes through the proxy it names", async () => {
+		if (HOST === undefined) throw new Error("this machine is not a target");
+		const { binary } = await built();
+		const project = await consumerProject();
+		// A forward proxy that serves the asset for whatever absolute URL it is
+		// asked; the release host itself does not resolve, so only the proxy can
+		// answer.
+		const proxied: string[] = [];
+		const proxy = Bun.serve({
+			port: 0,
+			hostname: "127.0.0.1",
+			fetch(request) {
+				proxied.push(request.url);
+				return new Response(Bun.file(binary));
+			},
+		});
+		servers.push(proxy);
+		const releaseUrl = "http://release.forge-test.invalid/download";
+		const installed = await run(["mix", "llm_tests_forge.install"], project, {
+			LLM_TESTS_FORGE_BASE_URL: releaseUrl,
+			HTTP_PROXY: `http://127.0.0.1:${proxy.port}`,
+		});
+		expect(installed.stderr).toBe("");
+		expect(installed.exitCode).toBe(0);
+		expect(proxied).toEqual([`${releaseUrl}/${HOST.assetName}`]);
 	}, 600_000);
 
 	test("review --all asks nothing, so mix hands it to the binary instead of refusing it", async () => {

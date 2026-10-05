@@ -15,6 +15,12 @@ defmodule Mix.Tasks.LlmTestsForge.Install do
   The base URL defaults to the version's GitHub Release and can be overridden
   with the `LLM_TESTS_FORGE_BASE_URL` environment variable (a mirror, or a
   local server in tests); the checksum comparison applies either way.
+
+  Behind a proxy, `https_proxy`/`HTTPS_PROXY` and `http_proxy`/`HTTP_PROXY`
+  are honoured, with `no_proxy`/`NO_PROXY` (`:httpc` reads none of them on
+  its own).
+
+  Windows on ARM gets the x64 binary, which runs there under emulation.
   """
 
   use Mix.Task

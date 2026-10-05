@@ -17,12 +17,16 @@ defmodule Mix.Tasks.LlmTestsForge do
   inside a running VM) and a second one ends it, leaving the child orphaned.
   The binary's stdin is empty and its stdout is relayed. So
   `mix llm_tests_forge review` refuses (exit 2), with or without `--suite`
-  before it, and names the installed binary to run directly, which
-  `mix llm_tests_forge.install` also prints:
+  before it, and names the installed binary to run directly, with the
+  arguments it was given (`--suite` included, so the binary finds the suite),
+  which `mix llm_tests_forge.install` also prints:
 
-      _build/llm-tests-forge review
+      _build/llm-tests-forge --suite evals/x review
 
   `review --scenario <id> --all` asks nothing, so it runs through mix.
+
+  A status other than 0 leaves through `exit({:shutdown, status})`, which
+  mix turns into its own exit status after the VM shuts down cleanly.
   """
 
   use Mix.Task
@@ -32,18 +36,31 @@ defmodule Mix.Tasks.LlmTestsForge do
     if interactive_review?(arguments) do
       IO.puts(
         :stderr,
-        "review needs the terminal; run #{LlmTestsForge.binary_path()} review"
+        "review needs the terminal; run #{shell_command([LlmTestsForge.binary_path() | arguments])}"
       )
 
-      System.halt(2)
+      exit({:shutdown, 2})
     end
 
     binary = LlmTestsForge.ensure_installed!(&IO.puts(:stderr, &1))
 
     case LlmTestsForge.run_binary(binary, arguments) do
       0 -> :ok
-      status -> System.halt(status)
+      status -> exit({:shutdown, status})
     end
+  end
+
+  # The words joined for a POSIX shell: a word with anything but letters,
+  # digits and `@%+=:,./_-` is single-quoted, and a quote inside it closed,
+  # escaped and reopened.
+  defp shell_command(words) do
+    Enum.map_join(words, " ", fn word ->
+      if word =~ ~r{\A[A-Za-z0-9@%+=:,./_-]+\z} do
+        word
+      else
+        "'" <> String.replace(word, "'", ~S('\'')) <> "'"
+      end
+    end)
   end
 
   @doc """

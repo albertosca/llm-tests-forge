@@ -63,6 +63,8 @@ defmodule LlmTestsForge do
   @doc """
   The platform key (`darwin-arm64`, `linux-x64`, `win32-x64`, ...) for an
   `:os.type()` tuple and a `:erlang.system_info(:system_architecture)` string.
+  Windows reports `win32` whatever the processor, so Windows on ARM maps to
+  `win32-x64`, whose binary runs there under emulation.
   """
   def platform_key(os_type, system_architecture) do
     platform =
@@ -173,6 +175,78 @@ defmodule LlmTestsForge do
     end
   end
 
+  @doc """
+  Points the `:httpc` `profile` at the proxies `environment` names:
+  `https_proxy`/`HTTPS_PROXY` for HTTPS downloads and `http_proxy`/`HTTP_PROXY`
+  for HTTP ones (the lowercase spelling wins, as in curl), with the hosts in
+  `no_proxy`/`NO_PROXY` reached directly (`*` bypasses every proxy). `:httpc`
+  reads none of these variables itself, and an option once set cannot be
+  unset, so the download uses a fresh profile of its own. Raises a
+  `Mix.Error` naming the variable when its value names no host.
+  """
+  def configure_proxy!(environment, profile) do
+    bypassed = no_proxy_hosts(proxy_variable(environment, "no_proxy"))
+
+    proxy_options =
+      for {option, variable} <- [proxy: "http_proxy", https_proxy: "https_proxy"],
+          url = proxy_variable(environment, variable),
+          url != nil and bypassed != :all do
+        {option, {proxy_address!(environment, variable, url), bypassed}}
+      end
+
+    :ok = :httpc.set_options(proxy_options, profile)
+  end
+
+  # The variable's value, lowercase spelling first; an empty value is unset.
+  defp proxy_variable(environment, lowercase) do
+    environment
+    |> proxy_variable_entry(lowercase)
+    |> case do
+      {_name, value} -> value
+      nil -> nil
+    end
+  end
+
+  defp proxy_variable_entry(environment, lowercase) do
+    [lowercase, String.upcase(lowercase)]
+    |> Enum.map(&{&1, Map.get(environment, &1)})
+    |> Enum.find(fn {_name, value} -> value not in [nil, ""] end)
+  end
+
+  # NO_PROXY's hosts as :httpc matches them: `example.com` also covers its
+  # subdomains (`*.example.com`), and `.example.com` covers only those.
+  defp no_proxy_hosts(nil), do: []
+
+  defp no_proxy_hosts(value) do
+    hosts =
+      value
+      |> String.split(",")
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    if "*" in hosts do
+      :all
+    else
+      Enum.flat_map(hosts, fn
+        "." <> domain -> [~c"*." ++ String.to_charlist(domain)]
+        host -> [String.to_charlist(host), ~c"*." ++ String.to_charlist(host)]
+      end)
+    end
+  end
+
+  defp proxy_address!(environment, lowercase, url) do
+    with_scheme = if url =~ "://", do: url, else: "http://" <> url
+
+    case URI.parse(with_scheme) do
+      %URI{host: host, port: port} when host not in [nil, ""] ->
+        {String.to_charlist(host), port}
+
+      _unparsed ->
+        {name, _value} = proxy_variable_entry(environment, lowercase)
+        Mix.raise("#{name} is not a proxy URL: #{url}")
+    end
+  end
+
   defp download!(url, asset) do
     {:ok, _started} = Application.ensure_all_started(:inets)
     {:ok, _started} = Application.ensure_all_started(:ssl)
@@ -182,7 +256,13 @@ defmodule LlmTestsForge do
     http_options =
       [timeout: 300_000, connect_timeout: 30_000, autoredirect: true] ++ tls_options(url)
 
-    case :httpc.request(:get, request, http_options, body_format: :binary) do
+    response =
+      with_httpc_profile(fn profile ->
+        configure_proxy!(System.get_env(), profile)
+        :httpc.request(:get, request, http_options, [body_format: :binary], profile)
+      end)
+
+    case response do
       {:ok, {{_version, 200, _reason}, _headers, body}} ->
         body
 
@@ -191,6 +271,23 @@ defmodule LlmTestsForge do
 
       {:error, reason} ->
         Mix.raise("downloading #{asset} from #{url} failed: #{inspect(reason)}")
+    end
+  end
+
+  @doc """
+  Runs `function` with a fresh `:httpc` profile of this package's, stopped
+  afterwards, so no option set for one download outlives it.
+  """
+  def with_httpc_profile(function) do
+    {:ok, _started} = Application.ensure_all_started(:inets)
+    profile = :llm_tests_forge
+    _stopped = :inets.stop(:httpc, profile)
+    {:ok, _pid} = :inets.start(:httpc, profile: profile)
+
+    try do
+      function.(profile)
+    after
+      :inets.stop(:httpc, profile)
     end
   end
 
