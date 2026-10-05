@@ -122,7 +122,8 @@ export function readFailure(error: unknown): string {
  * array element that itself carries a string `id` (every top-level forge
  * list does), name that id and the index instead of the bare number; every
  * other issue (a non-array file, or an array element without an `id`)
- * keeps the plain `path: message` form. The element is looked up by its
+ * keeps the plain `path: message` form, and an issue on the whole file
+ * (an empty path) the message alone. The element is looked up by its
  * index, once per issue: walking the items for each issue made a file with
  * thousands of broken items quadratic. Exported for its test.
  */
@@ -143,6 +144,7 @@ export function describeIssue(issue: core.$ZodIssue, data: unknown): string {
 			.join("");
 		return `item "${item.id}" (index ${String(index)})${inside}: ${issue.message}`;
 	}
+	if (issue.path.length === 0) return issue.message;
 	return `${issue.path.join(".")}: ${issue.message}`;
 }
 

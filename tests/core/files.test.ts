@@ -412,12 +412,12 @@ describe("readYamlFile: array schema errors name the element, not just the path"
 			}
 			throw new Error("expected a refusal");
 		};
-		const empty = refusal("", z.array(CaseSchema));
-		expect(empty).toContain("Invalid input: expected array, received null");
-		expect(empty).not.toContain("item ");
-		const short = refusal("[]", z.array(CaseSchema).min(1));
-		expect(short).toContain("Too small: expected array to have >=1 items");
-		expect(short).not.toContain("item ");
+		expect(refusal("", z.array(CaseSchema))).toBe(
+			"does not match schema: Invalid input: expected array, received null (file: cases.yaml)",
+		);
+		expect(refusal("[]", z.array(CaseSchema).min(1))).toBe(
+			"does not match schema: Too small: expected array to have >=1 items (file: cases.yaml)",
+		);
 	});
 	test("describing the issues of 10,000 broken cases reads each case once, not every case before it", () => {
 		const items = Array.from({ length: 10_000 }, (_, index) => ({
