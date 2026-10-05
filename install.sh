@@ -47,7 +47,8 @@ if [ -z "$install_directory" ]; then
 	install_directory="${HOME:?HOME is not set; pass --dir}/.local/bin"
 fi
 
-# The names are the npm ones (darwin/linux, x64/arm64), which are also the asset names.
+# The names are the npm ones (darwin/linux, x64/arm64, ia32 for every 32-bit
+# x86), which are also the asset names.
 kernel_name="$(uname -s)"
 machine_name="$(uname -m)"
 case "$kernel_name" in
@@ -58,6 +59,7 @@ esac
 case "$machine_name" in
 arm64 | aarch64) architecture="arm64" ;;
 x86_64 | amd64) architecture="x64" ;;
+i386 | i486 | i586 | i686 | x86) architecture="ia32" ;;
 *) architecture="$machine_name" ;;
 esac
 case "$operating_system-$architecture" in

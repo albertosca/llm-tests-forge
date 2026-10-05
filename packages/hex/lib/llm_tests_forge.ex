@@ -64,7 +64,8 @@ defmodule LlmTestsForge do
   The platform key (`darwin-arm64`, `linux-x64`, `win32-x64`, ...) for an
   `:os.type()` tuple and a `:erlang.system_info(:system_architecture)` string.
   Windows reports `win32` whatever the processor, so Windows on ARM maps to
-  `win32-x64`, whose binary runs there under emulation.
+  `win32-x64`, whose binary runs there under emulation. Every 32-bit x86
+  (`i386` to `i686`, `x86`) is `ia32`, as npm, the wheel and the gem name it.
   """
   def platform_key(os_type, system_architecture) do
     platform =
@@ -81,6 +82,7 @@ defmodule LlmTestsForge do
       |> case do
         name when name in ["aarch64", "arm64"] -> "arm64"
         name when name in ["x86_64", "amd64", "win32"] -> "x64"
+        name when name in ["i386", "i486", "i586", "i686", "x86"] -> "ia32"
         name -> name
       end
 

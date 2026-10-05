@@ -17,8 +17,16 @@ defmodule LlmTestsForgeTest do
       assert LlmTestsForge.platform_key({:win32, :nt}, ~c"win32") == "win32-x64"
     end
 
+    test "names every 32-bit x86 ia32, as npm, the wheel and the gem do" do
+      for architecture <- ["i386", "i486", "i586", "i686", "x86"] do
+        assert LlmTestsForge.platform_key({:unix, :linux}, ~c"#{architecture}-pc-linux-gnu") ==
+                 "linux-ia32"
+      end
+    end
+
     test "keeps an unknown architecture as it is, so the message names it" do
-      assert LlmTestsForge.platform_key({:unix, :linux}, ~c"i686-pc-linux-gnu") == "linux-i686"
+      assert LlmTestsForge.platform_key({:unix, :linux}, ~c"riscv64-unknown-linux-gnu") ==
+               "linux-riscv64"
 
       assert LlmTestsForge.platform_key({:unix, :freebsd}, ~c"amd64-portbld-freebsd14.0") ==
                "freebsd-x64"
@@ -29,13 +37,13 @@ defmodule LlmTestsForgeTest do
     test "finds the asset of a shipped platform and nothing for another" do
       assert LlmTestsForge.asset_for("darwin-arm64") == {:ok, "llm-tests-forge-darwin-arm64"}
       assert LlmTestsForge.asset_for("win32-x64") == {:ok, "llm-tests-forge-windows-x64.exe"}
-      assert LlmTestsForge.asset_for("linux-i686") == :error
+      assert LlmTestsForge.asset_for("linux-ia32") == :error
     end
   end
 
   test "the unsupported message names the platform and the install script" do
-    assert LlmTestsForge.unsupported_message("linux-i686") ==
-             "llm-tests-forge has no binary for linux-i686; see https://github.com/albertosca/llm-tests-forge for install.sh"
+    assert LlmTestsForge.unsupported_message("linux-ia32") ==
+             "llm-tests-forge has no binary for linux-ia32; see https://github.com/albertosca/llm-tests-forge for install.sh"
   end
 
   test "the base URL is this version's release unless the environment overrides it" do

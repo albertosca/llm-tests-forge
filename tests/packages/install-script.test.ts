@@ -224,7 +224,10 @@ describe.skipIf(!packages || HOST === undefined)("install.sh", () => {
 		const { work, intactUrl } = await built();
 		for (const [kernelName, machineName, expected] of [
 			["FreeBSD", "amd64", "freebsd-x64"],
-			["Linux", "i686", "linux-i686"],
+			// Every 32-bit x86 is ia32, as npm, the wheel, the gem and Hex name it.
+			["Linux", "i686", "linux-ia32"],
+			["Linux", "i386", "linux-ia32"],
+			["Linux", "x86", "linux-ia32"],
 			["MINGW64_NT-10.0", "x86_64", "mingw64_nt-10.0-x64"],
 		] as const) {
 			const target = await mkdtemp(join(work, "target-"));
