@@ -322,7 +322,10 @@ describe.skipIf(!packages)("pypi wheels", () => {
 			["linux", "x86_64", "linux-x64"],
 			["linux", "aarch64", "linux-arm64"],
 			["win32", "AMD64", "win32-x64"],
-			["linux", "i686", "linux-i686"],
+			// Python spells 32-bit x86 i386 to i686 (x86 on Windows); npm says ia32.
+			["linux", "i686", "linux-ia32"],
+			["linux", "i386", "linux-ia32"],
+			["win32", "x86", "win32-ia32"],
 		];
 		for (const [systemPlatform, machine, name] of cases)
 			expect(
@@ -409,7 +412,40 @@ async function installedTags(python: string, work: string): Promise<string[]> {
 	return wheelText.split("\n").filter((line) => line.startsWith("Tag: "));
 }
 
-const UNSUPPORTED_MESSAGE = `llm-tests-forge has no binary for ${process.platform}-${process.arch}; see https://github.com/albertosca/llm-tests-forge for install.sh\n`;
+/** What the fallback wheel says on a platform that has a platform wheel (`name` in npm's spelling, `platformTag` that wheel's tag). */
+function fallbackWheelChosenMessage(name: string, platformTag: string): string {
+	return `llm-tests-forge: this is the py3-none-any fallback wheel, which has no binary, but ${name} has a platform wheel (${platformTag}); the installer was asked for another platform (pip --platform, uv --python-platform) and chose the fallback. Let the installer pick (pip install llm-tests-forge), or ask for that wheel with --platform ${platformTag}`;
+}
+
+/** What the entry says on musl Linux, which no release binary runs on (`name` in npm's spelling, linux-x64). */
+function muslMessage(name: string): string {
+	return `llm-tests-forge has no binary for musl/Alpine yet (${name}-musl): the ${name} binary needs glibc; see https://github.com/albertosca/llm-tests-forge`;
+}
+
+/** missing_binary_message(system_platform, machine, libc, fallback) as the installed package computes it, through `python`. */
+async function pythonMessage(
+	python: string,
+	work: string,
+	systemPlatform: string,
+	machine: string,
+	libc: string,
+	fallback: boolean,
+): Promise<string> {
+	return (
+		await mustRun(
+			[
+				python,
+				"-c",
+				"import sys, llm_tests_forge; print(llm_tests_forge.missing_binary_message(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == 'fallback'))",
+				systemPlatform,
+				machine,
+				libc,
+				fallback ? "fallback" : "platform",
+			],
+			work,
+		)
+	).trimEnd();
+}
 
 describe.skipIf(!packages)("the fallback wheel", () => {
 	test("with the host wheel and the fallback in one local index, uv installs the host wheel, and the entry runs the binary", async () => {
@@ -430,20 +466,162 @@ describe.skipIf(!packages)("the fallback wheel", () => {
 		});
 	}, 600_000);
 
-	test("with only the fallback in the index, uv installs it, and the entry names this platform and install.sh and exits 1", async () => {
+	// This machine has a platform wheel, so the installed fallback says so; the
+	// plain message for a platform without one is pinned by the message tests.
+	test("with only the fallback in the index, uv installs it, and the entry exits 1 naming the platform wheel this machine has", async () => {
+		if (HOST === undefined) throw new Error("this machine is not a target");
 		const { work, fallbackWheel } = await builtWheels();
 		const paths = await venvInstalledFrom(await localIndex([fallbackWheel]));
 		expect(await installedTags(paths.python, work)).toEqual([
 			"Tag: py3-none-any",
 		]);
+		const expected = `${fallbackWheelChosenMessage(`${process.platform}-${process.arch}`, HOST.wheelTag.split(".")[0] ?? "")}\n`;
 		expect(await run([paths.entry, "--version"], work)).toEqual({
 			exitCode: 1,
 			stdout: "",
-			stderr: UNSUPPORTED_MESSAGE,
+			stderr: expected,
 		});
 		expect(
 			await run([paths.python, "-m", "llm_tests_forge", "--version"], work),
-		).toEqual({ exitCode: 1, stdout: "", stderr: UNSUPPORTED_MESSAGE });
+		).toEqual({ exitCode: 1, stdout: "", stderr: expected });
+	}, 600_000);
+
+	test("the entry's table of platform wheels is the release targets' (scripts/release/targets.ts), by npm name and first platform tag", async () => {
+		const paths = await installedVenv();
+		const { work } = await builtWheels();
+		expect(
+			JSON.parse(
+				await mustRun(
+					[
+						paths.python,
+						"-c",
+						"import json, llm_tests_forge; print(json.dumps(llm_tests_forge.PLATFORM_WHEEL_TAGS))",
+					],
+					work,
+				),
+			),
+		).toEqual(
+			Object.fromEntries(
+				RELEASE_TARGETS.map((target) => [
+					`${target.npmOs}-${target.npmCpu}`,
+					target.wheelTag.split(".")[0],
+				]),
+			),
+		);
+	}, 600_000);
+
+	test("the fallback wheel on a supported platform (glibc on Linux) says an installer asked for another platform, and names the platform wheel", async () => {
+		const paths = await installedVenv();
+		const { work } = await builtWheels();
+		// [sys.platform, platform.machine(), libc, npm name, the wheel's tag]
+		const cases: [string, string, string, string, string][] = [
+			["linux", "x86_64", "glibc", "linux-x64", "manylinux_2_17_x86_64"],
+			["linux", "aarch64", "glibc", "linux-arm64", "manylinux_2_17_aarch64"],
+			["darwin", "arm64", "unknown", "darwin-arm64", "macosx_11_0_arm64"],
+			["darwin", "x86_64", "unknown", "darwin-x64", "macosx_10_12_x86_64"],
+			["win32", "AMD64", "unknown", "win32-x64", "win_amd64"],
+		];
+		for (const [systemPlatform, machine, libc, name, platformTag] of cases)
+			expect({
+				systemPlatform,
+				machine,
+				message: await pythonMessage(
+					paths.python,
+					work,
+					systemPlatform,
+					machine,
+					libc,
+					true,
+				),
+			}).toEqual({
+				systemPlatform,
+				machine,
+				message: fallbackWheelChosenMessage(name, platformTag),
+			});
+	}, 600_000);
+
+	test("the plain message stays where it is true: no platform wheel, a C library that cannot be told, or a platform wheel missing its binary", async () => {
+		const paths = await installedVenv();
+		const { work } = await builtWheels();
+		// [sys.platform, platform.machine(), libc, fallback, npm name]
+		const cases: [string, string, string, boolean, string][] = [
+			["linux", "riscv64", "glibc", true, "linux-riscv64"],
+			["win32", "ARM64", "unknown", true, "win32-arm64"],
+			["linux", "x86_64", "unknown", true, "linux-x64"],
+			["linux", "x86_64", "glibc", false, "linux-x64"],
+			["darwin", "arm64", "unknown", false, "darwin-arm64"],
+		];
+		for (const [systemPlatform, machine, libc, fallback, name] of cases)
+			expect({
+				systemPlatform,
+				machine,
+				libc,
+				fallback,
+				message: await pythonMessage(
+					paths.python,
+					work,
+					systemPlatform,
+					machine,
+					libc,
+					fallback,
+				),
+			}).toEqual({
+				systemPlatform,
+				machine,
+				libc,
+				fallback,
+				message: `llm-tests-forge has no binary for ${name}; see https://github.com/albertosca/llm-tests-forge for install.sh`,
+			});
+	}, 600_000);
+
+	test("on musl Linux, fallback or not, the message says musl has no binary yet instead of naming linux-x64 unsupported", async () => {
+		const paths = await installedVenv();
+		const { work } = await builtWheels();
+		for (const [machine, name, fallback] of [
+			["x86_64", "linux-x64", true],
+			["aarch64", "linux-arm64", true],
+			["x86_64", "linux-x64", false],
+		] as const)
+			expect(
+				await pythonMessage(
+					paths.python,
+					work,
+					"linux",
+					machine,
+					"musl",
+					fallback,
+				),
+			).toBe(muslMessage(name));
+	}, 600_000);
+
+	test("the C library is glibc when libc_ver says so, musl when it says musl or a musl loader exists, and unknown otherwise", async () => {
+		const paths = await installedVenv();
+		const { work } = await builtWheels();
+		// [platform.libc_ver()[0], the /lib/ld-musl-* paths found, the family]
+		const cases: [string, string[], string][] = [
+			["glibc", [], "glibc"],
+			["glibc", ["/lib/ld-musl-x86_64.so.1"], "glibc"],
+			["musl", [], "musl"],
+			["", ["/lib/ld-musl-aarch64.so.1"], "musl"],
+			["", [], "unknown"],
+		];
+		for (const [libcName, loaders, family] of cases)
+			expect({
+				libcName,
+				loaders,
+				family: (
+					await mustRun(
+						[
+							paths.python,
+							"-c",
+							"import json, sys, llm_tests_forge; print(llm_tests_forge.libc_family(sys.argv[1], json.loads(sys.argv[2])))",
+							libcName,
+							JSON.stringify(loaders),
+						],
+						work,
+					)
+				).trim(),
+			}).toEqual({ libcName, loaders, family });
 	}, 600_000);
 
 	test("the fallback wheel is pure Python with the stamped version: Root-Is-Purelib true, no binary inside, the LICENSE inside", async () => {
