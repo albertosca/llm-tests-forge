@@ -32,7 +32,7 @@ describe("build-binaries", () => {
 			exitCode: run.exitCode,
 			output: run.stdout.toString(),
 		}).toEqual({ exitCode: 0, output: `${FORGE_VERSION}\n` });
-	}, 120_000);
+	}, 180_000);
 
 	test("the build runs beside the out directory: the caller's working directory gets no .bun-build file", async () => {
 		if (HOST === undefined) throw new Error("this machine is not a target");
@@ -48,7 +48,7 @@ describe("build-binaries", () => {
 		expect(
 			(await readdir(caller)).filter((name) => name.endsWith(".bun-build")),
 		).toEqual([]);
-	}, 120_000);
+	}, 180_000);
 
 	test("a build that cannot write its binary fails naming the target and the file", async () => {
 		if (HOST === undefined) throw new Error("this machine is not a target");
@@ -63,7 +63,7 @@ describe("build-binaries", () => {
 				"s",
 			),
 		);
-	}, 120_000);
+	}, 180_000);
 
 	test("an unknown --only target is a usage error listing the real ones", async () => {
 		const parent = await mkdtemp(join(tmpdir(), "forge-release-build-"));

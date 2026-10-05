@@ -172,7 +172,7 @@ describe("assembleRelease", () => {
 			`https://github.com/albertosca/llm-tests-forge/releases/download/v${FORGE_VERSION}/llm-tests-forge-darwin-arm64`,
 		);
 		expect(formula).not.toContain("{{");
-	});
+	}, 30_000);
 
 	test("makes every binary executable before the renderers copy it (an artifact download drops the bit)", async () => {
 		const binaries = await fakeBinaries();
@@ -182,7 +182,7 @@ describe("assembleRelease", () => {
 			expect((await stat(join(binaries, target.assetName))).mode & 0o777).toBe(
 				0o755,
 			);
-	});
+	}, 30_000);
 
 	test("refuses a binary whose bytes differ from SHA256SUMS, naming it, before rendering anything", async () => {
 		const binaries = await fakeBinaries();
@@ -256,7 +256,7 @@ describe("assembleRelease", () => {
 		expect(formula).toContain(
 			`https://github.com/albertosca/llm-tests-forge/releases/download/v${version}/llm-tests-forge-darwin-arm64`,
 		);
-	});
+	}, 30_000);
 
 	test("refuses a version the wheels cannot carry before writing any package", async () => {
 		const root = await rootCopy("0.1.0-next.1");
@@ -325,7 +325,7 @@ describe("runAssemble", () => {
 		expect(code).toBe(0);
 		expect(printed).toHaveLength(5);
 		expect(printed[0]).toBe(join(resolve(out), "npm"));
-	});
+	}, 30_000);
 
 	test("refuses a command line without both directories", async () => {
 		await expect(runAssemble(["only-one"], () => {})).rejects.toThrow(

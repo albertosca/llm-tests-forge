@@ -102,5 +102,5 @@ describe("the compiled binary", () => {
 			...committed,
 			generatedAt: "",
 		});
-	}, 60_000);
+	}, 180_000);
 });

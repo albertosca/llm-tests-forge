@@ -32,4 +32,4 @@ test("Stryker's report and sandbox are ignored at the root only, so a reports/ d
 	expect(ignoreStatus(".stryker-tmp/sandbox-1/package.json")).toBe(0);
 	expect(ignoreStatus("examples/some-suite/reports/summary.md")).toBe(1);
 	expect(ignoreStatus("src/report/.stryker-tmp/notes.md")).toBe(1);
-});
+}, 30_000);

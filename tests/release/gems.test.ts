@@ -116,7 +116,7 @@ describe("the gem package directory", () => {
 				),
 			}).toEqual({ target: target.gemPlatform, exitCode: 0 });
 		expect(ignored("packages/gem/exe/llm-tests-forge")).toBe(1);
-	});
+	}, 30_000);
 });
 
 describe("gems", () => {
@@ -144,7 +144,7 @@ describe("gems", () => {
 				`build llm-tests-forge.gemspec --output ${join(out, gemFileName(FORGE_VERSION, target))}`,
 			);
 		});
-	});
+	}, 30_000);
 
 	test("a repository without its LICENSE is refused naming it, before any build runs", async () => {
 		const root = await rootWithGemPackage();
@@ -194,7 +194,7 @@ describe("gems", () => {
 		).rejects.toThrow(
 			"gem build failed for arm64-darwin (exit 3): cannot build",
 		);
-	});
+	}, 30_000);
 
 	test("a gem build that exits 0 without writing the gem is refused naming the gem", async () => {
 		const tool = await fakeGemTool("writes-nothing");
@@ -205,7 +205,7 @@ describe("gems", () => {
 		).rejects.toThrow(
 			`gem build did not write the gem (file: ${join(out, gemFileName(FORGE_VERSION, FIRST_TARGET))})`,
 		);
-	});
+	}, 30_000);
 
 	test("the command prints each gem it wrote (gem found on the PATH), and anything but two arguments is a usage error", async () => {
 		const tool = await fakeGemTool();
@@ -230,5 +230,5 @@ describe("gems", () => {
 			await expect(runGems(argumentsList, () => {})).rejects.toBeInstanceOf(
 				UsageError,
 			);
-	});
+	}, 30_000);
 });

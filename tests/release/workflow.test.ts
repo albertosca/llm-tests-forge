@@ -436,7 +436,7 @@ describe("re-running a publish step after a partial publish", () => {
 			"publish --access public assembled/npm/linux-x64",
 			"publish --access public assembled/npm/main",
 		]);
-	});
+	}, 120_000);
 
 	test("gem push treats RubyGems' refusal to repush a version as a skip, and any other failure stops the step", async () => {
 		const workspace = await mkdtemp(join(tmpdir(), "forge-publish-gem-"));
@@ -475,7 +475,7 @@ describe("re-running a publish step after a partial publish", () => {
 		expect(stopped.exitCode).toBe(1);
 		expect(stopped.output).toContain("Access Denied");
 		expect(stopped.output).not.toContain("b-new.gem");
-	});
+	}, 30_000);
 });
 
 describe("the tag-version check", () => {
@@ -491,7 +491,7 @@ describe("the tag-version check", () => {
 			GITHUB_REF_NAME: `v${FORGE_VERSION}`,
 		});
 		expect(result).toEqual({ exitCode: 0, output: "" });
-	});
+	}, 30_000);
 
 	test("fails on a tag that is not package.json's version, naming both", () => {
 		const result = runStep(script, REPOSITORY, {
@@ -500,7 +500,7 @@ describe("the tag-version check", () => {
 		expect(result.exitCode).toBe(1);
 		expect(result.output).toContain("v9.9.9");
 		expect(result.output).toContain(`v${FORGE_VERSION}`);
-	});
+	}, 30_000);
 });
 
 describe("the release step", () => {
@@ -555,13 +555,13 @@ describe("the release step", () => {
 				"install.sh",
 			].sort(),
 		);
-	});
+	}, 30_000);
 
 	test("a tag holding a hyphen makes a draft prerelease", async () => {
 		const argumentsList = await releaseWith("v0.2.0-rc.1");
 		expect(argumentsList).toContain("--draft");
 		expect(argumentsList).toContain("--prerelease");
-	});
+	}, 30_000);
 
 	test("install.sh fetches the asset names the release uploads", async () => {
 		const installScript = await readFile(
@@ -649,7 +649,7 @@ describe("the smoke steps, run here against the source CLI", () => {
 		expect(results.map(({ name, exitCode }) => ({ name, exitCode }))).toEqual(
 			smokeScripts.map(({ name }) => ({ name, exitCode: 0 })),
 		);
-	}, 60000);
+	}, 120_000);
 
 	test("a binary whose bytes differ from SHA256SUMS stops at the checksum step", async () => {
 		const workspace = await smokeWorkspace(sourceBinary);
@@ -660,13 +660,13 @@ describe("the smoke steps, run here against the source CLI", () => {
 		const results = runSmoke(workspace);
 		expect(results.at(-1)?.name).toBe("Verify SHA256SUMS");
 		expect(results.at(-1)?.exitCode).not.toBe(0);
-	});
+	}, 30_000);
 
 	test("a binary that reports another version fails", async () => {
 		const results = runSmoke(await smokeWorkspace("#!/bin/sh\necho 9.9.9\n"));
 		expect(results.at(-1)?.name).toBe("Run --version and --help");
 		expect(results.at(-1)?.exitCode).not.toBe(0);
-	});
+	}, 30_000);
 
 	test("a binary that succeeds without writing anything but the stamp fails the comparison", async () => {
 		const results = runSmoke(
@@ -682,7 +682,7 @@ describe("the smoke steps, run here against the source CLI", () => {
 		);
 		expect(results.at(-1)?.name).toBe("Compare with the committed outputs");
 		expect(results.at(-1)?.exitCode).not.toBe(0);
-	}, 60000);
+	}, 120_000);
 
 	test("the copy's stamp starts older than the binary, so every runner rewrites suite.yaml (the one rename onto an existing file) and the binary's version lands", async () => {
 		const workspace = await smokeWorkspace("");
@@ -709,7 +709,7 @@ describe("the smoke steps, run here against the source CLI", () => {
 			FORGE_VERSION,
 			"",
 		]);
-	}, 60000);
+	}, 120_000);
 
 	test("a stamp that does not land (a failed stamp is only a warning) fails the run step, naming both versions", async () => {
 		const workspace = await smokeWorkspace("");
@@ -735,7 +735,7 @@ describe("the smoke steps, run here against the source CLI", () => {
 		expect(results.at(-1)?.output).toContain(
 			`suite.yaml carries forge_version 0.0.0, not ${FORGE_VERSION}`,
 		);
-	}, 60000);
+	}, 120_000);
 
 	test("a committed report that differs outside its timestamps fails the comparison", async () => {
 		const workspace = await smokeWorkspace(sourceBinary);
@@ -747,7 +747,7 @@ describe("the smoke steps, run here against the source CLI", () => {
 		const results = runSmoke(workspace);
 		expect(results.at(-1)?.name).toBe("Compare with the committed outputs");
 		expect(results.at(-1)?.exitCode).not.toBe(0);
-	}, 60000);
+	}, 120_000);
 });
 
 describe("the package tests in CI", () => {

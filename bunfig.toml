@@ -8,3 +8,15 @@ coveragePathIgnorePatterns = ["src/cli/bin.ts"]
 # Gives the whole run one private TMPDIR and removes it at exit, so no test
 # leaves forge-* directories behind; see tests/support/preload-temporary-root.ts.
 preload = ["./tests/support/preload-temporary-root.ts"]
+# The per-test timeout stays bun's default of 5 s. A test that spawns a
+# process (a shell script, a stand-in tool, git, bun, the compiled binary)
+# names its own instead, because 5 s is too tight on a loaded machine or a
+# slow CI runner (the npm re-publish test, 3 s alone, timed out at 5.2 s
+# under load). Each is at least ten times the slowest test of its kind,
+# measured at load average 18 to 27 (2026-10-05, three junit runs):
+#   30_000  a few short scripts or CLIs (true, git, a stand-in uv, gem, gh
+#           or $EDITOR, a nested bun test): at most 2.7 s
+#   120_000 the release workflow's steps through bash, each starting node
+#           or the source CLI several times: at most 9.6 s
+#   180_000 a bun build --compile of the CLI, then runs of the binary: at
+#           most 15.3 s

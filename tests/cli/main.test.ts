@@ -768,7 +768,7 @@ describe("run(): error classification", () => {
 			if (originalEditor === undefined) delete process.env.EDITOR;
 			else process.env.EDITOR = originalEditor;
 		}
-	});
+	}, 30_000);
 
 	test("a provider/network failure from Llm.generate (non-ForgeError) is printed cleanly (exit 1), not thrown", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -1120,7 +1120,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 				(caseEntry) => caseEntry.status,
 			),
 		).toEqual(["approved", "pending"]);
-	});
+	}, 30_000);
 
 	test("a Ctrl+C while $EDITOR runs belongs to the editor: the pass neither ends nor exits, the edit lands, and Ctrl+C works again afterwards", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -1181,7 +1181,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 		expect(out.at(-1)).toBe(
 			"interrupted: no more answers; the decisions already taken are written",
 		);
-	});
+	}, 30_000);
 
 	test("a renamed case is written back under its new id, in its own file, with no second file invented", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -1214,7 +1214,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 		expect(out.at(-1)).toBe(
 			"review: 0 approved, 0 rejected, 1 edited, 1 skipped, 0 re-opened, 1 still pending",
 		);
-	});
+	}, 30_000);
 
 	test("changing a case's scenario is refused by name and re-asked, inventing no cases file", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -1262,7 +1262,7 @@ describe("review: an edit that renames an item lands on disk (whole-branch Findi
 		expect(out.at(-1)).toBe(
 			"review: 0 approved, 0 rejected, 0 edited, 2 skipped, 0 re-opened, 2 still pending",
 		);
-	});
+	}, 30_000);
 });
 
 describe("review: --only that filters everything out says so", () => {
@@ -1939,7 +1939,7 @@ describe("review: startInteractivePass arms end-of-input only for the interactiv
 			"pending",
 			"pending",
 		]);
-	});
+	}, 30_000);
 
 	test("a Ctrl+C while an expected value is asked for ends the pass like the prompt and the editor: no 'try again', no 'cannot apply', nothing re-shown", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -2156,7 +2156,7 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 				["portuguese", "pending"],
 			],
 		);
-	});
+	}, 30_000);
 
 	test("the feature has no siblings, so editing it is not blocked by its own id", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -2181,7 +2181,7 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 		expect(out.at(-1)).toBe(
 			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 0 still pending",
 		);
-	});
+	}, 30_000);
 });
 
 const FEATURE = {
@@ -2554,7 +2554,7 @@ describe("review: a decision taken in this pass is visible to the rest of it", (
 		expect(out.at(-1)).toBe(
 			"review: 1 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 0 still pending",
 		);
-	});
+	}, 30_000);
 });
 
 describe("review: editing a scenario's oracle re-opens the cases it invalidates", () => {
@@ -2642,7 +2642,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		expect(out.at(-1)).toBe(
 			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 2 re-opened, 2 still pending",
 		);
-	});
+	}, 30_000);
 	test("an oracle change whose cases file changed on disk during the pass re-opens nothing: no re-opened line or count, and still pending matches the disk", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = join(cwd, ".forge");
@@ -2715,7 +2715,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		expect(out.at(-1)).toBe(
 			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 0 still pending",
 		);
-	});
+	}, 30_000);
 
 	test("a changed cases file holding both a decision and re-opens names both losses, and the oracle change is still on the record", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -2784,7 +2784,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		expect(out.at(-1)).toBe(
 			"review: 1 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 1 still pending; 1 decision(s) not written",
 		);
-	});
+	}, 30_000);
 
 	test("a case whose expected already fits the new oracle stays approved, and a rejected one is not re-opened", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -2837,7 +2837,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		expect(out).toContain(
 			"review: scenario polite-rejection changed oracle label → rubric; 1 case(s) re-opened — edit each to give it an expected the new oracle accepts",
 		);
-	});
+	}, 30_000);
 
 	test("an oracle change that invalidates nothing reports zero and leaves the cases file untouched", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -2877,7 +2877,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		);
 		// No case changed, so the file no decision touched is not rewritten.
 		expect((await stat(casesPath)).mtime.getTime()).toBe(LONG_AGO.getTime());
-	});
+	}, 30_000);
 
 	test("a scenario edited before `cases` ever ran for it reports the change with no cases file to walk", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -2906,7 +2906,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		expect(out.some((line) => line.includes("case(s) re-opened"))).toBe(false);
 		// Nothing generated a cases file, and reporting the change does not.
 		expect(await readdir(forgeDirectory)).not.toContain("cases");
-	});
+	}, 30_000);
 
 	test("an empty cases file reports the change the same way and is left exactly as it was", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -2935,7 +2935,7 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		);
 		expect(out.some((line) => line.includes("case(s) re-opened"))).toBe(false);
 		expect((await stat(casesPath)).mtime.getTime()).toBe(LONG_AGO.getTime());
-	});
+	}, 30_000);
 });
 
 describe("review: what a rename does to the pointers at it, and what a twin id does to the pass", () => {
@@ -2996,7 +2996,7 @@ describe("review: what a rename does to the pointers at it, and what a twin id d
 			"edited",
 			"pending",
 		]);
-	});
+	}, 30_000);
 
 	test("review --all says it too: the twin is not a property of the interactive path", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -3205,7 +3205,7 @@ describe("review: a rename follows the pointers in its own file and no other", (
 				caseEntry.status,
 			]),
 		).toEqual([["huge-signature-01", "polite-rejection-01", "approved"]]);
-	});
+	}, 30_000);
 });
 
 describe("review: a twin id across two files", () => {
@@ -3277,7 +3277,7 @@ describe("review: a twin id across two files", () => {
 			["aa-01", undefined, "approved"],
 			["bb-01", "aa-01", "approved"],
 		]);
-	});
+	}, 30_000);
 });
 
 describe("review: a twin id across two files, the other way round", () => {
@@ -3343,7 +3343,7 @@ describe("review: a twin id across two files, the other way round", () => {
 		expect(out.at(-1)).toBe(
 			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 0 still pending",
 		);
-	});
+	}, 30_000);
 });
 
 describe("review: a broken entry nobody is asked about does not block the pass", () => {
@@ -3587,7 +3587,7 @@ describe("review refuses a second rename onto an id this pass already gave a sib
 			["polite-rejection-02", "pending", undefined],
 			["polite-rejection-03", "approved", "polite-rejection-02"],
 		]);
-	});
+	}, 30_000);
 });
 
 describe("dedupe checks every scenario before it writes the first one", () => {
@@ -6381,7 +6381,7 @@ describe("main(): the suite and the project", () => {
 			});
 			await answered;
 		}
-	});
+	}, 30_000);
 
 	test("describe -- --help and describe -- -h run describe with the flag as the text, in a valid project", async () => {
 		for (const word of ["--help", "-h"]) {

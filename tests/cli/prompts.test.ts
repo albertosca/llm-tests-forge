@@ -190,7 +190,7 @@ describe("openInEditor", () => {
 		const text = "id: s-01\nstatus: pending\n";
 		const result = await openInEditor(text, { EDITOR: "true" });
 		expect(result).toBe(text);
-	});
+	}, 30_000);
 
 	test("a non-zero $EDITOR exit raises a ForgeError naming the editor and the temp file (the `false` binary always exits 1)", async () => {
 		let caught: unknown;
@@ -205,7 +205,7 @@ describe("openInEditor", () => {
 		);
 		expect((caught as ForgeError).details.file).toMatch(/item\.yaml$/);
 		expect(caught).not.toBeInstanceOf(EditorInterruptedError);
-	});
+	}, 30_000);
 
 	/** An `$EDITOR` stand-in: a shell script, never a real editor. */
 	async function editorScript(body: string): Promise<string> {
@@ -237,5 +237,6 @@ describe("openInEditor", () => {
 				/item\.yaml$/,
 			);
 		},
+		30_000,
 	);
 });

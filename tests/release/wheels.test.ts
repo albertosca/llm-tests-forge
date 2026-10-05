@@ -180,7 +180,7 @@ describe("wheels", () => {
 					`${target.wheelTag}|${join(binaries, target.assetName)}|build --wheel --out-dir ${out} ${join(REPOSITORY, "packages/pypi")}`,
 			),
 		);
-	});
+	}, 30_000);
 
 	test("the wheel file name carries the version and the tag", () => {
 		expect(wheelFileName("1.2.3", FIRST_TARGET)).toBe(
@@ -246,7 +246,7 @@ describe("wheels", () => {
 		).rejects.toThrow(
 			"uv build failed for macosx_11_0_arm64 (exit 3): no index reachable",
 		);
-	});
+	}, 30_000);
 
 	test("a uv build that exits 0 without writing the wheel is refused naming the wheel", async () => {
 		const tool = await fakeUvTool("writes-nothing");
@@ -257,7 +257,7 @@ describe("wheels", () => {
 		).rejects.toThrow(
 			`uv build did not write the wheel (file: ${join(out, wheelFileName(FORGE_VERSION, FIRST_TARGET))})`,
 		);
-	});
+	}, 30_000);
 
 	test("the command prints each wheel it wrote (uv found on the PATH), and anything but two arguments is a usage error", async () => {
 		const tool = await fakeUvTool();
@@ -282,5 +282,5 @@ describe("wheels", () => {
 			await expect(runWheels(argumentsList, () => {})).rejects.toBeInstanceOf(
 				UsageError,
 			);
-	});
+	}, 30_000);
 });
