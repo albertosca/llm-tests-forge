@@ -176,93 +176,200 @@ defmodule LlmTestsForge do
   end
 
   @doc """
-  Points the `:httpc` `profile` at the proxies `environment` names:
-  `https_proxy`/`HTTPS_PROXY` for HTTPS downloads and `http_proxy`/`HTTP_PROXY`
-  for HTTP ones (the lowercase spelling wins, as in curl), with the hosts in
-  `no_proxy`/`NO_PROXY` reached directly (`*` bypasses every proxy). `:httpc`
-  reads none of these variables itself, and an option once set cannot be
-  unset, so the download uses a fresh profile of its own. Raises a
-  `Mix.Error` naming the variable when its value names no host.
-  """
-  def configure_proxy!(environment, profile) do
-    bypassed = no_proxy_hosts(proxy_variable(environment, "no_proxy"))
+  The proxy a GET of `url` goes through, read from `environment` as curl
+  reads it, or `nil` for a direct connection. `:httpc` reads none of these
+  variables itself.
 
-    proxy_options =
-      for {option, variable} <- [proxy: "http_proxy", https_proxy: "https_proxy"],
-          url = proxy_variable(environment, variable),
-          url != nil and bypassed != :all do
-        {option, {proxy_address!(environment, variable, url), bypassed}}
+    * The URL's scheme picks the variable: an `https` URL uses only
+      `https_proxy`/`HTTPS_PROXY`, an `http` URL only `http_proxy`/`HTTP_PROXY`
+      (the lowercase spelling wins; an empty value is unset).
+    * The value is trimmed; a missing scheme means `http://`, a missing port
+      1080 (curl's default). `user:password@` becomes `:httpc`'s
+      `proxy_auth`. Only `http://` proxies work: `:httpc` reaches a proxy over
+      plain HTTP, so `socks4/5://` and `https://` are refused by name.
+    * `no_proxy`/`NO_PROXY` is a comma-separated list of hosts reached
+      directly, compared case-insensitively: `example.com` and `.example.com`
+      both cover `example.com` and every host under it, `host:port` covers
+      that port only, and `*` covers everything. CIDR ranges are not
+      supported: `10.0.0.0/8` matches no host.
+
+  Returns `%{option: :proxy | :https_proxy, address: {host, port}, auth:
+  {user, password} | nil}`. Raises a `Mix.Error` naming the variable when its
+  value is not a usable proxy URL; the message never shows credentials.
+  """
+  def proxy_for!(url, environment) do
+    target = URI.parse(url)
+
+    {variable, option} =
+      if target.scheme == "https", do: {"https_proxy", :https_proxy}, else: {"http_proxy", :proxy}
+
+    case proxy_variable(environment, variable) do
+      nil ->
+        nil
+
+      {name, value} ->
+        if bypassed?(target, proxy_variable(environment, "no_proxy")) do
+          nil
+        else
+          {address, auth} = parse_proxy!(name, value)
+          %{option: option, address: address, auth: auth}
+        end
+    end
+  end
+
+  # The variable's name and trimmed value, lowercase spelling first; an empty
+  # value is unset.
+  defp proxy_variable(environment, lowercase) do
+    [lowercase, String.upcase(lowercase)]
+    |> Enum.map(&{&1, String.trim(Map.get(environment, &1) || "")})
+    |> Enum.find(fn {_name, value} -> value != "" end)
+  end
+
+  defp bypassed?(_target, nil), do: false
+
+  defp bypassed?(%URI{host: host, port: port}, {_name, value}) do
+    host = String.downcase(host || "")
+
+    value
+    |> String.split(",")
+    |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.any?(fn entry -> entry == "*" or no_proxy_entry_matches?(entry, host, port) end)
+  end
+
+  defp no_proxy_entry_matches?(entry, host, port) do
+    {entry_host, entry_port} =
+      case Regex.run(~r/\A(.*?):(\d+)\z/, entry) do
+        [_entry, entry_host, entry_port] -> {entry_host, String.to_integer(entry_port)}
+        nil -> {entry, nil}
       end
 
-    :ok = :httpc.set_options(proxy_options, profile)
+    domain =
+      entry_host
+      |> String.trim_leading(".")
+      |> String.trim_leading("[")
+      |> String.trim_trailing("]")
+
+    (entry_port == nil or entry_port == port) and
+      (host == domain or String.ends_with?(host, "." <> domain))
   end
 
-  # The variable's value, lowercase spelling first; an empty value is unset.
-  defp proxy_variable(environment, lowercase) do
-    environment
-    |> proxy_variable_entry(lowercase)
-    |> case do
-      {_name, value} -> value
-      nil -> nil
+  defp parse_proxy!(name, value) do
+    with_scheme = if value =~ "://", do: value, else: "http://" <> value
+    [scheme, rest] = String.split(with_scheme, "://", parts: 2)
+    shown = redacted(scheme, rest)
+
+    unless String.downcase(scheme) == "http" do
+      Mix.raise(
+        "#{name} uses #{scheme}://, which this installer cannot use " <>
+          "(:httpc reaches a proxy over plain HTTP only); set an http:// proxy, or install with install.sh"
+      )
+    end
+
+    authority = rest |> String.split(["/", "?", "#"], parts: 2) |> hd()
+    {userinfo, host_and_port} = split_userinfo(authority)
+    {host, port_text} = split_host_and_port(host_and_port)
+
+    if host == "", do: Mix.raise("#{name} is not a proxy URL: #{shown}")
+
+    port =
+      case port_text do
+        "" ->
+          1080
+
+        text ->
+          valid_port(text) ||
+            Mix.raise("#{name} has a port that is not a number from 1 to 65535: #{shown}")
+      end
+
+    {{String.to_charlist(host), port}, proxy_auth(userinfo)}
+  end
+
+  # The value as an error may show it: credentials replaced with `***`.
+  defp redacted(scheme, rest) do
+    case split_userinfo(rest |> String.split(["/", "?", "#"], parts: 2) |> hd()) do
+      {nil, _host_and_port} ->
+        "#{scheme}://#{rest}"
+
+      {userinfo, _host_and_port} ->
+        "#{scheme}://" <> String.replace(rest, userinfo <> "@", "***@", global: false)
     end
   end
 
-  defp proxy_variable_entry(environment, lowercase) do
-    [lowercase, String.upcase(lowercase)]
-    |> Enum.map(&{&1, Map.get(environment, &1)})
-    |> Enum.find(fn {_name, value} -> value not in [nil, ""] end)
-  end
+  defp split_userinfo(authority) do
+    case String.split(authority, "@") do
+      [host_and_port] ->
+        {nil, host_and_port}
 
-  # NO_PROXY's hosts as :httpc matches them: `example.com` also covers its
-  # subdomains (`*.example.com`), and `.example.com` covers only those.
-  defp no_proxy_hosts(nil), do: []
-
-  defp no_proxy_hosts(value) do
-    hosts =
-      value
-      |> String.split(",")
-      |> Enum.map(&String.trim/1)
-      |> Enum.reject(&(&1 == ""))
-
-    if "*" in hosts do
-      :all
-    else
-      Enum.flat_map(hosts, fn
-        "." <> domain -> [~c"*." ++ String.to_charlist(domain)]
-        host -> [String.to_charlist(host), ~c"*." ++ String.to_charlist(host)]
-      end)
+      parts ->
+        {host_and_port, userinfo_parts} = List.pop_at(parts, -1)
+        {Enum.join(userinfo_parts, "@"), host_and_port}
     end
   end
 
-  defp proxy_address!(environment, lowercase, url) do
-    with_scheme = if url =~ "://", do: url, else: "http://" <> url
-
-    case URI.parse(with_scheme) do
-      %URI{host: host, port: port} when host not in [nil, ""] ->
-        {String.to_charlist(host), port}
-
-      _unparsed ->
-        {name, _value} = proxy_variable_entry(environment, lowercase)
-        Mix.raise("#{name} is not a proxy URL: #{url}")
+  defp split_host_and_port("[" <> bracketed) do
+    case String.split(bracketed, "]", parts: 2) do
+      [host, ":" <> port] -> {host, port}
+      [host, ""] -> {host, ""}
+      _malformed -> {"", ""}
     end
   end
 
-  defp download!(url, asset) do
+  defp split_host_and_port(host_and_port) do
+    case String.split(host_and_port, ":", parts: 2) do
+      [host, port] -> {host, port}
+      [host] -> {host, ""}
+    end
+  end
+
+  defp valid_port(text) do
+    case Integer.parse(text) do
+      {port, ""} when port in 1..65_535 -> port
+      _invalid -> nil
+    end
+  end
+
+  defp proxy_auth(nil), do: nil
+
+  defp proxy_auth(userinfo) do
+    {user, password} =
+      case String.split(userinfo, ":", parts: 2) do
+        [user, password] -> {user, password}
+        [user] -> {user, ""}
+      end
+
+    {String.to_charlist(URI.decode(user)), String.to_charlist(URI.decode(password))}
+  end
+
+  @doc """
+  GETs `url` through the proxy `environment` names for it (see
+  `proxy_for!/2`), in a fresh `:httpc` profile, and returns `:httpc`'s own
+  result.
+  """
+  def http_get(url, environment) do
     {:ok, _started} = Application.ensure_all_started(:inets)
     {:ok, _started} = Application.ensure_all_started(:ssl)
 
     request = {String.to_charlist(url), [{~c"user-agent", ~c"llm_tests_forge-mix"}]}
+    proxy = proxy_for!(url, environment)
 
     http_options =
-      [timeout: 300_000, connect_timeout: 30_000, autoredirect: true] ++ tls_options(url)
+      [timeout: 300_000, connect_timeout: 30_000, autoredirect: true] ++
+        tls_options(url) ++ proxy_auth_option(proxy)
 
-    response =
-      with_httpc_profile(fn profile ->
-        configure_proxy!(System.get_env(), profile)
-        :httpc.request(:get, request, http_options, [body_format: :binary], profile)
-      end)
+    with_httpc_profile(fn profile ->
+      # Only the option for this URL's scheme: with `https_proxy` unset,
+      # :httpc would send an https request through `proxy`.
+      if proxy, do: :ok = :httpc.set_options([{proxy.option, {proxy.address, []}}], profile)
+      :httpc.request(:get, request, http_options, [body_format: :binary], profile)
+    end)
+  end
 
-    case response do
+  defp proxy_auth_option(%{auth: {user, password}}), do: [proxy_auth: {user, password}]
+  defp proxy_auth_option(_no_credentials), do: []
+
+  defp download!(url, asset) do
+    case http_get(url, System.get_env()) do
       {:ok, {{_version, 200, _reason}, _headers, body}} ->
         body
 
@@ -292,7 +399,10 @@ defmodule LlmTestsForge do
   end
 
   defp tls_options("https://" <> _rest) do
-    unless function_exported?(:public_key, :cacerts_get, 0) do
+    # function_exported?/3 does not load the module, and a fresh VM has not
+    # loaded :public_key yet.
+    unless Code.ensure_loaded?(:public_key) and
+             function_exported?(:public_key, :cacerts_get, 0) do
       Mix.raise(
         "downloading over HTTPS needs OTP 25 or newer (:public_key.cacerts_get/0 is missing); " <>
           "install the binary from #{@repository_url} instead"

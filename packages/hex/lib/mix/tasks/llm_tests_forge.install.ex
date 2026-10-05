@@ -16,9 +16,10 @@ defmodule Mix.Tasks.LlmTestsForge.Install do
   with the `LLM_TESTS_FORGE_BASE_URL` environment variable (a mirror, or a
   local server in tests); the checksum comparison applies either way.
 
-  Behind a proxy, `https_proxy`/`HTTPS_PROXY` and `http_proxy`/`HTTP_PROXY`
-  are honoured, with `no_proxy`/`NO_PROXY` (`:httpc` reads none of them on
-  its own).
+  Behind a proxy, an HTTPS download goes through `https_proxy`/`HTTPS_PROXY`
+  and an HTTP one through `http_proxy`/`HTTP_PROXY`, minus the hosts in
+  `no_proxy`/`NO_PROXY`, as curl reads them (`:httpc` reads none of them on
+  its own); see `LlmTestsForge.proxy_for!/2`. Only `http://` proxies work.
 
   Windows on ARM gets the x64 binary, which runs there under emulation.
   """
