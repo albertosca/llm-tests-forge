@@ -33,6 +33,8 @@ Para Ruby, adicione esta linha ao `Gemfile` e rode `bundle install`:
 
 Projetos Rust e Go não têm pacote próprio: use o Homebrew ou o script. O `install.sh` coloca o binário em `~/.local/bin` por padrão e confere o SHA256 antes, contra o `SHA256SUMS` da mesma release: isso prova que o download chegou íntegro, não que é autêntico (para um hash fixado no próprio pacote, use o Homebrew ou o Hex); `--dir <bin-directory>` escolhe outro diretório e `--version vX.Y.Z` fixa uma versão; pelo pipe, passe-os depois de `sh -s --`. No Elixir, um `review` interativo roda como `_build/llm-tests-forge review`, porque `mix llm_tests_forge review` recusa (sai com código 2); `review --scenario <id> --all` não pergunta nada e roda pelo mix.
 
+Os binários cobrem macOS (arm64 e x64), Linux com glibc (x64 e arm64) e Windows x64. Em qualquer outra plataforma, musl/Alpine incluído, o pip e o gem instalam um pacote reserva sem binário, e o comando dele, como o do npm e o `install.sh`, diz que a plataforma não tem binário e sai com código 1; com o `--platform` do pip ou o `force_ruby_platform` do Bundler numa plataforma suportada, o reserva diz qual configuração o escolheu.
+
 A partir de um clone, que funciona hoje, requer o [bun](https://bun.sh) 1.4 ou mais recente:
 
     git clone https://github.com/albertosca/llm-tests-forge.git
@@ -221,6 +223,8 @@ Commite o `forge.yaml` e, em cada suíte, `feature.yaml`, `scenarios.yaml`, `cas
 O gate de cobertura é o do próprio bun: um piso de 1,0 sobre **linhas e funções**, com `src/cli/bin.ts` excluído. O bun não mede cobertura de branch nenhuma, então um arquivo em 100% ainda pode ter braços de guarda sem teste — leia o gate como um piso, não como prova de que a suíte está completa.
 
 O `test:live` precisa de `GOOGLE_API_KEY` e falha de forma explícita (não em silêncio) se ela estiver ausente. O free tier do Google é intermitente, não simplesmente indisponível, então o teste tenta de novo uma resposta 503/"high demand" até 3 vezes com uma pausa curta entre as tentativas; qualquer outra falha (cota, autenticação, um model id desconhecido, um schema que não bate) falha já na primeira ocorrência em vez de tentar de novo.
+
+Os alvos de release ficam em `scripts/release/targets.ts`. Antes de remover um, saiba que o pip e o RubyGems põem uma versão mais nova acima de uma plataforma que casa: o wheel e o gem reserva da release seguinte passariam na frente do pacote de plataforma antigo naquela plataforma, e quem atualizar ali recebe a mensagem de "sem binário" no lugar do binário que tinha.
 
 ## Licença
 

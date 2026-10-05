@@ -13,6 +13,16 @@ export interface ReleaseTarget {
 	homebrew: { os: "macos" | "linux"; arch: "arm" | "intel" } | null;
 }
 
+/**
+ * Every platform a release ships a binary for. The npm launcher
+ * (packages/npm/main/bin/platform.js), the wheel's PLATFORM_WHEEL_TAGS and
+ * the gem's RELEASE_GEM_PLATFORMS repeat this list, and tests check each.
+ *
+ * Dropping a target strands its users: pip and RubyGems rank a newer version
+ * above a platform match, so the next release's fallback wheel and gem
+ * (py3-none-any, ruby) outrank the older platform package there, and an
+ * upgrade replaces the binary with the "no binary" message.
+ */
 export const RELEASE_TARGETS: readonly ReleaseTarget[] = [
 	{
 		bunTarget: "bun-darwin-arm64",

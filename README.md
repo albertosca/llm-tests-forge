@@ -33,6 +33,8 @@ For Ruby, add this line to your `Gemfile` and run `bundle install`:
 
 Rust and Go projects have no package of their own: use Homebrew or the script. `install.sh` puts the binary in `~/.local/bin` by default and verifies its SHA256 first, against the `SHA256SUMS` of the same release: that proves the download is intact, not that it is authentic (for a hash pinned in the package itself, use Homebrew or Hex); `--dir <bin-directory>` chooses another directory and `--version vX.Y.Z` pins a release; through the pipe, pass them after `sh -s --`. Under Elixir, an interactive `review` runs as `_build/llm-tests-forge review`, because `mix llm_tests_forge review` refuses (it exits 2); `review --scenario <id> --all` asks nothing and runs through mix.
 
+The binaries cover macOS (arm64 and x64), Linux with glibc (x64 and arm64) and Windows x64. Anywhere else, musl/Alpine included, pip and gem install a fallback package without a binary, and its command, like npm's and `install.sh`, says the platform has no binary and exits 1; with pip's `--platform` or Bundler's `force_ruby_platform` on a supported platform, the fallback says which setting chose it.
+
 From a clone, which works today, requires [bun](https://bun.sh) 1.4 or newer:
 
     git clone https://github.com/albertosca/llm-tests-forge.git
@@ -221,6 +223,8 @@ Commit `forge.yaml`, and in each suite `feature.yaml`, `scenarios.yaml`, `cases/
 The coverage gate is bun's own: a 1.0 floor on **lines and functions**, with `src/cli/bin.ts` excluded. Bun measures no branch coverage at all, so a file at 100% can still have untested guard arms — read the gate as a floor, not as proof the suite is complete.
 
 `test:live` needs `GOOGLE_API_KEY` and fails loudly (not silently) if it's unset. Google's free tier is intermittent rather than simply down, so the test retries a 503/"high demand" response up to 3 attempts with a short pause between them; any other failure (quota, auth, an unknown model id, a schema mismatch) fails on the first occurrence instead of retrying.
+
+The release targets live in `scripts/release/targets.ts`. Before you drop one, know that pip and RubyGems rank a newer version above a platform match: the next release's fallback wheel and gem would outrank the older platform package on that platform, so anyone who upgrades there gets the "no binary" message instead of the binary they had.
 
 ## License
 

@@ -313,7 +313,9 @@ jobs:
       # a partial publish uploads only what is missing. The py3-none-any fallback
       # goes last: pip takes a newer version over a platform tag, so a fallback
       # published beside a missing platform wheel would replace the binary with
-      # the unsupported-platform message on that platform.
+      # the unsupported-platform message on that platform. The order cannot help
+      # a target dropped from scripts/release/targets.ts: that release's fallback
+      # outranks the older platform wheel for everyone who upgrades there.
       - name: Publish the wheels
         if: env.PYPI_TOKEN_SET == 'true' && !contains(github.ref_name, '-')
         env:
@@ -383,7 +385,9 @@ jobs:
       # failure stops the job. The ruby-platform fallback goes last: RubyGems
       # takes a newer version over a platform match, so a fallback pushed
       # beside a missing platform gem would replace the binary with the
-      # unsupported-platform message on that platform.
+      # unsupported-platform message on that platform. The order cannot help a
+      # target dropped from scripts/release/targets.ts: that release's fallback
+      # outranks the older platform gem for everyone who upgrades there.
       - name: Push the gems
         if: env.GEM_HOST_API_KEY_SET == 'true' && !contains(github.ref_name, '-')
         env:
