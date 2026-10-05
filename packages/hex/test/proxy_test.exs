@@ -3,24 +3,33 @@ defmodule LlmTestsForgeProxyTest do
   # module runs alone.
   use ExUnit.Case, async: false
 
+  @bad_gateway "HTTP/1.1 502 Bad Gateway\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+
   # A local TCP listener standing in for a target or a proxy: it sends the
-  # test the first bytes the connection writes, then answers `reply` (or
-  # nothing) and closes.
-  defp listener(reply \\ nil) do
+  # test the first bytes the connection writes, then always answers, with
+  # `reply` or a 502, and closes. One that read a CONNECT and closed without
+  # a word held :httpc until ExUnit's 60 s on Linux CI (OTP 27.3, 2026-10-05),
+  # though OTP 28 on Linux and OTP 29 on macOS returned at once.
+  defp listener(reply \\ @bad_gateway) do
     {:ok, socket} =
       :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
 
     {:ok, port} = :inet.port(socket)
     test_process = self()
 
-    spawn_link(fn ->
-      {:ok, connection} = :gen_tcp.accept(socket)
-      {:ok, received} = :gen_tcp.recv(connection, 0, 10_000)
-      send(test_process, {:received, port, received})
-      if reply, do: :gen_tcp.send(connection, reply)
-      :gen_tcp.close(connection)
+    spawn(fn ->
+      # The listening socket closes when the test ends, so a listener nobody
+      # reached stops instead of outliving it.
+      with {:ok, connection} <- :gen_tcp.accept(socket),
+           {:ok, received} <- :gen_tcp.recv(connection, 0, 10_000) do
+        send(test_process, {:received, port, received})
+        # A TLS client may have hung up already; the answer is best effort.
+        _sent = :gen_tcp.send(connection, reply)
+        :gen_tcp.close(connection)
+      end
     end)
 
+    on_exit(fn -> :gen_tcp.close(socket) end)
     port
   end
 
@@ -42,14 +51,67 @@ defmodule LlmTestsForgeProxyTest do
 
   @ok "HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok"
 
+  # Every request a test makes gives up after this, so a hang fails in
+  # seconds with the test's own assertion.
+  @client [timeout: 3_000]
+
+  # A listener that reads the request and never answers, holding the
+  # connection open until the test ends: the hang a test must not wait out.
+  defp silent_listener do
+    {:ok, socket} =
+      :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
+    {:ok, port} = :inet.port(socket)
+    test_process = self()
+
+    holder =
+      spawn(fn ->
+        {:ok, connection} = :gen_tcp.accept(socket)
+        {:ok, received} = :gen_tcp.recv(connection, 0, 10_000)
+        send(test_process, {:received, port, received})
+
+        receive do
+          :release -> :gen_tcp.close(connection)
+        end
+      end)
+
+    on_exit(fn ->
+      send(holder, :release)
+      :gen_tcp.close(socket)
+    end)
+
+    port
+  end
+
+  describe "a hung proxy" do
+    test "a CONNECT that is never answered fails within the client timeout, not ExUnit's 60 s" do
+      proxy = silent_listener()
+      started = System.monotonic_time(:millisecond)
+
+      result =
+        LlmTestsForge.http_get(
+          "https://release.invalid:8443/x",
+          %{"HTTPS_PROXY" => "http://127.0.0.1:#{proxy}"},
+          @client
+        )
+
+      elapsed = System.monotonic_time(:millisecond) - started
+      assert received(proxy) =~ ~r{\ACONNECT release.invalid:8443 HTTP/1.1\r\n}
+      assert {:error, _reason} = result
+      assert elapsed < 5_000, "the request took #{elapsed} ms"
+    end
+  end
+
   describe "which proxy a download uses, by its scheme (behaviour, through :httpc)" do
     test "an https URL with only HTTP_PROXY set goes straight to the target" do
       target = listener()
       proxy = dead_port()
 
-      LlmTestsForge.http_get("https://127.0.0.1:#{target}/x", %{
-        "HTTP_PROXY" => "http://127.0.0.1:#{proxy}"
-      })
+      LlmTestsForge.http_get(
+        "https://127.0.0.1:#{target}/x",
+        %{"HTTP_PROXY" => "http://127.0.0.1:#{proxy}"},
+        @client
+      )
 
       # A TLS handshake record, sent to the target itself.
       assert <<0x16, _rest::binary>> = received(target)
@@ -60,21 +122,30 @@ defmodule LlmTestsForgeProxyTest do
       proxy = dead_port()
 
       assert {:ok, {{_version, 200, _reason}, _headers, "ok"}} =
-               LlmTestsForge.http_get("http://127.0.0.1:#{target}/x", %{
-                 "HTTPS_PROXY" => "http://127.0.0.1:#{proxy}"
-               })
+               LlmTestsForge.http_get(
+                 "http://127.0.0.1:#{target}/x",
+                 %{"HTTPS_PROXY" => "http://127.0.0.1:#{proxy}"},
+                 @client
+               )
 
       assert received(target) =~ ~r{\AGET /x HTTP/1.1\r\n}
     end
 
     test "an https URL goes through HTTPS_PROXY as a CONNECT tunnel, with the credentials the URL carries" do
-      proxy = listener()
+      # The proxy refuses the tunnel with a 502, so the request ends at once.
+      proxy = listener(@bad_gateway)
 
-      LlmTestsForge.http_get("https://release.invalid:8443/x", %{
-        "HTTPS_PROXY" => " http://user:pa%40ss@127.0.0.1:#{proxy} ",
-        "HTTP_PROXY" => "http://127.0.0.1:#{dead_port()}"
-      })
+      result =
+        LlmTestsForge.http_get(
+          "https://release.invalid:8443/x",
+          %{
+            "HTTPS_PROXY" => " http://user:pa%40ss@127.0.0.1:#{proxy} ",
+            "HTTP_PROXY" => "http://127.0.0.1:#{dead_port()}"
+          },
+          @client
+        )
 
+      refute result == {:error, :timeout}
       request = received(proxy)
       assert request =~ ~r{\ACONNECT release.invalid:8443 HTTP/1.1\r\n}
       assert request =~ "proxy-authorization: Basic #{Base.encode64("user:pa@ss")}\r\n"
@@ -84,10 +155,14 @@ defmodule LlmTestsForgeProxyTest do
       proxy = listener(@ok)
 
       assert {:ok, {{_version, 200, _reason}, _headers, "ok"}} =
-               LlmTestsForge.http_get("http://release.invalid/x", %{
-                 "http_proxy" => "http://user:secret@127.0.0.1:#{proxy}",
-                 "HTTPS_PROXY" => "http://127.0.0.1:#{dead_port()}"
-               })
+               LlmTestsForge.http_get(
+                 "http://release.invalid/x",
+                 %{
+                   "http_proxy" => "http://user:secret@127.0.0.1:#{proxy}",
+                   "HTTPS_PROXY" => "http://127.0.0.1:#{dead_port()}"
+                 },
+                 @client
+               )
 
       request = received(proxy)
       assert request =~ ~r{\AGET http://release.invalid/x HTTP/1.1\r\n}
@@ -108,22 +183,28 @@ defmodule LlmTestsForgeProxyTest do
         "HTTP/1.1 302 Found\r\nlocation: http://localhost:#{target}/x\r\n" <>
           "content-length: 0\r\nconnection: close\r\n\r\n"
 
-      spawn_link(fn ->
-        Stream.repeatedly(fn ->
-          {:ok, connection} = :gen_tcp.accept(socket)
-          {:ok, received} = :gen_tcp.recv(connection, 0, 10_000)
-          send(test_process, {:proxied, received})
-          :gen_tcp.send(connection, redirect)
+      # Answers every connection until the test ends and closes the socket.
+      spawn(fn ->
+        Stream.repeatedly(fn -> :gen_tcp.accept(socket) end)
+        |> Stream.take_while(&match?({:ok, _connection}, &1))
+        |> Enum.each(fn {:ok, connection} ->
+          with {:ok, received} <- :gen_tcp.recv(connection, 0, 10_000) do
+            send(test_process, {:proxied, received})
+            _sent = :gen_tcp.send(connection, redirect)
+          end
+
           :gen_tcp.close(connection)
         end)
-        |> Stream.run()
       end)
 
+      on_exit(fn -> :gen_tcp.close(socket) end)
+
       assert {:ok, {{_version, 200, _reason}, _headers, "ok"}} =
-               LlmTestsForge.http_get("http://release.invalid/x", %{
-                 "HTTP_PROXY" => "http://127.0.0.1:#{proxy}",
-                 "NO_PROXY" => "localhost"
-               })
+               LlmTestsForge.http_get(
+                 "http://release.invalid/x",
+                 %{"HTTP_PROXY" => "http://127.0.0.1:#{proxy}", "NO_PROXY" => "localhost"},
+                 @client
+               )
 
       assert received(target) =~ ~r{\AGET /x HTTP/1.1\r\n}
       assert_received {:proxied, "GET http://release.invalid/x HTTP/1.1\r\n" <> _rest}
@@ -134,10 +215,14 @@ defmodule LlmTestsForgeProxyTest do
       target = listener(@ok)
 
       assert {:ok, {{_version, 200, _reason}, _headers, "ok"}} =
-               LlmTestsForge.http_get("http://127.0.0.1:#{target}/x", %{
-                 "HTTP_PROXY" => "http://127.0.0.1:#{dead_port()}",
-                 "NO_PROXY" => "example.invalid, 127.0.0.1"
-               })
+               LlmTestsForge.http_get(
+                 "http://127.0.0.1:#{target}/x",
+                 %{
+                   "HTTP_PROXY" => "http://127.0.0.1:#{dead_port()}",
+                   "NO_PROXY" => "example.invalid, 127.0.0.1"
+                 },
+                 @client
+               )
 
       assert received(target) =~ ~r{\AGET /x HTTP/1.1\r\n}
     end
@@ -152,7 +237,12 @@ defmodule LlmTestsForgeProxyTest do
     {output, status} =
       System.cmd(
         "elixir",
-        ["-pa", ebin, "-e", "IO.inspect(LlmTestsForge.http_get(#{inspect(url)}, %{}))"],
+        [
+          "-pa",
+          ebin,
+          "-e",
+          "IO.inspect(LlmTestsForge.http_get(#{inspect(url)}, %{}, #{inspect(@client)}))"
+        ],
         stderr_to_stdout: true
       )
 
@@ -268,10 +358,14 @@ defmodule LlmTestsForgeProxyTest do
       # download!/2 prints inspect(reason) of :httpc's error.
       for url <- ["http://release.invalid/x", "https://release.invalid/x"] do
         result =
-          LlmTestsForge.http_get(url, %{
-            "HTTP_PROXY" => "http://user:s3cr3t/x@127.0.0.1:#{dead_port()}",
-            "HTTPS_PROXY" => "http://user:s3cr3t/x@127.0.0.1:#{dead_port()}"
-          })
+          LlmTestsForge.http_get(
+            url,
+            %{
+              "HTTP_PROXY" => "http://user:s3cr3t/x@127.0.0.1:#{dead_port()}",
+              "HTTPS_PROXY" => "http://user:s3cr3t/x@127.0.0.1:#{dead_port()}"
+            },
+            @client
+          )
 
         assert {:error, _reason} = result
         refute inspect(result) =~ "s3cr3t"

@@ -399,8 +399,12 @@ defmodule LlmTestsForge do
   GETs `url` through the proxy `environment` names for it (see
   `proxy_for!/2`), in a fresh `:httpc` profile, and returns `:httpc`'s own
   result.
+
+  `options` exists for the tests: `timeout: milliseconds` caps the whole
+  request and its connect alike (by default 300 s and 30 s), so a proxy
+  that never answers a CONNECT fails fast instead of holding the request.
   """
-  def http_get(url, environment) do
+  def http_get(url, environment, options \\ []) do
     {:ok, _started} = Application.ensure_all_started(:inets)
     {:ok, _started} = Application.ensure_all_started(:ssl)
 
@@ -410,9 +414,10 @@ defmodule LlmTestsForge do
     # variable is (unless NO_PROXY is `*`), with NO_PROXY as :httpc matches
     # it, so a redirect to another host is judged again.
     proxy = if no_proxy != :all, do: configured_proxy!(url, environment)
+    timeout = Keyword.get(options, :timeout, 300_000)
 
     http_options =
-      [timeout: 300_000, connect_timeout: 30_000, autoredirect: true] ++
+      [timeout: timeout, connect_timeout: min(timeout, 30_000), autoredirect: true] ++
         tls_options(url) ++ proxy_auth_option(proxy)
 
     with_httpc_profile(fn profile ->
