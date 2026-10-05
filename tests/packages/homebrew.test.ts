@@ -60,16 +60,62 @@ async function brew(argumentsList: string[], cache: string): Promise<Finished> {
 	return { exitCode, stdout, stderr };
 }
 
+/** How the tests run brew: the real one, or a seam around it that fakes a failure. */
+type BrewRunner = (argumentsList: string[], cache: string) => Promise<Finished>;
+
 async function mustBrew(
 	argumentsList: string[],
 	cache: string,
+	runBrew: BrewRunner = brew,
 ): Promise<string> {
-	const finished = await brew(argumentsList, cache);
+	const finished = await runBrew(argumentsList, cache);
 	if (finished.exitCode !== 0)
 		throw new Error(
 			`brew ${argumentsList.join(" ")} exited ${finished.exitCode}: ${finished.stderr}`,
 		);
 	return finished.stdout;
+}
+
+/**
+ * Installs the formula at `formulaPath` from a new temporary tap, runs `brew
+ * test` and returns the installed prefix; then, always, uninstalls it and
+ * removes the tap. `runBrew` exists for the test that fails a step halfway.
+ */
+async function installFromTemporaryTap(
+	tapName: string,
+	formulaPath: string,
+	cache: string,
+	whileInstalled: (prefix: string) => Promise<void>,
+	runBrew: BrewRunner = brew,
+): Promise<void> {
+	const formulaName = `${tapName}/llm-tests-forge`;
+	try {
+		await mustBrew(["tap-new", "--no-git", tapName], cache, runBrew);
+		const tapDirectory = (
+			await mustBrew(["--repository", tapName], cache, runBrew)
+		).trim();
+		await copyFile(
+			formulaPath,
+			join(tapDirectory, "Formula", "llm-tests-forge.rb"),
+		);
+		await mustBrew(["install", formulaName], cache, runBrew);
+		await mustBrew(["test", formulaName], cache, runBrew);
+		await whileInstalled(
+			(await mustBrew(["--prefix", formulaName], cache, runBrew)).trim(),
+		);
+	} finally {
+		// Always, even when tap-new failed: one that fails halfway can leave the
+		// tap behind. Both names are this test's own (a random tap), so neither
+		// command can touch anything else, and brew() does not throw when there
+		// is nothing to remove.
+		await brew(["uninstall", "--force", formulaName], cache);
+		await brew(["untap", "--force", tapName], cache);
+	}
+}
+
+/** A tap name no one else uses. */
+function temporaryTapName(): string {
+	return `forge-e2e-${crypto.randomUUID().slice(0, 8)}/test`;
 }
 
 /** What a stray tap or formula would change: the tap list and the installed formulae. */
@@ -128,41 +174,55 @@ describe.skipIf(!packages || HOST === undefined || BREW_MISSING)(
 			await writeFile(formulaPath, formula);
 
 			const before = await homebrewState(cache);
-			const tapName = `forge-e2e-${crypto.randomUUID().slice(0, 8)}/test`;
-			const formulaName = `${tapName}/llm-tests-forge`;
-			try {
-				await mustBrew(["tap-new", "--no-git", tapName], cache);
-				const tapDirectory = (
-					await mustBrew(["--repository", tapName], cache)
-				).trim();
-				await copyFile(
-					formulaPath,
-					join(tapDirectory, "Formula", "llm-tests-forge.rb"),
-				);
-				await mustBrew(["install", formulaName], cache);
-				await mustBrew(["test", formulaName], cache);
-				const prefix = (
-					await mustBrew(["--prefix", formulaName], cache)
-				).trim();
-				const run = Bun.spawn(
-					[join(prefix, "bin", "llm-tests-forge"), "--version"],
-					{
-						stdout: "pipe",
-						stderr: "pipe",
-					},
-				);
-				expect(await new Response(run.stdout).text()).toBe(
-					`${FORGE_VERSION}\n`,
-				);
-				expect(await run.exited).toBe(0);
-			} finally {
-				// Always, even when tap-new failed: one that fails halfway can leave the
-				// tap behind. Both names are this test's own (a random tap), so neither
-				// command can touch anything else, and brew() does not throw when there
-				// is nothing to remove.
-				await brew(["uninstall", "--force", formulaName], cache);
-				await brew(["untap", "--force", tapName], cache);
-			}
+			await installFromTemporaryTap(
+				temporaryTapName(),
+				formulaPath,
+				cache,
+				async (prefix) => {
+					const run = Bun.spawn(
+						[join(prefix, "bin", "llm-tests-forge"), "--version"],
+						{
+							stdout: "pipe",
+							stderr: "pipe",
+						},
+					);
+					expect(await new Response(run.stdout).text()).toBe(
+						`${FORGE_VERSION}\n`,
+					);
+					expect(await run.exited).toBe(0);
+				},
+			);
+			expect(await homebrewState(cache)).toBe(before);
+		}, 600_000);
+
+		test("a tap-new that fails after creating the tap still leaves Homebrew as it found it", async () => {
+			const work = await mkdtemp(join(tmpdir(), "forge-brew-partial-"));
+			workDirectories.push(work);
+			const cache = join(work, "cache");
+			const before = await homebrewState(cache);
+			const tapName = temporaryTapName();
+			let tapsAfterTapNew = "";
+			// The real tap-new runs and creates the tap, then reports a failure.
+			const failingAfterTapNew: BrewRunner = async (
+				argumentsList,
+				brewCache,
+			) => {
+				const finished = await brew(argumentsList, brewCache);
+				if (argumentsList[0] !== "tap-new") return finished;
+				tapsAfterTapNew = await mustBrew(["tap"], brewCache);
+				return { ...finished, exitCode: 1, stderr: "failed halfway" };
+			};
+			await expect(
+				installFromTemporaryTap(
+					tapName,
+					join(work, "never-read.rb"),
+					cache,
+					async () => {},
+					failingAfterTapNew,
+				),
+			).rejects.toThrow(`brew tap-new --no-git ${tapName} exited 1`);
+			// The tap was really there when tap-new failed, and is gone now.
+			expect(tapsAfterTapNew.split("\n")).toContain(tapName);
 			expect(await homebrewState(cache)).toBe(before);
 		}, 600_000);
 	},
