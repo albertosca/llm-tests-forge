@@ -225,14 +225,14 @@ describe("upsertAgentsBlock", () => {
 		const once = `- Tools:\n${indented("  ", "\n")}\n- Next.\n`;
 		expect(upsertAgentsBlock("AGENTS.md", once)).toBe(once);
 	});
-	test("a pair indented four spaces, as indented code, keeps its indentation", () => {
+	test("a pair indented four spaces after a paragraph line continues the paragraph: it is replaced and keeps its indentation", () => {
 		expect(
 			upsertAgentsBlock(
 				"AGENTS.md",
-				`Text.\n\n    ${AGENTS_START}\n    ${AGENTS_END}`,
+				`Text.\n    ${AGENTS_START}\n    ${AGENTS_END}`,
 			),
 		).toBe(
-			`Text.\n\n${block
+			`Text.\n${block
 				.split("\n")
 				.map((line) => `    ${line}`)
 				.join("\n")}`,
@@ -302,11 +302,6 @@ describe("upsertAgentsBlock", () => {
 		// An unquoted fence is not ended by a blank line.
 		const unquoted = `${fence}\n\n${AGENTS_START}\n${AGENTS_END}\n${fence}\n`;
 		expect(planAgentsBlock("AGENTS.md", unquoted).replaced).toBe(false);
-		// A closer deeper than its opener still closes it.
-		const deeperCloser = `> ${fence}\n> ${AGENTS_START}\n>> ${fence}\n${AGENTS_START}\n${AGENTS_END}\n`;
-		expect(planAgentsBlock("AGENTS.md", deeperCloser).text).toBe(
-			`> ${fence}\n> ${AGENTS_START}\n>> ${fence}\n${block}\n`,
-		);
 	});
 	test("a pair in a list item stays in it: the item's marker on the first line, its continuation indent on the rest", () => {
 		const listed = (first: string, rest: string, ending = "\n") =>
@@ -477,6 +472,157 @@ describe("upsertAgentsBlock: what opens and closes a code fence", () => {
 				.split("\n")
 				.map((line) => `>  > ${line}`)
 				.join("\n")}\n`,
+		);
+	});
+});
+
+describe("upsertAgentsBlock: indented code and list items, as CommonMark reads them", () => {
+	const block = agentsBlock();
+	const quotedPair = `${AGENTS_START}\nquoted\n${AGENTS_END}\n`;
+	const realPair = `${AGENTS_START}\nold\n${AGENTS_END}\n`;
+	/** `text` with every line prefixed by `indentation`. */
+	const indented = (indentation: string, text: string): string =>
+		text.replace(/^(?=.)/gm, indentation);
+	/** Whether planning `existing` finds a real pair; the text says so too. */
+	function expectQuoted(existing: string): void {
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect({ existing, replaced: planned.replaced }).toEqual({
+			existing,
+			replaced: false,
+		});
+		expect(planned.text).toBe(`${existing}\n${block}\n`);
+	}
+
+	test("a pair indented four spaces after a blank line is indented code, not the block", () => {
+		expectQuoted(`Text.\n\n${indented("    ", quotedPair)}`);
+		// At the start of the file, by a tab, and in a blockquote.
+		expectQuoted(indented("    ", quotedPair));
+		expectQuoted(`Text.\n\n${indented("\t", quotedPair)}`);
+		expectQuoted(`> Text.\n>\n${indented(">     ", quotedPair)}`);
+	});
+	test("indented code runs over its blank lines and ends at the first line indented less than four", () => {
+		expectQuoted(
+			`Text.\n\n    code\n    ${AGENTS_START}\n\n    ${AGENTS_END}\n`,
+		);
+		const ended = `Text.\n\n    code\n${realPair}`;
+		const planned = planAgentsBlock("AGENTS.md", ended);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`Text.\n\n    code\n${block}\n`);
+	});
+	test("in a list item, indented code starts four columns past the item's content, not past the margin", () => {
+		expectQuoted(`- Item.\n\n${indented("      ", quotedPair)}`);
+		const inItem = `- Item.\n\n${indented("    ", realPair)}`;
+		const planned = planAgentsBlock("AGENTS.md", inItem);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`- Item.\n\n${indented("    ", block)}\n`);
+	});
+	test("a fence in a list item is read from the item's content column, however far that is from the margin", () => {
+		const fenced = `\`\`\`\n${quotedPair}\`\`\`\n`;
+		expectQuoted(`1.  Item.\n\n${indented("    ", fenced)}`);
+		expectQuoted(`- Item.\n\n${indented("    ", fenced)}`);
+		expectQuoted(`- a\n  - b\n\n${indented("      ", fenced)}`);
+		expectQuoted(`> - Item.\n>\n${indented(">     ", fenced)}`);
+		// The fence on the item's own line, and on an empty item's next line.
+		expectQuoted(`- \`\`\`\n${indented("  ", `${quotedPair}\`\`\`\n`)}`);
+		expectQuoted(`-\n${indented("     ", fenced)}`);
+	});
+	test("a fence in a list item closes up to three columns past the item's content", () => {
+		const existing = `- Item.\n\n  \`\`\`\n${indented("  ", quotedPair)}     \`\`\`\n\n${realPair}`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(
+			`- Item.\n\n  \`\`\`\n${indented("  ", quotedPair)}     \`\`\`\n\n${block}\n`,
+		);
+	});
+	test("a fence in a list item ends with the item: a line left of the item's content is outside both", () => {
+		const existing = `- Item.\n  \`\`\`\n${realPair}  \`\`\`\n`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`- Item.\n  \`\`\`\n${block}\n  \`\`\`\n`);
+	});
+	test("an item with five spaces after its marker starts its content one column past the marker: the fence after them is indented code", () => {
+		const existing = `-     \`\`\`\n${realPair}`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`-     \`\`\`\n${block}\n`);
+	});
+	test("tabs count from the line's start: `>` and a tab leave two columns, so a fence opens there and a marker there is no indented code", () => {
+		expectQuoted(`>\t\`\`\`\n${indented("> ", quotedPair)}>\t\`\`\`\n`);
+		// Two tabs reach six columns past the quote: indented code.
+		expectQuoted(indented(">\t\t", quotedPair));
+		const existing = `>\t${AGENTS_START}\n>\t${AGENTS_END}\n`;
+		const planned = planAgentsBlock("AGENTS.md", existing);
+		expect(planned.replaced).toBe(true);
+		expect(planned.text).toBe(`${indented(">\t", block)}\n`);
+	});
+	test("an ordered item may have up to nine digits: a fence at its content column, with no blank line before it, quotes the pair", () => {
+		const fenced = `\`\`\`\n${quotedPair}\`\`\`\n`;
+		expectQuoted(`10) Item.\n${indented("    ", fenced)}`);
+	});
+	test("a list marker stands at the line's start, needs a space or the end of the line after it, and a number needs `.` or `)`: otherwise the fence after it is paragraph text", () => {
+		// The lines after it are indented three columns, where they would
+		// still be inside the item the opener would otherwise start.
+		for (const opener of ["-```", "x - ```", "a. ```", "12 ```"]) {
+			const existing = `${opener}\n${indented("   ", realPair)}   \`\`\`\n`;
+			const planned = planAgentsBlock("AGENTS.md", existing);
+			expect({ opener, replaced: planned.replaced }).toEqual({
+				opener,
+				replaced: true,
+			});
+			expect(planned.text).toBe(
+				`${opener}\n${indented("   ", block)}\n   \`\`\`\n`,
+			);
+		}
+	});
+	test("a quote marker without a space before a closer still lets it close the quoted fence", () => {
+		const existing = `>\`\`\`\n>${AGENTS_START}\n>${AGENTS_END}\n>\`\`\`\n${indented(">", realPair)}`;
+		expect(upsertAgentsBlock("AGENTS.md", existing)).toBe(
+			`>\`\`\`\n>${AGENTS_START}\n>${AGENTS_END}\n>\`\`\`\n${indented(">", block)}\n`,
+		);
+	});
+	test("an item's content starts after the up to four spaces past its marker; an empty item's, one column past it", () => {
+		const fourSpaces = `-    Item.\n\n${indented("      ", realPair)}`;
+		expect(upsertAgentsBlock("AGENTS.md", fourSpaces)).toBe(
+			`-    Item.\n\n${indented("      ", block)}\n`,
+		);
+		expectQuoted(`-   \n\n${indented("      ", quotedPair)}`);
+	});
+	test("past five spaces after the marker the item's content is one column past it, so lines at its old column are paragraph text", () => {
+		const existing = `-     \`\`\`\n${indented("      ", realPair)}      \`\`\`\n`;
+		expect(upsertAgentsBlock("AGENTS.md", existing)).toBe(
+			`-     \`\`\`\n${indented("      ", block)}\n      \`\`\`\n`,
+		);
+	});
+	test("a line ends a list item by its leading spaces alone, however many spaces stand inside it", () => {
+		const existing = `- Item.\n  \`\`\`\nText  here.\n${realPair}  \`\`\`\n`;
+		expect(upsertAgentsBlock("AGENTS.md", existing)).toBe(
+			`- Item.\n  \`\`\`\nText  here.\n${block}\n  \`\`\`\n`,
+		);
+	});
+	test("a blank line inside a list item's fence keeps the fence open", () => {
+		expectQuoted(`- \`\`\`\n  ${AGENTS_START}\n\n  ${AGENTS_END}\n  \`\`\`\n`);
+	});
+	test("a line indented four columns right after a fence closes is indented code", () => {
+		expectQuoted(`\`\`\`\ncode\n\`\`\`\n${indented("    ", quotedPair)}`);
+	});
+	test("a line at another blockquote depth closes every list item: its indentation counts from the quote", () => {
+		expectQuoted(`- Item.\n>\n${indented(">     ", quotedPair)}`);
+	});
+	test("a list item ended by a line at the margin leaves a fence at the margin a fence", () => {
+		expectQuoted(`- Item.\nText.\n\`\`\`\n${quotedPair}\`\`\`\n`);
+	});
+	test("inside a list item's fence a quoted line at the item's column is content, and one left of it ends the item and the fence", () => {
+		expectQuoted(`- \`\`\`\n${indented("  > ", quotedPair)}  \`\`\`\n`);
+		const ended = `- \`\`\`\n${indented("> ", realPair)}  \`\`\`\n`;
+		expect(upsertAgentsBlock("AGENTS.md", ended)).toBe(
+			`- \`\`\`\n${indented("> ", block)}\n  \`\`\`\n`,
+		);
+		// A list in a blockquote: the item's column counts inside the quote.
+		expectQuoted(`> - \`\`\`\n${indented(">   ", quotedPair)}>   \`\`\`\n`);
+	});
+	test("a fence closer deeper in blockquotes than its opener is content, not a closer", () => {
+		expectQuoted(
+			`> \`\`\`\n>> \`\`\`\n${indented("> ", quotedPair)}> \`\`\`\n`,
 		);
 	});
 });

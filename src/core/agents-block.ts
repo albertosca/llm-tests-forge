@@ -34,6 +34,8 @@ interface Fence {
 	length: number;
 	/** How many blockquotes deep the opener stood. */
 	depth: number;
+	/** The content column of the list item the opener stood in; 0 outside any. */
+	column: number;
 }
 
 /**
@@ -42,12 +44,6 @@ interface Fence {
  * the line has no marker), so it needs no `^`: the first match is always there.
  */
 const QUOTE_MARKERS = /(?: {0,3}> ?)*/;
-
-/** How many blockquotes deep `line` stands. */
-function lineQuoteDepth(line: string): number {
-	// Stryker disable next-line OptionalChaining,StringLiteral: QUOTE_MARKERS matches the empty string, so exec never returns null and the default is never read
-	return quoteDepth(QUOTE_MARKERS.exec(line)?.[0] ?? "");
-}
 
 /** A list item's marker: `-`, `*`, `+`, or a number with `.` or `)`. */
 const LIST_MARKER = /[-*+]|\d{1,9}[.)]/g;
@@ -79,18 +75,18 @@ function quoteDepth(prefix: string): number {
 }
 
 /**
- * A code fence opener or closer: three or more backticks or tildes, indented
- * at most three spaces (four is indented code), inside any blockquotes. The
- * rest of the line is the info string, which may hold a line separator or a
- * carriage return; after backticks it may not hold a backtick, since such a
- * line is inline code (CommonMark). A closer is followed only by spaces and
- * tabs; see `closesFence`.
+ * A code fence opener or closer in `text`, a line from its container's
+ * content column on (past its blockquotes and list items): three or more
+ * backticks or tildes, indented at most three spaces (four is indented
+ * code). The rest of the line is the info string, which may hold a line
+ * separator or a carriage return; after backticks it may not hold a
+ * backtick, since such a line is inline code (CommonMark). A closer is
+ * followed only by spaces and tabs; see `closesFence`.
  */
 function fenceOf(
-	line: string,
+	text: string,
 ): { character: string; length: number; rest: string } | null {
-	const unquoted = line.replace(QUOTE_MARKERS, "");
-	const match = /^ {0,3}(`{3,}|~{3,})(.*)/s.exec(unquoted);
+	const match = /^ {0,3}(`{3,}|~{3,})(.*)/s.exec(text);
 	if (match === null) return null;
 	// Stryker disable next-line StringLiteral: both groups take part in every match, so neither default is ever read
 	const [, run = "", rest = ""] = match;
@@ -109,67 +105,192 @@ function closesFence(rest: string): boolean {
 	return /^[ \t]*\r?$/.test(rest);
 }
 
-/**
- * The fence still open when `line` begins: a line fewer blockquotes deep
- * than the fence's opener (a blank line, or text outside the quote) ends
- * the blockquote and the fence in it, as CommonMark has it.
- */
-function fenceBefore(fence: Fence | null, line: string): Fence | null {
-	return fence !== null && lineQuoteDepth(line) < fence.depth ? null : fence;
+/** `text` with each tab turned into spaces up to the next multiple of four columns, as CommonMark measures indentation. */
+function expandTabs(text: string): string {
+	let expanded = "";
+	for (const character of text)
+		expanded +=
+			character === "\t" ? " ".repeat(4 - (expanded.length % 4)) : character;
+	return expanded;
+}
+
+/** How many columns of spaces `text` (its tabs expanded) starts with. */
+function indentOf(text: string): number {
+	return text.length - text.replace(/^ +/, "").length;
+}
+
+/** Whether `text` holds only spaces, then the line's own carriage return when it is CRLF. */
+function isBlank(text: string): boolean {
+	return /^ *\r?$/.test(text);
 }
 
 /**
- * The fence state after `line`: opened, closed, or unchanged. A line that
- * ends a fence by its depth is then read as a possible opener itself.
+ * `expanded` past its first `count` blockquote markers. Called only with a
+ * `count` no greater than the markers the line starts with.
  */
-function nextFence(open: Fence | null, line: string): Fence | null {
-	const fence = fenceBefore(open, line);
-	const found = fenceOf(line);
-	if (found === null) return fence;
-	if (fence === null)
-		return {
-			character: found.character,
-			length: found.length,
-			depth: lineQuoteDepth(line),
-		};
-	const closes =
-		found.character === fence.character &&
-		found.length >= fence.length &&
-		closesFence(found.rest);
-	return closes ? null : fence;
+function pastQuotes(expanded: string, count: number): string {
+	let rest = expanded;
+	for (let level = 0; level < count; level += 1)
+		// Stryker disable next-line Regex: the line starts with at least `count` markers, so the leftmost match is always at the start and dropping the anchor strips the same text
+		rest = rest.replace(/^ {0,3}> ?/, "");
+	return rest;
 }
 
 /**
- * The index of the last line that opens or closes a fence (0 when none
- * does): fences before it are honored, and from it on the text is plain.
- * When that line opens a fence which never closes, CommonMark would call the
- * rest of the file code, but a person never meant that. When it closes one,
- * nothing after it is fenced anyway. A line that ends a quoted fence by its
- * depth and opens another counts as the new fence's opener.
+ * The content columns of the list items `body` opens from `column` on,
+ * outermost first (`- - x` opens two). A marker stands up to three spaces
+ * in and is followed by a space or the end of the line. Its content starts
+ * after the one to four spaces that follow it; after five or more
+ * (indented code in the item) or none (an empty item), one column past it.
  */
-function lastFenceChange(lines: string[]): number {
-	let fence: Fence | null = null;
-	let changedAt = 0;
-	for (const [index, line] of lines.entries()) {
-		const next = nextFence(fence, line);
-		// nextFence hands back the same fence while it stays open, so a
-		// different one means this line opened or closed a fence.
-		if (next !== fence) changedAt = index;
-		fence = next;
+function itemColumns(body: string, column: number): number[] {
+	const match = /^( {0,3}(?:[-*+]|\d{1,9}[.)]))(?= |\r?$)( *)/.exec(
+		body.slice(column),
+	);
+	if (match === null) return [];
+	// Stryker disable next-line StringLiteral: both groups take part in every match, so neither default is ever read
+	const [, marker = "", spaces = ""] = match;
+	const markerEnd = column + marker.length;
+	const content =
+		spaces.length <= 4 && !isBlank(body.slice(markerEnd))
+			? markerEnd + spaces.length
+			: markerEnd + 1;
+	return [content, ...itemColumns(body, content)];
+}
+
+/** What the scan knows as a line begins. */
+interface Scan {
+	fence: Fence | null;
+	/** How many blockquotes deep the line before stood. */
+	depth: number;
+	/** The content columns of the list items open at that depth, outermost first. */
+	items: number[];
+	/**
+	 * Whether a line four columns or more past its container's content is
+	 * indented code: at the start of the file, after a blank line or a
+	 * fence, or right after indented code. After a paragraph's line it
+	 * continues the paragraph instead.
+	 */
+	codeMayStart: boolean;
+}
+
+const FILE_START: Scan = {
+	fence: null,
+	depth: 0,
+	// Stryker disable next-line ArrayDeclaration: a line that is not blank keeps only the columns at or left of its indentation, which a string never is, and a blank line reads no column, so what the list starts with is never read
+	items: [],
+	codeMayStart: true,
+};
+
+/**
+ * What the scan knows after `line`, and whether the line is quoted (a
+ * fence's opener, closer or content, or indented code), so that it cannot
+ * be a marker. Blockquotes count by depth; list items by their content
+ * columns, which indentation, fences and indented code are measured from,
+ * as CommonMark has it:
+ * - a line fewer blockquotes deep than a fence's opener, or one with text
+ *   left of the content column of the item the opener stood in (a `>`
+ *   included), ends that container and the fence in it, and is then read
+ *   afresh: it may open a fence itself;
+ * - a closer stands at the opener's very depth: inside the fence, a deeper
+ *   line starts with `>`, so it is content;
+ * - `mayOpen` false reads an opener as text (see `quotedLines`).
+ * Tabs count from the line's start, so `>` and a tab leave two columns of
+ * indentation. A line at another blockquote depth closes every list item;
+ * a blank line keeps them open, and lazy continuation lines are not
+ * followed. Opener, closer and blank lines can never be a marker (its text
+ * starts with `<`), so whether they count as quoted changes nothing.
+ */
+function readLine(
+	scan: Scan,
+	line: string,
+	mayOpen: boolean,
+): { scan: Scan; quoted: boolean } {
+	const expanded = expandTabs(line);
+	// Stryker disable next-line OptionalChaining,StringLiteral: QUOTE_MARKERS matches the empty string, so exec never returns null and the default is never read
+	const quotes = QUOTE_MARKERS.exec(expanded)?.[0] ?? "";
+	const depth = quoteDepth(quotes);
+	const body = expanded.slice(quotes.length);
+	const blank = isBlank(body);
+	const indent = indentOf(body);
+	const fence = scan.fence;
+	if (fence !== null && depth >= fence.depth) {
+		// The line inside the blockquotes the fence stands in.
+		const inner = pastQuotes(expanded, fence.depth);
+		if (isBlank(inner) || indentOf(inner) >= fence.column) {
+			const found = fenceOf(inner.slice(fence.column));
+			const closes =
+				found !== null &&
+				found.character === fence.character &&
+				found.length >= fence.length &&
+				closesFence(found.rest);
+			return {
+				scan: { ...scan, fence: closes ? null : fence, codeMayStart: true },
+				quoted: true,
+			};
+		}
 	}
-	return changedAt;
+	const kept = scan.items.filter(
+		(column) => depth === scan.depth && (blank || column <= indent),
+	);
+	if (blank)
+		return {
+			scan: { fence: null, depth, items: kept, codeMayStart: true },
+			// Stryker disable next-line BooleanLiteral: a blank line is never a marker either way
+			quoted: false,
+		};
+	const column = kept.at(-1) ?? 0;
+	if (indent - column >= 4)
+		return {
+			scan: {
+				fence: null,
+				depth,
+				items: kept,
+				codeMayStart: scan.codeMayStart,
+			},
+			quoted: scan.codeMayStart,
+		};
+	const opened = [...kept, ...itemColumns(body, column)];
+	const content = opened.at(-1) ?? 0;
+	const found = mayOpen ? fenceOf(body.slice(content)) : null;
+	const opener =
+		found === null
+			? null
+			: {
+					character: found.character,
+					length: found.length,
+					depth,
+					column: content,
+				};
+	return {
+		scan: { fence: opener, depth, items: opened, codeMayStart: false },
+		quoted: false,
+	};
 }
 
 /**
- * For each line, whether a fence is open after it: its opener, or a line
- * inside it. A closer reads as plain text, which is harmless: like an
- * opener, it can never be a marker, whose text starts with `<`.
+ * For each line, whether it is quoted (see `readLine`). Fences are honored
+ * up to the last line that opens or closes one, and from it on no fence
+ * opens. When that line opens a fence which never closes, CommonMark would
+ * call the rest of the file code, but a person never meant that; when it
+ * closes one, nothing after it is fenced anyway. A line that ends a fence
+ * by its container and opens another counts as the new fence's opener.
  */
-function fencedLines(lines: string[]): boolean[] {
-	let fence: Fence | null = null;
-	return lines.map((line) => {
-		fence = nextFence(fence, line);
-		return fence !== null;
+function quotedLines(lines: string[]): boolean[] {
+	let scan = FILE_START;
+	let lastChange = 0;
+	for (const [index, line] of lines.entries()) {
+		const next = readLine(scan, line, true).scan;
+		// readLine hands back the same fence while it stays open, so a
+		// different one means this line opened or closed a fence.
+		if (next.fence !== scan.fence) lastChange = index;
+		scan = next;
+	}
+	scan = FILE_START;
+	return lines.map((line, index) => {
+		const read = readLine(scan, line, index < lastChange);
+		scan = read.scan;
+		return read.quoted;
 	});
 }
 
@@ -178,18 +299,18 @@ function fencedLines(lines: string[]): boolean[] {
  * (an end with nothing open, a start while another is open, a start left
  * open) is refused by line number:
  * guessing which half was meant would rewrite text the person wrote. A
- * marker inside a closed fenced code block is quoted text, not the block; the
- * fence still open at the end of the file is not a fence, so from its opener
- * on nothing is skipped (the fences that did close still protect what they
- * quote).
+ * marker inside a closed fenced code block or in indented code is quoted
+ * text, not the block; the fence still open at the end of the file is not a
+ * fence, so from its opener on no fence hides a marker (the fences that did
+ * close still protect what they quote).
  */
 function findBlocks(file: string, lines: string[]): MarkedBlock[] {
 	const blocks: MarkedBlock[] = [];
 	let openAt: number | null = null;
 	let openDepth = 0;
-	const fenced = fencedLines(lines.slice(0, lastFenceChange(lines)));
+	const quoted = quotedLines(lines);
 	for (const [index, line] of lines.entries()) {
-		if (fenced[index]) continue;
+		if (quoted[index]) continue;
 		const prefix = markerPrefix(line);
 		const marker = line.slice(prefix.length).trim();
 		if (marker === AGENTS_START) {
