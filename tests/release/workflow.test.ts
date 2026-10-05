@@ -40,6 +40,7 @@ type Step = z.infer<typeof StepSchema>;
 const JobSchema = z.object({
 	"runs-on": z.string(),
 	needs: z.union([z.string(), z.array(z.string())]).optional(),
+	if: z.string().optional(),
 	permissions: z.record(z.string(), z.string()).optional(),
 	env: z.record(z.string(), z.string()).optional(),
 	strategy: z
@@ -727,12 +728,16 @@ describe("build provenance", () => {
 		);
 	});
 
-	test("a failed attestation stops a public repository's release, and only warns in a private one, where a Free or Pro plan has no attestations", () => {
+	test("a failed attestation stops every release but a private repository's prerelease tag, which only warns (Free, Pro and Team plans have no attestations for private repositories)", () => {
 		const attest = stepNamed(release, "Attest the release assets");
 		expect(attest["continue-on-error"]).toBe(
-			`\${{ github.event.repository.private }}`,
+			`\${{ github.event.repository.private && contains(github.ref_name, '-') }}`,
 		);
 		expect(release["continue-on-error"]).toBeUndefined();
+		// Nothing can skip the attestation, nor create the release without it.
+		expect(release.if).toBeUndefined();
+		expect(attest.if).toBeUndefined();
+		expect(stepNamed(release, "Create the GitHub Release").if).toBeUndefined();
 		const warning = stepNamed(release, "Warn that the release is not attested");
 		expect(warning.if).toBe("steps.attest.outcome == 'failure'");
 		const result = runStep(scriptOf(warning), tmpdir(), {});

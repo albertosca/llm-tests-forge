@@ -226,13 +226,16 @@ jobs:
       # `gh attestation verify <file> --repo albertosca/llm-tests-forge`.
       # actions/attest, not attest-build-provenance: since v4 the latter is a
       # wrapper over it, and its README sends new workflows here. A failure
-      # stops a public repository's release, since install.sh refuses an
-      # unattested binary wherever gh is logged in. A private repository only
-      # warns: on a Free, Pro or Team plan attestations exist for public
-      # repositories alone, and a private rc run must still go through.
+      # stops the release, since install.sh refuses an unattested binary
+      # wherever gh 2.49+ is installed. Only a prerelease tag (a hyphen) in a
+      # private repository goes on with a warning: on a Free, Pro or Team plan
+      # attestations exist for public repositories alone, and a private rc run
+      # must still go through. So a final release needs the repository public
+      # (or on a plan with attestations). Neither this step nor the release
+      # step may carry an `if:` (the workflow test holds both).
       - name: Attest the release assets
         id: attest
-        continue-on-error: ${{ github.event.repository.private }}
+        continue-on-error: ${{ github.event.repository.private && contains(github.ref_name, '-') }}
         uses: actions/attest@v4
         with:
           subject-path: |
