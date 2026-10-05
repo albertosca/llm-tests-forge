@@ -25,9 +25,12 @@
 #     (default 60): nothing is installed. gh's message only picks the hint
 #     printed after it, never whether to install: a rewording in a future gh
 #     can blur the hint, not turn a refusal into a pass.
-# Without gh, or with a gh that has no `attestation` command, the binary is
-# installed on the checksum, with a note on stderr and the command to check
-# it. LLM_TESTS_FORGE_PROVENANCE=skip installs on the checksum without asking
+# Without gh, or with a gh whose probe (`gh attestation verify --help`, under
+# the same timeout) answers `unknown command "attestation"` (gh before 2.49),
+# the binary is installed on the checksum, with a note on stderr and the
+# command to check it. Any other probe failure (a configuration gh cannot
+# read, for one) refuses: it says nothing about the command, so it must not
+# pass for a missing one. LLM_TESTS_FORGE_PROVENANCE=skip installs on the checksum without asking
 # gh, and says so with a WARNING; every refusal names it.
 set -eu
 
@@ -204,7 +207,13 @@ if [ -n "$version" ]; then
 fi
 verify_command="gh attestation verify \"$target_path\" $*"
 intact_only="the binary matched SHA256SUMS, which proves it arrived intact, not who built it"
-skip_hint="To install anyway on the checksum alone, which does not prove who built the binary, run install.sh again with LLM_TESTS_FORGE_PROVENANCE=skip, for example: curl -fsSL $REPOSITORY_URL/releases/latest/download/install.sh | LLM_TESTS_FORGE_PROVENANCE=skip sh"
+skip_hint="To install anyway on the checksum alone, which does not prove who built the binary, run install.sh again with LLM_TESTS_FORGE_PROVENANCE=skip, for example:"
+if [ -n "$version" ]; then
+	# The same release again, through that release's own install.sh.
+	skip_hint="$skip_hint curl -fsSL $REPOSITORY_URL/releases/download/$version/install.sh | LLM_TESTS_FORGE_PROVENANCE=skip sh -s -- --version $version"
+else
+	skip_hint="$skip_hint curl -fsSL $REPOSITORY_URL/releases/latest/download/install.sh | LLM_TESTS_FORGE_PROVENANCE=skip sh"
+fi
 hosts_hint="Check: gh needs https://api.github.com, https://tuf-repo-cdn.sigstore.dev and https://tuf-repo.github.com; a proxy or firewall may block one."
 
 # What to check after a refusal, from gh's exit status and message ($1, $2).
@@ -214,37 +223,34 @@ refusal_hint() {
 		printf '%s\n' "Check: this gh asks for a login even for an anonymous check; run gh auth login."
 		return
 	fi
+	# Phrases gh prints (measured: gh 2.101.0/2.102.0) or Go's network errors
+	# carry, never a bare word that could sit inside another one.
 	case "$2" in
+	'') printf '%s\n' "Check: gh gave no reason; GH_DEBUG=api in its environment shows what it did." ;;
 	*"rate limit"*) printf '%s\n' "Check: GitHub's rate limit for anonymous API requests (60 an hour per address) was reached; wait for it to reset, or log gh in (gh auth login) for a higher limit." ;;
 	*"HTTP 401"* | *"Bad credentials"*) printf '%s\n' "Check: GitHub rejected gh's token (revoked, expired, or a GitHub Enterprise token in GH_TOKEN or GITHUB_TOKEN); run gh auth status and gh auth login, or unset GH_TOKEN and GITHUB_TOKEN to check anonymously." ;;
 	*"no attestations found"* | *"HTTP 404"*) printf '%s\n' "Check: the release may predate attestations, or the binary may not come from $REPOSITORY; try a newer release (--version), and see $REPOSITORY_URL/attestations." ;;
-	*"verifying with issuer"* | *"expected Source"* | *"SAN"* | *"self-hosted"*) printf '%s\n' "Check: an attestation exists, but not from $REPOSITORY's release workflow for this release; do not run this binary, and report it at $REPOSITORY_URL/issues." ;;
-	*"Sigstore verifier"* | *"dial tcp"* | *"no such host"* | *"connection refused"* | *"i/o timeout"* | *"TLS"* | *"proxyconnect"* | *"deadline exceeded"*) printf '%s\n' "$hosts_hint" ;;
+	*"verifying with issuer"* | *"expected SourceRepository"* | *"self-hosted runner"*) printf '%s\n' "Check: an attestation exists, but not from $REPOSITORY's release workflow for this release; do not run this binary, and report it at $REPOSITORY_URL/issues." ;;
+	*"error creating Sigstore verifier"* | *"dial tcp"* | *"no such host"* | *"connection refused"* | *"i/o timeout"* | *"TLS handshake"* | *"x509: certificate"* | *"proxyconnect"* | *"context deadline exceeded"*) printf '%s\n' "$hosts_hint" ;;
 	*) printf '%s\n' "Check: what gh said above." ;;
 	esac
 }
 
-provenance_note=""
-if [ "$provenance_mode" = skip ]; then
-	provenance_note="WARNING: provenance NOT checked (LLM_TESTS_FORGE_PROVENANCE=skip): $intact_only. To check it: $verify_command"
-elif ! command -v gh >/dev/null 2>&1; then
-	provenance_note="provenance not checked: gh (the GitHub CLI, https://cli.github.com) is not installed; $intact_only. To check it with gh 2.49 or newer: $verify_command"
-elif ! GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 gh attestation verify --help >/dev/null 2>&1 </dev/null; then
-	# gh before 2.49 has no attestation command: as good as no gh.
-	provenance_note="provenance not checked: this gh has no attestation command (gh 2.49 or newer has it); $intact_only. To check it after upgrading gh: $verify_command"
-else
-	gh_output="$work_directory/gh-output"
-	gh_timed_out="$work_directory/gh-timed-out"
-	# GH_HOST=github.com makes a gh that is not logged in check anonymously
-	# (without it, gh exits 4 asking for a login) and overrides a GH_HOST the
-	# user set for another host; GH_PROMPT_DISABLED keeps gh from waiting on a
-	# prompt.
+gh_output="$work_directory/gh-output"
+gh_timed_out="$work_directory/gh-timed-out"
+
+# Runs gh with the given arguments, stdout and stderr into $gh_output, under
+# a watchdog (POSIX sh has no timeout) that stops it after $gh_timeout
+# seconds and leaves $gh_timed_out behind. Sets gh_status and gh_said (gh's
+# output without empty lines: gh puts one before its "Error:" line).
+# GH_HOST=github.com makes a gh that is not logged in check anonymously
+# (without it, gh exits 4 asking for a login) and overrides a GH_HOST the
+# user set for another host; GH_PROMPT_DISABLED keeps gh off any prompt.
+run_gh() {
+	rm -f "$gh_timed_out"
 	GH_HOST=github.com GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 \
-		gh attestation verify "$work_directory/$asset_name" "$@" \
-		>"$gh_output" 2>&1 </dev/null &
+		gh "$@" >"$gh_output" 2>&1 </dev/null &
 	gh_process=$!
-	# A watchdog, as POSIX sh has no timeout: it stops gh after $gh_timeout
-	# seconds, and leaves a mark so the refusal can say gh did not answer.
 	(
 		trap - EXIT INT TERM
 		remaining="$gh_timeout"
@@ -265,19 +271,59 @@ else
 	# Both are gone: cleanup must not signal a pid the system may reuse.
 	gh_process=""
 	watchdog_process=""
+	gh_said="$(sed '/^[[:space:]]*$/d' "$gh_output")"
+}
+
+# The first line of a refusal: what failed ($1), then what gh said.
+refuse_saying() {
+	if [ -n "$gh_said" ]; then
+		printf '%s\n' "provenance check failed for $asset_name: $1; nothing was installed. gh said:" "$gh_said" >&2
+	else
+		printf '%s\n' "provenance check failed for $asset_name: $1; nothing was installed. gh printed nothing." >&2
+	fi
+}
+
+provenance_note=""
+if [ "$provenance_mode" = skip ]; then
+	provenance_note="WARNING: provenance NOT checked (LLM_TESTS_FORGE_PROVENANCE=skip): $intact_only. To check it: $verify_command"
+elif ! command -v gh >/dev/null 2>&1; then
+	provenance_note="provenance not checked: gh (the GitHub CLI, https://cli.github.com) is not installed; $intact_only. To check it with gh 2.49 or newer: $verify_command"
+else
+	# The probe: does this gh have the attestation command?
+	run_gh attestation verify --help
 	if [ -e "$gh_timed_out" ]; then
-		printf '%s\n' "provenance check failed for $asset_name: gh attestation verify did not answer within $gh_timeout seconds; nothing was installed." "$hosts_hint" "$skip_hint" >&2
+		printf '%s\n' "provenance check failed for $asset_name: gh attestation verify --help did not answer within $gh_timeout seconds; nothing was installed." "Check: gh hangs before it runs any command; run gh attestation verify --help to see where." "$skip_hint" >&2
 		exit 1
 	fi
 	if [ "$gh_status" -ne 0 ]; then
-		# gh puts an empty line before its "Error:" line; the refusal drops it.
-		gh_said="$(sed '/^[[:space:]]*$/d' "$gh_output")"
-		printf '%s\n' "provenance check failed for $asset_name: gh attestation verify exited $gh_status, so nothing proves it was built by $SIGNER_WORKFLOW; nothing was installed. gh said:" "$gh_said" >&2
-		refusal_hint "$gh_status" "$gh_said" >&2
-		printf '%s\n' "$skip_hint" >&2
-		exit 1
+		case "$gh_said" in
+		# gh before 2.49 has no attestation command (gh 2.45.0 says exactly
+		# this, measured): as good as no gh. Only this answer means that; any
+		# other failure of the probe (a configuration gh cannot read, for
+		# one) refuses, since it says nothing about the command.
+		*'unknown command "attestation" for "gh"'*)
+			provenance_note="provenance not checked: this gh has no attestation command (gh 2.49 or newer has it); $intact_only. To check it after upgrading gh: $verify_command"
+			;;
+		*)
+			refuse_saying "gh attestation verify --help exited $gh_status, so this gh cannot check provenance"
+			printf '%s\n' "Check: gh fails before it runs any command, often over its own configuration (GH_CONFIG_DIR, or ~/.config/gh/config.yml); fix what gh said, then run install.sh again." "$skip_hint" >&2
+			exit 1
+			;;
+		esac
+	else
+		run_gh attestation verify "$work_directory/$asset_name" "$@"
+		if [ -e "$gh_timed_out" ]; then
+			printf '%s\n' "provenance check failed for $asset_name: gh attestation verify did not answer within $gh_timeout seconds; nothing was installed." "$hosts_hint" "$skip_hint" >&2
+			exit 1
+		fi
+		if [ "$gh_status" -ne 0 ]; then
+			refuse_saying "gh attestation verify exited $gh_status, so nothing proves it was built by $SIGNER_WORKFLOW"
+			refusal_hint "$gh_status" "$gh_said" >&2
+			printf '%s\n' "$skip_hint" >&2
+			exit 1
+		fi
+		printf 'Provenance verified: %s was built by %s\n' "$asset_name" "$SIGNER_WORKFLOW"
 	fi
-	printf 'Provenance verified: %s was built by %s\n' "$asset_name" "$SIGNER_WORKFLOW"
 fi
 
 mkdir -p "$install_directory"

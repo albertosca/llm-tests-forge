@@ -91,56 +91,114 @@ const FAKE_GH_ANSWERS = {
 		exitCode: 4,
 		said: "To get started with GitHub CLI, please run:  gh auth login",
 	},
+	// gh prints nothing and exits 1 (none measured does; the hint must say so).
+	silent: { exitCode: 1, said: "" },
+	// An answer no hint pattern is for, with words that a loose pattern
+	// (*SAN*, *TLS*) would have taken for a signer or a network error.
+	unrelated: {
+		exitCode: 1,
+		said: "Error: HTTP 502: Bad Gateway, SANDBOX upstream (TLSv1.3 fine) (https://api.github.com/repos/albertosca/llm-tests-forge/attestations/sha256:0000)",
+	},
 	hangs: { exitCode: 0, said: "" },
 } as const;
-type FakeGh = keyof typeof FAKE_GH_ANSWERS | "too-old";
+
+/** What gh 2.45.0 prints for `gh attestation verify --help` (measured; its command list cut short). */
+const GH_245_UNKNOWN_COMMAND =
+	'unknown command "attestation" for "gh"\n\nUsage:  gh <command> <subcommand> [flags]\n\nAvailable commands:\n  alias\n  api\n  auth';
+
+/**
+ * How the probe (`gh attestation verify --help`) fails, exit 1: gh 2.45.0's
+ * unknown command (measured on stderr; also tried on stdout), and gh
+ * 2.102.0 failing to read its configuration (measured: invalid YAML, an
+ * unreadable config.yml, GH_CONFIG_DIR naming a file).
+ */
+const FAKE_PROBE_ANSWERS = {
+	"too-old": { onStdout: false, said: GH_245_UNKNOWN_COMMAND },
+	"too-old-on-stdout": { onStdout: true, said: GH_245_UNKNOWN_COMMAND },
+	"probe-invalid-config": {
+		onStdout: false,
+		said: "warning: failed to load config: invalid config file /home/someone/.config/gh/config.yml: invalid yaml\nfailed to create root command: failed to read configuration: invalid config file /home/someone/.config/gh/config.yml: invalid yaml",
+	},
+	"probe-unreadable-config": {
+		onStdout: false,
+		said: "warning: failed to load config: open /home/someone/.config/gh/config.yml: permission denied\nfailed to create root command: failed to read configuration: open /home/someone/.config/gh/config.yml: permission denied",
+	},
+	"probe-config-not-a-directory": {
+		onStdout: false,
+		said: "warning: failed to load config: open /home/someone/gh-config/config.yml: not a directory\nfailed to create root command: failed to read configuration: open /home/someone/gh-config/config.yml: not a directory",
+	},
+	"probe-silent": { onStdout: false, said: "" },
+} as const;
+type ProbeAnswer = keyof typeof FAKE_PROBE_ANSWERS;
+type FakeGh = keyof typeof FAKE_GH_ANSWERS | ProbeAnswer | "probe-hangs";
+
+function isProbeAnswer(behavior: FakeGh): behavior is ProbeAnswer {
+	return behavior in FAKE_PROBE_ANSWERS;
+}
+
+/** Shell lines printing `said`, one printf per line, on stderr or stdout. */
+function printLines(said: string, onStdout: boolean): string[] {
+	if (said === "") return [];
+	return said
+		.split("\n")
+		.map(
+			(line) =>
+				`printf '%s\\n' '${line.replaceAll("'", "'\\''")}'${onStdout ? "" : " >&2"}`,
+		);
+}
 
 /**
  * A directory holding a `gh`, to put first on the PATH. Like a real gh that
  * was never logged in, it exits 4 asking for a login unless GH_HOST is set
- * (with GH_HOST, gh verifies anonymously); `too-old` has no `attestation`
- * command at all, as gh before 2.49. The verify call records its arguments,
- * the environment install.sh gives it, its own pid, and a copy of the file
- * it was asked to verify.
+ * (with GH_HOST, gh verifies anonymously). A probe answer makes
+ * `gh attestation verify --help` fail as given, or hang (`probe-hangs`);
+ * otherwise the probe exits 0 and the verify call answers as `behavior`
+ * says. Every call is appended to `calls`; the verify call also records
+ * its arguments, the environment install.sh gives it, its own pid, and a
+ * copy of the file it was asked to verify.
  */
 async function fakeGh(behavior: FakeGh): Promise<string> {
 	const directory = await mkdtemp(join(tmpdir(), "forge-fake-gh-"));
 	workDirectories.push(directory);
-	const lines =
-		behavior === "too-old"
-			? [
-					'echo "unknown command \\"$1\\" for \\"gh\\"" >&2',
-					`echo "$*" >> "${directory}/calls"`,
-					"exit 1",
-				]
+	const probeLines = isProbeAnswer(behavior)
+		? [
+				...printLines(
+					FAKE_PROBE_ANSWERS[behavior].said,
+					FAKE_PROBE_ANSWERS[behavior].onStdout,
+				),
+				"exit 1",
+			]
+		: behavior === "probe-hangs"
+			? [`echo "$$" > "${directory}/pid"`, "exec sleep 60"]
+			: ["exit 0"];
+	const answer =
+		isProbeAnswer(behavior) || behavior === "probe-hangs"
+			? FAKE_GH_ANSWERS.verified
+			: FAKE_GH_ANSWERS[behavior];
+	const lines = [
+		`echo "$*" >> "${directory}/calls"`,
+		'for argument; do last="$argument"; done',
+		'if [ "$last" = "--help" ]; then',
+		...probeLines,
+		"fi",
+		`printf '%s\\n' "$@" > "${directory}/arguments"`,
+		`printf '%s\\n' "GH_PROMPT_DISABLED=\${GH_PROMPT_DISABLED:-unset}" "GH_HOST=\${GH_HOST:-unset}" > "${directory}/environment"`,
+		`echo "$$" > "${directory}/pid"`,
+		`cp "$3" "${directory}/subject" 2>/dev/null || true`,
+		`if [ -z "\${GH_HOST:-}" ]; then`,
+		'  echo "To get started with GitHub CLI, please run:  gh auth login" >&2',
+		'  echo "Alternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token." >&2',
+		"  exit 4",
+		"fi",
+		...(behavior === "hangs"
+			? ["exec sleep 60"]
 			: [
-					`echo "$*" >> "${directory}/calls"`,
-					'for argument; do last="$argument"; done',
-					'if [ "$last" = "--help" ]; then exit 0; fi',
-					`printf '%s\\n' "$@" > "${directory}/arguments"`,
-					`printf '%s\\n' "GH_PROMPT_DISABLED=\${GH_PROMPT_DISABLED:-unset}" "GH_HOST=\${GH_HOST:-unset}" > "${directory}/environment"`,
-					`echo "$$" > "${directory}/pid"`,
-					`cp "$3" "${directory}/subject" 2>/dev/null || true`,
-					`if [ -z "\${GH_HOST:-}" ]; then`,
-					'  echo "To get started with GitHub CLI, please run:  gh auth login" >&2',
-					'  echo "Alternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token." >&2',
-					"  exit 4",
-					"fi",
-					...(behavior === "hangs"
-						? ["exec sleep 60"]
-						: [
-								// gh 2.101.0 prints an empty line before an "Error:" line.
-								...(FAKE_GH_ANSWERS[behavior].said.startsWith("Error:")
-									? ["echo >&2"]
-									: []),
-								...(FAKE_GH_ANSWERS[behavior].said === ""
-									? []
-									: [
-											`printf '%s\\n' '${FAKE_GH_ANSWERS[behavior].said.replaceAll("'", "'\\''")}' >&2`,
-										]),
-								`exit ${FAKE_GH_ANSWERS[behavior].exitCode}`,
-							]),
-				];
+					// gh 2.101.0 prints an empty line before an "Error:" line.
+					...(answer.said.startsWith("Error:") ? ["echo >&2"] : []),
+					...printLines(answer.said, false),
+					`exit ${answer.exitCode}`,
+				]),
+	];
 	await writeFile(
 		join(directory, "gh"),
 		["#!/bin/sh", ...lines, ""].join("\n"),
@@ -316,14 +374,22 @@ function verifyCommand(installedPath: string): string {
 
 const SKIP_HINT =
 	"To install anyway on the checksum alone, which does not prove who built the binary, run install.sh again with LLM_TESTS_FORGE_PROVENANCE=skip, for example: curl -fsSL https://github.com/albertosca/llm-tests-forge/releases/latest/download/install.sh | LLM_TESTS_FORGE_PROVENANCE=skip sh";
+/** The skip escape after `--version v1.2.3`: that release's install.sh, pinned to that release. */
+const PINNED_SKIP_HINT =
+	"To install anyway on the checksum alone, which does not prove who built the binary, run install.sh again with LLM_TESTS_FORGE_PROVENANCE=skip, for example: curl -fsSL https://github.com/albertosca/llm-tests-forge/releases/download/v1.2.3/install.sh | LLM_TESTS_FORGE_PROVENANCE=skip sh -s -- --version v1.2.3";
 const HOSTS_HINT =
 	"Check: gh needs https://api.github.com, https://tuf-repo-cdn.sigstore.dev and https://tuf-repo.github.com; a proxy or firewall may block one.";
+const BROKEN_GH_HINT =
+	"Check: gh fails before it runs any command, often over its own configuration (GH_CONFIG_DIR, or ~/.config/gh/config.yml); fix what gh said, then run install.sh again.";
 
 /** What install.sh says to check, for each way gh refuses. */
 const REFUSAL_HINTS: Record<
-	Exclude<FakeGh, "verified" | "hangs" | "too-old">,
+	Exclude<FakeGh, "verified" | "hangs" | ProbeAnswer | "probe-hangs">,
 	string
 > = {
+	silent:
+		"Check: gh gave no reason; GH_DEBUG=api in its environment shows what it did.",
+	unrelated: "Check: what gh said above.",
 	"no-attestation":
 		"Check: the release may predate attestations, or the binary may not come from albertosca/llm-tests-forge; try a newer release (--version), and see https://github.com/albertosca/llm-tests-forge/attestations.",
 	"not-found":
@@ -442,11 +508,86 @@ describe.skipIf(!packages || HOST === undefined)(
 				const { exitCode, said } = FAKE_GH_ANSWERS[behavior];
 				expect(finished.exitCode).toBe(1);
 				expect(finished.stdout).not.toContain("Installed");
+				const whatGhSaid =
+					said === "" ? " gh printed nothing." : ` gh said:\n${said}`;
 				expect(finished.stderr).toBe(
-					`provenance check failed for ${HOST.assetName}: gh attestation verify exited ${exitCode}, so nothing proves it was built by ${SIGNER_WORKFLOW}; nothing was installed. gh said:\n${said}\n${REFUSAL_HINTS[behavior]}\n${SKIP_HINT}\n`,
+					`provenance check failed for ${HOST.assetName}: gh attestation verify exited ${exitCode}, so nothing proves it was built by ${SIGNER_WORKFLOW}; nothing was installed.${whatGhSaid}\n${REFUSAL_HINTS[behavior]}\n${SKIP_HINT}\n`,
 				);
 				expect(await readdir(target)).toEqual([]);
 			}, 600_000);
+
+		test("after --version, the skip escape fetches that release's install.sh and pins that release", async () => {
+			const { work, intactUrl } = await built();
+			if (HOST === undefined) throw new Error("this machine is not a target");
+			const target = await mkdtemp(join(work, "target-"));
+			const finished = await runScript(
+				["--dir", join(target, "bin"), "--version", "1.2.3"],
+				{ LLM_TESTS_FORGE_BASE_URL: intactUrl },
+				await fakeGh("no-attestation"),
+			);
+			expect(finished.exitCode).toBe(1);
+			expect(finished.stderr.trimEnd().split("\n").at(-1)).toBe(
+				PINNED_SKIP_HINT,
+			);
+		}, 600_000);
+
+		for (const behavior of [
+			"probe-invalid-config",
+			"probe-unreadable-config",
+			"probe-config-not-a-directory",
+			"probe-silent",
+		] as const)
+			test(`a gh whose probe fails for another reason than a missing command (${behavior}) refuses to install, saying what gh said`, async () => {
+				const { work, intactUrl } = await built();
+				if (HOST === undefined) throw new Error("this machine is not a target");
+				const fakeGhDirectory = await fakeGh(behavior);
+				const target = await mkdtemp(join(work, "target-"));
+				const finished = await runScript(
+					["--dir", join(target, "bin")],
+					{ LLM_TESTS_FORGE_BASE_URL: intactUrl },
+					fakeGhDirectory,
+				);
+				const { said } = FAKE_PROBE_ANSWERS[behavior];
+				const whatGhSaid =
+					said === "" ? " gh printed nothing." : ` gh said:\n${said}`;
+				expect(finished.exitCode).toBe(1);
+				expect(finished.stdout).not.toContain("Installed");
+				expect(finished.stderr).toBe(
+					`provenance check failed for ${HOST.assetName}: gh attestation verify --help exited 1, so this gh cannot check provenance; nothing was installed.${whatGhSaid}\n${BROKEN_GH_HINT}\n${SKIP_HINT}\n`,
+				);
+				expect(await readdir(target)).toEqual([]);
+				// Nothing was asked to verify.
+				expect(await readFile(join(fakeGhDirectory, "calls"), "utf8")).toBe(
+					"attestation verify --help\n",
+				);
+			}, 600_000);
+
+		test("a gh whose probe does not answer is stopped after LLM_TESTS_FORGE_GH_TIMEOUT seconds, and the install is refused", async () => {
+			const { work, intactUrl } = await built();
+			if (HOST === undefined) throw new Error("this machine is not a target");
+			const fakeGhDirectory = await fakeGh("probe-hangs");
+			const target = await mkdtemp(join(work, "target-"));
+			const started = performance.now();
+			const finished = await runScript(
+				["--dir", join(target, "bin")],
+				{
+					LLM_TESTS_FORGE_BASE_URL: intactUrl,
+					LLM_TESTS_FORGE_GH_TIMEOUT: "2",
+				},
+				fakeGhDirectory,
+			);
+			expect(performance.now() - started).toBeLessThan(30_000);
+			expect(finished.exitCode).toBe(1);
+			expect(finished.stderr).toBe(
+				`provenance check failed for ${HOST.assetName}: gh attestation verify --help did not answer within 2 seconds; nothing was installed.\nCheck: gh hangs before it runs any command; run gh attestation verify --help to see where.\n${SKIP_HINT}\n`,
+			);
+			expect(await readdir(target)).toEqual([]);
+			const ghProcess = Number(
+				(await readFile(join(fakeGhDirectory, "pid"), "utf8")).trim(),
+			);
+			expect(ghProcess).toBeGreaterThan(1);
+			expect(() => process.kill(ghProcess, 0)).toThrow();
+		}, 600_000);
 
 		test("a gh that does not answer is stopped after LLM_TESTS_FORGE_GH_TIMEOUT seconds, and the install is refused, naming the wait", async () => {
 			const { work, intactUrl } = await built();
@@ -539,29 +680,30 @@ describe.skipIf(!packages || HOST === undefined)(
 			expect(await readdir(target)).toEqual([]);
 		}, 600_000);
 
-		test("a gh without the attestation command (before 2.49) is treated as no gh: the binary is installed on its checksum, and stderr says which gh can check it, and how", async () => {
-			const { work, intactUrl } = await built();
-			const fakeGhDirectory = await fakeGh("too-old");
-			const installDirectory = join(
-				await mkdtemp(join(work, "target-")),
-				"bin",
-			);
-			const installedPath = join(installDirectory, "llm-tests-forge");
-			const finished = await runScript(
-				["--dir", installDirectory],
-				{ LLM_TESTS_FORGE_BASE_URL: intactUrl },
-				fakeGhDirectory,
-			);
-			expect(finished.exitCode).toBe(0);
-			expect(finished.stdout).toContain(`Installed ${installedPath}`);
-			expect(finished.stderr).toBe(
-				`provenance not checked: this gh has no attestation command (gh 2.49 or newer has it); the binary matched SHA256SUMS, which proves it arrived intact, not who built it. To check it after upgrading gh: ${verifyCommand(installedPath)}\n`,
-			);
-			// Only the probe ran: nothing was asked to verify.
-			expect(await readFile(join(fakeGhDirectory, "calls"), "utf8")).toBe(
-				"attestation verify --help\n",
-			);
-		}, 600_000);
+		for (const behavior of ["too-old", "too-old-on-stdout"] as const)
+			test(`a gh without the attestation command (before 2.49; ${behavior}) is treated as no gh: the binary is installed on its checksum, and stderr says which gh can check it, and how`, async () => {
+				const { work, intactUrl } = await built();
+				const fakeGhDirectory = await fakeGh(behavior);
+				const installDirectory = join(
+					await mkdtemp(join(work, "target-")),
+					"bin",
+				);
+				const installedPath = join(installDirectory, "llm-tests-forge");
+				const finished = await runScript(
+					["--dir", installDirectory],
+					{ LLM_TESTS_FORGE_BASE_URL: intactUrl },
+					fakeGhDirectory,
+				);
+				expect(finished.exitCode).toBe(0);
+				expect(finished.stdout).toContain(`Installed ${installedPath}`);
+				expect(finished.stderr).toBe(
+					`provenance not checked: this gh has no attestation command (gh 2.49 or newer has it); the binary matched SHA256SUMS, which proves it arrived intact, not who built it. To check it after upgrading gh: ${verifyCommand(installedPath)}\n`,
+				);
+				// Only the probe ran: nothing was asked to verify.
+				expect(await readFile(join(fakeGhDirectory, "calls"), "utf8")).toBe(
+					"attestation verify --help\n",
+				);
+			}, 600_000);
 
 		test("LLM_TESTS_FORGE_PROVENANCE=skip installs on the checksum alone without asking gh, and warns loudly; any other value is refused before downloading", async () => {
 			const { work, intactUrl } = await built();
