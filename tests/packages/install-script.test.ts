@@ -22,6 +22,7 @@ import { buildBinaries } from "../../scripts/release/build-binaries";
 import { writeChecksums } from "../../scripts/release/checksums";
 import { RELEASE_TARGETS } from "../../scripts/release/targets";
 import { FORGE_VERSION } from "../../src/core/version";
+import { muslMessage } from "../helpers/platform-messages";
 
 const packages = process.env.FORGE_PACKAGES === "1";
 const REPOSITORY = resolve(import.meta.dir, "../..");
@@ -124,6 +125,27 @@ async function fakeUname(
 		path,
 		`#!/bin/sh\ncase "$1" in\n-s) echo "${kernelName}" ;;\n-m) echo "${machineName}" ;;\n*) echo "${kernelName}" ;;\nesac\n`,
 	);
+	await chmod(path, 0o755);
+	return directory;
+}
+
+/**
+ * A directory holding an `ldd` that answers `--version` the way musl's does
+ * (on stderr, exit 1), the way glibc's does (on stdout), or not at all (as
+ * a shell reports a missing command), to put first on the PATH.
+ */
+async function fakeLdd(
+	work: string,
+	libc: "musl" | "glibc" | "missing",
+): Promise<string> {
+	const directory = await mkdtemp(join(work, "fake-ldd-"));
+	const path = join(directory, "ldd");
+	const answers = {
+		musl: 'echo "musl libc (x86_64)" >&2\necho "Version 1.2.5" >&2\nexit 1',
+		glibc: 'echo "ldd (GNU libc) 2.39"\nexit 0',
+		missing: 'echo "ldd: not found" >&2\nexit 127',
+	};
+	await writeFile(path, `#!/bin/sh\n${answers[libc]}\n`);
 	await chmod(path, 0o755);
 	return directory;
 }
@@ -235,6 +257,61 @@ describe.skipIf(!packages || HOST === undefined)("install.sh", () => {
 			`cannot download ${emptyUrl}/llm-tests-forge-linux-arm64`,
 		);
 		expect(await readdir(target)).toEqual([]);
+	}, 600_000);
+
+	test("on musl Linux (ldd --version names musl, as rustup-init.sh reads it) install.sh refuses before downloading, saying musl has no binary yet", async () => {
+		const { work, intactUrl } = await built();
+		for (const [machineName, name] of [
+			["x86_64", "linux-x64"],
+			["aarch64", "linux-arm64"],
+		] as const) {
+			const target = await mkdtemp(join(work, "target-"));
+			const finished = await runScript(["--dir", join(target, "bin")], {
+				LLM_TESTS_FORGE_BASE_URL: intactUrl,
+				LLM_TESTS_FORGE_LIBRARY_DIRECTORY: await mkdtemp(join(work, "lib-")),
+				PATH: `${await fakeUname(work, "Linux", machineName)}:${await fakeLdd(work, "musl")}:${process.env.PATH ?? ""}`,
+			});
+			expect(finished).toEqual({
+				exitCode: 1,
+				stdout: "",
+				stderr: `${muslMessage(name)}\n`,
+			});
+			expect(await readdir(target)).toEqual([]);
+		}
+	}, 600_000);
+
+	test("on musl Linux without a telling ldd, musl's loader (/lib/ld-musl-*) is enough to refuse", async () => {
+		const { work, intactUrl } = await built();
+		const library = await mkdtemp(join(work, "lib-"));
+		await writeFile(join(library, "ld-musl-x86_64.so.1"), "");
+		const target = await mkdtemp(join(work, "target-"));
+		const finished = await runScript(["--dir", join(target, "bin")], {
+			LLM_TESTS_FORGE_BASE_URL: intactUrl,
+			LLM_TESTS_FORGE_LIBRARY_DIRECTORY: library,
+			PATH: `${await fakeUname(work, "Linux", "x86_64")}:${await fakeLdd(work, "missing")}:${process.env.PATH ?? ""}`,
+		});
+		expect(finished).toEqual({
+			exitCode: 1,
+			stdout: "",
+			stderr: `${muslMessage("linux-x64")}\n`,
+		});
+		expect(await readdir(target)).toEqual([]);
+	}, 600_000);
+
+	test("on glibc Linux, with no musl loader, install.sh goes on to download the linux-x64 asset (a server holding nothing, so it stops there)", async () => {
+		const { work } = await built();
+		const emptyUrl = serve(await mkdtemp(join(work, "served-empty-")), false);
+		const target = await mkdtemp(join(work, "target-"));
+		const finished = await runScript(["--dir", join(target, "bin")], {
+			LLM_TESTS_FORGE_BASE_URL: emptyUrl,
+			LLM_TESTS_FORGE_LIBRARY_DIRECTORY: await mkdtemp(join(work, "lib-")),
+			PATH: `${await fakeUname(work, "Linux", "x86_64")}:${await fakeLdd(work, "glibc")}:${process.env.PATH ?? ""}`,
+		});
+		expect(finished.exitCode).toBe(1);
+		expect(finished.stderr).toContain(
+			`cannot download ${emptyUrl}/llm-tests-forge-linux-x64\n`,
+		);
+		expect(finished.stderr).not.toContain("musl");
 	}, 600_000);
 
 	test("a directory where the binary goes is refused naming it, and nothing is moved into it", async () => {

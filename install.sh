@@ -8,6 +8,8 @@
 # The directory defaults to ~/.local/bin and the release to the latest one.
 # LLM_TESTS_FORGE_BASE_URL replaces the download location (the directory that
 # holds the assets and SHA256SUMS); tests point it at a local server.
+# LLM_TESTS_FORGE_LIBRARY_DIRECTORY replaces /lib, where musl's loader is
+# looked for; tests point it at a temporary directory.
 set -eu
 
 REPOSITORY_URL="https://github.com/albertosca/llm-tests-forge"
@@ -62,6 +64,24 @@ case "$operating_system-$architecture" in
 darwin-arm64 | darwin-x64 | linux-arm64 | linux-x64) ;;
 *) fail "$BINARY_NAME has no binary for $kernel_name $machine_name (uname -s, uname -m): the release has no asset $BINARY_NAME-$operating_system-$architecture; see $REPOSITORY_URL" ;;
 esac
+
+# musl Linux (Alpine) cannot load the Linux binaries, which are built against
+# glibc. Detected as rustup-init.sh does (ldd --version names musl, on
+# stderr), and by musl's dynamic loader, for a system whose ldd says nothing.
+is_musl() {
+	if ldd --version 2>&1 | grep -q musl; then
+		return 0
+	fi
+	for loader in "${LLM_TESTS_FORGE_LIBRARY_DIRECTORY:-/lib}"/ld-musl-*; do
+		if [ -e "$loader" ]; then
+			return 0
+		fi
+	done
+	return 1
+}
+if [ "$operating_system" = linux ] && is_musl; then
+	fail "$BINARY_NAME has no binary for musl/Alpine yet ($operating_system-$architecture-musl): the $operating_system-$architecture binary needs glibc; see $REPOSITORY_URL"
+fi
 asset_name="$BINARY_NAME-$operating_system-$architecture"
 
 if [ -n "${LLM_TESTS_FORGE_BASE_URL:-}" ]; then
