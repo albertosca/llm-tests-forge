@@ -1046,7 +1046,7 @@ describe("the mutation workflow", () => {
 		pull_request: z.object({ paths: z.array(z.string()) }),
 	});
 
-	test("it runs on demand, weekly, and on pull requests touching the core, its tests, the Stryker config or the workflow itself", async () => {
+	test("it runs on demand, weekly, and on pull requests touching the core, its tests, the Stryker config, its TypeScript resolve hook or the workflow itself", async () => {
 		const mutation = await readWorkflow(MUTATION_WORKFLOW);
 		const triggers = TriggersSchema.parse(mutation.on);
 		expect(Object.keys(triggers).sort()).toEqual([
@@ -1059,6 +1059,7 @@ describe("the mutation workflow", () => {
 			"src/core/**",
 			"tests/core/**",
 			"stryker.config.mjs",
+			"scripts/mutation/**",
 			".github/workflows/mutation.yml",
 		]);
 	});
@@ -1099,11 +1100,13 @@ describe("the mutation workflow", () => {
 		});
 	});
 
-	test("the mutation script is stryker run, and never part of check", async () => {
+	test("the mutation script runs Stryker under node with the TypeScript resolve hook, and is never part of check", async () => {
 		const manifest = JSON.parse(
 			await readFile(join(REPOSITORY, "package.json"), "utf8"),
 		);
-		expect(manifest.scripts.mutation).toBe("stryker run");
+		expect(manifest.scripts.mutation).toBe(
+			"node --import ./scripts/mutation/stryker-typescript.mjs node_modules/@stryker-mutator/core/bin/stryker.js run",
+		);
 		expect(manifest.scripts.check).not.toContain("mutation");
 	});
 });

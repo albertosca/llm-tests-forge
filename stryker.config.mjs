@@ -16,10 +16,22 @@ const coreTests = readdirSync(
 	.map((name) => `./tests/core/${name}`)
 	.sort();
 
+// The checker runs in its own Node process, which needs the same resolve
+// hook as the `mutation` script (the file says why). An absolute URL, so the
+// process's working directory does not matter.
+const typescriptHook = new URL(
+	"./scripts/mutation/stryker-typescript.mjs",
+	import.meta.url,
+).href;
+
 export default {
-	// Stryker auto-loads only @stryker-mutator/* plugins; without this line the
+	// Naming plugins replaces Stryker's default (every @stryker-mutator/*
+	// package), so the checker is listed too. Without the bun runner here the
 	// `bun` option below is reported as unknown and the runner never starts.
-	plugins: ["@hughescr/stryker-bun-runner"],
+	plugins: [
+		"@hughescr/stryker-bun-runner",
+		"@stryker-mutator/typescript-checker",
+	],
 	testRunner: "bun",
 	coverageAnalysis: "perTest",
 	mutate: ["src/core/**/*.ts"],
@@ -28,9 +40,16 @@ export default {
 	// on 2026-09-30), so one new survivor or uncovered mutant fails the run.
 	thresholds: { high: 90, low: 80, break: 100 },
 	reporters: ["clear-text", "json"],
-	// TypeScript 7 (the Go port) has no JS API, so Stryker's tsconfig rewrite
-	// (ts.parseConfigFileTextToJson) crashes. This tsconfig has no extends or
-	// references to rewrite; naming a file that does not exist skips it. If a
-	// future Stryker needs the TypeScript API for anything else, this breaks.
-	tsconfigFile: "stryker-skips-tsconfig-rewrite.json",
+	// A mutant that does not compile is a CompileError, never Killed or
+	// Survived. The native mode compiles with the project's TypeScript 7, so
+	// a mutant is judged by the compiler `bun run typecheck` runs; it checks
+	// mutants one at a time and does not support project references.
+	// tsconfig.stryker.json narrows the check to src, where every mutant
+	// lives: measured on report.ts, the same 238 CompileErrors in half the time
+	// of checking tests and scripts as well. The tests' own types stay with
+	// `bun run typecheck`.
+	checkers: ["typescript"],
+	typescriptChecker: { experimentalNativePreview: true },
+	checkerNodeArgs: ["--import", typescriptHook],
+	tsconfigFile: "tsconfig.stryker.json",
 };

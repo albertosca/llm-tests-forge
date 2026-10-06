@@ -8,6 +8,7 @@ on:
       - "src/core/**"
       - "tests/core/**"
       - "stryker.config.mjs"
+      - "scripts/mutation/**"
       - ".github/workflows/mutation.yml"
 permissions:
   contents: read
@@ -22,7 +23,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
-      # The Stryker CLI is a Node script.
+      # The Stryker CLI is a Node script, and its TypeScript resolve hook
+      # (scripts/mutation/) needs module.registerHooks, Node 22.15 or later.
       - uses: actions/setup-node@v7
         with:
           node-version: "22"

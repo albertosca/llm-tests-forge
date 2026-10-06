@@ -17,7 +17,7 @@
 		"typecheck": "tsc --noEmit",
 		"build:binary": "bun build --compile src/cli/bin.ts --outfile dist/llm-tests-forge",
 		"check": "bun run lint && bun run typecheck && bun test",
-		"mutation": "stryker run",
+		"mutation": "node --import ./scripts/mutation/stryker-typescript.mjs node_modules/@stryker-mutator/core/bin/stryker.js run",
 		"validate:example": "bunx promptfoo@0.123.0 validate -c examples/moonlighter-classify-email/.forge/promptfooconfig.yaml",
 		"test:live": "FORGE_LIVE=1 bun test tests/live --config=bunfig.live.toml",
 		"test:shims": "FORGE_SHIMS=1 bun test tests/shims --timeout 600000 --config=bunfig.shims.toml",
@@ -37,7 +37,9 @@
 		"@biomejs/biome": "2.5.13",
 		"@hughescr/stryker-bun-runner": "1.4.0",
 		"@stryker-mutator/core": "10.0.0",
+		"@stryker-mutator/typescript-checker": "10.0.0",
 		"@types/bun": "latest",
-		"typescript": "7.0.2"
+		"typescript": "7.0.2",
+		"typescript5": "npm:typescript@5.9.3"
 	}
 }
