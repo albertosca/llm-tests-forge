@@ -32,6 +32,14 @@ describe("loadPrices", () => {
 			approximate: false,
 		});
 	});
+	test("an embedded table that does not parse is named `prices.yaml (embedded)`, since it has no path", async () => {
+		const error = await loadPrices(undefined, "models: {}\n").catch(
+			(caught: Error) => caught,
+		);
+		expect(error).toBeInstanceOf(ForgeError);
+		expect((error as ForgeError).message).toContain("prices.yaml (embedded)");
+		expect((error as ForgeError).message).toContain("at least one model");
+	});
 	test("names the file when it is missing", async () => {
 		const error = await loadPrices("/nowhere/prices.yaml").catch(
 			(caught: Error) => caught,
@@ -87,13 +95,37 @@ describe("priceFor", () => {
 			"anthropic/claude-haiku-4-5",
 		);
 	});
-	test("a model with no provider part is priced against the rows of the provider it spells", () => {
+	// Not an endorsement: `emit` and parseModelSpec refuse a model string with
+	// no provider part, while `estimate` and `report` price it as written. That
+	// inconsistency is known and left alone on purpose: making estimateSuite
+	// refuse it broke 13 report tests, because the frozen results fixtures
+	// name a model `target-haiku-4-5`, and `report` must keep reading runs
+	// already made. This test only pins what priceFor does today.
+	test("KNOWN QUIRK, pinned as is: a model with no provider part is taken whole as the provider", () => {
 		expect(priceFor("anthropic", table)).toMatchObject({
 			pricedAs: "anthropic/claude-haiku-4-5",
 			approximate: true,
 			priced: true,
 		});
 		expect(priceFor("anthropi", table).priced).toBe(false);
+	});
+	test("a name that is a property of every object is an unknown model, never a row", () => {
+		for (const name of [
+			"constructor",
+			"toString",
+			"__proto__",
+			"hasOwnProperty",
+		]) {
+			expect({ name, ...priceFor(name, table) }).toEqual({
+				name,
+				input: 0,
+				output: 0,
+				pricedAs: name,
+				approximate: true,
+				priced: false,
+			});
+			expect(priceFor(`${name}/x`, table).priced).toBe(false);
+		}
 	});
 	test("a provider whose name only starts like a listed one is not priced from it", () => {
 		expect(priceFor("anthropic-labs/claude-x", table).priced).toBe(false);

@@ -3,7 +3,6 @@ import { parseYamlText, readYamlFile } from "../core/files";
 import { type Prices, PricesSchema } from "../core/schemas";
 
 /** The name errors give the embedded table, which has no path on the disk. */
-// Stryker disable next-line StringLiteral: the name is only read when the embedded table fails to parse, and it cannot: tests/llm/prices.test.ts parses it ("the default table parses") and a table that stopped parsing would fail that test before any person saw the name.
 const EMBEDDED_PRICES = "prices.yaml (embedded)";
 
 export interface ModelPrice {
@@ -16,9 +15,17 @@ export interface ModelPrice {
 	priced: boolean;
 }
 
-export async function loadPrices(path?: string): Promise<Prices> {
+/**
+ * The table at `path`, or the one embedded in the binary. `embeddedText` is
+ * the embedded table's text: a seam for the test that gives it a table that
+ * does not parse, which the real one never is.
+ */
+export async function loadPrices(
+	path?: string,
+	embeddedText: string = String(embeddedPrices),
+): Promise<Prices> {
 	if (path === undefined)
-		return parseYamlText(EMBEDDED_PRICES, String(embeddedPrices), PricesSchema);
+		return parseYamlText(EMBEDDED_PRICES, embeddedText, PricesSchema);
 	return readYamlFile(path, PricesSchema);
 }
 
@@ -42,7 +49,12 @@ function commonPrefix(first: string, second: string): number {
  * person cannot see is worse than no estimate.
  */
 export function priceFor(model: string, prices: Prices): ModelPrice {
-	const exact = prices.models[model];
+	// Own keys only: `constructor` or `toString` is not a row. Every row of a
+	// table that passed PricesSchema holds a price, so a row is never undefined
+	// here or in the loop below; no guard for that is needed.
+	const exact = Object.hasOwn(prices.models, model)
+		? prices.models[model]
+		: undefined;
 	if (exact)
 		return { ...exact, pricedAs: model, approximate: false, priced: true };
 	const slash = model.indexOf("/");

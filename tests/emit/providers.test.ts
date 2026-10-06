@@ -39,6 +39,12 @@ describe("toPromptfooProvider / fromPromptfooProvider", () => {
 		);
 		expect(() => toPromptfooProvider("/gpt-5")).toThrow(ForgeError);
 	});
+	test("a provider named like a property of every object is unknown, not a prefix", () => {
+		for (const provider of ["constructor", "toString", "__proto__"])
+			expect(() => toPromptfooProvider(`${provider}/x`)).toThrow(
+				`cannot emit a promptfoo provider for "${provider}/x"`,
+			);
+	});
 	test("a model id with a slash inside keeps it (fake/ is refused, not mangled)", () => {
 		expect(() => toPromptfooProvider("fake/tests/fixtures/x.json")).toThrow(
 			ForgeError,

@@ -10,7 +10,12 @@ const PREFIX: Record<string, string> = {
 /** `provider/model` as the forge writes it → the id promptfoo 0.123 resolves. */
 export function toPromptfooProvider(model: string): string {
 	const slash = model.indexOf("/");
-	const prefix = slash === -1 ? undefined : PREFIX[model.slice(0, slash)];
+	const provider = model.slice(0, slash);
+	// Own keys only: `constructor/x` must be an unknown provider, not Object's prefix.
+	const prefix =
+		slash !== -1 && Object.hasOwn(PREFIX, provider)
+			? PREFIX[provider]
+			: undefined;
 	if (prefix === undefined)
 		throw new ForgeError(
 			`cannot emit a promptfoo provider for "${model}"; known: ${Object.keys(PREFIX).join(", ")}`,
