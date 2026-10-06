@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse } from "yaml";
 import { z } from "zod";
+import { SCOPE_NAMES } from "../../scripts/mutation/scopes.mjs";
 import { writeChecksums } from "../../scripts/release/checksums";
 import {
 	CHECKSUMS_FILE_NAME,
@@ -47,12 +48,14 @@ const JobSchema = z.object({
 		.object({
 			"fail-fast": z.boolean().optional(),
 			matrix: z.object({
-				include: z.array(z.object({ runner: z.string(), asset: z.string() })),
+				include: z.array(
+					z.record(z.string(), z.union([z.string(), z.number()])),
+				),
 			}),
 		})
 		.optional(),
 	"continue-on-error": z.union([z.boolean(), z.string()]).optional(),
-	"timeout-minutes": z.number().optional(),
+	"timeout-minutes": z.union([z.number(), z.string()]).optional(),
 	steps: z.array(StepSchema),
 });
 type Job = z.infer<typeof JobSchema>;
@@ -1046,7 +1049,7 @@ describe("the mutation workflow", () => {
 		pull_request: z.object({ paths: z.array(z.string()) }),
 	});
 
-	test("it runs on demand, weekly, and on pull requests touching the core, its tests, the Stryker config, its TypeScript resolve hook or the workflow itself", async () => {
+	test("it runs on demand, weekly, and on pull requests touching src, the tests, the Stryker config and its tsconfig, its TypeScript resolve hook and scopes, or the workflow itself", async () => {
 		const mutation = await readWorkflow(MUTATION_WORKFLOW);
 		const triggers = TriggersSchema.parse(mutation.on);
 		expect(Object.keys(triggers).sort()).toEqual([
@@ -1056,20 +1059,49 @@ describe("the mutation workflow", () => {
 		]);
 		expect(triggers.schedule).toHaveLength(1);
 		expect(triggers.pull_request.paths).toEqual([
-			"src/core/**",
-			"tests/core/**",
+			"src/**",
+			"tests/**",
 			"stryker.config.mjs",
+			"tsconfig.stryker.json",
 			"scripts/mutation/**",
 			".github/workflows/mutation.yml",
 		]);
 	});
 
-	test("nothing silences the gate: no job or step continues on error, the job has a time limit, and the report uploads even when the gate fails", async () => {
+	// The time limit of each scope's job, in minutes, sized from the CPU time
+	// measured on 2026-10-06 (the comment in mutation.yml has the numbers).
+	// Changing one is a decision.
+	const SCOPE_TIMEOUTS = {
+		core: 60,
+		cli: 60,
+		emit: 20,
+		report: 20,
+		llm: 20,
+	};
+
+	test("one job per mutation scope, none cancelling the others, each with the time limit measured for it", async () => {
+		const mutation = await readWorkflow(MUTATION_WORKFLOW);
+		const jobs = Object.values(mutation.jobs);
+		expect(jobs).toHaveLength(1);
+		const job = jobs[0];
+		expect(job?.strategy?.["fail-fast"]).toBe(false);
+		const include = job?.strategy?.matrix.include ?? [];
+		expect(
+			Object.fromEntries(include.map((entry) => [entry.scope, entry.timeout])),
+		).toEqual(SCOPE_TIMEOUTS);
+		// A scope added to scopes.mjs without a job here would never run in CI.
+		expect(include.map((entry) => entry.scope).sort()).toEqual(
+			[...SCOPE_NAMES].sort(),
+		);
+		expect(job?.["timeout-minutes"]).toBe(`\${{ matrix.timeout }}`);
+		expect(job?.["runs-on"]).toBe("ubuntu-24.04");
+	});
+
+	test("nothing silences the gate: no job or step continues on error, and each scope's report uploads even when its gate fails", async () => {
 		const mutation = await readWorkflow(MUTATION_WORKFLOW);
 		const jobs = Object.values(mutation.jobs);
 		for (const job of jobs) {
 			expect(job["continue-on-error"]).toBeUndefined();
-			expect(job["timeout-minutes"]).toBe(30);
 			for (const step of job.steps)
 				expect(step["continue-on-error"]).toBeUndefined();
 		}
@@ -1079,7 +1111,7 @@ describe("the mutation workflow", () => {
 		expect(upload?.if).toBe("always()");
 	});
 
-	test("its one job installs from the lockfile with bun and node, runs bun run mutation, and uploads reports/mutation/", async () => {
+	test("its job installs from the lockfile with bun and node, runs bun run mutation for its own scope, and uploads reports/mutation/ under a name of its own", async () => {
 		const mutation = await readWorkflow(MUTATION_WORKFLOW);
 		expect(mutation.permissions).toEqual({ contents: "read" });
 		const jobs = Object.values(mutation.jobs);
@@ -1090,12 +1122,15 @@ describe("the mutation workflow", () => {
 			"oven-sh/setup-bun@v2",
 			"actions/setup-node@v7",
 			"bun install --frozen-lockfile",
-			"bun run mutation",
+			'bun run mutation "$SCOPE"',
 			"actions/upload-artifact@v7",
 		]);
 		expect(steps[1]?.with).toEqual({ "bun-version": "1.4.2" });
+		// The scope reaches the shell through the environment, never spliced
+		// into the script text.
+		expect(steps[4]?.env).toEqual({ SCOPE: `\${{ matrix.scope }}` });
 		expect(steps[5]?.with).toEqual({
-			name: "mutation-report",
+			name: `mutation-report-\${{ matrix.scope }}`,
 			path: "reports/mutation/",
 		});
 	});
@@ -1104,8 +1139,11 @@ describe("the mutation workflow", () => {
 		const manifest = JSON.parse(
 			await readFile(join(REPOSITORY, "package.json"), "utf8"),
 		);
-		expect(manifest.scripts.mutation).toBe(
-			"node --import ./scripts/mutation/stryker-typescript.mjs node_modules/@stryker-mutator/core/bin/stryker.js run",
+		// The runner takes the scope as its argument and starts Stryker with
+		// the hook (scripts/mutation/run.mjs); `mutation:all` runs every scope.
+		expect(manifest.scripts.mutation).toBe("node scripts/mutation/run.mjs");
+		expect(manifest.scripts["mutation:all"]).toBe(
+			"node scripts/mutation/run-all.mjs",
 		);
 		expect(manifest.scripts.check).not.toContain("mutation");
 	});

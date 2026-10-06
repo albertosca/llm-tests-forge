@@ -1,20 +1,18 @@
-import { readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import {
+	SCOPES,
+	scopeFromEnvironment,
+	testFilesOf,
+} from "./scripts/mutation/scopes.mjs";
 
-// The bun runner passes testFiles to `bun test` verbatim: no glob expansion,
-// and a bare name is a filter, so every file is listed as ./paths. The list
-// is read from disk (recursively) so a new core test joins it on its own;
-// tests/mutation/stryker-config.test.ts fails if this list and the files on
-// disk ever disagree, because a test file missing here leaves its mutants
-// unkilled without any error. The directory is found from this file, so the
-// list is the same whatever directory imports the config.
-const coreTests = readdirSync(
-	fileURLToPath(new URL("./tests/core", import.meta.url)),
-	{ recursive: true },
-)
-	.filter((name) => name.endsWith(".test.ts"))
-	.map((name) => `./tests/core/${name}`)
-	.sort();
+// One Stryker run covers one scope (scripts/mutation/scopes.mjs says what a
+// scope is): `bun run mutation <scope>` puts its name in STRYKER_SCOPE, and
+// no name means core. The bun runner passes testFiles to `bun test`
+// verbatim, so the scope's list is built there as ./paths;
+// tests/mutation/stryker-config.test.ts fails if a list and the files on
+// disk ever disagree, because a test file missing from it leaves its mutants
+// unkilled without any error.
+const scopeName = scopeFromEnvironment(process.env);
+const scope = SCOPES[scopeName];
 
 // The checker runs in its own Node process, which needs the same resolve
 // hook as the `mutation` script (the file says why). An absolute URL, so the
@@ -34,12 +32,15 @@ export default {
 	],
 	testRunner: "bun",
 	coverageAnalysis: "perTest",
-	mutate: ["src/core/**/*.ts"],
-	bun: { testFiles: coreTests },
+	mutate: scope.mutate,
+	bun: { testFiles: testFilesOf(scopeName) },
 	// Every mutant in src/core is killed or disabled with its reason (100.00%
 	// on 2026-09-30), so one new survivor or uncovered mutant fails the run.
-	thresholds: { high: 90, low: 80, break: 100 },
+	// A scope still being measured has break null: it reports and never fails.
+	thresholds: { high: 90, low: 80, break: scope.breakThreshold },
 	reporters: ["clear-text", "json"],
+	// One report file per scope, so `bun run mutation:all` keeps every one.
+	jsonReporter: { fileName: `reports/mutation/mutation-${scopeName}.json` },
 	// A mutant that does not compile is a CompileError, never Killed or
 	// Survived. The native mode compiles with the project's TypeScript 7, so
 	// a mutant is judged by the compiler `bun run typecheck` runs; it checks

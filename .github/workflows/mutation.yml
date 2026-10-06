@@ -5,19 +5,42 @@ on:
     - cron: "17 4 * * 1"
   pull_request:
     paths:
-      - "src/core/**"
-      - "tests/core/**"
+      - "src/**"
+      - "tests/**"
       - "stryker.config.mjs"
+      - "tsconfig.stryker.json"
       - "scripts/mutation/**"
       - ".github/workflows/mutation.yml"
 permissions:
   contents: read
 jobs:
   mutation:
+    name: mutation (${{ matrix.scope }})
     runs-on: ubuntu-24.04
-    # A local run takes 4-5 minutes on 8 CPUs; the runner has 2 vCPUs, so
-    # about four times that, with room to spare before a hung run is cut.
-    timeout-minutes: 30
+    # One job per scope (scripts/mutation/scopes.mjs), so each run fits its own
+    # time limit and a scope whose survivors are still being killed cannot
+    # fail the others. timeout-minutes is the per-scope limit below. Sizing
+    # (2026-10-06, an 8-CPU Mac at load 40-48, so the CPU time is an upper
+    # bound): core 2960 CPU-seconds, cli 2120, emit 240, report 190, llm 165.
+    # The runner has 2 vCPUs, so the floor is half those: core 25 minutes, cli
+    # 18, the others 2 or 3, plus Stryker's timeouts (cli has 171 mutants that
+    # hang until cut) and the install. Core and cli get 60, over twice their
+    # floor; the others 20. Tighten from the first real runs' durations.
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scope: core
+            timeout: 60
+          - scope: cli
+            timeout: 60
+          - scope: emit
+            timeout: 20
+          - scope: report
+            timeout: 20
+          - scope: llm
+            timeout: 20
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -29,9 +52,11 @@ jobs:
         with:
           node-version: "22"
       - run: bun install --frozen-lockfile
-      - run: bun run mutation
+      - run: bun run mutation "$SCOPE"
+        env:
+          SCOPE: ${{ matrix.scope }}
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: mutation-report
+          name: mutation-report-${{ matrix.scope }}
           path: reports/mutation/
