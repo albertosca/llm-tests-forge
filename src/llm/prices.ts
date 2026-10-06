@@ -3,6 +3,7 @@ import { parseYamlText, readYamlFile } from "../core/files";
 import { type Prices, PricesSchema } from "../core/schemas";
 
 /** The name errors give the embedded table, which has no path on the disk. */
+// Stryker disable next-line StringLiteral: the name is only read when the embedded table fails to parse, and it cannot: tests/llm/prices.test.ts parses it ("the default table parses") and a table that stopped parsing would fail that test before any person saw the name.
 const EMBEDDED_PRICES = "prices.yaml (embedded)";
 
 export interface ModelPrice {
@@ -21,15 +22,15 @@ export async function loadPrices(path?: string): Promise<Prices> {
 	return readYamlFile(path, PricesSchema);
 }
 
+/**
+ * How many characters the two strings share from the start. Past the end of
+ * either, `charCodeAt` is NaN, and NaN equals nothing, not even itself: the
+ * loop needs no bound of its own and ends at the shorter string.
+ */
 function commonPrefix(first: string, second: string): number {
-	let index = 0;
-	while (
-		index < first.length &&
-		index < second.length &&
-		first[index] === second[index]
-	)
-		index += 1;
-	return index;
+	let length = 0;
+	while (first.charCodeAt(length) === second.charCodeAt(length)) length += 1;
+	return length;
 }
 
 /**
@@ -44,20 +45,18 @@ export function priceFor(model: string, prices: Prices): ModelPrice {
 	const exact = prices.models[model];
 	if (exact)
 		return { ...exact, pricedAs: model, approximate: false, priced: true };
-	const provider = model.split("/")[0] ?? "";
-	let best: string | undefined;
-	let bestPrice: Prices["models"][string] | undefined;
-	let bestLength = -1;
+	const slash = model.indexOf("/");
+	const provider = slash === -1 ? model : model.slice(0, slash);
+	let best:
+		| { name: string; price: Prices["models"][string]; length: number }
+		| undefined;
 	for (const [name, price] of Object.entries(prices.models)) {
 		if (!name.startsWith(`${provider}/`)) continue;
 		const length = commonPrefix(name, model);
-		if (length > bestLength) {
-			best = name;
-			bestPrice = price;
-			bestLength = length;
-		}
+		if (best === undefined || length > best.length)
+			best = { name, price, length };
 	}
-	if (best === undefined || bestPrice === undefined)
+	if (best === undefined)
 		return {
 			input: 0,
 			output: 0,
@@ -65,5 +64,10 @@ export function priceFor(model: string, prices: Prices): ModelPrice {
 			approximate: true,
 			priced: false,
 		};
-	return { ...bestPrice, pricedAs: best, approximate: true, priced: true };
+	return {
+		...best.price,
+		pricedAs: best.name,
+		approximate: true,
+		priced: true,
+	};
 }

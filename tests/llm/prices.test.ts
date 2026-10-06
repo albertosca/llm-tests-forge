@@ -71,6 +71,34 @@ describe("priceFor", () => {
 			priced: true,
 		});
 	});
+	test("the closest row wins wherever it is listed, and a row that only shares the provider loses to a closer one", () => {
+		expect(priceFor("anthropic/claude-sonnet-6", table)).toEqual({
+			input: 2,
+			output: 10,
+			pricedAs: "anthropic/claude-sonnet-5",
+			approximate: true,
+			priced: true,
+		});
+		// The longest row is a prefix of the model, and the model a prefix of another row.
+		expect(priceFor("anthropic/claude-haiku-4-5-latest", table).pricedAs).toBe(
+			"anthropic/claude-haiku-4-5",
+		);
+		expect(priceFor("anthropic/claude-h", table).pricedAs).toBe(
+			"anthropic/claude-haiku-4-5",
+		);
+	});
+	test("a model with no provider part is priced against the rows of the provider it spells", () => {
+		expect(priceFor("anthropic", table)).toMatchObject({
+			pricedAs: "anthropic/claude-haiku-4-5",
+			approximate: true,
+			priced: true,
+		});
+		expect(priceFor("anthropi", table).priced).toBe(false);
+	});
+	test("a provider whose name only starts like a listed one is not priced from it", () => {
+		expect(priceFor("anthropic-labs/claude-x", table).priced).toBe(false);
+		expect(priceFor("googlex/gemini", table).priced).toBe(false);
+	});
 	test("an unknown provider is not priced", () => {
 		expect(priceFor("ollama/llama3", table)).toEqual({
 			input: 0,

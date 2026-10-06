@@ -19,14 +19,20 @@ export function defaultConfigDirectory(): string {
 	return join(homedir(), ".config");
 }
 
-/** The value `name` has in an `api.env` text, or `undefined`. */
+/**
+ * The value `name` has in an `api.env` text, or `undefined`: the first line
+ * of the form `NAME=value`, with an `export` prefix tolerated and the value
+ * kept whole, any further `=` included. A blank line has no `=`, and the text
+ * before a comment's first `=` starts with `#`, which no name does, so
+ * neither needs skipping by hand.
+ */
 function valueIn(text: string, name: string): string | undefined {
 	for (const rawLine of text.split("\n")) {
-		const line = rawLine.trim().replace(/^export\s+/, "");
-		if (line === "" || line.startsWith("#")) continue;
-		const separator = line.indexOf("=");
-		if (separator > 0 && line.slice(0, separator) === name)
-			return line.slice(separator + 1);
+		const [key, ...value] = rawLine
+			.trim()
+			.replace(/^export\s+/, "")
+			.split("=");
+		if (key === name && value.length > 0) return value.join("=");
 	}
 	return undefined;
 }
@@ -39,11 +45,11 @@ function valueIn(text: string, name: string): string | undefined {
  * still fails loudly, naming it, when a verb needs it. Returns the names
  * it filled, never their values.
  */
-export async function loadProviderKeys(args: {
+export async function loadProviderKeys(options: {
 	environment: Record<string, string | undefined>;
 	configDirectory: string;
 }): Promise<string[]> {
-	const { environment, configDirectory } = args;
+	const { environment, configDirectory } = options;
 	const loaded: string[] = [];
 	for (const [name, file] of Object.entries(PROVIDER_KEY_FILES)) {
 		if (environment[name]) continue;

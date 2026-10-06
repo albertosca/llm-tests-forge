@@ -109,4 +109,59 @@ describe("loadProviderKeys", () => {
 		await loadProviderKeys({ environment, configDirectory });
 		expect(environment).toEqual({ ANTHROPIC_API_KEY: "part-one=part-two" });
 	});
+
+	test("a line may be indented and end in a carriage return, and neither becomes part of the name or the value", async () => {
+		const configDirectory = await configDirectoryWith({
+			anthropic: "   ANTHROPIC_API_KEY=windows-file-key\r\n",
+		});
+		const environment: Record<string, string | undefined> = {};
+		await loadProviderKeys({ environment, configDirectory });
+		expect(environment).toStrictEqual({
+			ANTHROPIC_API_KEY: "windows-file-key",
+		});
+	});
+
+	test("`export` is dropped from the start of a line however much whitespace follows it, and from nowhere else", async () => {
+		const configDirectory = await configDirectoryWith({
+			anthropic: "export \t  ANTHROPIC_API_KEY=after-wide-export\n",
+			openai: "OPENAI_API_KEY=export  stays-in-the-value\n",
+		});
+		const environment: Record<string, string | undefined> = {};
+		await loadProviderKeys({ environment, configDirectory });
+		expect(environment).toStrictEqual({
+			ANTHROPIC_API_KEY: "after-wide-export",
+			OPENAI_API_KEY: "export  stays-in-the-value",
+		});
+	});
+
+	test("a line that names the key without an = is not an assignment: the search goes on to the line that is", async () => {
+		const configDirectory = await configDirectoryWith({
+			anthropic: "ANTHROPIC_API_KEY\nANTHROPIC_API_KEY=the-real-one\n",
+			google: "GOOGLE_API_KEY\n",
+		});
+		const environment: Record<string, string | undefined> = {};
+		const loaded = await loadProviderKeys({ environment, configDirectory });
+		expect(environment).toStrictEqual({ ANTHROPIC_API_KEY: "the-real-one" });
+		expect(loaded).toEqual(["ANTHROPIC_API_KEY"]);
+	});
+
+	test("the first line that holds the key wins, and another variable's line before it is not it", async () => {
+		const configDirectory = await configDirectoryWith({
+			anthropic:
+				"OTHER_API_KEY=not-this\nANTHROPIC_API_KEY=first\nANTHROPIC_API_KEY=second\n",
+		});
+		const environment: Record<string, string | undefined> = {};
+		await loadProviderKeys({ environment, configDirectory });
+		expect(environment).toStrictEqual({ ANTHROPIC_API_KEY: "first" });
+	});
+
+	test("an empty value is not a key: the variable stays unset", async () => {
+		const configDirectory = await configDirectoryWith({
+			anthropic: "ANTHROPIC_API_KEY=\n",
+		});
+		const environment: Record<string, string | undefined> = {};
+		const loaded = await loadProviderKeys({ environment, configDirectory });
+		expect(environment).toStrictEqual({});
+		expect(loaded).toEqual([]);
+	});
 });

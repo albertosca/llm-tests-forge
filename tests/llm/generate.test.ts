@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MockLanguageModelV4 } from "ai/test";
@@ -211,6 +211,141 @@ describe("createLlm.generate", () => {
 		expect(failure).toBeInstanceOf(ForgeError);
 		expect((failure as ForgeError).message).toContain("does-not-exist.json");
 		expect((failure as ForgeError).details.file).toBe(missingFile);
+	});
+
+	/** A responses file in a temporary folder, as `fake/<path>` names it. */
+	async function fakeFileWith(responses: unknown): Promise<string> {
+		const file = join(await mkdtemp(join(tmpdir(), "forge-fake-")), "r.json");
+		await writeFile(file, JSON.stringify(responses));
+		return file;
+	}
+	const generateOnce = (
+		llm: ReturnType<typeof createLlm>,
+		model: string,
+		verb: string,
+	) => llm.generate({ schema, prompt: "p", model, verb });
+
+	test("a sequence entry keeps its own place per verb, and past its end repeats the last response", async () => {
+		const file = await fakeFileWith({
+			first: ['{"answer": 1}', '{"answer": 2}'],
+			second: ['{"answer": 10}', '{"answer": 20}'],
+		});
+		const llm = createLlm({ forgeDirectory: await tmpForge() });
+		const answers: number[] = [];
+		for (const verb of ["first", "second", "first", "second", "first"])
+			answers.push(
+				(await generateOnce(llm, `fake/${file}`, verb)).object.answer,
+			);
+		expect(answers).toEqual([1, 10, 2, 20, 2]);
+	});
+
+	test("an array entry with something other than a string in it is refused, not read as text", async () => {
+		const file = await fakeFileWith({ mixed: ['{"answer": 1}', 2] });
+		const failure = await generateOnce(
+			createLlm({ forgeDirectory: await tmpForge() }),
+			`fake/${file}`,
+			"mixed",
+		).catch((thrown: unknown) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as ForgeError).reason).toBe(
+			'fake responses entry for "mixed" must be a string or an array of strings',
+		);
+	});
+
+	test("a missing responses file is refused by name, with the file in the details", async () => {
+		const missing = fixturePath("does-not-exist.json");
+		const failure = await generateOnce(
+			createLlm({ forgeDirectory: await tmpForge() }),
+			`fake/${missing}`,
+			"probe",
+		).catch((thrown: unknown) => thrown);
+		expect((failure as ForgeError).reason).toBe(
+			"fake responses file not found",
+		);
+		expect((failure as ForgeError).details).toEqual({ file: missing });
+	});
+
+	describe("a model output that does not match the schema", () => {
+		/** A schema whose check throws a ZodError of two issues, wrapped in `wrappers` plain errors (each the cause of the one above). */
+		const failingSchema = (wrappers: number) =>
+			z.object({ answer: z.number() }).transform((): { answer: number } => {
+				let inner: unknown = new z.ZodError([
+					{ code: "custom", path: ["answer"], message: "first problem" },
+					{ code: "custom", path: ["deep", "path"], message: "second problem" },
+				]);
+				for (let level = 0; level < wrappers; level += 1)
+					inner = new Error(`wrapper ${level}`, { cause: inner });
+				throw inner;
+			});
+		const reasonWith = async (
+			schemaToUse: z.ZodType<{ answer: number }>,
+			model: ReturnType<typeof mock>,
+		) => {
+			const failure = await createLlm({
+				forgeDirectory: await tmpForge(),
+				resolve: () => model,
+			})
+				.generate({
+					schema: schemaToUse,
+					prompt: "p",
+					model: "anthropic/x",
+					verb: "probe",
+				})
+				.catch((thrown: unknown) => thrown);
+			expect(failure).toBeInstanceOf(ForgeError);
+			return (failure as ForgeError).reason;
+		};
+
+		test("says the schema's own reasons, each as `path: message`, joined by `; `", async () => {
+			expect(await reasonWith(failingSchema(0), mock('{"answer": 1}'))).toBe(
+				"model output did not match the probe schema: No object generated: response did not match schema. answer: first problem; deep.path: second problem",
+			);
+		});
+		test("finds the reasons through the SDK's wrapping, but only a few levels down", async () => {
+			const found = "answer: first problem; deep.path: second problem";
+			expect(
+				await reasonWith(failingSchema(2), mock('{"answer": 1}')),
+			).toEndWith(`schema. ${found}`);
+			// One level further down is beyond what is searched: the sentence
+			// stands alone, with nothing appended.
+			expect(await reasonWith(failingSchema(3), mock('{"answer": 1}'))).toBe(
+				"model output did not match the probe schema: No object generated: response did not match schema.",
+			);
+		});
+		test("without reasons the sentence ends at the SDK's own message", async () => {
+			expect(await reasonWith(schema, mock("not json at all"))).toBe(
+				"model output did not match the probe schema: No object generated: could not parse the response.",
+			);
+		});
+		test("a response with no text at all still leaves an empty file to look at", async () => {
+			const directory = await tmpForge();
+			const silent = new MockLanguageModelV4({
+				doGenerate: async () => ({
+					content: [],
+					finishReason: { unified: "stop", raw: undefined },
+					usage: {
+						inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+						outputTokens: { total: 0, text: 0, reasoning: 0 },
+					},
+					warnings: [],
+				}),
+			});
+			const failure = await createLlm({
+				forgeDirectory: directory,
+				resolve: () => silent,
+				now: () => new Date("2026-09-14T10:00:00Z"),
+			})
+				.generate({ schema, prompt: "p", model: "anthropic/x", verb: "probe" })
+				.catch((thrown: unknown) => thrown);
+			const rawPath = (failure as ForgeError).details.rawPath;
+			expect(rawPath).toBe(
+				join(
+					forgePaths(directory).failuresDir,
+					"probe-2026-09-14T10-00-00.000Z.txt",
+				),
+			);
+			expect(await readFile(rawPath as string, "utf8")).toBe("");
+		});
 	});
 
 	test("propagates errors other than NoObjectGeneratedError unwrapped", async () => {
