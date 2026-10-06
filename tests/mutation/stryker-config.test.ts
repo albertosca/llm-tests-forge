@@ -176,6 +176,20 @@ describe("every mutation scope", async () => {
 		).toThrow("Unknown mutation scope");
 	});
 
+	test("the environment Stryker runs in names the scope and drops FORCE_COLOR, which would hide killed mutants as RuntimeErrors", () => {
+		expect(
+			scopes.mutationEnvironment("emit", {
+				FORCE_COLOR: "3",
+				PATH: "/bin",
+				STRYKER_SCOPE: "core",
+			}),
+		).toStrictEqual({ PATH: "/bin", STRYKER_SCOPE: "emit" });
+		expect(scopes.mutationEnvironment("llm", { HOME: "/h" })).toStrictEqual({
+			HOME: "/h",
+			STRYKER_SCOPE: "llm",
+		});
+	});
+
 	test("`bun run mutation` refuses an unknown scope or two scopes with exit code 2 and the usage, before starting Stryker", () => {
 		for (const argumentsList of [["nope"], ["core", "cli"], ["constructor"]]) {
 			const child = Bun.spawnSync(

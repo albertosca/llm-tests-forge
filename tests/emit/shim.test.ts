@@ -2,10 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ForgeError } from "../../src/core/errors";
 import type { Feature } from "../../src/core/schemas";
 import type { ShimKind } from "../../src/core/target";
 import {
 	findManifestDirectory,
+	MANIFESTS,
 	type ShimLocations,
 	shimFiles,
 	shimLocations,
@@ -216,6 +218,20 @@ describe("shimFiles", () => {
 			"# the path (emit writes your_crate and path/to/your/crate when it found\n# no Cargo.toml above the suite, or one with no [package] name: a\n# workspace-only root, or a manifest it could not parse).",
 		);
 	});
+	test("the go module is the one on a line that starts with `module`, whatever whitespace follows", () => {
+		const moduleOf = (manifestText: string): string | undefined =>
+			shimFiles(
+				feature,
+				"go",
+				"forge_target",
+				locations(manifestText),
+			)[0]?.content.match(/\/\/ replace (\S+) =>/)?.[1];
+		expect(
+			moduleOf("// requires module other.test/thing\nmodule real.test/app\n"),
+		).toBe("real.test/app");
+		expect(moduleOf("module   spaced.test/app\n")).toBe("spaced.test/app");
+		expect(moduleOf("module\ttabbed.test/app\n")).toBe("tabbed.test/app");
+	});
 	test("a go manifest with no module line still names placeholders", () => {
 		const goFiles = shimFiles(
 			feature,
@@ -255,19 +271,34 @@ describe("targetCommand", () => {
 			`sh -c 'cd "../../.." && MIX_QUIET=1 ELIXIR_ERL_OPTIONS="$ELIXIR_ERL_OPTIONS -logger default_handler [{config,#{type=>standard_error}}]" mix run "evals/a/.forge/forge_target.exs" "$@"' forge_target`,
 		);
 	});
-	test("elixir with no mix.exs above the suite is refused by name", () => {
-		expect(() =>
+	const refusalOf = (action: () => unknown): ForgeError => {
+		try {
+			action();
+		} catch (error) {
+			if (error instanceof ForgeError) return error;
+			throw error;
+		}
+		throw new Error("expected a ForgeError, but nothing was thrown");
+	};
+	test("elixir with no mix.exs above the suite is refused by name, with the .forge directory as the file", () => {
+		const refusal = refusalOf(() =>
 			targetCommand("elixir", "forge_target.exs", locations()),
-		).toThrow("no mix.exs above /project/evals/a");
+		);
+		expect(refusal.message).toBe(
+			"no mix.exs above /project/evals/a; an elixir target runs through mix run from the mix project (file: /project/evals/a/.forge)",
+		);
+		expect(refusal.details).toEqual({ file: "/project/evals/a/.forge" });
 	});
-	test("elixir refuses a path the shell command cannot quote", () => {
-		expect(() =>
+	test("elixir refuses a path the shell command cannot quote, naming the .forge directory", () => {
+		const refusal = refusalOf(() =>
 			targetCommand("elixir", "forge_target.exs", {
 				forgeDirectory: "/project/it's/.forge",
 				manifestDirectory: "/project",
 				manifestText: "defmodule",
 			}),
-		).toThrow("cannot be quoted in the exec command");
+		);
+		expect(refusal.message).toContain("cannot be quoted in the exec command");
+		expect(refusal.details).toEqual({ file: "/project/it's/.forge" });
 	});
 });
 
@@ -297,6 +328,25 @@ describe("findManifestDirectory and shimLocations", () => {
 			forgeDirectory,
 			manifestDirectory: null,
 			manifestText: null,
+		});
+	});
+	test("an elixir suite finds the mix.exs above it, never a directory that merely exists", async () => {
+		const root = await realpath(await mkdtemp(join(tmpdir(), "forge-shim-")));
+		const forgeDirectory = join(root, "evals", "a", ".forge");
+		await mkdir(forgeDirectory, { recursive: true });
+		await writeFile(
+			join(root, "mix.exs"),
+			"defmodule Project.MixProject do\nend\n",
+		);
+		expect(await shimLocations("elixir", forgeDirectory)).toEqual({
+			forgeDirectory,
+			manifestDirectory: root,
+			manifestText: "defmodule Project.MixProject do\nend\n",
+		});
+		expect(MANIFESTS).toEqual({
+			elixir: "mix.exs",
+			rust: "Cargo.toml",
+			go: "go.mod",
 		});
 	});
 });

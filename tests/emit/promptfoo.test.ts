@@ -79,7 +79,14 @@ interface Failure {
 
 /** Run an emitted javascript assert the way promptfoo does: as a function body with `output` in scope. */
 function runAssert(body: string, output: string): true | Failure {
-	return new Function("output", "context", body)(output, { vars: {} });
+	// An emitted assert that does not even run is a failed assertion of the
+	// calling test, never a crash of this helper: a test that expects `true` or
+	// a given reason sees this one instead, and goes red on a comparison.
+	try {
+		return new Function("output", "context", body)(output, { vars: {} });
+	} catch (error) {
+		return failure(`the emitted assert threw: ${String(error)}`);
+	}
 }
 
 const failure = (reason: string): Failure => ({
@@ -897,7 +904,223 @@ describe("buildPromptfooConfig", () => {
 	});
 });
 
+/** The ForgeError an action throws; anything else, or nothing, fails the test. */
+function refusalOf(action: () => unknown): ForgeError {
+	try {
+		action();
+	} catch (error) {
+		if (error instanceof ForgeError) return error;
+		throw error;
+	}
+	throw new Error("expected a ForgeError, but nothing was thrown");
+}
+
+describe("buildPromptfooConfig refusals name the file and the item", () => {
+	const buildWith = (
+		options: Partial<Parameters<typeof buildPromptfooConfig>[0]>,
+	) =>
+		refusalOf(() =>
+			buildPromptfooConfig({
+				feature: labelFeature,
+				suite,
+				selection,
+				...options,
+			}),
+		);
+	const selectionOf = (scenario: Scenario, emittedCase: Case): Selection => ({
+		scenarios: [scenario],
+		cases: [emittedCase],
+		blockers: [],
+		reviewable: 0,
+	});
+
+	test("a label oracle on a json feature without label_field says so, with the feature file and id", () => {
+		const feature: Feature = {
+			...jsonFeature,
+			output: { kind: "json", fields: ["type"] },
+		};
+		const refusal = buildWith({ feature, featureFile: "evals/x/feature.yaml" });
+		expect(refusal.message).toBe(
+			"a label oracle on a json feature needs output.label_field (file: evals/x/feature.yaml, id: classify-email)",
+		);
+		expect(refusal.details).toEqual({
+			file: "evals/x/feature.yaml",
+			id: "classify-email",
+		});
+	});
+	test("a label oracle on a text feature is refused as a text output, not as a missing label_field", () => {
+		const feature: Feature = { ...labelFeature, output: { kind: "text" } };
+		const refusal = buildWith({ feature, featureFile: "evals/x/feature.yaml" });
+		expect(refusal.message).toBe(
+			"a label oracle cannot be checked against a text output (file: evals/x/feature.yaml, id: classify-email)",
+		);
+		expect(refusal.details).toEqual({
+			file: "evals/x/feature.yaml",
+			id: "classify-email",
+		});
+	});
+	test("no approved case names the feature file, `feature.yaml` when none was given", () => {
+		const empty: Selection = {
+			scenarios: [],
+			cases: [],
+			blockers: [],
+			reviewable: 0,
+		};
+		expect(buildWith({ selection: empty }).message).toBe(
+			"no approved case to emit; run `llm-tests-forge review` first (file: feature.yaml)",
+		);
+		const named = buildWith({
+			selection: empty,
+			featureFile: "evals/x/feature.yaml",
+		});
+		expect(named.details).toEqual({ file: "evals/x/feature.yaml" });
+	});
+	test("an input named like the placeholder names the file and the feature", () => {
+		const collidingFeature: Feature = {
+			...labelFeature,
+			inputs: [{ name: "target_model", kind: "text" }],
+		};
+		const httpSuite = SuiteSchema.parse({
+			...suite,
+			target: { kind: "http", models: ["m/x"], url: "http://127.0.0.1:1/x" },
+		});
+		const refusal = buildWith({
+			feature: collidingFeature,
+			suite: httpSuite,
+			featureFile: "evals/x/feature.yaml",
+		});
+		expect(refusal.details).toEqual({
+			file: "evals/x/feature.yaml",
+			id: "classify-email",
+		});
+	});
+	test("a case that names an unselected scenario, or has no expected, is named by id", () => {
+		const orphan = buildWith({
+			selection: selectionOf(
+				scenarioOf("polite-rejection", "happy", "label"),
+				caseOf("orphan-01", "not-selected", { label: "rejection" }),
+			),
+		});
+		expect(orphan.details).toEqual({ id: "orphan-01" });
+		const bare = buildWith({
+			selection: selectionOf(
+				scenarioOf("polite-rejection", "happy", "label"),
+				caseOf("bare-01", "polite-rejection", undefined),
+			),
+		});
+		expect(bare.message).toBe("case bare-01 has no expected (id: bare-01)");
+		expect(bare.details).toEqual({ id: "bare-01" });
+	});
+	test("an oracle whose half of expected is missing names the case id in the message and the details", () => {
+		const label = buildWith({
+			selection: selectionOf(
+				scenarioOf("a", "happy", "label"),
+				caseOf("a-01", "a", { rubric: "r" }),
+			),
+		});
+		expect(label.details).toEqual({ id: "a-01" });
+		const fields = buildWith({
+			feature: jsonFeature,
+			selection: selectionOf(
+				scenarioOf("b", "happy", "fields"),
+				caseOf("b-01", "b", { label: "x" }),
+			),
+		});
+		expect(fields.details).toEqual({ id: "b-01" });
+		const rubric = buildWith({
+			selection: selectionOf(
+				scenarioOf("c", "happy", "rubric"),
+				caseOf("c-01", "c", { label: "x" }),
+			),
+		});
+		expect(rubric.details).toEqual({ id: "c-01" });
+	});
+});
+
+describe("buildPromptfooConfig output details", () => {
+	const execSuite: Suite = {
+		...suite,
+		target: {
+			kind: "exec",
+			command: "./run.sh",
+			models: ["anthropic/claude-haiku-4-5"],
+		},
+	};
+
+	test("an exec target's provider carries the model in its config, like every other kind", () => {
+		const config = buildPromptfooConfig({
+			feature: jsonFeature,
+			suite: execSuite,
+			selection,
+		});
+		expect(config.providers).toEqual([
+			{
+				id: "exec: ./run.sh",
+				label: "anthropic/claude-haiku-4-5",
+				config: { model: "anthropic/claude-haiku-4-5" },
+			},
+		]);
+	});
+	test("only the scheme at the start of an http url is lower-cased; an upper-case scheme later in the text stays", () => {
+		const config = buildPromptfooConfig({
+			feature: jsonFeature,
+			suite: {
+				...suite,
+				target: {
+					kind: "http",
+					models: ["m/x"],
+					url: "{{base}}/redirect?to=HTTP://Other.test",
+				},
+			},
+			selection,
+		});
+		expect(config.providers[0]?.config.url).toBe(
+			"{{base}}/redirect?to=HTTP://Other.test",
+		);
+	});
+	test("an exec target with no input at all prompts with a placeholder named input", () => {
+		const config = buildPromptfooConfig({
+			feature: { ...jsonFeature, inputs: [] },
+			suite: execSuite,
+			selection,
+		});
+		expect(config.prompts).toEqual(["{{input}}"]);
+	});
+	test("each statement of an emitted assert is on a line of its own, so the config can be reviewed", () => {
+		expect(TOLERANT_PARSE.split("\n")).toHaveLength(4);
+		const fieldsSelection: Selection = {
+			scenarios: [scenarioOf("f", "edge", "fields")],
+			cases: [caseOf("f-01", "f", { fields: { type: "x" } })],
+			blockers: [],
+			reviewable: 0,
+		};
+		const lines = (
+			buildPromptfooConfig({
+				feature: jsonFeature,
+				suite,
+				selection: fieldsSelection,
+			}).tests[0]?.assert[0]?.value ?? ""
+		).split("\n");
+		expect(lines).toContain("const differences = [];");
+		expect(lines).toContain("const show = (value) => JSON.stringify(value);");
+	});
+});
+
 describe("renderPromptfooConfig", () => {
+	test("a long rubric stays on one line, so what a person reviews is what a judge reads", () => {
+		const rubric = `${"the answer must say so plainly and without hedging ".repeat(4)}end`;
+		const config = buildPromptfooConfig({
+			feature: labelFeature,
+			suite,
+			selection: {
+				scenarios: [scenarioOf("vague", "ambiguous", "rubric")],
+				cases: [caseOf("vague-01", "vague", { rubric })],
+				blockers: [],
+				reviewable: 0,
+			},
+		});
+		expect(renderPromptfooConfig(config)).toContain(`value: ${rubric}\n`);
+	});
 	test("is YAML that parses back to the same object, with a header comment naming the forge", () => {
 		const config = buildPromptfooConfig({
 			feature: labelFeature,

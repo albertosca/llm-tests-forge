@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { ForgeError } from "../../src/core/errors";
 import type { Selection } from "../../src/core/select";
 import { renderCasesJsonl } from "../../src/emit/jsonl";
 
@@ -36,31 +37,17 @@ describe("renderCasesJsonl", () => {
 			blockers: [],
 			reviewable: 0,
 		};
-		const text = renderCasesJsonl({ selection });
-		expect(text.endsWith("\n")).toBe(true);
-		expect(
-			text
-				.trim()
-				.split("\n")
-				.map((l) => JSON.parse(l)),
-		).toEqual([
-			{
-				id: "a-01",
-				scenario: "a",
-				kind: "happy",
-				input: { email: "x" },
-				expected: { label: "rejection" },
-			},
-			{
-				id: "a-02",
-				scenario: "a",
-				kind: "happy",
-				input: { email: "y" },
-				expected: { label: "offer" },
-			},
-		]);
+		// The exact text: one object per line, a newline between and after them,
+		// so any consumer that reads line by line gets each case on its own.
+		expect(renderCasesJsonl({ selection })).toBe(
+			[
+				'{"id":"a-01","scenario":"a","kind":"happy","input":{"email":"x"},"expected":{"label":"rejection"}}',
+				'{"id":"a-02","scenario":"a","kind":"happy","input":{"email":"y"},"expected":{"label":"offer"}}',
+				"",
+			].join("\n"),
+		);
 	});
-	test("a case whose scenario is not selected is a ForgeError naming the case", () => {
+	test("a case whose scenario is not selected is a ForgeError naming the case and the scenario", () => {
 		const selection: Selection = {
 			scenarios: [],
 			cases: [
@@ -76,6 +63,15 @@ describe("renderCasesJsonl", () => {
 			blockers: [],
 			reviewable: 0,
 		};
-		expect(() => renderCasesJsonl({ selection })).toThrow("z-01");
+		try {
+			renderCasesJsonl({ selection });
+			throw new Error("expected a ForgeError, but nothing was thrown");
+		} catch (error) {
+			expect(error).toBeInstanceOf(ForgeError);
+			expect((error as ForgeError).message).toBe(
+				'case z-01 names scenario "z", which is not selected (id: z-01)',
+			);
+			expect((error as ForgeError).details).toEqual({ id: "z-01" });
+		}
 	});
 });

@@ -17,3 +17,8 @@ export function testFilesOf(scopeName: string): string[];
 export function scopeFromEnvironment(environment: {
 	STRYKER_SCOPE?: string | undefined;
 }): string;
+
+export function mutationEnvironment(
+	scopeName: string,
+	environment: Record<string, string | undefined>,
+): Record<string, string | undefined>;

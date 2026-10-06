@@ -92,8 +92,9 @@ function pathFromShim(
 	);
 }
 
+/** A TOML table: an object a key can be looked up in, so not null, an array or a date. */
 function isTable(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+	return Object.prototype.toString.call(value) === "[object Object]";
 }
 
 /**
@@ -108,7 +109,7 @@ function crateName(manifestText: string | null): string | null {
 	try {
 		manifest = Bun.TOML.parse(manifestText);
 	} catch {
-		return null;
+		// Not TOML: `manifest` stays undefined, so no table and no name is found below and the answer is null.
 	}
 	const packageTable = isTable(manifest) ? manifest.package : undefined;
 	const name = isTable(packageTable) ? packageTable.name : undefined;
@@ -116,6 +117,7 @@ function crateName(manifestText: string | null): string | null {
 }
 
 function goModule(manifestText: string | null): string {
+	// Stryker disable next-line StringLiteral: the only string literal here is the `""` read when there is no manifest; exec on "" and on the mutant's replacement text both find no `module` line.
 	const found = /^module\s+"?([^"\s]+)"?/m.exec(manifestText ?? "");
 	return found?.[1] ?? UNKNOWN_GO_MODULE;
 }

@@ -12,20 +12,32 @@ describe("toPromptfooProvider / fromPromptfooProvider", () => {
 		["openai/gpt-5", "openai:chat:gpt-5"],
 		["ollama/llama3", "ollama:chat:llama3"],
 	];
-	for (const [forge, pf] of pairs) {
-		test(`${forge} <-> ${pf}`, () => {
-			expect(toPromptfooProvider(forge)).toBe(pf);
-			expect(fromPromptfooProvider(pf)).toBe(forge);
+	for (const [forge, promptfooId] of pairs) {
+		test(`${forge} <-> ${promptfooId}`, () => {
+			expect(toPromptfooProvider(forge)).toBe(promptfooId);
+			expect(fromPromptfooProvider(promptfooId)).toBe(forge);
 		});
 	}
-	test("an unknown provider is a ForgeError naming the model", () => {
+	test("an unknown provider is a ForgeError naming the model and the known providers", () => {
 		expect(() => toPromptfooProvider("mistral/x")).toThrow(ForgeError);
 		expect(() => toPromptfooProvider("mistral/x")).toThrow('"mistral/x"');
 		try {
 			toPromptfooProvider("mistral/x");
-		} catch (e) {
-			expect((e as ForgeError).details).toEqual({ id: "mistral/x" });
+			throw new Error("expected a ForgeError, but nothing was thrown");
+		} catch (error) {
+			expect(error).toBeInstanceOf(ForgeError);
+			expect((error as ForgeError).details).toEqual({ id: "mistral/x" });
+			expect((error as ForgeError).reason).toBe(
+				'cannot emit a promptfoo provider for "mistral/x"; known: anthropic, google, openai, ollama',
+			);
 		}
+	});
+	test("a model with no slash is refused even when it starts like a provider", () => {
+		expect(() => toPromptfooProvider("openai")).toThrow(ForgeError);
+		expect(() => toPromptfooProvider("openaiX")).toThrow(
+			'cannot emit a promptfoo provider for "openaiX"',
+		);
+		expect(() => toPromptfooProvider("/gpt-5")).toThrow(ForgeError);
 	});
 	test("a model id with a slash inside keeps it (fake/ is refused, not mangled)", () => {
 		expect(() => toPromptfooProvider("fake/tests/fixtures/x.json")).toThrow(

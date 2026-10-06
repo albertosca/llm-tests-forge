@@ -4,7 +4,12 @@
 // and runs Stryker under node with the TypeScript resolve hook.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_SCOPE, SCOPE_NAMES, SCOPES } from "./scopes.mjs";
+import {
+	DEFAULT_SCOPE,
+	mutationEnvironment,
+	SCOPE_NAMES,
+	SCOPES,
+} from "./scopes.mjs";
 
 const requested = process.argv.slice(2);
 const names = requested.length === 0 ? [DEFAULT_SCOPE] : requested;
@@ -27,7 +32,7 @@ const child = spawnSync(
 	{
 		cwd: root,
 		stdio: "inherit",
-		env: { ...process.env, STRYKER_SCOPE: names[0] },
+		env: mutationEnvironment(names[0], process.env),
 	},
 );
 process.exit(child.status ?? 1);

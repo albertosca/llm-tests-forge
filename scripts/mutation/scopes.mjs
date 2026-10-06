@@ -97,3 +97,17 @@ export function scopeFromEnvironment(environment) {
 		);
 	return name;
 }
+
+/**
+ * The environment Stryker and the test runs it spawns get. FORCE_COLOR is
+ * dropped: it makes `bun test` colour its output even through a pipe, and
+ * the bun runner reads that output with patterns that expect plain text
+ * (`✗ name`). Coloured, it finds no test in a failing run, so a mutant that
+ * made tests fail is reported as a RuntimeError, outside the score, instead
+ * of Killed. Measured on the emit scope: 39 RuntimeError mutants with
+ * FORCE_COLOR=3, none without it.
+ */
+export function mutationEnvironment(scopeName, environment) {
+	const { FORCE_COLOR: _forcedColor, ...rest } = environment;
+	return { ...rest, STRYKER_SCOPE: scopeName };
+}

@@ -131,6 +131,7 @@ const FIELDS_DIFF = [
 	"    if (seenLabels.has(item.label)) return true;",
 	"    seenLabels.add(item.label);",
 	"  }",
+	// Stryker disable next-line StringLiteral: with the line emptied the emitted function falls off its end and answers undefined instead of false; its only use is `!hasDuplicateLabels(...)` inside `compareByLabel`, where undefined and false are the same.
 	"  return false;",
 	"};",
 	"const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);",
