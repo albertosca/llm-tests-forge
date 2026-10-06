@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { createInterruptibleReader } from "../../src/cli/interruptible-stdin";
 import {
 	askChoice,
@@ -9,6 +9,8 @@ import {
 	EditorInterruptedError,
 	InputEndedError,
 	openInEditor,
+	ReviewInterruptedError,
+	type SpawnEditor,
 } from "../../src/cli/prompts";
 import { ForgeError } from "../../src/core/errors";
 import type { Case } from "../../src/core/schemas";
@@ -64,6 +66,8 @@ describe("askChoice", () => {
 	test("an invalid answer re-asks the same question instead of accepting it", async () => {
 		const { io, out } = scriptedIo(["nonsense", "edit"]);
 		expect(await askChoice("q", CHOICES, io)).toBe("edit");
+		// What the person reads: the question and the choices, slash-separated.
+		expect(out[0]).toBe("q [approve/reject/edit/skip]");
 		// Re-asked means the question line was printed twice, not once.
 		expect(out.filter((line) => line.startsWith("q [")).length).toBe(2);
 		expect(
@@ -239,4 +243,108 @@ describe("openInEditor", () => {
 		},
 		30_000,
 	);
+
+	/** An editor that never starts: records how it was asked to, then ends as told. */
+	function standInEditor(ending: { code: number; signal: string | null }) {
+		const started: { command: string[]; stdio: unknown }[] = [];
+		const spawn: SpawnEditor = (command, options) => {
+			started.push({ command, stdio: options.stdio });
+			return {
+				exited: Promise.resolve(ending.code),
+				signalCode: ending.signal,
+			};
+		};
+		return { spawn, started };
+	}
+
+	test("with no $EDITOR it starts vi, on the item file in a forge-edit- directory, with the terminal's own stdin, stdout and stderr", async () => {
+		const { spawn, started } = standInEditor({ code: 0, signal: null });
+		const text = await openInEditor("id: s-01\n", {}, spawn);
+		expect(text).toBe("id: s-01\n");
+		expect(started).toHaveLength(1);
+		const [editor, file] = started[0]?.command ?? [];
+		expect(editor).toBe("vi");
+		expect(basename(file ?? "")).toBe("item.yaml");
+		expect(basename(dirname(file ?? ""))).toStartWith("forge-edit-");
+		expect(started[0]?.stdio).toStrictEqual(["inherit", "inherit", "inherit"]);
+	});
+
+	test("the editor named in $EDITOR is the one started", async () => {
+		const { spawn, started } = standInEditor({ code: 0, signal: null });
+		await openInEditor("x: 1\n", { EDITOR: "nano" }, spawn);
+		expect(started[0]?.command[0]).toBe("nano");
+	});
+
+	test.each([
+		["exit code 130 alone", { code: 130, signal: null }],
+		[
+			"the SIGINT signal alone, whatever exit code was reported",
+			{ code: 1, signal: "SIGINT" },
+		],
+	])("%s is a Ctrl+C: EditorInterruptedError", async (_label, ending) => {
+		const { spawn } = standInEditor(ending);
+		let caught: unknown;
+		try {
+			await openInEditor("x: 1\n", { EDITOR: "vi" }, spawn);
+		} catch (error) {
+			caught = error;
+		}
+		expect(caught).toBeInstanceOf(EditorInterruptedError);
+		expect((caught as EditorInterruptedError).message).toStartWith(
+			'editor "vi" was interrupted (file: ',
+		);
+	});
+
+	test("an editor ended by another signal is a plain failure, not a Ctrl+C", async () => {
+		const { spawn } = standInEditor({ code: 143, signal: "SIGTERM" });
+		let caught: unknown;
+		try {
+			await openInEditor("x: 1\n", { EDITOR: "vi" }, spawn);
+		} catch (error) {
+			caught = error;
+		}
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect(caught).not.toBeInstanceOf(ReviewInterruptedError);
+		expect((caught as ForgeError).message).toContain(
+			'editor "vi" exited with 143',
+		);
+	});
+});
+
+describe("the interruption errors", () => {
+	test("each names itself, and the editor and input ones are review interruptions", () => {
+		const review = new ReviewInterruptedError("stop", { id: "s-01" });
+		const editor = new EditorInterruptedError("stop");
+		const input = new InputEndedError("stop");
+		expect([review.name, editor.name, input.name]).toStrictEqual([
+			"ReviewInterruptedError",
+			"EditorInterruptedError",
+			"InputEndedError",
+		]);
+		expect(editor).toBeInstanceOf(ReviewInterruptedError);
+		expect(input).toBeInstanceOf(ReviewInterruptedError);
+		expect(review.details).toEqual({ id: "s-01" });
+	});
+
+	test("an input that ended says so, in words, and names the case", async () => {
+		const { io, reader } = scriptedIo([]);
+		reader.interrupt();
+		let caught: unknown;
+		try {
+			await askExpectedFor(pendingCase, "fields", io, anything);
+		} catch (error) {
+			caught = error;
+		}
+		expect((caught as InputEndedError).message).toBe(
+			"the input ended while an expected value was asked for (id: s-01)",
+		);
+	});
+
+	test("a fields answer trims the name and the value, and keeps every = after the first inside the value", async () => {
+		const { io } = scriptedIo(["type = rejection , note = a = b "]);
+		const result = await askExpectedFor(pendingCase, "fields", io, anything);
+		expect(result).toStrictEqual({
+			fields: { type: "rejection", note: "a = b" },
+		});
+	});
 });

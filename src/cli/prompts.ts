@@ -144,15 +144,32 @@ export async function askExpectedFor(
 	}
 }
 
+/**
+ * What `openInEditor` needs of the editor it starts; `Bun.spawn`'s result is
+ * one. Named so a test can stand in for the process: the real one reports a
+ * Ctrl+C as exit code 130 and as `signalCode` both, so only a stand-in can
+ * show that either alone is enough.
+ */
+export type EditorProcess = {
+	exited: Promise<number>;
+	signalCode: string | null;
+};
+
+export type SpawnEditor = (
+	command: string[],
+	options: { stdio: ["inherit", "inherit", "inherit"] },
+) => EditorProcess;
+
 export async function openInEditor(
 	yamlText: string,
 	environment: Record<string, string | undefined> = process.env,
+	spawn: SpawnEditor = Bun.spawn,
 ): Promise<string> {
 	const directory = await mkdtemp(join(tmpdir(), "forge-edit-"));
 	const path = join(directory, "item.yaml");
 	await writeFile(path, yamlText, "utf8");
 	const editor = environment.EDITOR ?? "vi";
-	const editorProcess = Bun.spawn([editor, path], {
+	const editorProcess = spawn([editor, path], {
 		stdio: ["inherit", "inherit", "inherit"],
 	});
 	const code = await editorProcess.exited;
