@@ -278,24 +278,28 @@ export async function reviewCommand(
 			askExpectedFor(caseEntry, oracle, io, (expected) =>
 				expectedMatchesOracle(expected, oracle, feature),
 			),
-		// Collisions are per file: scenarios share scenarios.yaml, cases share
-		// their scenario's file, and the feature is alone in its own. A
+		// Collisions are per file: cases share their scenario's file. A
 		// case's file is the ids read off disk plus the ids this pass has
 		// already given its cases: two edits renaming onto the same new id
 		// were both accepted, and the file came back with two entries under
-		// it and a `duplicate_of` pointing at an ambiguous target.
-		takenIdsFor: (item) => {
-			if (item.kind === "scenario")
-				return new Set(scenarios.map((scenario) => scenario.id));
-			if (item.kind === "case")
-				return new Set([
-					...(casesById.get(item.item.scenario) ?? []).map(
-						(caseEntry) => caseEntry.id,
-					),
-					...(decidedIdsIn.get(item.item.scenario) ?? []),
-				]);
-			return new Set();
-		},
+		// it and a `duplicate_of` pointing at an ambiguous target. The
+		// feature is alone in its own file, and a scenario's id cannot be
+		// changed in review at all (`applyDecision` refuses that rename
+		// before it asks for any taken ids; tests/cli/main.test.ts pins
+		// that), so neither has an id to collide with here.
+		takenIdsFor: (item) =>
+			item.kind === "case"
+				? new Set([
+						...(casesById.get(item.item.scenario) ?? []).map(
+							(caseEntry) => caseEntry.id,
+						),
+						// Stryker disable next-line ArrayDeclaration: the mutant adds one
+						// made-up id to the taken ids of a file this pass decided nothing
+						// in; it matters only to an edit that renames a case onto that
+						// exact made-up text, and every other id behaves the same.
+						...(decidedIdsIn.get(item.item.scenario) ?? []),
+					])
+				: new Set(),
 		checkExpected: (caseEntry, oracle) =>
 			caseEntry.expected === undefined
 				? null
@@ -432,7 +436,6 @@ export async function reviewCommand(
 				// map it would read is already empty, regardless of how many
 				// decisions this file actually had.
 				const decidedCaseCount = decidedCases.size;
-				if (decidedCaseCount === 0 && oracleChange === undefined) continue;
 				// An oracle change against a file holding nothing re-opens nothing
 				// and writes nothing; the pass below reports it, together with the
 				// scenarios that have no file at all, so one change is announced

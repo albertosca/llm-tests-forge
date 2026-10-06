@@ -2637,6 +2637,8 @@ describe("review: editing a scenario's oracle re-opens the cases it invalidates"
 		expect(out).toContain(
 			"review: scenario polite-rejection changed oracle label → rubric; 2 case(s) re-opened — edit each to give it an expected the new oracle accepts",
 		);
+		// A scenario that has cases is not "no cases yet".
+		expect(out.filter((line) => line.includes("no cases yet"))).toEqual([]);
 		// One scenario was pending and was decided, so the pass itself left
 		// nothing pending — the two it reports are the two it re-opened.
 		expect(out.at(-1)).toBe(
@@ -5947,25 +5949,555 @@ describe("llm-tests-forge move usage", () => {
 	test("neither form, both forms, a half form and stray arguments are usage errors", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		await forgeWithApprovedScenario(cwd);
-		const lines = [
-			["move"],
-			["move", "--scenario", "a", "b", "--case", "x", "--to", "b"],
-			["move", "--case", "x"],
-			["move", "--to", "b"],
-			["move", "--scenario", "a"],
-			["move", "--scenario", "a", "b", "c"],
-			["move", "--case", "x", "--to", "b", "c"],
+		const eitherForm =
+			"error: move takes either --scenario <old> <new> or --case <id> --to <scenario>";
+		const halfCase = "error: --case <id> and --to <scenario> go together";
+		const twoIds =
+			"error: --scenario takes exactly two ids: the old one and the new one";
+		const lines: [string[], string][] = [
+			[["move"], eitherForm],
+			[
+				["move", "--scenario", "a", "b", "--case", "x", "--to", "b"],
+				eitherForm,
+			],
+			[["move", "--case", "x"], halfCase],
+			[["move", "--to", "b"], halfCase],
+			[["move", "--scenario", "a"], twoIds],
+			[["move", "--scenario", "a", "b", "c"], twoIds],
+			[
+				["move", "--case", "x", "--to", "b", "c"],
+				'error: unexpected argument "c"; --case takes only --to <scenario>',
+			],
 		];
-		for (const argv of lines) {
+		for (const [argv, message] of lines) {
 			const { context, out } = await ctxIn(cwd);
-			expect(await run(argv, context)).toBe(2);
-			expect(out.at(-1)).toStartWith("error: ");
+			expect({ argv, exitCode: await run(argv, context) }).toEqual({
+				argv,
+				exitCode: 2,
+			});
+			expect({ argv, said: out.at(-1) }).toEqual({ argv, said: message });
 		}
+	});
+});
+
+describe("llm-tests-forge move --scenario: what a failed write says when there is no cases file, or only an empty one", () => {
+	test("scenarios.yaml cannot be written and no cases file was copied: nothing else is on disk", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		const scenariosFile = join(forgeDirectory, "scenarios.yaml");
+		await chmod(scenariosFile, 0o444);
+		try {
+			const { context, out } = await ctxIn(cwd);
+			expect(
+				await run(
+					["move", "--scenario", "polite-rejection", "soft-no"],
+					context,
+				),
+			).toBe(1);
+			expect(out.at(-1)).toBe(
+				`error: cannot write: EACCES: permission denied, open '${scenariosFile}' (file: ${scenariosFile}); nothing else is written; run the move again`,
+			);
+		} finally {
+			await chmod(scenariosFile, 0o644);
+		}
+	});
+
+	test("suite.yaml cannot be rewritten and there is no cases file: the hand steps do not mention deleting one", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			include: ["polite-rejection"],
+		});
+		const suiteFile = join(forgeDirectory, "suite.yaml");
+		await chmod(suiteFile, 0o444);
+		try {
+			const { context, out } = await ctxIn(cwd);
+			expect(
+				await run(
+					["move", "--scenario", "polite-rejection", "soft-no"],
+					context,
+				),
+			).toBe(1);
+			expect(out.at(-1)).toBe(
+				`error: cannot write: EACCES: permission denied, open '${suiteFile}' (file: ${suiteFile}); already written: scenarios.yaml; change polite-rejection to soft-no in suite.include by hand`,
+			);
+		} finally {
+			await chmod(suiteFile, 0o644);
+		}
+	});
+
+	test("the empty cases file cannot be removed after scenarios.yaml and suite.yaml were rewritten: the message lists both, in the order written", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", []);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			include: ["polite-rejection"],
+		});
+		// Both rewrites are in place, so they need no write to the directory;
+		// removing the empty file does, and the directory refuses it.
+		const casesDirectory = join(forgeDirectory, "cases");
+		const sourceFile = join(casesDirectory, "polite-rejection.yaml");
+		await chmod(casesDirectory, 0o555);
+		try {
+			const { context, out } = await ctxIn(cwd);
+			expect(
+				await run(
+					["move", "--scenario", "polite-rejection", "soft-no"],
+					context,
+				),
+			).toBe(1);
+			expect(out.at(-1)).toBe(
+				`error: cannot remove: EACCES: permission denied, unlink '${sourceFile}'; already written: scenarios.yaml, suite.yaml; delete cases/polite-rejection.yaml by hand (file: ${sourceFile})`,
+			);
+			expect((await readScenarios(forgeDirectory))[0]?.id).toBe("soft-no");
+			expect((await readSuite(forgeDirectory)).include).toEqual(["soft-no"]);
+		} finally {
+			await chmod(casesDirectory, 0o755);
+		}
+	});
+
+	test("a cases file whose name only sounds like the id is another file: `strasse` is not the file of `straße`", async () => {
+		// The names are compared by Unicode normalisation and lower-casing,
+		// which is what the filesystem folds; full case folding (ß = ss)
+		// would call two different files one and refuse the rename.
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "straße",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDirectory, "strasse", [
+			CASE("strasse-01", "strasse"),
+		]);
+		const other = join(forgeDirectory, "cases", "strasse.yaml");
+		await utimes(other, LONG_AGO, LONG_AGO);
+
 		const { context, out } = await ctxIn(cwd);
-		expect(await run(["move"], context)).toBe(2);
+		expect(
+			await run(["move", "--scenario", "straße", "soft-no"], context),
+		).toBe(0);
+		expect(out).toEqual([
+			"move: scenario straße → soft-no; 0 case(s) renumbered",
+		]);
+		expect((await stat(other)).mtime.getTime()).toBe(LONG_AGO.getTime());
+	});
+});
+
+describe("llm-tests-forge move --case: the line about a scenario that is not approved", () => {
+	async function moveInto(status: "approved" | "edited" | "pending") {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "huge-signature",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status,
+			},
+		]);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection"),
+			CASE("polite-rejection-02", "polite-rejection"),
+		]);
+		const { context, out } = await ctxIn(cwd);
+		expect(
+			await run(
+				["move", "--case", "polite-rejection-01", "--to", "huge-signature"],
+				context,
+			),
+		).toBe(0);
+		return out;
+	}
+
+	test.each([["approved"], ["edited"]] as const)(
+		"a %s scenario gets the case and no warning",
+		async (status) => {
+			expect(await moveInto(status)).toEqual([
+				"move: polite-rejection-01 → huge-signature-01 (scenario huge-signature)",
+			]);
+		},
+	);
+
+	test("a pending scenario gets the case and a warning that it will not run", async () => {
+		expect(await moveInto("pending")).toEqual([
+			"move: polite-rejection-01 → huge-signature-01 (scenario huge-signature)",
+			"move: scenario huge-signature is pending, so huge-signature-01 will not run until the scenario is approved",
+		]);
+	});
+});
+
+describe("review: the words and the numbers of the command line and of the write-back", () => {
+	/** A forge with the feature, one `label` scenario and one case, each with the status given. */
+	async function forgeOf(
+		cwd: string,
+		statuses: {
+			feature: "pending" | "approved";
+			scenario: "pending" | "approved";
+			caseEntry: "pending" | "approved";
+		},
+	) {
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, {
+			...FEATURE,
+			status: statuses.feature,
+		});
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: statuses.scenario,
+			},
+		]);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			CASE("polite-rejection-01", "polite-rejection", {
+				status: statuses.caseEntry,
+			}),
+		]);
+		return forgeDirectory;
+	}
+
+	/** Reviews with every answer "approve" while `readOnly` cannot be written; the exit code and the last line. */
+	async function reviewWithReadOnly(cwd: string, readOnly: string) {
+		await chmod(readOnly, 0o444);
+		try {
+			const { context, out } = await ctxIn(cwd, [
+				"approve",
+				"approve",
+				"approve",
+			]);
+			const exitCode = await run(["review"], context);
+			return { exitCode, last: out.at(-1) };
+		} finally {
+			await chmod(readOnly, 0o644);
+		}
+	}
+
+	test("--only names the values it takes, in order", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeOf(cwd, {
+			feature: "approved",
+			scenario: "approved",
+			caseEntry: "pending",
+		});
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["review", "--only", "nonsense"], context)).toBe(2);
 		expect(out.at(-1)).toBe(
-			"error: move takes either --scenario <old> <new> or --case <id> --to <scenario>",
+			'error: --only "nonsense" is not valid; choose one of: feature, scenarios, cases',
 		);
+	});
+
+	test("--only with nothing pending anywhere says nothing is pending, not that a filter hid something", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeOf(cwd, {
+			feature: "approved",
+			scenario: "approved",
+			caseEntry: "approved",
+		});
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["review", "--only", "cases"], context)).toBe(0);
+		expect(out).toEqual(["review: nothing pending"]);
+	});
+
+	test("--scenario offers that scenario itself and its cases, and counts only what is inside it as still pending", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeOf(cwd, {
+			feature: "approved",
+			scenario: "pending",
+			caseEntry: "pending",
+		});
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+			{
+				id: "elsewhere",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		const { context, out } = await ctxIn(cwd, ["approve", "approve"]);
+		expect(
+			await run(["review", "--scenario", "polite-rejection"], context),
+		).toBe(0);
+		expect(
+			(await readScenarios(forgeDirectory)).map((scenario) => [
+				scenario.id,
+				scenario.status,
+			]),
+		).toEqual([
+			["polite-rejection", "approved"],
+			["elsewhere", "pending"],
+		]);
+		expect(out.at(-1)).toBe(
+			"review: 2 approved, 0 rejected, 0 edited, 0 skipped, 0 re-opened, 0 still pending",
+		);
+	});
+
+	test("a cases file rewritten during the pass to a different size under the same modification time is not the file that was read", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeOf(cwd, {
+			feature: "approved",
+			scenario: "approved",
+			caseEntry: "pending",
+		});
+		const casesPath = join(forgeDirectory, "cases", "polite-rejection.yaml");
+		await utimes(casesPath, LONG_AGO, LONG_AGO);
+		const outsideContent =
+			"# someone else, with a longer comment than before\n[]\n";
+		const out: string[] = [];
+		const context = createContext({
+			cwd,
+			drafter: MODEL,
+			stdin: async () => {
+				await writeFile(casesPath, outsideContent, "utf8");
+				await utimes(casesPath, LONG_AGO, LONG_AGO);
+				return "approve";
+			},
+		});
+		context.stdout = (line) => out.push(line);
+		expect(await run(["review", "--only", "cases"], context)).toBe(0);
+		expect(out).toContain(
+			"review: cases/polite-rejection.yaml changed on disk during the pass; its decisions were not written",
+		);
+		expect(await readFile(casesPath, "utf8")).toBe(outsideContent);
+	});
+
+	test("feature.yaml cannot be written: nothing is written, and the scenarios and cases decided after it are named as not written", async () => {
+		if (process.getuid?.() === 0) return;
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeOf(cwd, {
+			feature: "pending",
+			scenario: "pending",
+			caseEntry: "pending",
+		});
+		const target = join(forgeDirectory, "feature.yaml");
+		const { exitCode, last } = await reviewWithReadOnly(cwd, target);
+		expect(exitCode).toBe(1);
+		expect(last).toBe(
+			`error: cannot write: EACCES: permission denied, open '${target}' (file: ${target}); the write-back stopped there: already written: nothing; not written: feature.yaml, scenarios.yaml, cases/polite-rejection.yaml`,
+		);
+	});
+
+	test("feature.yaml cannot be written and no scenario was decided: scenarios.yaml is not named", async () => {
+		if (process.getuid?.() === 0) return;
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeOf(cwd, {
+			feature: "pending",
+			scenario: "approved",
+			caseEntry: "approved",
+		});
+		const target = join(forgeDirectory, "feature.yaml");
+		const { exitCode, last } = await reviewWithReadOnly(cwd, target);
+		expect(exitCode).toBe(1);
+		expect(last).toBe(
+			`error: cannot write: EACCES: permission denied, open '${target}' (file: ${target}); the write-back stopped there: already written: nothing; not written: feature.yaml`,
+		);
+	});
+
+	test("scenarios.yaml cannot be written after feature.yaml was: it is named once, with the file that did land", async () => {
+		if (process.getuid?.() === 0) return;
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeOf(cwd, {
+			feature: "pending",
+			scenario: "pending",
+			caseEntry: "pending",
+		});
+		const target = join(forgeDirectory, "scenarios.yaml");
+		const { exitCode, last } = await reviewWithReadOnly(cwd, target);
+		expect(exitCode).toBe(1);
+		expect(last).toBe(
+			`error: cannot write: EACCES: permission denied, open '${target}' (file: ${target}); the write-back stopped there: already written: feature.yaml; not written: scenarios.yaml, cases/polite-rejection.yaml`,
+		);
+	});
+
+	test("a cases file cannot be written after two others landed: the written ones are listed in order", async () => {
+		if (process.getuid?.() === 0) return;
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeOf(cwd, {
+			feature: "pending",
+			scenario: "pending",
+			caseEntry: "pending",
+		});
+		const target = join(forgeDirectory, "cases", "polite-rejection.yaml");
+		const { exitCode, last } = await reviewWithReadOnly(cwd, target);
+		expect(exitCode).toBe(1);
+		expect(last).toBe(
+			`error: cannot write: EACCES: permission denied, open '${target}' (file: ${target}); the write-back stopped there: already written: feature.yaml, scenarios.yaml; not written: cases/polite-rejection.yaml`,
+		);
+	});
+
+	test("a failure that is not a failed write is passed on as it is, not described as a stopped write-back", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeOf(cwd, {
+			feature: "approved",
+			scenario: "approved",
+			caseEntry: "pending",
+		});
+		const { context, out } = await ctxIn(cwd, ["approve"]);
+		const print = context.stdout;
+		context.stdout = (line) => {
+			// The summary comes after every write: nothing is mid-write.
+			if (line.startsWith("review: 1 approved"))
+				throw new ForgeError("the terminal went away");
+			print(line);
+		};
+		expect(await run(["review"], context)).toBe(1);
+		expect(out.at(-1)).toBe("error: the terminal went away");
+	});
+
+	/** Runs `body` with `$EDITOR` pointing at `path`. */
+	async function withEditor<Result>(
+		path: string,
+		body: () => Promise<Result>,
+	): Promise<Result> {
+		const original = process.env.EDITOR;
+		process.env.EDITOR = path;
+		try {
+			return await body();
+		} finally {
+			if (original === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = original;
+		}
+	}
+
+	test("a scenario's oracle change is judged against that scenario's own earlier oracle, whichever scenarios were decided before it", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "alpha",
+				kind: "happy",
+				oracle: "rubric",
+				description: "d",
+				status: "pending",
+			},
+			{
+				id: "beta",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		await writeCases(forgeDirectory, "beta", [CASE("beta-01", "beta")]);
+		const editor = await editorReplacing(
+			cwd,
+			"oracle: label",
+			"oracle: rubric",
+		);
+		const { context, out } = await ctxIn(cwd, ["approve", "edit"]);
+		await withEditor(editor, async () => {
+			expect(await run(["review"], context)).toBe(0);
+		});
+		expect(out).toContain(
+			"review: scenario beta changed oracle label → rubric; 1 case(s) re-opened — edit each to give it an expected the new oracle accepts",
+		);
+		expect(
+			(await readScenarios(forgeDirectory)).map((scenario) => [
+				scenario.id,
+				scenario.oracle,
+				scenario.status,
+			]),
+		).toEqual([
+			["alpha", "rubric", "approved"],
+			["beta", "rubric", "edited"],
+		]);
+		expect((await readCases(forgeDirectory, "beta"))[0]?.status).toBe(
+			"pending",
+		);
+	});
+
+	test("a scenario decided earlier in the pass does not stand in for the others when a later case is checked against its own scenario's oracle", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "alpha",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+			{
+				id: "beta",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDirectory, "beta", [
+			CASE("beta-01", "beta", { status: "pending" }),
+		]);
+		const { context, out } = await ctxIn(cwd, ["approve", "approve"]);
+		expect(await run(["review"], context)).toBe(0);
+		expect(out.filter((line) => line.includes("cannot apply"))).toEqual([]);
+		expect((await readCases(forgeDirectory, "beta"))[0]?.status).toBe(
+			"approved",
+		);
+		expect(out.at(-1)).toBe(
+			"review: 2 approved, 0 rejected, 0 edited, 0 skipped, 0 re-opened, 0 still pending",
+		);
+	});
+
+	test("renaming a scenario in review is refused with the move that does it, even onto a sibling's id, and the item is asked again", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "alpha",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+			{
+				id: "beta",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		const editor = await editorReplacing(cwd, "id: alpha", "id: beta");
+		const { context, out } = await ctxIn(cwd, ["edit", "skip", "skip"]);
+		await withEditor(editor, async () => {
+			expect(await run(["review"], context)).toBe(0);
+		});
+		expect(out).toContain(
+			'cannot apply: a scenario\'s id cannot be changed in review (from "alpha" to "beta"): it names .forge/cases/<id>.yaml; run `llm-tests-forge move --scenario alpha beta` (id: alpha)',
+		);
+		expect(
+			(await readScenarios(forgeDirectory)).map((scenario) => scenario.id),
+		).toEqual(["alpha", "beta"]);
 	});
 });
 
