@@ -94,6 +94,49 @@ describe("readResults", () => {
 		expect((failure as Error).message).toContain("results.results.0.testIdx");
 	});
 
+	test("a wrong shape lists every problem, each with its path, separated by semicolons, and names the file", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-report-"));
+		const file = join(directory, "r.json");
+		await writeFile(
+			file,
+			JSON.stringify({
+				results: {
+					results: [{ testIdx: "zero", success: "yes", provider: { id: "x" } }],
+				},
+			}),
+		);
+		const failure = await readResults(file).catch((thrown: Error) => thrown);
+		expect(failure).toBeInstanceOf(ForgeError);
+		expect((failure as ForgeError).reason).toBe(
+			"does not match promptfoo's results shape: results.results.0.testIdx: Invalid input: expected number, received string; results.results.0.success: Invalid input: expected boolean, received string",
+		);
+		expect((failure as ForgeError).details).toStrictEqual({ file });
+	});
+
+	test("keeps the error a provider reported, whatever its type", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "forge-report-"));
+		const file = join(directory, "r.json");
+		await writeFile(
+			file,
+			JSON.stringify({
+				results: {
+					results: [
+						{
+							testIdx: 0,
+							success: false,
+							provider: { id: "file://x.py" },
+							response: { error: { status: 529 } },
+						},
+					],
+				},
+			}),
+		);
+		const parsed = await readResults(file);
+		expect(parsed.results.results[0]?.response?.error).toStrictEqual({
+			status: 529,
+		});
+	});
+
 	test("reports why a directory cannot be read instead of calling it missing", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "forge-report-"));
 		const failure = await readResults(directory).catch(

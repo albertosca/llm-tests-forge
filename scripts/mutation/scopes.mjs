@@ -51,7 +51,7 @@ export const SCOPES = {
 		testDirectories: ["tests/report"],
 		extraTests: ["tests/core/estimate.test.ts", "tests/core/report.test.ts"],
 		testsFromImporters: true,
-		breakThreshold: null,
+		breakThreshold: 100,
 	},
 	llm: {
 		mutate: ["src/llm/**/*.ts"],

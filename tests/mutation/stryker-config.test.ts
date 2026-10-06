@@ -115,7 +115,7 @@ describe("every mutation scope", async () => {
 			expect([100, null]).toContain(scopes.SCOPES[name].breakThreshold);
 		expect(scopes.SCOPES.core.breakThreshold).toBe(100);
 		// A scope whose survivors are all killed stays at 100: it never goes back to report-only.
-		for (const name of ["core", "emit", "llm"])
+		for (const name of ["core", "emit", "llm", "report"])
 			expect({
 				name,
 				breakThreshold: scopes.SCOPES[name].breakThreshold,
