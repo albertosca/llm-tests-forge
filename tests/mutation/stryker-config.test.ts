@@ -114,6 +114,12 @@ describe("every mutation scope", async () => {
 		for (const name of scopeNames)
 			expect([100, null]).toContain(scopes.SCOPES[name].breakThreshold);
 		expect(scopes.SCOPES.core.breakThreshold).toBe(100);
+		// A scope whose survivors are all killed stays at 100: it never goes back to report-only.
+		for (const name of ["core", "emit", "llm"])
+			expect({
+				name,
+				breakThreshold: scopes.SCOPES[name].breakThreshold,
+			}).toEqual({ name, breakThreshold: 100 });
 	});
 
 	// The checks above are only as good as the one that finds the gap.

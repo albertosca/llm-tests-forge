@@ -44,7 +44,7 @@ export const SCOPES = {
 		testDirectories: ["tests/emit"],
 		extraTests: [],
 		testsFromImporters: true,
-		breakThreshold: null,
+		breakThreshold: 100,
 	},
 	report: {
 		mutate: ["src/report/**/*.ts"],
@@ -63,7 +63,7 @@ export const SCOPES = {
 			"tests/core/scenarios.test.ts",
 		],
 		testsFromImporters: true,
-		breakThreshold: null,
+		breakThreshold: 100,
 	},
 };
 
