@@ -1,4 +1,6 @@
 import {
+	mutateFromEnvironment,
+	reportFileName,
 	SCOPES,
 	scopeFromEnvironment,
 	testFilesOf,
@@ -32,7 +34,9 @@ export default {
 	],
 	testRunner: "bun",
 	coverageAnalysis: "perTest",
-	mutate: scope.mutate,
+	// STRYKER_MUTATE_FILE (`bun run mutation <scope> --mutate <file>`) narrows
+	// the mutated files to one; the tests stay the scope's whole list.
+	mutate: mutateFromEnvironment(scopeName, process.env),
 	bun: { testFiles: testFilesOf(scopeName) },
 	// Every mutant in src/core is killed or disabled with its reason (100.00%
 	// on 2026-09-30), so one new survivor or uncovered mutant fails the run.
@@ -40,7 +44,7 @@ export default {
 	thresholds: { high: 90, low: 80, break: scope.breakThreshold },
 	reporters: ["clear-text", "json"],
 	// One report file per scope, so `bun run mutation:all` keeps every one.
-	jsonReporter: { fileName: `reports/mutation/mutation-${scopeName}.json` },
+	jsonReporter: { fileName: reportFileName(scopeName, process.env) },
 	// A mutant that does not compile is a CompileError, never Killed or
 	// Survived. The native mode compiles with the project's TypeScript 7, so
 	// a mutant is judged by the compiler `bun run typecheck` runs; it checks

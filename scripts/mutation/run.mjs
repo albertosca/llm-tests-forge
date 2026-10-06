@@ -7,15 +7,14 @@ import { fileURLToPath } from "node:url";
 import {
 	DEFAULT_SCOPE,
 	mutationEnvironment,
+	parseMutationArguments,
 	SCOPE_NAMES,
-	SCOPES,
 } from "./scopes.mjs";
 
-const requested = process.argv.slice(2);
-const names = requested.length === 0 ? [DEFAULT_SCOPE] : requested;
-if (requested.length > 1 || !Object.hasOwn(SCOPES, names[0])) {
+const requested = parseMutationArguments(process.argv.slice(2));
+if (requested === null) {
 	process.stderr.write(
-		`Usage: bun run mutation [scope]\nScopes: ${SCOPE_NAMES.join(", ")} (default ${DEFAULT_SCOPE}); bun run mutation:all runs them all.\n`,
+		`Usage: bun run mutation [scope] [--mutate <file>]\nScopes: ${SCOPE_NAMES.join(", ")} (default ${DEFAULT_SCOPE}); bun run mutation:all runs them all.\n--mutate <file> runs the scope's tests against that one file of the scope only.\n`,
 	);
 	process.exit(2);
 }
@@ -32,7 +31,11 @@ const child = spawnSync(
 	{
 		cwd: root,
 		stdio: "inherit",
-		env: mutationEnvironment(names[0], process.env),
+		env: mutationEnvironment(
+			requested.scopeName,
+			process.env,
+			requested.mutateFile,
+		),
 	},
 );
 process.exit(child.status ?? 1);

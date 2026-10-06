@@ -20,7 +20,7 @@ async function configOf(scopeName: string): Promise<{
 	try {
 		return (
 			await import(
-				`${join(REPOSITORY, "stryker.config.mjs")}?scope=${scopeName}`
+				`${join(REPOSITORY, "stryker.config.mjs")}?scope=${scopeName}&file=${encodeURIComponent(process.env.STRYKER_MUTATE_FILE ?? "")}`
 			)
 		).default;
 	} finally {
@@ -196,8 +196,92 @@ describe("every mutation scope", async () => {
 		});
 	});
 
+	test("the arguments are a scope, or a scope and --mutate with one file; anything else is refused", () => {
+		expect(scopes.parseMutationArguments([])).toStrictEqual({
+			scopeName: "core",
+			mutateFile: null,
+		});
+		expect(scopes.parseMutationArguments(["emit"])).toStrictEqual({
+			scopeName: "emit",
+			mutateFile: null,
+		});
+		expect(
+			scopes.parseMutationArguments(["cli", "--mutate", "src/cli/prompts.ts"]),
+		).toStrictEqual({ scopeName: "cli", mutateFile: "src/cli/prompts.ts" });
+		for (const refused of [
+			["nope"],
+			["constructor"],
+			["core", "cli"],
+			["cli", "--mutate"],
+			["cli", "--mutates", "src/cli/prompts.ts"],
+			["cli", "--mutate", "src/cli/prompts.ts", "extra"],
+		])
+			expect({
+				arguments: refused,
+				parsed: scopes.parseMutationArguments(refused),
+			}).toStrictEqual({ arguments: refused, parsed: null });
+	});
+
+	test("one file of a scope can be mutated alone: the config narrows `mutate` to it, names its own report, and refuses a file the scope would not mutate", async () => {
+		const environment = { STRYKER_MUTATE_FILE: "src/cli/prompts.ts" };
+		expect(scopes.mutateFromEnvironment("cli", environment)).toStrictEqual([
+			"src/cli/prompts.ts",
+		]);
+		expect(scopes.mutateFromEnvironment("cli", {})).toStrictEqual(
+			scopes.SCOPES.cli.mutate,
+		);
+		expect(scopes.reportFileName("cli", environment)).toBe(
+			"reports/mutation/mutation-cli-prompts.json",
+		);
+		expect(scopes.reportFileName("cli", {})).toBe(
+			"reports/mutation/mutation-cli.json",
+		);
+		// bin.ts is excluded, core's file belongs to another scope, a typo does not exist.
+		for (const file of [
+			"src/cli/bin.ts",
+			"src/core/cases.ts",
+			"src/cli/no-such-file.ts",
+			"src/cli",
+		])
+			expect(() =>
+				scopes.mutateFromEnvironment("cli", { STRYKER_MUTATE_FILE: file }),
+			).toThrow(`"${file}" is not a file the cli scope mutates`);
+		const before = process.env.STRYKER_MUTATE_FILE;
+		process.env.STRYKER_MUTATE_FILE = "src/cli/prompts.ts";
+		try {
+			const config = await configOf("cli");
+			expect(config.mutate).toStrictEqual(["src/cli/prompts.ts"]);
+			expect(config.jsonReporter.fileName).toBe(
+				"reports/mutation/mutation-cli-prompts.json",
+			);
+			expect(config.bun.testFiles).toStrictEqual(scopes.testFilesOf("cli"));
+		} finally {
+			if (before === undefined) delete process.env.STRYKER_MUTATE_FILE;
+			else process.env.STRYKER_MUTATE_FILE = before;
+		}
+		expect(
+			scopes.mutationEnvironment(
+				"cli",
+				{ STRYKER_MUTATE_FILE: "stale" },
+				"src/cli/prompts.ts",
+			),
+		).toStrictEqual({
+			STRYKER_SCOPE: "cli",
+			STRYKER_MUTATE_FILE: "src/cli/prompts.ts",
+		});
+		// A file left in the caller's environment never leaks into a whole-scope run.
+		expect(
+			scopes.mutationEnvironment("cli", { STRYKER_MUTATE_FILE: "stale" }),
+		).toStrictEqual({ STRYKER_SCOPE: "cli" });
+	}, 30_000);
+
 	test("`bun run mutation` refuses an unknown scope or two scopes with exit code 2 and the usage, before starting Stryker", () => {
-		for (const argumentsList of [["nope"], ["core", "cli"], ["constructor"]]) {
+		for (const argumentsList of [
+			["nope"],
+			["core", "cli"],
+			["constructor"],
+			["cli", "--mutate"],
+		]) {
 			const child = Bun.spawnSync(
 				[
 					"node",
@@ -211,7 +295,7 @@ describe("every mutation scope", async () => {
 				exitCode: 2,
 			});
 			expect(child.stderr.toString()).toContain(
-				"Usage: bun run mutation [scope]\nScopes: core, cli, emit, report, llm (default core)",
+				"Usage: bun run mutation [scope] [--mutate <file>]\nScopes: core, cli, emit, report, llm (default core)",
 			);
 			expect(child.stdout.toString()).toBe("");
 		}

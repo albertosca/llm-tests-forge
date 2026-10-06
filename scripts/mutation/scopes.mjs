@@ -1,4 +1,5 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
+import path, { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // One mutation scope per top-level directory of src. A scope is a separate
@@ -99,6 +100,51 @@ export function scopeFromEnvironment(environment) {
 }
 
 /**
+ * What `bun run mutation` was asked: `[scope]`, or `[scope, "--mutate",
+ * file]` to run the scope's whole test list against one file of it (an
+ * iteration loop: minutes instead of the whole scope's twenty). Anything else
+ * is null, and the caller prints the usage.
+ */
+export function parseMutationArguments(argumentsList) {
+	const [first = DEFAULT_SCOPE, flag, file, ...rest] = argumentsList;
+	if (!Object.hasOwn(SCOPES, first)) return null;
+	if (argumentsList.length <= 1) return { scopeName: first, mutateFile: null };
+	if (flag !== "--mutate" || file === undefined || rest.length > 0) return null;
+	return { scopeName: first, mutateFile: file };
+}
+
+/**
+ * The files the scope mutates, or the one file named in STRYKER_MUTATE_FILE.
+ * That file must be one the scope would mutate anyway and must exist: a typo
+ * would otherwise run Stryker over nothing and report a clean score.
+ */
+export function mutateFromEnvironment(scopeName, environment) {
+	const file = environment.STRYKER_MUTATE_FILE;
+	const scope = SCOPES[scopeName];
+	if (file === undefined || file === "") return scope.mutate;
+	const root = fileURLToPath(new URL("../..", import.meta.url));
+	const included = scope.mutate
+		.filter((pattern) => !pattern.startsWith("!"))
+		.some((pattern) => path.matchesGlob(file, pattern));
+	const excluded = scope.mutate
+		.filter((pattern) => pattern.startsWith("!"))
+		.some((pattern) => path.matchesGlob(file, pattern.slice(1)));
+	if (!included || excluded || !existsSync(`${root}${file}`))
+		throw new Error(
+			`"${file}" is not a file the ${scopeName} scope mutates (expected an existing file matching ${scope.mutate.join(", ")})`,
+		);
+	return [file];
+}
+
+/** One report file per scope, and one per file of a one-file run, so that run never overwrites the scope's own. */
+export function reportFileName(scopeName, environment) {
+	const file = environment.STRYKER_MUTATE_FILE;
+	const suffix =
+		file === undefined || file === "" ? "" : `-${basename(file, ".ts")}`;
+	return `reports/mutation/mutation-${scopeName}${suffix}.json`;
+}
+
+/**
  * The environment Stryker and the test runs it spawns get. FORCE_COLOR is
  * dropped: it makes `bun test` colour its output even through a pipe, and
  * the bun runner reads that output with patterns that expect plain text
@@ -107,7 +153,15 @@ export function scopeFromEnvironment(environment) {
  * of Killed. Measured on the emit scope: 39 RuntimeError mutants with
  * FORCE_COLOR=3, none without it.
  */
-export function mutationEnvironment(scopeName, environment) {
-	const { FORCE_COLOR: _forcedColor, ...rest } = environment;
-	return { ...rest, STRYKER_SCOPE: scopeName };
+export function mutationEnvironment(scopeName, environment, mutateFile = null) {
+	const {
+		FORCE_COLOR: _forcedColor,
+		STRYKER_MUTATE_FILE: _staleFile,
+		...rest
+	} = environment;
+	return {
+		...rest,
+		STRYKER_SCOPE: scopeName,
+		...(mutateFile === null ? {} : { STRYKER_MUTATE_FILE: mutateFile }),
+	};
 }

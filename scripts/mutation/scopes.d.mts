@@ -21,4 +21,19 @@ export function scopeFromEnvironment(environment: {
 export function mutationEnvironment(
 	scopeName: string,
 	environment: Record<string, string | undefined>,
+	mutateFile?: string | null,
 ): Record<string, string | undefined>;
+
+export function parseMutationArguments(
+	argumentsList: string[],
+): { scopeName: string; mutateFile: string | null } | null;
+
+export function mutateFromEnvironment(
+	scopeName: string,
+	environment: { STRYKER_MUTATE_FILE?: string | undefined },
+): string[];
+
+export function reportFileName(
+	scopeName: string,
+	environment: { STRYKER_MUTATE_FILE?: string | undefined },
+): string;
