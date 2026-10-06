@@ -493,3 +493,133 @@ describe("runReviewLoop", () => {
 		expect(result.summary.skipped).toBe(1);
 	});
 });
+
+describe("runReviewLoop: what a person reads and what the editor receives", () => {
+	const base = {
+		openEditor: async (yamlText: string) => yamlText,
+		askExpected: async () => ({ label: "x" }),
+		checkExpected: () => null,
+		takenIdsFor: () => new Set<string>(),
+		oracleOf: () => "label" as const,
+	};
+
+	test("the question names the kind of the item and its id, and offers the four choices", async () => {
+		const asked: [string, string[]][] = [];
+		await runReviewLoop({
+			...base,
+			items: [{ kind: "case", item: withExp }],
+			ask: async (question, choices) => {
+				asked.push([question, choices]);
+				return "skip";
+			},
+			print: () => {},
+		});
+		expect(asked).toStrictEqual([
+			["case s-01:", ["approve", "reject", "edit", "skip"]],
+		]);
+	});
+
+	test.each([
+		["one line, no newline", "only a header", ["only a header", ""]],
+		["a header and one line", "head\nbody", ["head", "body"]],
+		["a header and a multi-line body", "head\nb1\nb2\n", ["head", "b1\nb2\n"]],
+		["an empty rendering", "", ["", ""]],
+		["a newline first", "\nrest", ["", "rest"]],
+	])(
+		"the header and the body are two prints of their own: %s",
+		async (_label, rendering, expected) => {
+			const printed: string[] = [];
+			await runReviewLoop({
+				...base,
+				items: [{ kind: "scenario", item: scn }],
+				ask: scripted(["skip"]),
+				render: () => rendering,
+				print: (line) => printed.push(line),
+			});
+			expect(printed).toStrictEqual(expected);
+		},
+	);
+
+	test("an answer outside the choices is refused with the answer, the choices in order, and the item's id", async () => {
+		let caught: unknown;
+		try {
+			await runReviewLoop({
+				...base,
+				items: [{ kind: "scenario", item: scn }],
+				ask: scripted(["yolo"]),
+				print: () => {},
+			});
+		} catch (error) {
+			caught = error;
+		}
+		expect(caught).toBeInstanceOf(ForgeError);
+		expect((caught as ForgeError).message).toBe(
+			'ask() returned an answer outside its own choices: "yolo" (expected one of: approve, reject, edit, skip) (id: s)',
+		);
+		expect((caught as ForgeError).details).toStrictEqual({ id: "s" });
+	});
+
+	test("the editor receives long text on the line it is written on, never folded at 80 columns", async () => {
+		const sentence = Array.from({ length: 40 }, () => "word").join(" ");
+		const longCase: Case = { ...withExp, input: { email: sentence } };
+		let received = "";
+		await runReviewLoop({
+			...base,
+			items: [{ kind: "case", item: longCase }],
+			ask: scripted(["edit"]),
+			openEditor: async (yamlText) => {
+				received = yamlText;
+				return yamlText;
+			},
+			print: () => {},
+		});
+		expect(received).toContain(`email: ${sentence}\n`);
+	});
+});
+
+describe("runReviewLoop: the oracle check", () => {
+	const base = {
+		openEditor: async (yamlText: string) => yamlText,
+		askExpected: async () => ({ label: "x" }),
+		takenIdsFor: () => new Set<string>(),
+		oracleOf: () => "label" as const,
+	};
+
+	test("rejecting a case whose expected the oracle does not accept is allowed: that is how it is got rid of", async () => {
+		const printed: string[] = [];
+		const checked: Case[] = [];
+		const result = await runReviewLoop({
+			...base,
+			items: [{ kind: "case", item: withExp }],
+			ask: scripted(["reject"]),
+			checkExpected: (caseEntry) => {
+				checked.push(caseEntry);
+				return "label is not one of the feature's labels";
+			},
+			print: (line) => printed.push(line),
+		});
+		expect(result.summary.rejected).toBe(1);
+		expect(caseAt(result, 0).status).toBe("rejected");
+		expect(checked).toStrictEqual([]);
+		expect(printed.some((line) => line.startsWith("cannot apply"))).toBe(false);
+	});
+
+	test("a case edited down to no expected at all is not checked against the oracle", async () => {
+		const { expected: _dropped, ...withoutExpected } = withExp;
+		const checked: Case[] = [];
+		const result = await runReviewLoop({
+			...base,
+			items: [{ kind: "case", item: withExp }],
+			ask: scripted(["edit"]),
+			openEditor: async () => stringify(withoutExpected),
+			checkExpected: (caseEntry) => {
+				checked.push(caseEntry);
+				return "an expected label is required";
+			},
+			print: () => {},
+		});
+		expect(checked).toStrictEqual([]);
+		expect(result.summary.edited).toBe(1);
+		expect(caseAt(result, 0).expected).toBeUndefined();
+	});
+});

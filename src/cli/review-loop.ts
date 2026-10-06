@@ -183,9 +183,10 @@ export async function runReviewLoop(
 		for (;;) {
 			// Header and body are two prints, as they always were: callers
 			// and tests read the header as a line of its own.
-			const [header = "", ...body] = render(current).split("\n");
-			loopArguments.print(header);
-			loopArguments.print(body.join("\n"));
+			const shown = render(current);
+			const lineEnd = shown.indexOf("\n");
+			loopArguments.print(lineEnd === -1 ? shown : shown.slice(0, lineEnd));
+			loopArguments.print(lineEnd === -1 ? "" : shown.slice(lineEnd + 1));
 			const raw = await loopArguments.ask(
 				`${pending.kind} ${current.item.id}:`,
 				CHOICES,
