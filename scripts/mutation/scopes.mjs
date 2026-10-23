@@ -38,7 +38,7 @@ export const SCOPES = {
 		testDirectories: ["tests/cli"],
 		extraTests: [],
 		testsFromImporters: true,
-		breakThreshold: null,
+		breakThreshold: 100,
 	},
 	emit: {
 		mutate: ["src/emit/**/*.ts"],
