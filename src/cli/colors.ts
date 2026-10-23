@@ -9,8 +9,8 @@ import type { PendingItem } from "../core/review";
  * escapes are removed, which the tests hold it to.
  */
 
-const code = (open: number, close: number) => (s: string) =>
-	`\x1b[${open}m${s}\x1b[${close}m`;
+const code = (open: number, close: number) => (text: string) =>
+	`\x1b[${open}m${text}\x1b[${close}m`;
 
 const bold = code(1, 22);
 const red = code(31, 39);
@@ -26,10 +26,10 @@ const dim = code(2, 22);
  * whenever `NO_COLOR` is set to a non-empty value (https://no-color.org).
  */
 export function colorEnabled(
-	env: Record<string, string | undefined>,
+	environment: Record<string, string | undefined>,
 	isTTY: boolean | undefined,
 ): boolean {
-	return isTTY === true && (env.NO_COLOR ?? "") === "";
+	return isTTY === true && (environment.NO_COLOR ?? "") === "";
 }
 
 export interface Palette {
@@ -40,7 +40,7 @@ export interface Palette {
 	prompt: (line: string) => string;
 }
 
-const identity = (s: string) => s;
+const identity = (text: string) => text;
 
 export function palette(enabled: boolean): Palette {
 	return enabled
@@ -48,13 +48,13 @@ export function palette(enabled: boolean): Palette {
 		: { enabled, error: identity, prompt: identity };
 }
 
-const KIND_COLOR: Record<PendingItem["kind"], (s: string) => string> = {
+const KIND_COLOR: Record<PendingItem["kind"], (text: string) => string> = {
 	feature: magenta,
 	scenario: blue,
 	case: cyan,
 };
 
-const STATUS_COLOR: Record<string, (s: string) => string> = {
+const STATUS_COLOR: Record<string, (text: string) => string> = {
 	pending: yellow,
 	approved: green,
 	edited: green,
@@ -91,7 +91,16 @@ function colorYaml(yaml: string): string {
 		}
 		const key = KEY_LINE.exec(line);
 		if (key) {
-			const [, lead = "", dash = "", name = "", , rest] = key;
+			const [
+				,
+				// Stryker disable next-line StringLiteral: KEY_LINE's first group is `(\s*)`, which always participates in a match, so this default is never read.
+				lead = "",
+				dash = "",
+				// Stryker disable next-line StringLiteral: KEY_LINE's third group is the key name, which always participates in a match, so this default is never read.
+				name = "",
+				,
+				rest,
+			] = key;
 			// Separates the answer being judged from the input it answers.
 			if (lead === "" && name === "expected") out.push(dim("─".repeat(40)));
 			const painted =
@@ -107,6 +116,7 @@ function colorYaml(yaml: string): string {
 		}
 		const item = ITEM_LINE.exec(line);
 		if (item) {
+			// Stryker disable next-line StringLiteral: ITEM_LINE's two groups, `(\s*)` and `(.+)`, both always participate in a match, so neither default is ever read.
 			const [, lead = "", rest = ""] = item;
 			out.push(`${lead}- ${value(rest)}`);
 			continue;
@@ -121,9 +131,9 @@ function colorYaml(yaml: string): string {
  * then the item as YAML. Without color it is exactly what the loop always
  * printed, so nothing downstream of a redirected run changes.
  */
-export function renderItem(item: PendingItem, p: Palette): string {
+export function renderItem(item: PendingItem, colors: Palette): string {
 	const yaml = stringify(item.item, { lineWidth: 0 }).trimEnd();
-	if (!p.enabled) return `--- ${item.kind} ${item.item.id} ---\n${yaml}`;
+	if (!colors.enabled) return `--- ${item.kind} ${item.item.id} ---\n${yaml}`;
 	const header = bold(
 		`--- ${KIND_COLOR[item.kind](item.kind)} ${item.item.id} ---`,
 	);
