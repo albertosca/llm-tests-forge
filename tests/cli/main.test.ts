@@ -140,6 +140,7 @@ describe("forge CLI end to end (fake provider)", () => {
 		expect(
 			await run(["dedupe", "--scenario", "polite-rejection"], context),
 		).toBe(0);
+		expect(out).toEqual(["dedupe: polite-rejection: 1 marked as duplicates"]);
 		expect(
 			(await readCases(forgeDirectory, "polite-rejection"))[1]?.duplicate_of,
 		).toBe("polite-rejection-01");
@@ -148,6 +149,10 @@ describe("forge CLI end to end (fake provider)", () => {
 		expect(
 			await run(["review", "--scenario", "polite-rejection", "--all"], context),
 		).toBe(0);
+		// Nothing left over, so nothing to explain after the count.
+		expect(out.at(-1)).toBe(
+			"review: approved 2 pending case(s) of polite-rejection",
+		);
 		expect(
 			(await readCases(forgeDirectory, "polite-rejection")).every(
 				(caseEntry) => caseEntry.status === "approved",
@@ -615,10 +620,14 @@ describe("review --all: never approves a case with no expected (Finding 2)", () 
 		const { context: importContext } = await ctxIn(cwd);
 		expect(await run(["import", jsonl], importContext)).toBe(0);
 
+		// Nothing is approved, so the file is not touched at all.
+		const casesFile = join(forgeDirectory, "cases", "imported.yaml");
+		await utimes(casesFile, LONG_AGO, LONG_AGO);
 		const { context, out } = await ctxIn(cwd);
 		expect(
 			await run(["review", "--scenario", "imported", "--all"], context),
 		).toBe(0);
+		expect((await stat(casesFile)).mtime.getTime()).toBe(LONG_AGO.getTime());
 
 		const cases = await readCases(forgeDirectory, "imported");
 		expect(cases.every((caseEntry) => caseEntry.status === "pending")).toBe(
@@ -742,7 +751,7 @@ describe("import: missing file", () => {
 		const { context, out } = await ctxIn(cwd);
 		const missing = join(cwd, "nope.jsonl");
 		expect(await run(["import", missing], context)).toBe(1);
-		expect(out.at(-1)).toContain("file not found");
+		expect(out.at(-1)).toBe(`error: file not found (file: ${missing})`);
 	});
 });
 
@@ -756,8 +765,9 @@ describe("import: --oracle validation", () => {
 		await writeFile(jsonl, '{"email":"x"}\n');
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["import", jsonl, "--oracle", "bogus"], context)).toBe(2);
-		expect(out.at(-1)).toContain('"bogus"');
-		expect(out.at(-1)).toContain("label");
+		expect(out.at(-1)).toContain(
+			'--oracle "bogus" is not valid; choose one of: label, fields, rubric',
+		);
 	});
 });
 
@@ -1389,6 +1399,21 @@ describe("review --scenario is checked on the interactive path too (whole-branch
 			),
 		).toBe(1);
 		expect(out.at(-1)).toContain('scenario "totally-bogus" not found');
+	});
+});
+
+describe("dedupe: a scenario that is not among the existing ones", () => {
+	test("is named with its id even when other scenarios exist, and nothing is written", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["dedupe", "--scenario", "totally-bogus"], context)).toBe(
+			1,
+		);
+		expect(out).toEqual([
+			'error: scenario "totally-bogus" not found (id: totally-bogus)',
+		]);
+		expect(await readCases(forgeDirectory, "polite-rejection")).toHaveLength(1);
 	});
 });
 
@@ -2389,6 +2414,37 @@ async function forgeWithApprovedScenario(
 	return forgeDirectory;
 }
 
+describe("review --all: both reasons for leaving a case pending are reported on one line", () => {
+	test("the no-expected note and the off-oracle note are joined by a semicolon", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				status: "pending",
+				generated_by: "t",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "two" },
+				expected: { label: "not-a-label" },
+				status: "pending",
+				generated_by: "t",
+			},
+		]);
+		const { context, out } = await ctxIn(cwd);
+		expect(
+			await run(["review", "--scenario", "polite-rejection", "--all"], context),
+		).toBe(0);
+		expect(out.at(-1)).toBe(
+			"review: approved 0 pending case(s) of polite-rejection; 1 left pending (no expected set — run `llm-tests-forge review --scenario polite-rejection` to fill them in); 1 left pending (expected does not match the label oracle — see above)",
+		);
+	});
+});
+
 describe("review --all checks that every case in the file belongs to it", () => {
 	test("a case naming another scenario exits 1, names the move that fixes it, and leaves the file untouched", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -2550,6 +2606,30 @@ describe("import --oracle cannot silently change an existing imported scenario",
 			0,
 		);
 		expect(out.at(-1)).toContain("1 new pending cases");
+		expect(
+			(await readCases(forgeDirectory, "imported")).map(
+				(caseEntry) => caseEntry.id,
+			),
+		).toEqual(["imported-01", "imported-02"]);
+		// The scenario is written once, by the first import.
+		expect(
+			(await readScenarios(forgeDirectory)).map((scenario) => scenario.id),
+		).toEqual(["imported"]);
+	});
+
+	test("a second import that names no --oracle is accepted: there is nothing to change", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const { forgeDirectory, path } = await importable(cwd, "prod.jsonl", "one");
+		const { context: firstContext } = await ctxIn(cwd);
+		expect(await run(["import", path], firstContext)).toBe(0);
+
+		const second = join(cwd, "more.jsonl");
+		await writeFile(second, '{"email":"two"}\n');
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["import", second], context)).toBe(0);
+		expect(out.at(-1)).toBe(
+			"import: 1 new pending cases without expected (0 skipped)",
+		);
 		expect(
 			(await readCases(forgeDirectory, "imported")).map(
 				(caseEntry) => caseEntry.id,
@@ -4723,6 +4803,28 @@ describe("report", () => {
 		expect(await run(["report", RESULTS, "--baseline", bad], context)).toBe(1);
 		expect(out.at(-1)).toContain(bad);
 		expect(out.at(-1)).toContain("is not a report written by llm-tests-forge");
+	});
+
+	test("a baseline with two wrong fields names each as path: problem, joined by a semicolon", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeMatchingFixture(cwd);
+		const real = JSON.parse(
+			await readFile(
+				fixturePath("extract-questions/.forge/report.json"),
+				"utf8",
+			),
+		);
+		const bad = join(cwd, "bad.json");
+		await writeFile(
+			bad,
+			JSON.stringify({ ...real, rows: "x", unmatched: [1] }),
+		);
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["report", RESULTS, "--baseline", bad], context)).toBe(1);
+		// A nested problem is addressed by its dotted path: unmatched.0.
+		expect(out.at(-1)).toMatch(
+			/is not a report written by llm-tests-forge: rows: [^;]+; unmatched\.0: [^;]+ \(file: /,
+		);
 	});
 
 	test("a baseline that is not JSON at all names the file and the problem", async () => {

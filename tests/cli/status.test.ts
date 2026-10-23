@@ -142,12 +142,49 @@ describe("status through main()", () => {
 		});
 	});
 
+	test("a project whose suites are all fine prints just their lines, not the empty-project hint", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: [evals/a]\n",
+		);
+		await copyExample(join(root, "evals", "a"));
+		const date = await exampleDate(join(root, "evals", "a"));
+		const { code, lines } = await runStatus(root);
+		expect(code).toBe(0);
+		expect(lines).toEqual([
+			`evals/a   extract-job-application-questions   14 scenarios approved, 0 pending · 42 cases approved, 0 pending · last run 67.9% (${date})`,
+		]);
+	});
+
+	test("a project whose only entry is a bad one prints that problem, not the empty-project hint", async () => {
+		const root = await projectWith(
+			'version: 1\nlanguage: python\nsuites: ["../x"]\n',
+		);
+		const { code, lines } = await runStatus(root);
+		expect(code).toBe(0);
+		expect(lines).toEqual([
+			'forge.yaml: suite "../x" climbs out of the project',
+		]);
+	});
+
 	test("takes no positional argument", async () => {
 		const root = await projectWithTwoSuites();
 		const { code, lines } = await runStatus(root, ["status", "evals/a"]);
 		expect(code).toBe(2);
 		expect(lines[0]).toStartWith(
 			'error: status takes no argument, got "evals/a"',
+		);
+	});
+
+	test("several positional arguments are all named, separated by a space", async () => {
+		const root = await projectWithTwoSuites();
+		const { code, lines } = await runStatus(root, [
+			"status",
+			"evals/a",
+			"evals/b",
+		]);
+		expect(code).toBe(2);
+		expect(lines[0]).toStartWith(
+			'error: status takes no argument, got "evals/a evals/b"',
 		);
 	});
 

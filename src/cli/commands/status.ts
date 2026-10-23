@@ -18,6 +18,7 @@ async function suitesToShow(
 	if (context.project !== null) return context.project.suites;
 	const present = await access(join(context.cwd, ".forge")).then(
 		() => true,
+		// Stryker disable next-line ArrowFunction: `present` is only read as the condition of a ternary, where undefined is false too.
 		() => false,
 	);
 	return present ? [{ entry: ".", directory: context.cwd }] : [];
