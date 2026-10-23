@@ -286,10 +286,10 @@ describe("runReviewLoop", () => {
 			ask: scripted(["edit", "edit"]),
 			openEditor: async () => edits.shift() ?? "",
 			askExpected: async () => ({ label: "a" }),
-			checkExpected: (caseEntry) =>
-				caseEntry.expected?.label === "a"
+			checkExpected: (expected) =>
+				expected.label === "a"
 					? null
-					: `label "${caseEntry.expected?.label}" is not one of the feature's labels`,
+					: `label "${expected.label}" is not one of the feature's labels`,
 			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
 			print: (line) => printed.push(line),

@@ -2184,6 +2184,62 @@ describe("review: an edit cannot rename an item onto an id already in its file",
 	});
 });
 
+describe("import: a line that cannot be imported is named, and the rest still land", () => {
+	test("a line that is not JSON is reported with its number and reason, and the count says one was skipped", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, []);
+		const jsonl = join(cwd, "prod.jsonl");
+		await writeFile(jsonl, '{"email":"real one"}\nnot json at all\n');
+		const { context, out } = await ctxIn(cwd);
+
+		expect(await run(["import", jsonl], context)).toBe(0);
+
+		expect(out).toEqual([
+			"import: skipped line 2: not valid JSON",
+			"import: 1 new pending cases without expected (1 skipped)",
+		]);
+		expect(
+			(await readCases(forgeDirectory, "imported")).map(
+				(caseEntry) => caseEntry.id,
+			),
+		).toEqual(["imported-01"]);
+	});
+});
+
+describe("review: the feature file cannot be written after a scenario was decided", () => {
+	test("the error lists the scenarios file among the ones not written, since it is written right after the feature", async () => {
+		if (process.getuid?.() === 0) return;
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, { ...FEATURE, status: "pending" });
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "happy-path",
+				kind: "happy" as const,
+				oracle: "label" as const,
+				description: "d",
+				status: "pending" as const,
+			},
+		]);
+		const featurePath = join(forgeDirectory, "feature.yaml");
+		await chmod(featurePath, 0o444);
+		const { context, out } = await ctxIn(cwd, ["approve", "approve"]);
+
+		try {
+			expect(await run(["review"], context)).toBe(1);
+		} finally {
+			await chmod(featurePath, 0o644);
+		}
+
+		expect(out.at(-1)).toBe(
+			`error: cannot write: EACCES: permission denied, open '${featurePath}' (file: ${featurePath}); the write-back stopped there: already written: nothing; not written: feature.yaml, scenarios.yaml`,
+		);
+		expect((await readScenarios(forgeDirectory))[0]?.status).toBe("pending");
+	});
+});
+
 const FEATURE = {
 	id: "classify-email",
 	purpose: "Classify a hiring email",
