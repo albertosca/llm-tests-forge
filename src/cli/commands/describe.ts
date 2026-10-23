@@ -100,6 +100,7 @@ export async function describeCommand(
 		? {
 				...feature,
 				// An absolute path stays as given; a relative one is rebased.
+				// Stryker disable next-line StringLiteral: this branch runs only when promptPath is set, which needs a non-empty promptFile, so the fallback is never read (it is there for the type alone).
 				prompt_file: isAbsolute(promptFile ?? "")
 					? promptPath
 					: relative(dirname(context.forgeDirectory), promptPath),
@@ -109,10 +110,13 @@ export async function describeCommand(
 	context.stdout(
 		`describe: feature "${withFile.id}" written as pending -> ${forgePaths(context.forgeDirectory).feature}; run \`llm-tests-forge review\` to approve it`,
 	);
-	if (context.project !== null) await registerInProject(context);
+	await registerInProject(context);
 }
 
-/** Adds this suite to forge.yaml, and writes a starting suite.yaml when the defaults allow one. */
+/**
+ * Adds this suite to forge.yaml, and writes a starting suite.yaml when the
+ * defaults allow one. Outside a project there is nothing to do.
+ */
 async function registerInProject(context: CliContext): Promise<void> {
 	const project = context.project;
 	if (project === null) return;
@@ -127,6 +131,7 @@ async function registerInProject(context: CliContext): Promise<void> {
 	const suitePath = forgePaths(context.forgeDirectory).suite;
 	const present = await access(suitePath).then(
 		() => true,
+		// Stryker disable next-line ArrowFunction: `present` is only read in `present || language === "other"`, where undefined is false too.
 		() => false,
 	);
 	if (present || language === "other") return;

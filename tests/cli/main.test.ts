@@ -467,6 +467,44 @@ describe("cases: scenario lookup failures", () => {
 	});
 });
 
+describe("cases: which scenarios get cases, and what the summary line says", () => {
+	test("only approved and edited scenarios are generated for; the line counts the new cases against the total", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(
+			forgeDirectory,
+			(["pending", "rejected", "approved", "edited"] as const).map(
+				(status) => ({
+					id: `${status}-one`,
+					kind: "happy" as const,
+					oracle: "label" as const,
+					description: "d",
+					status,
+				}),
+			),
+		);
+		// One case already on disk with the first input the model returns:
+		// it is not counted as new.
+		await writeCases(forgeDirectory, "edited-one", [
+			{
+				id: "edited-one-01",
+				scenario: "edited-one",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "approved",
+				generated_by: "t",
+			},
+		]);
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["cases"], context)).toBe(0);
+		expect(out).toStrictEqual([
+			"cases: approved-one: 2 new pending (2 total)",
+			"cases: edited-one: 1 new pending (2 total)",
+		]);
+	});
+});
+
 describe("cases: --n validation (Finding 3)", () => {
 	async function approvedScenario(cwd: string) {
 		let { context } = await ctxIn(cwd, ["approve"]);
@@ -784,6 +822,26 @@ describe("run(): error classification", () => {
 		);
 	});
 
+	test("describe joins an unquoted multi-word description with single spaces", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const { context } = await ctxIn(cwd);
+		const prompts: string[] = [];
+		context.llm = {
+			generate: async (request) => {
+				prompts.push(request.prompt);
+				throw new Error("stop after the prompt");
+			},
+		};
+		expect(
+			await run(
+				["describe", "The bot", "classifies", "hiring emails"],
+				context,
+			),
+		).toBe(1);
+		expect(prompts).toHaveLength(1);
+		expect(prompts[0]).toContain("The bot classifies hiring emails");
+	});
+
 	test("a genuine programming error (TypeError) still propagates with its real stack, even from Llm.generate", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const { context } = await ctxIn(cwd);
@@ -917,8 +975,11 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 		);
 		expect(out.at(-1)).toContain("--force");
 		expect(out.at(-1)).toContain(featurePath);
-		// No project, so there is nothing to register it in.
-		expect(out.at(-1)).not.toContain("not registered");
+		// No project, so there is nothing to register it in: the message
+		// goes straight from the advice to the file it names.
+		expect(out.at(-1)).toBe(
+			`error: feature "classify-email" is already approved; describe would overwrite the reviewed description and its invariants — re-run with --force to replace it (file: ${featurePath}, id: classify-email)`,
+		);
 		expect(await readFile(featurePath, "utf8")).toBe(before);
 		expect((await stat(featurePath)).mtime.getTime()).toBe(LONG_AGO.getTime());
 	});
@@ -963,7 +1024,10 @@ describe("describe never destroys a reviewed feature (whole-branch Finding 2)", 
 			"re-run with --force to replace it. This suite is not registered in forge.yaml: to register it without describing it again, add its path to suites: in forge.yaml (for example `suites: [evals/classify]`, or, when suites is already a block list, add a `- evals/classify` line with the same indentation as the existing entries)",
 		);
 		const registered = await describeIn(join(root, "evals", "kept"));
-		expect(registered.join("\n")).toContain("re-run with --force");
+		// Registered: the advice runs straight into the file it names.
+		expect(registered.join("\n")).toContain(
+			"re-run with --force to replace it (file: ",
+		);
 		expect(registered.join("\n")).not.toContain("not registered");
 	});
 
@@ -3980,12 +4044,12 @@ describe("emit", () => {
 		expect(
 			await readFile(join(forgeDirectory, "forge_target.py"), "utf8"),
 		).toContain('INPUTS = ["email"]');
-		expect(out).toContain(
+		// Exactly these two lines: an http-only warning slot that is empty
+		// must print nothing, not the word null.
+		expect(out).toStrictEqual([
 			`emit: wrote ${join(forgeDirectory, "promptfooconfig.yaml")} (2 cases, 2 scenarios, 1 target model, 1 judge)`,
-		);
-		expect(out).toContain(
 			`emit: wrote ${join(forgeDirectory, "forge_target.py")}; edit run_application() to call your application`,
-		);
+		]);
 	});
 	test("a single case, scenario, target model and judge pluralizes to singular", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -4237,11 +4301,13 @@ describe("emit", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["emit"], context)).toBe(1);
 		const text = out.join("\n");
+		const casesFile = join(forgeDirectory, "cases", "polite-rejection.yaml");
 		expect(text).toContain(
 			"error: emit refused: 2 items block it; run `llm-tests-forge review`",
 		);
-		expect(text).toContain("case polite-rejection-01 is pending");
-		expect(text).toContain("case polite-rejection-02 is pending");
+		expect(text).toContain(
+			`; run \`llm-tests-forge review\`\n  case polite-rejection-01 is pending (${casesFile})\n  case polite-rejection-02 is pending (${casesFile})`,
+		);
 		await expect(
 			stat(join(forgeDirectory, "promptfooconfig.yaml")),
 		).rejects.toThrow();
@@ -4268,8 +4334,9 @@ describe("emit", () => {
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["emit"], context)).toBe(1);
 		const text = out.join("\n");
-		expect(text).toContain("error: emit refused: 1 item blocks it");
-		expect(text).toContain("scenario polite-rejection is rejected");
+		expect(text).toContain(
+			"error: emit refused: 1 item blocks it\n  scenario polite-rejection is rejected",
+		);
 		expect(text).not.toContain("llm-tests-forge review");
 	});
 	test("a case whose expected no longer matches its scenario's oracle blocks emit, naming both", async () => {
@@ -4323,6 +4390,24 @@ describe("emit", () => {
 		await expect(
 			stat(join(forgeDirectory, "promptfooconfig.yaml")),
 		).rejects.toThrow();
+	});
+	test("a target.entry with only a slash, only a backslash, or only two dots is a path too", async () => {
+		for (const entry of ["sub/target.py", "sub\\target.py", "a..b.py"]) {
+			const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+			const forgeDirectory = await forgeWithApprovedCases(cwd);
+			await writeSuite(forgeDirectory, {
+				...SUITE,
+				target: { ...SUITE.target, entry },
+			});
+			const { context, out } = await ctxIn(cwd);
+			expect(await run(["emit"], context)).toBe(1);
+			expect(out.at(-1)).toContain(
+				"target.entry must be a file name inside .forge, not a path",
+			);
+			await expect(
+				stat(join(forgeDirectory, "promptfooconfig.yaml")),
+			).rejects.toThrow();
+		}
 	});
 	test("--format jsonl writes cases.jsonl and no shim", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
