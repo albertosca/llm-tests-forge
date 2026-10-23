@@ -256,7 +256,7 @@ describe("the release workflow's shape", () => {
 				if (step.uses === undefined) continue;
 				expect(allowed).toContain(step.uses);
 				if (step.uses === "oven-sh/setup-bun@v2")
-					expect(step.with).toEqual({ "bun-version": "1.4.2" });
+					expect(step.with).toEqual({ "bun-version": "1.4.4" });
 			}
 	});
 });
@@ -767,7 +767,7 @@ describe("the package tests in CI", () => {
 			const withOf = (uses: string) =>
 				steps.find((step) => step.uses === uses)?.with;
 			expect(withOf("oven-sh/setup-bun@v2")).toEqual({
-				"bun-version": "1.4.2",
+				"bun-version": "1.4.4",
 			});
 			expect(withOf("actions/setup-node@v4")).toEqual({ "node-version": "22" });
 			expect(withOf("ruby/setup-ruby@v1")).toEqual({ "ruby-version": "3.3" });
@@ -892,7 +892,7 @@ describe("the mutation workflow", () => {
 			"bun run mutation",
 			"actions/upload-artifact@v4",
 		]);
-		expect(steps[1]?.with).toEqual({ "bun-version": "1.4.2" });
+		expect(steps[1]?.with).toEqual({ "bun-version": "1.4.4" });
 		expect(steps[5]?.with).toEqual({
 			name: "mutation-report",
 			path: "reports/mutation/",
