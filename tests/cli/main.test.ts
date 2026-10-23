@@ -6557,6 +6557,146 @@ describe("review: the words and the numbers of the command line and of the write
 	});
 });
 
+describe("review: what the person sees when the terminal paints, and when a scenario is edited without changing its oracle", () => {
+	const ESCAPE = "\x1b[";
+
+	async function withEditor<T>(
+		path: string,
+		body: () => Promise<T>,
+	): Promise<T> {
+		const original = process.env.EDITOR;
+		process.env.EDITOR = path;
+		try {
+			return await body();
+		} finally {
+			if (original === undefined) delete process.env.EDITOR;
+			else process.env.EDITOR = original;
+		}
+	}
+
+	/** Runs `body` as a terminal that paints: stdout a TTY, NO_COLOR unset. */
+	async function onPaintingTerminal<T>(body: () => Promise<T>): Promise<T> {
+		const originalTty = process.stdout.isTTY;
+		const originalNoColor = process.env.NO_COLOR;
+		process.stdout.isTTY = true;
+		delete process.env.NO_COLOR;
+		try {
+			return await body();
+		} finally {
+			process.stdout.isTTY = originalTty;
+			if (originalNoColor === undefined) delete process.env.NO_COLOR;
+			else process.env.NO_COLOR = originalNoColor;
+		}
+	}
+
+	test("a refusal is painted as an error and the item shown above it is not", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "alpha",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+			{
+				id: "beta",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		const editor = await editorReplacing(cwd, "id: alpha", "id: beta");
+		const { context, out } = await ctxIn(cwd, ["edit", "skip"]);
+		await onPaintingTerminal(() =>
+			withEditor(editor, async () => {
+				expect(await run(["review"], context)).toBe(0);
+			}),
+		);
+		const refusal =
+			'cannot apply: a scenario\'s id cannot be changed in review (from "alpha" to "beta"): it names .forge/cases/<id>.yaml; run `llm-tests-forge move --scenario alpha beta` (id: alpha)';
+		expect(out).toContain(`${ESCAPE}31m${refusal}${ESCAPE}39m`);
+		const header = out.find((line) => line.includes("scenario"));
+		expect(header?.startsWith(`${ESCAPE}1m--- `)).toBe(true);
+		expect(header).not.toContain(`${ESCAPE}31m`);
+		expect(out.filter((line) => line.includes("cannot apply"))).toHaveLength(1);
+	});
+
+	test("a failure that is not a write is shown as it is, not as a write-back that stopped", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "alpha",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDirectory, "alpha", [
+			CASE("alpha-01", "alpha", { status: "pending" }),
+		]);
+		const { context, out } = await ctxIn(cwd, ["skip"]);
+		const printed = context.stdout;
+		// Nothing is decided, so nothing is written; the only thing left that
+		// can fail is the summary line itself.
+		context.stdout = (line) => {
+			if (line.startsWith("review: 0 approved"))
+				throw new ForgeError("the summary could not be printed");
+			printed(line);
+		};
+		expect(await run(["review"], context)).toBe(1);
+		expect(out.at(-1)).toBe("error: the summary could not be printed");
+	});
+
+	test("editing a scenario without changing its oracle re-opens nothing and leaves its cases file alone", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, FEATURE);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "alpha",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		await writeCases(forgeDirectory, "alpha", [
+			CASE("alpha-01", "alpha", { status: "approved" }),
+		]);
+		const casesFile = join(forgeDirectory, "cases", "alpha.yaml");
+		const before = await readFile(casesFile, "utf8");
+		await utimes(casesFile, LONG_AGO, LONG_AGO);
+		const editor = await editorReplacing(
+			cwd,
+			"description: d",
+			"description: reworded",
+		);
+		const { context, out } = await ctxIn(cwd, ["edit"]);
+		await withEditor(editor, async () => {
+			expect(await run(["review"], context)).toBe(0);
+		});
+		expect((await readScenarios(forgeDirectory))[0]?.description).toBe(
+			"reworded",
+		);
+		expect(out.filter((line) => line.includes("changed oracle"))).toEqual([]);
+		expect(await readFile(casesFile, "utf8")).toBe(before);
+		expect((await stat(casesFile)).mtime).toEqual(LONG_AGO);
+		expect(
+			(await readCases(forgeDirectory, "alpha")).map((entry) => entry.status),
+		).toEqual(["approved"]);
+		expect(out.at(-1)).toBe(
+			"review: 0 approved, 0 rejected, 1 edited, 0 skipped, 0 re-opened, 0 still pending",
+		);
+	});
+});
+
 describe("main(): the suite and the project", () => {
 	test("inside a project, a verb run where there is no .forge lists the registered suites and exits 2", async () => {
 		const root = await projectWith(
