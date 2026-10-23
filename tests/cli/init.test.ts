@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
+import { isSameFileIdentity } from "../../src/cli/commands/init";
 import {
 	AGENTS_END,
 	AGENTS_START,
@@ -335,5 +336,22 @@ describe("init through main()", () => {
 		const directory = await directoryWith(["go.mod"]);
 		await runInit(directory);
 		expect(await exists(join(directory, ".forge"))).toBe(false);
+	});
+});
+
+describe("isSameFileIdentity", () => {
+	test("is the same file only when the device and the inode both match: an inode number repeats across devices", () => {
+		expect(isSameFileIdentity({ dev: 1, ino: 7 }, { dev: 1, ino: 7 })).toBe(
+			true,
+		);
+		expect(isSameFileIdentity({ dev: 1, ino: 7 }, { dev: 2, ino: 7 })).toBe(
+			false,
+		);
+		expect(isSameFileIdentity({ dev: 1, ino: 7 }, { dev: 1, ino: 8 })).toBe(
+			false,
+		);
+		expect(isSameFileIdentity({ dev: 1, ino: 7 }, { dev: 2, ino: 8 })).toBe(
+			false,
+		);
 	});
 });

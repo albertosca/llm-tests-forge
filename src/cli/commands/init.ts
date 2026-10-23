@@ -1,3 +1,4 @@
+import type { Stats } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -19,9 +20,21 @@ const CLAUDE_FILE = "CLAUDE.md";
 async function readIfPresent(path: string): Promise<string | null> {
 	const present = await access(path).then(
 		() => true,
+		// Stryker disable next-line ArrowFunction: `present` is only read as the condition of a ternary, where undefined is false too.
 		() => false,
 	);
 	return present ? readText(path) : null;
+}
+
+/**
+ * Whether two stat results name one file: an inode number is only unique
+ * within its device, so both must match.
+ */
+export function isSameFileIdentity(
+	first: Pick<Stats, "dev" | "ino">,
+	second: Pick<Stats, "dev" | "ino">,
+): boolean {
+	return first.dev === second.dev && first.ino === second.ino;
 }
 
 /** Whether two paths, links followed, name the same file. */
@@ -30,9 +43,7 @@ async function sameFile(first: string, second: string): Promise<boolean> {
 		stat(first),
 		stat(second),
 	]);
-	return (
-		firstStatus.dev === secondStatus.dev && firstStatus.ino === secondStatus.ino
-	);
+	return isSameFileIdentity(firstStatus, secondStatus);
 }
 
 function parseLanguage(value: string): Language {

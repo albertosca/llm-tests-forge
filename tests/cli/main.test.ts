@@ -387,6 +387,46 @@ describe("scenarios: --kinds restricts required coverage", () => {
 		expect(await readScenarios(join(cwd, ".forge"))).toHaveLength(6);
 	});
 
+	test("a space after the comma is ignored, and a bad kind is named without its padding", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		let { context } = await ctxIn(cwd, ["approve"]);
+		expect(await run(["describe", "text"], context)).toBe(0);
+		({ context } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], context)).toBe(0);
+
+		const { context: badContext, out: badOut } = await ctxIn(cwd);
+		expect(
+			await run(["scenarios", "--kinds", "happy, bogus "], badContext),
+		).toBe(2);
+		expect(badOut.at(-1)).toBe(
+			'error: --kinds "bogus" is not valid; choose from: happy, edge, ambiguous, out_of_scope, adversarial, language',
+		);
+
+		({ context } = await ctxIn(cwd));
+		expect(await run(["scenarios", "--kinds", "happy, edge"], context)).toBe(0);
+	});
+
+	test("the summary counts the new scenarios against the total, and a second run counts only its own", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		let { context } = await ctxIn(cwd, ["approve"]);
+		expect(await run(["describe", "text"], context)).toBe(0);
+		({ context } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], context)).toBe(0);
+
+		const first = await ctxIn(cwd);
+		expect(await run(["scenarios"], first.context)).toBe(0);
+		const file = join(forgeDirectory, "scenarios.yaml");
+		expect(first.out).toEqual([
+			`scenarios: 6 new pending (6 total) -> ${file}`,
+		]);
+		const second = await ctxIn(cwd);
+		expect(await run(["scenarios"], second.context)).toBe(0);
+		expect(second.out).toEqual([
+			`scenarios: 6 new pending (12 total) -> ${file}`,
+		]);
+	});
+
 	test("rejects an unknown kind, naming the bad value and a valid one", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		let { context } = await ctxIn(cwd, ["approve"]);
@@ -950,6 +990,17 @@ describe("the downstream gate: nothing runs on a pending feature (whole-branch F
 			() => false,
 		);
 		expect(wrote).toBe(false);
+	});
+
+	test("estimate refuses, naming feature.yaml, before it looks for a suite", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await pendingFeature(cwd);
+
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], context)).toBe(1);
+		expect(out).toEqual([
+			`error: feature is pending; run \`llm-tests-forge review\` first (file: ${join(cwd, ".forge", "feature.yaml")}, id: classify-email)`,
+		]);
 	});
 });
 
@@ -3864,6 +3915,8 @@ describe("estimate", () => {
 			"note: tokens are counted as characters/4 and shown as a range calibrated on recorded runs; output is",
 		);
 		expect(text).toContain("note: application prompt not counted");
+		// Every selected item is approved: nothing was excluded, so nothing says so.
+		expect(text).not.toContain("excluded");
 	});
 	test("a single selected case with no rubric pluralizes to singular", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
