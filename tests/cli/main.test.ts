@@ -818,6 +818,12 @@ describe("drafterFlag", () => {
 		);
 	});
 
+	test("reads --drafter when it is the very first argument", () => {
+		expect(drafterFlag(["--drafter", "anthropic/haiku"])).toBe(
+			"anthropic/haiku",
+		);
+	});
+
 	test("returns undefined when --drafter is absent", () => {
 		expect(drafterFlag(["describe", "x"])).toBeUndefined();
 	});
@@ -4692,6 +4698,10 @@ describe("report", () => {
 			"**Pass rate:** 100.0% (4 of 4 runs, 0 errored)",
 		);
 		expect(markdown).toContain("No failing or errored case.");
+		// report writes into the suite, so it stamps suite.yaml like the others.
+		expect(
+			await readFile(join(forgeDirectory, "suite.yaml"), "utf8"),
+		).toStartWith(`forge_version: ${FORGE_VERSION}\n`);
 		expect(out).toContain(
 			"report: 4 of 4 rows matched; pass rate 100.0%; 0 failing or errored; 0 flaky; 0 judge disagreements",
 		);
@@ -7102,6 +7112,7 @@ describe("main(): the suite and the project", () => {
 			["--help", "usage: llm-tests-forge"],
 			["help", "usage: llm-tests-forge"],
 			["--version", FORGE_VERSION],
+			["-V", FORGE_VERSION],
 			["version", FORGE_VERSION],
 		] as const) {
 			const lines: string[] = [];
@@ -7115,6 +7126,46 @@ describe("main(): the suite and the project", () => {
 			).toBe(0);
 			expect(lines.join("\n")).toContain(expected);
 		}
+	});
+
+	test("an information verb first is answered even with a dangling --suite after it", async () => {
+		const root = await projectWith("version: 2\n");
+		const lines: string[] = [];
+		expect(
+			await main(["version", "--suite"], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(0);
+		expect(lines).toEqual([FORGE_VERSION]);
+	});
+
+	test("a --suite after the -- belongs to the verb, not to the suite resolution", async () => {
+		const root = await projectWith(
+			"version: 1\nlanguage: python\nsuites: []\n",
+		);
+		const lines: string[] = [];
+		expect(
+			await main(["status", "--", "--suite", "evals/a"], {
+				cwd: root,
+				env: {},
+				stdin: async () => "",
+				stdout: (line) => lines.push(line),
+			}),
+		).toBe(2);
+		expect(lines[0]).toStartWith(
+			'error: status takes no argument, got "--suite evals/a"',
+		);
+	});
+
+	test("a leading -- is not a help flag's boundary: what follows it is the verb's own", async () => {
+		const { context, out } = await ctxIn(
+			await mkdtemp(join(tmpdir(), "forge-cli-")),
+		);
+		expect(await run(["--", "--help"], context)).toBe(2);
+		expect(out.join("\n")).toContain("usage: llm-tests-forge");
 	});
 
 	test("help, version and guide after --suite are still answered when forge.yaml is malformed", async () => {

@@ -56,8 +56,9 @@ export async function askChoice(
 	for (;;) {
 		io.stdout(`${question} [${choices.join("/")}]`);
 		const raw = (await io.stdin()).trim().toLowerCase();
+		// An exact answer is also a prefix, so the prefix test alone covers it.
 		const hit = choices.find(
-			(choice) => choice === raw || (choice.startsWith(raw) && raw.length > 0),
+			(choice) => choice.startsWith(raw) && raw.length > 0,
 		);
 		if (hit) return hit;
 		if (raw === "") return choices[choices.length - 1] as string; // empty line = last choice (skip)

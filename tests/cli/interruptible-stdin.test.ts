@@ -303,4 +303,26 @@ describe("createInterruptibleReader", () => {
 		reader.interrupt();
 		expect(exits).toEqual([130]);
 	});
+
+	test("a line that arrives for a read a newer read has replaced does not disarm the newer one: an interrupt still ends it", async () => {
+		const source = pendingLines();
+		const reader = createInterruptibleReader({
+			readLine: source.readLine,
+			stdout: () => {},
+			exit: () => {},
+		});
+		const pass = reader.startInteractivePass();
+		pass.read();
+		const second = pass.read();
+		source.answer("late");
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		reader.interrupt();
+		const outcome = await Promise.race([
+			second,
+			new Promise<string>((resolve) =>
+				setTimeout(() => resolve("still waiting"), 50),
+			),
+		]);
+		expect(outcome).toBe("");
+	});
 });

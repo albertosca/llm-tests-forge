@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyReviewDecisions } from "../../src/cli/review-writeback";
+import { applyReviewDecisions, takeOnce } from "../../src/cli/review-writeback";
 import type { Case, Feature } from "../../src/core/schemas";
 
 const feature: Feature = {
@@ -291,5 +291,20 @@ describe("applyReviewDecisions: an oracle change re-opens what no longer fits", 
 		]);
 		expect(reopened).toBe(2);
 		expect(touched).toBe(true);
+	});
+});
+
+describe("takeOnce", () => {
+	test("removes a hit and returns it, once", () => {
+		const decided = new Map([["key", "decision"]]);
+		expect(takeOnce(decided, "key")).toBe("decision");
+		expect(decided.has("key")).toBe(false);
+		expect(takeOnce(decided, "key")).toBeUndefined();
+	});
+
+	test("a miss changes nothing, not even a key whose recorded value is undefined", () => {
+		const decided = new Map<string, string | undefined>([["key", undefined]]);
+		expect(takeOnce(decided, "key")).toBeUndefined();
+		expect(decided.has("key")).toBe(true);
 	});
 });

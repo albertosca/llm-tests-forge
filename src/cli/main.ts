@@ -173,6 +173,7 @@ export async function run(
 		// unstamped. A verb that succeeds having written nothing (review with
 		// nothing pending) still stamps; the owner accepted that on
 		// 2026-09-29. tests/cli/stamp.test.ts pins both.
+		// Stryker disable next-line StringLiteral: `command` is only defined when `verb` is, so the fallback is never read.
 		if (STAMPING_VERBS.has(verb ?? "")) await stampAfterSuccess(context);
 		return 0;
 	} catch (error) {
@@ -180,14 +181,12 @@ export async function run(
 			context.stdout(`error: ${error.message}`);
 			return 2;
 		}
-		if (error instanceof ForgeError) {
-			context.stdout(`error: ${error.message}`);
-			return 1;
-		}
 		if (error instanceof TypeError && /option|argument/i.test(error.message)) {
 			context.stdout(`error: ${error.message}\n${USAGE}`);
 			return 2;
 		}
+		// A ForgeError is not a programming error, so it is printed and exits 1
+		// below, like every other failure this process does not control.
 		// A parseArgs usage TypeError is handled above; any other
 		// programming-error type still propagates raw (see
 		// PROGRAMMING_ERROR_TYPES). Everything else reaching here is an
@@ -266,9 +265,12 @@ function takeSuiteFlag(argv: string[]): { rest: string[]; suite?: string } {
 const VERBS_EXEMPT_FROM_SUITE_GUARD = new Set([
 	"describe",
 	"status",
-	"guide",
+	// Stryker disable next-line StringLiteral: help and version are not in COMMANDS, so the guard returns before this set is read.
 	"help",
+	// Stryker disable next-line StringLiteral: same as help above.
 	"version",
+	// Stryker disable next-line StringLiteral: guide is an information verb, so `main` resolves no project for it and the guard returns before this set is read.
+	"guide",
 ]);
 
 /**
@@ -292,6 +294,7 @@ async function refuseVerbWithoutSuite(
 	if (VERBS_EXEMPT_FROM_SUITE_GUARD.has(verb)) return;
 	const present = await access(context.forgeDirectory).then(
 		() => true,
+		// Stryker disable next-line ArrowFunction: `present` is only read as an if condition, where undefined is false too.
 		() => false,
 	);
 	if (present) return;
