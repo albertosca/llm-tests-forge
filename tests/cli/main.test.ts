@@ -7969,6 +7969,66 @@ describe("the version stamp and the version warning", () => {
 		expect(text).toContain("kind: python");
 		expect(text).not.toContain("promptfoo-python");
 	});
+	test("scenarios, cases, dedupe and import each stamp suite.yaml once they succeed, and a failed one does not", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		const suitePath = join(forgeDirectory, "suite.yaml");
+		const makeOlder = async (): Promise<void> => {
+			const text = await readFile(suitePath, "utf8");
+			await writeFile(
+				suitePath,
+				`forge_version: 0.0.1\n${text.replace(/^forge_version: .*\n/m, "")}`,
+			);
+			expect((await readSuite(forgeDirectory)).forge_version).toBe("0.0.1");
+		};
+		const stamped = async (): Promise<string | undefined> =>
+			(await readSuite(forgeDirectory)).forge_version;
+		let { context } = await ctxIn(cwd);
+		expect(await run(["describe", "The bot classifies emails"], context)).toBe(
+			0,
+		);
+		({ context } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review"], context)).toBe(0);
+		await writeSuite(forgeDirectory, SUITE);
+
+		await makeOlder();
+		({ context } = await ctxIn(cwd));
+		expect(await run(["scenarios"], context)).toBe(0);
+		expect(await stamped()).toBe(FORGE_VERSION);
+
+		({ context } = await ctxIn(cwd, ["approve"]));
+		expect(await run(["review", "--only", "scenarios"], context)).toBe(0);
+
+		await makeOlder();
+		({ context } = await ctxIn(cwd));
+		expect(
+			await run(
+				["cases", "--scenario", "polite-rejection", "--n", "2"],
+				context,
+			),
+		).toBe(0);
+		expect(await stamped()).toBe(FORGE_VERSION);
+
+		await makeOlder();
+		({ context } = await ctxIn(cwd));
+		expect(
+			await run(["dedupe", "--scenario", "polite-rejection"], context),
+		).toBe(0);
+		expect(await stamped()).toBe(FORGE_VERSION);
+
+		const jsonl = join(cwd, "prod.jsonl");
+		await writeFile(jsonl, '{"email":"real one"}\n');
+		await makeOlder();
+		({ context } = await ctxIn(cwd));
+		expect(await run(["import", jsonl], context)).toBe(0);
+		expect(await stamped()).toBe(FORGE_VERSION);
+
+		// A failed run leaves the old stamp.
+		await makeOlder();
+		({ context } = await ctxIn(cwd));
+		expect(await run(["import", join(cwd, "missing.jsonl")], context)).toBe(1);
+		expect(await stamped()).toBe("0.0.1");
+	});
 	test("an unknown verb neither warns nor stamps", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedCases(cwd);
