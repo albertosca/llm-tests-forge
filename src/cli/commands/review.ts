@@ -300,10 +300,8 @@ export async function reviewCommand(
 						...(decidedIdsIn.get(item.item.scenario) ?? []),
 					])
 				: new Set(),
-		checkExpected: (caseEntry, oracle) =>
-			caseEntry.expected === undefined
-				? null
-				: expectedMatchesOracle(caseEntry.expected, oracle, feature),
+		checkExpected: (expected, oracle) =>
+			expectedMatchesOracle(expected, oracle, feature),
 		oracleOf,
 		onDecided: (item, originalId) => {
 			if (item.kind === "feature") {

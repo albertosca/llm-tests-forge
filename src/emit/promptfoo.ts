@@ -262,10 +262,7 @@ function providerFor(
 				id: "http",
 				label: model,
 				config: {
-					url:
-						target.url === undefined
-							? undefined
-							: substitute(lowerCaseScheme(target.url)),
+					url: target.url && substitute(lowerCaseScheme(target.url)),
 					method: target.method ?? "POST",
 					headers: mapStrings(
 						target.headers ?? { "Content-Type": "application/json" },

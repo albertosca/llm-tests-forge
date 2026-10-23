@@ -28,7 +28,7 @@ export interface ReviewLoopArgs {
 	 * Returns `null` when the value is acceptable, or a sentence naming
 	 * what is wrong with it.
 	 */
-	checkExpected: (caseEntry: Case, oracle: Oracle) => string | null;
+	checkExpected: (expected: Expected, oracle: Oracle) => string | null;
 	/**
 	 * Every id already present in the file this item lives in, so an edit
 	 * cannot rename it onto one of its siblings.
@@ -165,7 +165,7 @@ export async function runReviewLoop(
 		const caseEntry = item.item;
 		if (caseEntry.expected === undefined) return;
 		const problem = loopArguments.checkExpected(
-			caseEntry,
+			caseEntry.expected,
 			loopArguments.oracleOf(caseEntry),
 		);
 		if (problem !== null)

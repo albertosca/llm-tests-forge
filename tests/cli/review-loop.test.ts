@@ -5,7 +5,7 @@ import type { ReviewLoopResult } from "../../src/cli/review-loop";
 import { runReviewLoop } from "../../src/cli/review-loop";
 import { ForgeError } from "../../src/core/errors";
 import type { PendingItem } from "../../src/core/review";
-import type { Case, Feature, Scenario } from "../../src/core/schemas";
+import type { Case, Expected, Feature, Scenario } from "../../src/core/schemas";
 
 /**
  * Pulls the case out of a decided item at `i`, failing loudly if the loop
@@ -286,10 +286,10 @@ describe("runReviewLoop", () => {
 			ask: scripted(["edit", "edit"]),
 			openEditor: async () => edits.shift() ?? "",
 			askExpected: async () => ({ label: "a" }),
-			checkExpected: (caseEntry) =>
-				caseEntry.expected?.label === "a"
+			checkExpected: (expected) =>
+				expected.label === "a"
 					? null
-					: `label "${caseEntry.expected?.label}" is not one of the feature's labels`,
+					: `label "${expected.label}" is not one of the feature's labels`,
 			takenIdsFor: () => new Set(),
 			oracleOf: () => "label",
 			print: (line) => printed.push(line),
@@ -587,13 +587,13 @@ describe("runReviewLoop: the oracle check", () => {
 
 	test("rejecting a case whose expected the oracle does not accept is allowed: that is how it is got rid of", async () => {
 		const printed: string[] = [];
-		const checked: Case[] = [];
+		const checked: Expected[] = [];
 		const result = await runReviewLoop({
 			...base,
 			items: [{ kind: "case", item: withExp }],
 			ask: scripted(["reject"]),
-			checkExpected: (caseEntry) => {
-				checked.push(caseEntry);
+			checkExpected: (expected) => {
+				checked.push(expected);
 				return "label is not one of the feature's labels";
 			},
 			print: (line) => printed.push(line),
@@ -606,14 +606,14 @@ describe("runReviewLoop: the oracle check", () => {
 
 	test("a case edited down to no expected at all is not checked against the oracle", async () => {
 		const { expected: _dropped, ...withoutExpected } = withExp;
-		const checked: Case[] = [];
+		const checked: Expected[] = [];
 		const result = await runReviewLoop({
 			...base,
 			items: [{ kind: "case", item: withExp }],
 			ask: scripted(["edit"]),
 			openEditor: async () => stringify(withoutExpected),
-			checkExpected: (caseEntry) => {
-				checked.push(caseEntry);
+			checkExpected: (expected) => {
+				checked.push(expected);
 				return "an expected label is required";
 			},
 			print: () => {},

@@ -284,7 +284,7 @@ describe("the release workflow's shape", () => {
 						allowed: allowed.has(step.uses),
 					}).toEqual({ path, uses: step.uses, allowed: true });
 					if (step.uses === "oven-sh/setup-bun@v2")
-						expect(step.with).toEqual({ "bun-version": "1.4.2" });
+						expect(step.with).toEqual({ "bun-version": "1.4.4" });
 				}
 	});
 });
@@ -960,7 +960,7 @@ describe("the package tests in CI", () => {
 			const withOf = (uses: string) =>
 				steps.find((step) => step.uses === uses)?.with;
 			expect(withOf("oven-sh/setup-bun@v2")).toEqual({
-				"bun-version": "1.4.2",
+				"bun-version": "1.4.4",
 			});
 			expect(withOf("actions/setup-node@v7")).toEqual({ "node-version": "22" });
 			// The package tests keep uv's cache in node_modules/.cache/forge-uv
@@ -1125,7 +1125,7 @@ describe("the mutation workflow", () => {
 			'bun run mutation "$SCOPE"',
 			"actions/upload-artifact@v7",
 		]);
-		expect(steps[1]?.with).toEqual({ "bun-version": "1.4.2" });
+		expect(steps[1]?.with).toEqual({ "bun-version": "1.4.4" });
 		// The scope reaches the shell through the environment, never spliced
 		// into the script text.
 		expect(steps[4]?.env).toEqual({ SCOPE: `\${{ matrix.scope }}` });
