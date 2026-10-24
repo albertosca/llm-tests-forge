@@ -61,8 +61,27 @@ export async function askChoice(
 			(choice) => choice.startsWith(raw) && raw.length > 0,
 		);
 		if (hit) return hit;
-		if (raw === "") return choices[choices.length - 1] as string; // empty line = last choice (skip)
+		if (raw === "") {
+			if (await confirmedSkip(io)) return choices[choices.length - 1] as string; // empty line = last choice (skip)
+			continue;
+		}
 		io.stdout(`please answer one of: ${choices.join(", ")}`);
+	}
+}
+
+/**
+ * An empty Enter is easy to hit by accident, so it asks before it skips.
+ * A second empty answer counts as yes: stdin at EOF (a pipe, `< /dev/null`,
+ * a drained test queue) returns the empty string forever, and a question
+ * that insisted on y or n would never end there.
+ */
+async function confirmedSkip(io: Io): Promise<boolean> {
+	for (;;) {
+		io.stdout("skip this item? [y/n]");
+		const raw = (await io.stdin()).trim().toLowerCase();
+		if (raw === "" || raw === "y" || raw === "yes") return true;
+		if (raw === "n" || raw === "no") return false;
+		io.stdout("please answer y or n");
 	}
 }
 

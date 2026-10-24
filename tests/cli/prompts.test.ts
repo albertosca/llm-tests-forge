@@ -58,9 +58,55 @@ describe("askChoice", () => {
 		expect(await askChoice("q", CHOICES, io)).toBe("reject");
 	});
 
-	test("an empty line maps to the last choice (skip)", async () => {
-		const { io } = scriptedIo([""]);
+	test("an empty line asks before skipping, and a second empty line (the input ending) skips", async () => {
+		const { io, out } = scriptedIo(["", ""]);
 		expect(await askChoice("q", CHOICES, io)).toBe("skip");
+		expect(out).toEqual([
+			"q [approve/reject/edit/skip]",
+			"skip this item? [y/n]",
+		]);
+	});
+
+	test("a drained queue skips instead of asking forever", async () => {
+		const { io } = scriptedIo([]);
+		expect(await askChoice("q", CHOICES, io)).toBe("skip");
+	});
+
+	test.each(["y", "yes", " YES "])(
+		"an empty line then %j confirms the skip",
+		async (answer) => {
+			const { io, out } = scriptedIo(["", answer, "approve"]);
+			expect(await askChoice("q", CHOICES, io)).toBe("skip");
+			// Confirmed on the spot: nothing was corrected and nothing re-asked.
+			expect(out).toEqual([
+				"q [approve/reject/edit/skip]",
+				"skip this item? [y/n]",
+			]);
+		},
+	);
+
+	test.each(["n", "no"])(
+		"an empty line then %j puts the question again",
+		async (answer) => {
+			const { io, out } = scriptedIo(["", answer, "approve"]);
+			expect(await askChoice("q", CHOICES, io)).toBe("approve");
+			expect(out).toEqual([
+				"q [approve/reject/edit/skip]",
+				"skip this item? [y/n]",
+				"q [approve/reject/edit/skip]",
+			]);
+		},
+	);
+
+	test("anything else at the confirmation is corrected and the confirmation asked again", async () => {
+		const { io, out } = scriptedIo(["", "maybe", "y"]);
+		expect(await askChoice("q", CHOICES, io)).toBe("skip");
+		expect(out).toEqual([
+			"q [approve/reject/edit/skip]",
+			"skip this item? [y/n]",
+			"please answer y or n",
+			"skip this item? [y/n]",
+		]);
 	});
 
 	test("an invalid answer re-asks the same question instead of accepting it", async () => {
