@@ -4256,6 +4256,45 @@ describe("emit", () => {
 		expect(await readFile(shim, "utf8")).toBe("# mine\n");
 		expect(second.out).toContain(`emit: kept existing ${shim}`);
 	});
+	test.each([
+		[
+			"javascript",
+			undefined,
+			"; edit runApplication() to call your application",
+		],
+		[
+			"typescript",
+			undefined,
+			"; edit runApplication() to call your application",
+		],
+		["elixir", "mix.exs", "; edit run_application/2 to call your application"],
+		[
+			"rust",
+			"Cargo.toml",
+			"; edit run_application in src/main.rs to call your application, then run `cargo build --release` in that directory",
+		],
+	] as const)(
+		"%s: the last line says what to edit next",
+		async (kind, manifest, hint) => {
+			const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+			if (manifest !== undefined) {
+				await writeFile(
+					join(cwd, manifest),
+					manifest === "mix.exs"
+						? "defmodule Demo.MixProject do\nend\n"
+						: '[package]\nname = "demo"\n',
+				);
+			}
+			const forgeDirectory = await forgeWithApprovedCases(cwd);
+			await writeSuite(forgeDirectory, {
+				...SUITE,
+				target: { kind, models: ["anthropic/claude-haiku-4-5"] },
+			});
+			const { context, out } = await ctxIn(cwd);
+			expect(await run(["emit"], context)).toBe(0);
+			expect(out.at(-1)).toEndWith(hint);
+		},
+	);
 	test("go: writes go.mod and main.go under forge_target/, pointing at the project's module, and says how to build", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		await writeFile(join(cwd, "go.mod"), "module example.com/myapp\n");
