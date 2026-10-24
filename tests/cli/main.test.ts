@@ -2504,6 +2504,54 @@ async function forgeWithApprovedScenario(
 }
 
 describe("review: each item says where the pass is and what is being judged", () => {
+	const settledCase = (status: "approved" | "edited") => ({
+		id: "polite-rejection-01",
+		scenario: "polite-rejection",
+		input: { email: "one" },
+		expected: { label: "rejection" },
+		status,
+		generated_by: "t",
+	});
+
+	test("a scenario with no cases is still pointed at cases while another has approved ones", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "empty-one",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			settledCase("approved"),
+		]);
+		await writeCases(forgeDirectory, "empty-one", []);
+		const { context, out } = await ctxIn(cwd, []);
+		expect(await run(["review"], context)).toBe(0);
+		expect(out.at(-2)).toBe("Next: run llm-tests-forge cases.");
+	});
+
+	test("an edited case counts as ready for estimate", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			settledCase("edited"),
+		]);
+		const { context, out } = await ctxIn(cwd, []);
+		expect(await run(["review"], context)).toBe(0);
+		expect(out.at(-2)).toBe("Next: run llm-tests-forge estimate, then emit.");
+	});
+
 	test("a pass over two pending cases numbers them and explains the input, the proposed expected and the keys", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
