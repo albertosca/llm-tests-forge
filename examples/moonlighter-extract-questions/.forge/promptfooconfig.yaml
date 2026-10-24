@@ -1,7 +1,7 @@
 # Written by llm-tests-forge emit; edit suite.yaml and re-run instead of editing this file.
 description: "extract-job-application-questions: forge suite, 49 cases from 16 scenarios"
 prompts:
-  - "{{page}}"
+  - "page: {{page}}"
 providers:
   - id: file://forge_target.py
     label: anthropic/claude-sonnet-4-6
@@ -104,7 +104,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -217,7 +220,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -326,7 +332,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -418,7 +427,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -507,7 +519,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -603,7 +618,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -697,7 +715,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -804,7 +825,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -905,7 +929,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -997,7 +1024,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1100,7 +1130,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1200,7 +1233,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1297,7 +1333,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1399,7 +1438,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1499,7 +1541,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1616,7 +1661,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1724,7 +1772,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -1838,7 +1889,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2202,7 +2256,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2292,7 +2349,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2391,7 +2451,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2501,7 +2564,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2612,7 +2678,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2733,7 +2802,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -2981,7 +3053,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3084,7 +3159,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3194,7 +3272,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3307,7 +3388,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3420,7 +3504,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3527,7 +3614,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3636,7 +3726,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3749,7 +3842,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -3856,7 +3952,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -4179,7 +4278,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -4293,7 +4395,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -4407,7 +4512,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
@@ -4518,7 +4626,10 @@ tests:
               const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
               if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
             }
-            for (const gotItem of gotItems) if (!wantLabels.has(gotItem && gotItem.label)) pushDifference(`unexpected ${show(gotItem && gotItem.label)}`);
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
           };
           for (const field of Object.keys(want)) {
             if (show(obj[field]) === show(want[field])) continue;
