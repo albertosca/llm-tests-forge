@@ -24,23 +24,26 @@ jobs:
     # bound): core 2960 CPU-seconds, cli 2120, emit 240, report 190, llm 165.
     # The runner has 2 vCPUs, so the floor is half those: core 25 minutes, cli
     # 18, the others 2 or 3, plus Stryker's timeouts (cli has 171 mutants that
-    # hang until cut) and the install. Core and cli get 60, over twice their
-    # floor; the others 20. Tighten from the first real runs' durations.
+    # hang until cut) and the install. Core and cli were first given 60 and the
+    # others 20. Measured on the runner (2026-10-24): core 20m52s
+    # to 23m43s, cli 15m43s to 26m (the longer one while its survivors were
+    # still being killed), emit 2m13s, report 3m15s, llm 1m47s. So core and
+    # cli get 40 and the others 10, a margin of about 1.5 over the slowest.
     timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - scope: core
-            timeout: 60
+            timeout: 40
           - scope: cli
-            timeout: 60
+            timeout: 40
           - scope: emit
-            timeout: 20
+            timeout: 10
           - scope: report
-            timeout: 20
+            timeout: 10
           - scope: llm
-            timeout: 20
+            timeout: 10
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2

@@ -1068,15 +1068,15 @@ describe("the mutation workflow", () => {
 		]);
 	});
 
-	// The time limit of each scope's job, in minutes, sized from the CPU time
-	// measured on 2026-10-06 (the comment in mutation.yml has the numbers).
+	// The time limit of each scope's job, in minutes, sized from the runs
+	// measured on 2026-10-24 (the comment in mutation.yml has the numbers).
 	// Changing one is a decision.
 	const SCOPE_TIMEOUTS = {
-		core: 60,
-		cli: 60,
-		emit: 20,
-		report: 20,
-		llm: 20,
+		core: 40,
+		cli: 40,
+		emit: 10,
+		report: 10,
+		llm: 10,
 	};
 
 	test("one job per mutation scope, none cancelling the others, each with the time limit measured for it", async () => {
