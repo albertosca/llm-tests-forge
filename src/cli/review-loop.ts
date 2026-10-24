@@ -16,6 +16,7 @@ import type {
 } from "../core/schemas";
 import { palette, renderItem } from "./colors";
 import { ReviewInterruptedError } from "./prompts";
+import type { Place } from "./review-frame";
 
 export interface ReviewLoopArgs {
 	items: PendingItem[];
@@ -62,7 +63,7 @@ export interface ReviewLoopArgs {
 	 * and YAML; the CLI passes the colored rendering when the output is an
 	 * interactive terminal (see `src/cli/colors.ts`).
 	 */
-	render?: (item: PendingItem) => string;
+	render?: (item: PendingItem, place: Place) => string;
 }
 
 /** The two ids every recorded decision carries, whatever kind it is. */
@@ -183,7 +184,10 @@ export async function runReviewLoop(
 		for (;;) {
 			// Header and body are two prints, as they always were: callers
 			// and tests read the header as a line of its own.
-			const shown = render(current);
+			const shown = render(current, {
+				position: position + 1,
+				total: loopArguments.items.length,
+			});
 			const lineEnd = shown.indexOf("\n");
 			loopArguments.print(lineEnd === -1 ? shown : shown.slice(0, lineEnd));
 			loopArguments.print(lineEnd === -1 ? "" : shown.slice(lineEnd + 1));

@@ -20,6 +20,7 @@ import type { Case, Oracle } from "../../core/schemas";
 import { colorEnabled, palette, renderItem } from "../colors";
 import type { CliContext } from "../context";
 import { askChoice, askExpectedFor, openInEditor } from "../prompts";
+import { frameFor } from "../review-frame";
 import { runReviewLoop } from "../review-loop";
 import { applyReviewDecisions, takeOnce } from "../review-writeback";
 import { reviewAllCommand } from "./review-all";
@@ -333,7 +334,8 @@ export async function reviewCommand(
 			context.stdout(
 				line.startsWith("cannot apply:") ? paint.error(line) : line,
 			),
-		render: (item) => renderItem(item, paint),
+		render: (item, place) =>
+			renderItem(item, paint, frameFor(item, place, { feature, scenarios })),
 	});
 
 	/**

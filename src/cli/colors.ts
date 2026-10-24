@@ -1,5 +1,6 @@
 import { stringify } from "yaml";
 import type { PendingItem } from "../core/review";
+import type { Frame } from "./review-frame";
 
 /**
  * Color for the review screen. Every item used to be printed as bare YAML,
@@ -38,14 +39,16 @@ export interface Palette {
 	error: (line: string) => string;
 	/** The question asked for each item. */
 	prompt: (line: string) => string;
+	/** The lines that explain the keys, quieter than the item itself. */
+	hint: (line: string) => string;
 }
 
 const identity = (text: string) => text;
 
 export function palette(enabled: boolean): Palette {
 	return enabled
-		? { enabled, error: red, prompt: bold }
-		: { enabled, error: identity, prompt: identity };
+		? { enabled, error: red, prompt: bold, hint: dim }
+		: { enabled, error: identity, prompt: identity, hint: identity };
 }
 
 const KIND_COLOR: Record<PendingItem["kind"], (text: string) => string> = {
@@ -133,14 +136,26 @@ function colorYaml(yaml: string): string {
 
 /**
  * What the review loop prints for one item: a header naming its kind and id,
- * then the item as YAML. Without color it is exactly what the loop always
- * printed, so nothing downstream of a redirected run changes.
+ * then the item as YAML. Without color and without a frame it is exactly what
+ * the loop always printed, so nothing downstream of a redirected run changes.
+ * A frame adds the explanatory lines around the item (see `review-frame.ts`)
+ * and may replace the YAML with them.
  */
-export function renderItem(item: PendingItem, colors: Palette): string {
+export function renderItem(
+	item: PendingItem,
+	colors: Palette,
+	frame?: Frame,
+): string {
 	const yaml = stringify(item.item, { lineWidth: 0 }).trimEnd();
-	if (!colors.enabled) return `--- ${item.kind} ${item.item.id} ---\n${yaml}`;
-	const header = bold(
-		`--- ${KIND_COLOR[item.kind](item.kind)} ${item.item.id} ---`,
-	);
-	return `${header}\n${colorYaml(yaml)}`;
+	const header = colors.enabled
+		? bold(`--- ${KIND_COLOR[item.kind](item.kind)} ${item.item.id} ---`)
+		: `--- ${item.kind} ${item.item.id} ---`;
+	const body = colors.enabled ? colorYaml(yaml) : yaml;
+	if (!frame) return `${header}\n${body}`;
+	return [
+		header,
+		...frame.before,
+		...(frame.showYaml ? [body] : []),
+		...frame.after.map(colors.hint),
+	].join("\n");
 }

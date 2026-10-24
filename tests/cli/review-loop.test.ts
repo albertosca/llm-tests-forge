@@ -540,6 +540,29 @@ describe("runReviewLoop: what a person reads and what the editor receives", () =
 		},
 	);
 
+	test("render is told the place of each item in the pass, one-based", async () => {
+		const places: unknown[] = [];
+		await runReviewLoop({
+			...base,
+			items: [
+				{ kind: "scenario", item: scn },
+				{ kind: "case", item: withExp },
+				{ kind: "case", item: noExp },
+			],
+			ask: scripted(["skip", "skip", "skip"]),
+			render: (_item, place) => {
+				places.push(place);
+				return "h";
+			},
+			print: () => {},
+		});
+		expect(places).toEqual([
+			{ position: 1, total: 3 },
+			{ position: 2, total: 3 },
+			{ position: 3, total: 3 },
+		]);
+	});
+
 	test("an answer outside the choices is refused with the answer, the choices in order, and the item's id", async () => {
 		let caught: unknown;
 		try {

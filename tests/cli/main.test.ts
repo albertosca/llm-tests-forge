@@ -2471,6 +2471,56 @@ async function forgeWithApprovedScenario(
 	return forgeDirectory;
 }
 
+describe("review: each item says where the pass is and what is being judged", () => {
+	test("a pass over two pending cases numbers them and explains the input, the proposed expected and the keys", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "We will not proceed." },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "t",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "Thanks for applying!" },
+				status: "pending",
+				generated_by: "t",
+			},
+		]);
+		const { context, out } = await ctxIn(cwd, ["s", "s"]);
+		expect(
+			await run(["review", "--scenario", "polite-rejection"], context),
+		).toBe(0);
+		expect(out).toContain("--- case polite-rejection-01 ---");
+		const screen = out.join("\n");
+		expect(screen).toContain(
+			'Item 1 of 2 · a case of scenario "polite-rejection"',
+		);
+		expect(screen).toContain(
+			'Item 2 of 2 · a case of scenario "polite-rejection"',
+		);
+		expect(screen).toContain("Scenario: d");
+		expect(screen).toContain("  email: We will not proceed.");
+		expect(screen).toContain(
+			"Expected, proposed by t (you confirm or correct it):",
+		);
+		expect(screen).toContain(
+			"Expected: none yet; approve or edit will ask you for it.",
+		);
+		expect(screen).toContain("Valid labels: rejection, acknowledgement");
+		expect(screen).toContain(
+			"keys: a approve · r reject · e edit · s skip (Enter asks before skipping)",
+		);
+		expect(screen).not.toContain("generated_by:");
+		expect(out.at(-1)).toStartWith("review: 0 approved");
+	});
+});
+
 describe("review --all: both reasons for leaving a case pending are reported on one line", () => {
 	test("the no-expected note and the off-oracle note are joined by a semicolon", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
@@ -3324,8 +3374,10 @@ describe("review: what a rename does to the pointers at it, and what a twin id d
 		expect(out).toContain(
 			`review: ${join(forgeDirectory, "cases", "polite-rejection.yaml")} holds 2 entries under id "polite-rejection-01"; a pass offers only the first pending one — fix the file`,
 		);
-		expect(out).toContain(
-			"id: polite-rejection-01\nscenario: polite-rejection\ninput:\n  email: the pending twin\nexpected:\n  label: acknowledgement\nstatus: pending\ngenerated_by: hand",
+		// The case is offered as the frame shows it: its input and its proposed
+		// expected, which is what tells the pending twin from the approved one.
+		expect(out.join("\n")).toContain(
+			"Input:\n  email: the pending twin\nExpected, proposed by hand (you confirm or correct it):\n  label: acknowledgement",
 		);
 		const cases = await readCases(forgeDirectory, "polite-rejection");
 		expect(

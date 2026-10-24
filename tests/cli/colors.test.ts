@@ -234,3 +234,51 @@ describe("renderItem with color", () => {
 		expect(painter.prompt("case s-01:")).toBe(`${ESC}1mcase s-01:${ESC}22m`);
 	});
 });
+
+describe("renderItem with a frame", () => {
+	const frame = {
+		before: ["Item 1 of 2 · a case", "Input:", "  page: x"],
+		showYaml: false,
+		after: ["approve = yes", "keys: a approve"],
+	};
+	const yaml = stringify(kase.item, { lineWidth: 0 }).trimEnd();
+
+	test("the header stays first, then the before lines, then the after lines, with no YAML", () => {
+		expect(renderItem(kase, palette(false), frame)).toBe(
+			[
+				"--- case s-01 ---",
+				"Item 1 of 2 · a case",
+				"Input:",
+				"  page: x",
+				"approve = yes",
+				"keys: a approve",
+			].join("\n"),
+		);
+	});
+
+	test("showYaml puts the item's YAML between the before and the after lines", () => {
+		expect(renderItem(kase, palette(false), { ...frame, showYaml: true })).toBe(
+			[
+				"--- case s-01 ---",
+				"Item 1 of 2 · a case",
+				"Input:",
+				"  page: x",
+				yaml,
+				"approve = yes",
+				"keys: a approve",
+			].join("\n"),
+		);
+	});
+
+	test("with color the after lines are dim and the text is the uncolored rendering once the escapes are gone", () => {
+		const colored = renderItem(kase, palette(true), frame);
+		expect(colored).toContain(`${ESC}2mapprove = yes${ESC}22m`);
+		expect(colored).toContain(`${ESC}2mkeys: a approve${ESC}22m`);
+		expect(plain(colored)).toBe(renderItem(kase, palette(false), frame));
+	});
+
+	test("the hint painter is dim when enabled and untouched when not", () => {
+		expect(palette(true).hint("x")).toBe(`${ESC}2mx${ESC}22m`);
+		expect(palette(false).hint("x")).toBe("x");
+	});
+});
