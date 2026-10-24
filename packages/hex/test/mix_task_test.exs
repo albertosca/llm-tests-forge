@@ -37,5 +37,11 @@ defmodule Mix.Tasks.LlmTestsForgeTest do
       refute Task.interactive_review?([])
       refute Task.interactive_review?(["--", "review"])
     end
+
+    test "review --help and review -h are not interactive: they print and exit" do
+      refute Task.interactive_review?(["review", "--help"])
+      refute Task.interactive_review?(["review", "-h"])
+      refute Task.interactive_review?(["--suite", "evals/x", "review", "--help"])
+    end
   end
 end

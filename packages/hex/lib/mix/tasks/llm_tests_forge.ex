@@ -23,7 +23,8 @@ defmodule Mix.Tasks.LlmTestsForge do
 
       _build/llm-tests-forge --suite evals/x review
 
-  `review --scenario <id> --all` asks nothing, so it runs through mix.
+  `review --scenario <id> --all` asks nothing, so it runs through mix, and so
+  do `review --help` and `review -h`, which only print.
 
   A status other than 0 leaves through `exit({:shutdown, status})`, which
   mix turns into its own exit status after the VM shuts down cleanly.
@@ -66,11 +67,12 @@ defmodule Mix.Tasks.LlmTestsForge do
   @doc """
   Whether the binary would read `arguments` as the interactive review: the
   verb left once `--suite <path>` and `--suite=<path>` are taken out (as the
-  binary takes them out) is `review`, without `--all`, which asks nothing.
+  binary takes them out) is `review`, without `--all`, `--help` or `-h`,
+  which ask nothing.
   """
   def interactive_review?(arguments) do
     case without_suite_flag(arguments) do
-      ["review" | rest] -> "--all" not in rest
+      ["review" | rest] -> not Enum.any?(rest, &(&1 in ["--all", "--help", "-h"]))
       _other -> false
     end
   end
