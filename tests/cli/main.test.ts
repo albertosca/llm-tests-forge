@@ -2204,6 +2204,7 @@ describe("review: startInteractivePass arms end-of-input only for the interactiv
 		// written by its end, and the summary line was printed inside it.
 		expect(statuses).toEqual(["pending", "approved"]);
 		expect(out.slice(linesBeforeWriting)).toEqual([
+			"Next: run llm-tests-forge estimate, then emit.",
 			"review: 1 approved, 0 rejected, 0 edited, 0 skipped, 0 re-opened, 0 still pending",
 		]);
 	});
@@ -2518,6 +2519,81 @@ describe("review: each item says where the pass is and what is being judged", ()
 		);
 		expect(screen).not.toContain("generated_by:");
 		expect(out.at(-1)).toStartWith("review: 0 approved");
+	});
+});
+
+describe("review: the pass ends by saying what is next", () => {
+	test("a skipped item sends the person back to review, and the summary stays the last line", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "t",
+			},
+		]);
+		const { context, out } = await ctxIn(cwd, ["s"]);
+		expect(
+			await run(["review", "--scenario", "polite-rejection"], context),
+		).toBe(0);
+		expect(out.at(-2)).toBe(
+			"Next: 1 item(s) still pending: run llm-tests-forge review again.",
+		);
+		expect(out.at(-1)).toStartWith("review: 0 approved");
+	});
+
+	test("an approved scenario with no cases yet points at cases", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		await forgeWithApprovedScenario(cwd);
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["review"], context)).toBe(0);
+		expect(out).toEqual([
+			"Next: run llm-tests-forge cases.",
+			"review: nothing pending",
+		]);
+	});
+
+	test("a scenario that is not the one being reviewed is not asked for cases", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "other",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+		]);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "approved",
+				generated_by: "t",
+			},
+		]);
+		const { context, out } = await ctxIn(cwd);
+		expect(
+			await run(["review", "--scenario", "polite-rejection"], context),
+		).toBe(0);
+		expect(out).toEqual([
+			"Next: run llm-tests-forge estimate, then emit.",
+			"review: nothing pending",
+		]);
 	});
 });
 
@@ -6611,7 +6687,10 @@ describe("review: the words and the numbers of the command line and of the write
 		});
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["review", "--only", "cases"], context)).toBe(0);
-		expect(out).toEqual(["review: nothing pending"]);
+		expect(out).toEqual([
+			"Next: run llm-tests-forge estimate, then emit.",
+			"review: nothing pending",
+		]);
 	});
 
 	test("--scenario offers that scenario itself and its cases, and counts only what is inside it as still pending", async () => {

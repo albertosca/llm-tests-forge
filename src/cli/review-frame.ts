@@ -95,3 +95,25 @@ export function frameFor(
 		);
 	return { before, showYaml: false, after };
 }
+
+export interface NextStepState {
+	stillPending: number;
+	scenarios: Scenario[];
+	scenarioIdsWithCases: Set<string>;
+}
+
+/** The one line that closes a pass: what to run next, given what exists. */
+export function nextStep(state: NextStepState): string {
+	if (state.stillPending > 0)
+		return `Next: ${state.stillPending} item(s) still pending: run llm-tests-forge review again.`;
+	if (state.scenarios.length === 0)
+		return "Next: run llm-tests-forge scenarios.";
+	const needsCases = state.scenarios.some(
+		(scenario) =>
+			(scenario.status === "approved" || scenario.status === "edited") &&
+			!state.scenarioIdsWithCases.has(scenario.id),
+	);
+	return needsCases
+		? "Next: run llm-tests-forge cases."
+		: "Next: run llm-tests-forge estimate, then emit.";
+}

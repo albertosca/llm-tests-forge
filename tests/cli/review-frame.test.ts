@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { frameFor } from "../../src/cli/review-frame";
+import { frameFor, nextStep } from "../../src/cli/review-frame";
 import type { Case, Feature, Scenario } from "../../src/core/schemas";
 
 const feature: Feature = {
@@ -182,5 +182,70 @@ describe("frameFor a scenario and the feature", () => {
 				SHARED_KEYS,
 			],
 		});
+	});
+});
+
+describe("nextStep", () => {
+	const approvedScenario: Scenario = { ...scenario, status: "approved" };
+	const none = new Set<string>();
+
+	test("items still pending send the person back to review, with the count", () => {
+		expect(
+			nextStep({
+				stillPending: 3,
+				scenarios: [approvedScenario],
+				scenarioIdsWithCases: none,
+			}),
+		).toBe("Next: 3 item(s) still pending: run llm-tests-forge review again.");
+	});
+
+	test("no scenarios yet: generate them", () => {
+		expect(
+			nextStep({
+				stillPending: 0,
+				scenarios: [],
+				scenarioIdsWithCases: none,
+			}),
+		).toBe("Next: run llm-tests-forge scenarios.");
+	});
+
+	test("an approved scenario with no cases: generate cases", () => {
+		expect(
+			nextStep({
+				stillPending: 0,
+				scenarios: [approvedScenario],
+				scenarioIdsWithCases: none,
+			}),
+		).toBe("Next: run llm-tests-forge cases.");
+	});
+
+	test("an edited scenario with no cases also needs cases", () => {
+		expect(
+			nextStep({
+				stillPending: 0,
+				scenarios: [{ ...scenario, status: "edited" }],
+				scenarioIdsWithCases: none,
+			}),
+		).toBe("Next: run llm-tests-forge cases.");
+	});
+
+	test("a rejected scenario with no cases needs nothing", () => {
+		expect(
+			nextStep({
+				stillPending: 0,
+				scenarios: [{ ...scenario, status: "rejected" }],
+				scenarioIdsWithCases: none,
+			}),
+		).toBe("Next: run llm-tests-forge estimate, then emit.");
+	});
+
+	test("every approved scenario has cases: estimate, then emit", () => {
+		expect(
+			nextStep({
+				stillPending: 0,
+				scenarios: [approvedScenario],
+				scenarioIdsWithCases: new Set(["polite-rejection"]),
+			}),
+		).toBe("Next: run llm-tests-forge estimate, then emit.");
 	});
 });

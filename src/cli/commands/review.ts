@@ -20,7 +20,7 @@ import type { Case, Oracle } from "../../core/schemas";
 import { colorEnabled, palette, renderItem } from "../colors";
 import type { CliContext } from "../context";
 import { askChoice, askExpectedFor, openInEditor } from "../prompts";
-import { frameFor } from "../review-frame";
+import { frameFor, nextStep } from "../review-frame";
 import { runReviewLoop } from "../review-loop";
 import { applyReviewDecisions, takeOnce } from "../review-writeback";
 import { reviewAllCommand } from "./review-all";
@@ -195,6 +195,19 @@ export async function reviewCommand(
 		(feature.status === "pending" ? 1 : 0) +
 		scopedScenarios.filter((scenario) => scenario.status === "pending").length +
 		allCases.filter((caseEntry) => caseEntry.status === "pending").length;
+	// What comes after this pass, read from the same state the pass worked on;
+	// with --scenario, only that scenario is judged, so the others cannot
+	// make the line ask for cases it was never going to look at.
+	const nextStepLine = (stillPending: number) =>
+		nextStep({
+			stillPending,
+			scenarios: values.scenario
+				? scenarios.filter((scenario) => scenario.id === values.scenario)
+				: scenarios,
+			scenarioIdsWithCases: new Set(
+				[...casesById].filter(([, list]) => list.length > 0).map(([id]) => id),
+			),
+		});
 	if (items.length === 0) {
 		// "nothing pending" has to mean nothing is pending. When --only is
 		// what emptied the list, say so and name how much is still pending
@@ -203,7 +216,10 @@ export async function reviewCommand(
 			context.stdout(
 				`review: nothing pending matching --only ${only}; ${pendingOnDisk} item(s) still pending outside that filter`,
 			);
-		else context.stdout("review: nothing pending");
+		else {
+			context.stdout(nextStepLine(0));
+			context.stdout("review: nothing pending");
+		}
 		return;
 	}
 
@@ -531,6 +547,7 @@ export async function reviewCommand(
 				totalDecisionsNotWritten > 0
 					? `; ${totalDecisionsNotWritten} decision(s) not written`
 					: "";
+			context.stdout(nextStepLine(stillPending));
 			context.stdout(
 				`review: ${summary.approved} approved, ${summary.rejected} rejected, ${summary.edited} edited, ${summary.skipped} skipped, ${totalReopened} re-opened, ${stillPending} still pending${notWrittenSuffix}`,
 			);
