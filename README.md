@@ -131,6 +131,8 @@ Reads one `{"input-name": "value"}` JSON object per line from real production lo
 
 Reviews everything still pending: cases (confirming or fixing the expected output), and any imported case (setting its expected output for the first time). Two things review will not change for you: a scenario's `id` and a case's `scenario`, because both name the file the cases live in (`.forge/cases/<scenario>.yaml`) — the refusal names the `llm-tests-forge move` call that does it. And editing a scenario's `oracle` re-opens the approved cases of that scenario whose expected the new oracle no longer accepts: each one then needs `edit` to be given an expected in the new shape, not `approve`. One Ctrl+C during a review saves what was decided so far; a second one before the save starts aborts without writing anything, and one during the save lets it finish, then exits 130. Inside `$EDITOR`, Ctrl+C belongs to the editor: one that ignores it (Vim leaving insert mode) does neither, and one that Ctrl+C kills ends the pass and saves, as the first Ctrl+C does.
 
+The words the review screen uses: **pending** is waiting for your decision; **expected** is the answer the drafter proposes for a case, which you confirm or correct; **oracle** is how a case is checked (`label`: the answer must come out as that label; `fields`: its fields must match these values; `rubric`: a judge model grades it against a sentence); **scenario** is one situation that a group of cases covers; **review** is the pass in which you decide on each pending item. Pressing Enter on an empty line asks before it skips.
+
     llm-tests-forge move --scenario <old> <new>
     llm-tests-forge move --case <id> --to <scenario>
 

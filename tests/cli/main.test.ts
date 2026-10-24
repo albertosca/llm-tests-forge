@@ -7647,6 +7647,22 @@ describe("main(): the suite and the project", () => {
 		expect(blocks[sectionStart + 1]).toContain("approving is the person's job");
 	});
 
+	test("the guide defines the words the review screen uses", async () => {
+		const { context, out } = await ctxIn(
+			await mkdtemp(join(tmpdir(), "forge-guide-")),
+		);
+		expect(await run(["guide"], context)).toBe(0);
+		const guide = out.join("\n");
+		for (const definition of [
+			"**pending**: waiting for your decision",
+			"**expected**: the answer the drafter proposes for a case, which you confirm or correct",
+			"**oracle**: how a case is checked",
+			"**scenario**: one situation that a group of cases covers",
+			"**review**: the pass in which you decide on each pending item",
+		])
+			expect(guide).toContain(definition);
+	});
+
 	test("the guide names every verb in USAGE, so a new verb without a guide entry fails", async () => {
 		const { context, out } = await ctxIn(
 			await mkdtemp(join(tmpdir(), "forge-guide-")),

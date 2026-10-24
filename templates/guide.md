@@ -31,6 +31,14 @@ A suite's line reads `<path>   <feature id>   <n> scenarios approved, <n> pendin
 
 `cd` into a new directory (convention `evals/<function>/`), then run `llm-tests-forge describe "<what the function does>" --prompt-file <its system prompt>`. Then ask the person to review the feature.
 
+## Words the review screen uses
+
+- **pending**: waiting for your decision.
+- **expected**: the answer the drafter proposes for a case, which you confirm or correct.
+- **oracle**: how a case is checked: `label` (the answer must come out as that label), `fields` (its fields must match these values) or `rubric` (a judge model grades it against a sentence).
+- **scenario**: one situation that a group of cases covers.
+- **review**: the pass in which you decide on each pending item. Pressing Enter on an empty line asks before it skips.
+
 ## The pipeline
 
 describe, review, scenarios, review, cases, dedupe (optional), review, emit, fill the shim, run promptfoo, report. `dedupe` comes before the last review because it only touches pending cases (it skips approved and edited ones): it groups pending duplicates for the person to review.
