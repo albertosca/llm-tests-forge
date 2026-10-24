@@ -61,16 +61,20 @@ const STATUS_COLOR: Record<string, (text: string) => string> = {
 	rejected: red,
 };
 
+/** The marker `stringify` writes for a block scalar: it never folds one with `>`. */
+function isBlockMarker(raw: string): boolean {
+	return raw === "|" || raw === "|-";
+}
+
 /** A scalar as it reads: numbers, booleans and null yellow, text green. */
 function value(raw: string): string {
-	if (raw === "|-" || raw === "|" || raw === ">" || raw === ">-")
-		return dim(raw);
+	if (isBlockMarker(raw)) return dim(raw);
 	if (/^(-?\d+(\.\d+)?|true|false|null|~)$/.test(raw)) return yellow(raw);
 	return green(raw);
 }
 
 const KEY_LINE = /^(\s*)(- )?([A-Za-z_][\w-]*):( (.*))?$/;
-const ITEM_LINE = /^(\s*)- (.+)$/;
+const ITEM_LINE = /^(\s*)- (.+)/;
 
 /**
  * Colors YAML as `stringify` writes it, line by line. The one state it keeps
@@ -78,12 +82,13 @@ const ITEM_LINE = /^(\s*)- (.+)$/;
  * a line of it that happens to look like `Name: value` is still text.
  */
 function colorYaml(yaml: string): string {
+	// Stryker disable next-line UnaryOperator: the first line of any YAML `stringify` writes has no indent, so starting at 1 leaves the block branch exactly as -1 does
 	let blockIndent = -1;
 	const out: string[] = [];
 	for (const line of yaml.split("\n")) {
 		const indent = line.length - line.trimStart().length;
 		if (blockIndent >= 0) {
-			if (line.trim() === "" || indent > blockIndent) {
+			if (line === "" || indent > blockIndent) {
 				out.push(line === "" ? line : green(line));
 				continue;
 			}
@@ -110,7 +115,7 @@ function colorYaml(yaml: string): string {
 						? ` ${STATUS_COLOR[rest](rest)}`
 						: ` ${value(rest)}`;
 			out.push(`${lead}${dash}${cyan(name)}:${painted}`);
-			if (rest !== undefined && /^[|>]-?$/.test(rest))
+			if (rest !== undefined && isBlockMarker(rest))
 				blockIndent = lead.length + dash.length;
 			continue;
 		}
