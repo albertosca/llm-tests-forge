@@ -37,9 +37,11 @@ export default {
 	// the maintainer's machine; the sandbox copy follows it and dies on a
 	// file it cannot copy (ENOTSUP). Nothing in docs is a test or a mutant.
 	ignorePatterns: ["docs"],
-	// One worker: with the default (one per core) the native compilers alone
-	// took the maintainer's machine to a load of 35, and two still hurt.
-	concurrency: 1,
+	// One worker on a workstation: with the default (one per core) the native
+	// compilers alone took the maintainer's machine to a load of 35, and two
+	// still hurt. CI keeps the default, so its timeout-minutes were measured
+	// with the runner's own cores.
+	...(process.env.CI ? {} : { concurrency: 1 }),
 	coverageAnalysis: "perTest",
 	// STRYKER_MUTATE_FILE (`bun run mutation <scope> --mutate <file>`) narrows
 	// the mutated files to one; the tests stay the scope's whole list.
