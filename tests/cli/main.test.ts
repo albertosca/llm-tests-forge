@@ -2597,6 +2597,20 @@ describe("review: the pass ends by saying what is next", () => {
 	});
 });
 
+describe("review: a cases file with no cases does not count as having cases", () => {
+	test("an approved scenario whose cases file is empty still points at cases", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", []);
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["review"], context)).toBe(0);
+		expect(out).toEqual([
+			"Next: run llm-tests-forge cases.",
+			"review: nothing pending",
+		]);
+	});
+});
+
 describe("review --all: both reasons for leaving a case pending are reported on one line", () => {
 	test("the no-expected note and the off-oracle note are joined by a semicolon", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));

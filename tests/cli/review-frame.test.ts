@@ -150,6 +150,32 @@ describe("frameFor a case", () => {
 	});
 });
 
+describe("frameFor a case: edges", () => {
+	test("a long input stays on one line instead of folding at 80 columns", () => {
+		const long = `${"word ".repeat(30)}end`;
+		const frame = frameFor(
+			{ kind: "case", item: { ...pendingCase, input: { email: long } } },
+			place,
+			{ feature, scenarios: [scenario] },
+		);
+		expect(frame.before).toContain(`  email: ${long}`);
+	});
+
+	test("the scenario shown is the case's own, not the first one", () => {
+		const other: Scenario = {
+			...scenario,
+			id: "other",
+			description: "Something else",
+		};
+		const frame = frameFor({ kind: "case", item: pendingCase }, place, {
+			feature,
+			scenarios: [other, scenario],
+		});
+		expect(frame.before).toContain("Scenario: A courteous no");
+		expect(frame.before.join("\n")).not.toContain("Something else");
+	});
+});
+
 describe("frameFor a scenario and the feature", () => {
 	test("a scenario keeps the YAML and names its kind and oracle", () => {
 		const frame = frameFor({ kind: "scenario", item: scenario }, place, {
@@ -237,6 +263,19 @@ describe("nextStep", () => {
 				scenarioIdsWithCases: none,
 			}),
 		).toBe("Next: run llm-tests-forge estimate, then emit.");
+	});
+
+	test("one scenario with cases does not hide another without", () => {
+		expect(
+			nextStep({
+				stillPending: 0,
+				scenarios: [
+					{ ...approvedScenario, id: "has-cases" },
+					{ ...approvedScenario, id: "no-cases" },
+				],
+				scenarioIdsWithCases: new Set(["has-cases"]),
+			}),
+		).toBe("Next: run llm-tests-forge cases.");
 	});
 
 	test("every approved scenario has cases: estimate, then emit", () => {
