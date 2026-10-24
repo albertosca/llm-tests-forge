@@ -86,8 +86,9 @@ def missing_binary_message(
     """What the entry says when no binary runs here.
 
     musl Linux has no binary yet (the Linux ones need glibc). The fallback
-    wheel on a platform that has a platform wheel was chosen because an
-    installer was asked for another platform. Anywhere else the platform has
+    wheel on a platform that has a platform wheel was chosen because no wheel
+    matched (an old OS, glibc or pip, or an installer asked for another
+    platform). Anywhere else the platform has
     no binary, and install.sh is the way.
     """
     name = platform_name(system_platform, machine)
@@ -108,9 +109,12 @@ def missing_binary_message(
         return (
             "llm-tests-forge: this is the py3-none-any fallback wheel, which has no "
             f"binary, but {name} has a platform wheel ({platform_tag}); the installer "
-            "was asked for another platform (pip --platform, uv --python-platform) "
-            "and chose the fallback. Let the installer pick (pip install "
-            f"llm-tests-forge), or ask for that wheel with --platform {platform_tag}"
+            "chose the fallback because no wheel matched this platform: the OS "
+            "version may be older than the wheel's minimum, the glibc older than "
+            f"2.17, the pip too old to know {platform_tag}, or the installer was "
+            "asked for another platform (pip --platform, uv --python-platform). "
+            "Upgrade pip (python -m pip install --upgrade pip) and reinstall (pip "
+            f"install llm-tests-forge), or ask for that wheel with --platform {platform_tag}"
         )
     return (
         f"llm-tests-forge has no binary for {name}; see {REPOSITORY_URL} for install.sh"

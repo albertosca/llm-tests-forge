@@ -426,7 +426,7 @@ async function installedTags(python: string, work: string): Promise<string[]> {
 
 /** What the fallback wheel says on a platform that has a platform wheel (`name` in npm's spelling, `platformTag` that wheel's tag). */
 function fallbackWheelChosenMessage(name: string, platformTag: string): string {
-	return `llm-tests-forge: this is the py3-none-any fallback wheel, which has no binary, but ${name} has a platform wheel (${platformTag}); the installer was asked for another platform (pip --platform, uv --python-platform) and chose the fallback. Let the installer pick (pip install llm-tests-forge), or ask for that wheel with --platform ${platformTag}`;
+	return `llm-tests-forge: this is the py3-none-any fallback wheel, which has no binary, but ${name} has a platform wheel (${platformTag}); the installer chose the fallback because no wheel matched this platform: the OS version may be older than the wheel's minimum, the glibc older than 2.17, the pip too old to know ${platformTag}, or the installer was asked for another platform (pip --platform, uv --python-platform). Upgrade pip (python -m pip install --upgrade pip) and reinstall (pip install llm-tests-forge), or ask for that wheel with --platform ${platformTag}`;
 }
 
 /** missing_binary_message(system_platform, machine, libc, fallback) as the installed package computes it, through `python`. */
@@ -518,7 +518,7 @@ describe.skipIf(!packages)("the fallback wheel", () => {
 		);
 	}, 600_000);
 
-	test("the fallback wheel on a supported platform (glibc on Linux) says an installer asked for another platform, and names the platform wheel", async () => {
+	test("the fallback wheel on a supported platform (glibc on Linux) names the real causes (OS, glibc, pip version), and names the platform wheel", async () => {
 		const paths = await installedVenv();
 		const { work } = await builtWheels();
 		// [sys.platform, platform.machine(), libc, npm name, the wheel's tag]
