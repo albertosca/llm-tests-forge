@@ -638,7 +638,11 @@ function fallbackGemChosenMessage(
 		gem_install:
 			"gem install --platform ruby chose the fallback (if Bundler installed it, run it with bundle exec to see why). Reinstall it without --platform ruby: gem install llm-tests-forge",
 	};
-	return `${opening}${causes[cause]}`;
+	// Only the glibc Linux gems carry a -gnu platform, which RubyGems before 3.3.21 does not match to the local x86_64-linux.
+	const oldRubyGems = native.endsWith("-gnu")
+		? `. If none of that applies, RubyGems older than 3.3.21 may not match the glibc gem (${native}) to this platform: gem update --system, then reinstall`
+		: "";
+	return `${opening}${causes[cause]}${oldRubyGems}`;
 }
 
 describe.skipIf(!packages)("the fallback gem", () => {

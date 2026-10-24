@@ -117,7 +117,17 @@ module LlmTestsForge
 
   def fallback_chosen_message(name, native, cause)
     "llm-tests-forge: this is the ruby-platform fallback gem, which has no binary, " \
-      "but #{name} has a native gem (#{native}); #{format(FALLBACK_CAUSES.fetch(cause), native: native)}"
+      "but #{name} has a native gem (#{native}); #{format(FALLBACK_CAUSES.fetch(cause), native: native)}" \
+      "#{old_rubygems_hint(native)}"
+  end
+
+  # RubyGems before 3.3.21 does not match a -gnu platform (the glibc Linux
+  # gems) to the local x86_64-linux, so it can install the fallback by mistake.
+  def old_rubygems_hint(native)
+    return "" unless native.end_with?("-gnu")
+
+    ". If none of that applies, RubyGems older than 3.3.21 may not match the glibc gem (#{native}) " \
+      "to this platform: gem update --system, then reinstall"
   end
 
   # Runs the binary as a child and returns its exit status. The shim stays
