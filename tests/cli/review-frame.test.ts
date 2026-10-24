@@ -1,0 +1,186 @@
+import { describe, expect, test } from "bun:test";
+import { frameFor } from "../../src/cli/review-frame";
+import type { Case, Feature, Scenario } from "../../src/core/schemas";
+
+const feature: Feature = {
+	id: "classify-email",
+	purpose: "Classify a hiring email",
+	inputs: [{ name: "email", kind: "text" }],
+	output: { kind: "label", labels: ["rejection", "acknowledgement"] },
+	invariants: [],
+	status: "approved",
+};
+
+const scenario: Scenario = {
+	id: "polite-rejection",
+	kind: "happy",
+	oracle: "label",
+	description: "A courteous no",
+	status: "approved",
+};
+
+const pendingCase: Case = {
+	id: "polite-rejection-01",
+	scenario: "polite-rejection",
+	input: { email: "We will not proceed." },
+	expected: { label: "rejection" },
+	status: "pending",
+	generated_by: "drafter-model",
+};
+
+const place = { position: 3, total: 24 };
+const SHARED_KEYS =
+	"keys: a approve · r reject · e edit · s skip (Enter asks before skipping)";
+
+describe("frameFor a case", () => {
+	test("names the place, the scenario, the input and the proposed expected", () => {
+		const frame = frameFor({ kind: "case", item: pendingCase }, place, {
+			feature,
+			scenarios: [scenario],
+		});
+		expect(frame).toEqual({
+			before: [
+				'Item 3 of 24 · a case of scenario "polite-rejection"',
+				"Scenario: A courteous no",
+				"Input:",
+				"  email: We will not proceed.",
+				"Expected, proposed by drafter-model (you confirm or correct it):",
+				"  label: rejection",
+				"Checked as label: the answer must come out as this label",
+				"Valid labels: rejection, acknowledgement",
+			],
+			showYaml: false,
+			after: [
+				"approve = this expected answer is right for this input · reject = drop this case · edit = fix it · skip = decide later",
+				SHARED_KEYS,
+			],
+		});
+	});
+
+	test("a case without expected says approve or edit will ask for it", () => {
+		const { expected: _expected, ...withoutExpected } = pendingCase;
+		const frame = frameFor({ kind: "case", item: withoutExpected }, place, {
+			feature,
+			scenarios: [scenario],
+		});
+		expect(frame.before).toContain(
+			"Expected: none yet; approve or edit will ask you for it.",
+		);
+		expect(frame.before.join("\n")).not.toContain("proposed by");
+	});
+
+	test("a rubric oracle explains the judge and prints no valid labels", () => {
+		const rubricScenario: Scenario = { ...scenario, oracle: "rubric" };
+		const rubricCase: Case = {
+			...pendingCase,
+			expected: { rubric: "says it is a receipt" },
+		};
+		const frame = frameFor({ kind: "case", item: rubricCase }, place, {
+			feature,
+			scenarios: [rubricScenario],
+		});
+		expect(frame.before).toContain(
+			"Checked as rubric: a judge model grades the answer against this sentence",
+		);
+		expect(frame.before.join("\n")).not.toContain("Valid labels");
+	});
+
+	test("a fields oracle explains that the fields must match", () => {
+		const fieldsScenario: Scenario = { ...scenario, oracle: "fields" };
+		const fieldsCase: Case = {
+			...pendingCase,
+			expected: { fields: { total: "3" } },
+		};
+		const frame = frameFor({ kind: "case", item: fieldsCase }, place, {
+			feature,
+			scenarios: [fieldsScenario],
+		});
+		expect(frame.before).toContain(
+			"Checked as fields: the answer's fields must match these values",
+		);
+		expect(frame.before).toContain("  fields:");
+	});
+
+	test("a label oracle on a feature without labels prints no valid labels", () => {
+		const labelless = {
+			...feature,
+			output: { kind: "text" },
+		} as unknown as Feature;
+		const frame = frameFor({ kind: "case", item: pendingCase }, place, {
+			feature: labelless,
+			scenarios: [scenario],
+		});
+		expect(frame.before.join("\n")).not.toContain("Valid labels");
+	});
+
+	test("an unknown scenario drops the scenario and oracle lines", () => {
+		const frame = frameFor({ kind: "case", item: pendingCase }, place, {
+			feature,
+			scenarios: [],
+		});
+		const text = frame.before.join("\n");
+		expect(text).not.toContain("Scenario:");
+		expect(text).not.toContain("Checked as");
+		expect(text).not.toContain("Valid labels");
+		expect(frame.before[0]).toBe(
+			'Item 3 of 24 · a case of scenario "polite-rejection"',
+		);
+	});
+
+	test("duplicate_of becomes a note naming the other case", () => {
+		const duplicate: Case = {
+			...pendingCase,
+			duplicate_of: "polite-rejection-00",
+		};
+		const frame = frameFor({ kind: "case", item: duplicate }, place, {
+			feature,
+			scenarios: [scenario],
+		});
+		expect(frame.before.at(-1)).toBe(
+			"Note: looks like a near-duplicate of polite-rejection-00 (flagged by dedupe). Reject to drop this one, approve to keep both.",
+		);
+	});
+
+	test("a case that is not a duplicate carries no note", () => {
+		const frame = frameFor({ kind: "case", item: pendingCase }, place, {
+			feature,
+			scenarios: [scenario],
+		});
+		expect(frame.before.join("\n")).not.toContain("Note:");
+	});
+});
+
+describe("frameFor a scenario and the feature", () => {
+	test("a scenario keeps the YAML and names its kind and oracle", () => {
+		const frame = frameFor({ kind: "scenario", item: scenario }, place, {
+			feature,
+			scenarios: [scenario],
+		});
+		expect(frame).toEqual({
+			before: [
+				"Item 3 of 24 · a scenario (kind: happy, oracle: label)",
+				"Checked as label: the answer must come out as this label",
+			],
+			showYaml: true,
+			after: [
+				"approve = keep this scenario · reject = drop it · edit = change it · skip = decide later",
+				SHARED_KEYS,
+			],
+		});
+	});
+
+	test("the feature keeps the YAML and its own keys line", () => {
+		const frame = frameFor({ kind: "feature", item: feature }, place, {
+			feature,
+			scenarios: [],
+		});
+		expect(frame).toEqual({
+			before: ["Item 3 of 24 · the feature"],
+			showYaml: true,
+			after: [
+				"approve = this description is right · reject = drop it · edit = change it · skip = decide later",
+				SHARED_KEYS,
+			],
+		});
+	});
+});
