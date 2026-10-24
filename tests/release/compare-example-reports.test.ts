@@ -35,22 +35,29 @@ const MARKDOWN_TEXT = [
 ].join("\n");
 
 describe("normalizeReportJson", () => {
-	test("drops the time the report was written and the baseline, keeps the run time", () => {
+	test("drops the time the report was written, keeps the run time and the baseline", () => {
 		const normalized = JSON.parse(normalizeReportJson(JSON_TEXT));
 		expect(normalized).toEqual({
 			ranAt: "2026-09-30T16:27:10.834Z",
 			rows: 2,
+			baseline: { regressions: [{ case: "a" }] },
 		});
 	});
 });
 
 describe("normalizeReportMarkdown", () => {
-	test("drops the Reported line, the baseline figure and the baseline section, keeps the next section", () => {
+	test("drops the Reported line, keeps the baseline figure and section", () => {
 		expect(normalizeReportMarkdown(MARKDOWN_TEXT)).toBe(
 			[
 				"# llm-tests-forge report — run 2026-09-30T16:27:10.834Z",
 				"",
-				"**Pass rate:** 50% · **flaky:** 0",
+				"**Pass rate:** 50% · **flaky:** 0 · **regressions since baseline:** 6",
+				"",
+				"## Regressions since baseline",
+				"",
+				"| case | before | after |",
+				"",
+				"Fixed since baseline: 15.",
 				"",
 				"## Flaky cases",
 				"",
@@ -90,14 +97,14 @@ describe("firstDifference", () => {
 describe("compareReports", () => {
 	const committed = { json: JSON_TEXT, markdown: MARKDOWN_TEXT };
 
-	test("finds nothing when only the excluded fields differ", () => {
+	test("finds nothing when only the time the report was written differs", () => {
 		const regenerated = {
 			json: `${JSON.stringify(
 				{
 					generatedAt: "2027-01-01T00:00:00.000Z",
 					ranAt: "2026-09-30T16:27:10.834Z",
 					rows: 2,
-					baseline: null,
+					baseline: { regressions: [{ case: "a" }] },
 				},
 				null,
 				2,
@@ -116,7 +123,7 @@ describe("compareReports", () => {
 			json: JSON_TEXT.replace('"rows": 2', '"rows": 3'),
 		};
 		expect(compareReports(committed, regenerated)).toEqual([
-			'report.json, line 3: committed "  \\"rows\\": 2", regenerated "  \\"rows\\": 3"',
+			'report.json, line 3: committed "  \\"rows\\": 2,", regenerated "  \\"rows\\": 3,"',
 		]);
 	});
 
@@ -127,6 +134,29 @@ describe("compareReports", () => {
 		};
 		const [difference, ...others] = compareReports(committed, regenerated);
 		expect(difference).toStartWith("report.md, line 1:");
+		expect(others).toEqual([]);
+	});
+
+	test("names report.json when the baseline comparison changes", () => {
+		const regenerated = {
+			...committed,
+			json: JSON_TEXT.replace('"case": "a"', '"case": "b"'),
+		};
+		const [difference, ...others] = compareReports(committed, regenerated);
+		expect(difference).toStartWith("report.json, line 7:");
+		expect(others).toEqual([]);
+	});
+
+	test("names report.md when the regressions since baseline change", () => {
+		const regenerated = {
+			...committed,
+			markdown: MARKDOWN_TEXT.replace(
+				"regressions since baseline:** 6",
+				"regressions since baseline:** 7",
+			),
+		};
+		const [difference, ...others] = compareReports(committed, regenerated);
+		expect(difference).toStartWith("report.md, line 3:");
 		expect(others).toEqual([]);
 	});
 

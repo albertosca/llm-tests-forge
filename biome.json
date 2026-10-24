@@ -12,6 +12,7 @@
 			"!**/.forge",
 			"!**/coverage",
 			"!examples/**/results.json",
+			"!examples/**/baseline-report.json",
 			"!tests/fixtures/*/results.json"
 		]
 	},

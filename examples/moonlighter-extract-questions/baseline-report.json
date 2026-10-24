@@ -1,0 +1,718 @@
+{
+  "generatedAt": "2026-09-29T10:46:47.769Z",
+  "ranAt": "2026-09-25T14:48:00.200Z",
+  "promptfooVersion": "0.123.0",
+  "rows": 84,
+  "matched": 84,
+  "unmatched": [],
+  "passRate": 0.6786,
+  "cases": [
+    {
+      "case": "standard-multi-field-form-01",
+      "scenario": "standard-multi-field-form",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 1,
+      "failed": 1,
+      "errored": 0,
+      "stability": "flaky",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"First Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Last Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Phone Number\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Are you legally authorized to work in the United States?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Will you now or in the future require sponsorship for employment visa status?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Resume/CV\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"How did you hear about this position?\",\"kind\":\"text\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"First Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Last Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Phone Number\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Are you legally authorized to work in the United States?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Will you now or in the future require sponsorship for employment visa status?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Resume/CV\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"How did you hear about this position?\",\"kind\":\"text\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "standard-multi-field-form-02",
+      "scenario": "standard-multi-field-form",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "standard-multi-field-form-03",
+      "scenario": "standard-multi-field-form",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 1,
+      "failed": 1,
+      "errored": 0,
+      "stability": "flaky",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"Full Legal Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Preferred Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Current Location\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Are you authorized to work in the US without sponsorship?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Do you have experience with Python?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Portfolio or GitHub Link\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Additional Comments\",\"kind\":\"long_text\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"Full Legal Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Preferred Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Current Location\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Are you authorized to work in the US without sponsorship?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Do you have experience with Python?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Portfolio or GitHub Link\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Additional Comments\",\"kind\":\"long_text\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "multi-select-with-options-01",
+      "scenario": "multi-select-with-options",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "multi-select-with-options-02",
+      "scenario": "multi-select-with-options",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "multi-select-with-options-03",
+      "scenario": "multi-select-with-options",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "no-questions-present-01",
+      "scenario": "no-questions-present",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "no-questions-present-02",
+      "scenario": "no-questions-present",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "no-questions-present-03",
+      "scenario": "no-questions-present",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "extremely-long-label-01",
+      "scenario": "extremely-long-label",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email Address\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Please describe, in as much detail as possible, a time when you faced a significant technical challenge at work.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Years of Experience\",\"kind\":\"text\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email Address\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Please describe, in as much detail as possible, a time when you faced a significant technical challenge at work.\\n\\nExplain the context, the specific obstacles you encountered, the approach you took to resolve them, and the ultimate outcome. Feel free to include metrics or specific technologies used if relevant to illustrate the impact of your solution, and note any lessons learned that you have since applied to later projects.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Years of Experience\",\"kind\":\"text\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "extremely-long-label-02",
+      "scenario": "extremely-long-label",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"First and Last Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Tell us about a project you led from ideation through launch, including how you identified the problem, the stakeholders you worked with along the way, and the metrics you used to measure success once the product shipped. Please also mention any pivots you made mid-project and why they were necessary.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Which of the following best describes your current role?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Individual Contributor\",\"Team Lead\",\"Manager\",\"Director\"]},{\"label\":\"Which product management tools have you used professionally?\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"Jira\",\"Asana\",\"Trello\",\"Notion\",\"Linear\"]},{\"label\":\"Portfolio Link\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"How did you hear about this position?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"First and Last Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Tell us about   a project you led from ideation through launch,    including how you identified the problem,     the stakeholders you worked with along the way,   and   the metrics you used to measure success once the product shipped.  Please also mention any pivots you made mid-project and why they were necessary.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Which of the following best describes your current role?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Individual Contributor\",\"Team Lead\",\"Manager\",\"Director\"]},{\"label\":\"Which product management tools have you used professionally?\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"Jira\",\"Asana\",\"Trello\",\"Notion\",\"Linear\"]},{\"label\":\"Portfolio Link\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"How did you hear about this position?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "extremely-long-label-03",
+      "scenario": "extremely-long-label",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"We want to understand your design philosophy and how it has evolved over time. Please walk us through a specific project where you had to balance user needs against business constraints, describing the research methods you used, the trade-offs you considered, and how you communicated your final recommendation to stakeholders who may not have had a design background.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Are you legally authorized to work in the United States?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Do you require visa sponsorship now or in the future?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Upload your portfolio (PDF or link)\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"I agree to the processing of my personal data as described in the Privacy Policy.\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"We want to understand your design philosophy and how it has evolved over time. Please walk us through\\na specific project where you had to balance user needs against business constraints, describing the\\nresearch methods you used, the trade-offs you considered, and how you communicated your final\\nrecommendation to stakeholders who may not have had a design background.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Are you legally authorized to work in the United States?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Do you require visa sponsorship now or in the future?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Upload your portfolio (PDF or link)\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"I agree to the processing of my personal data as described in the Privacy Policy.\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "boolean-yes-no-question-01",
+      "scenario": "boolean-yes-no-question",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email Address\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Phone Number\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Are you legally authorized to work in the United States?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Cover Letter\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"How did you hear about us?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email Address\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Phone Number\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Are you legally authorized to work in the United States?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Cover Letter\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"How did you hear about us?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "boolean-yes-no-question-02",
+      "scenario": "boolean-yes-no-question",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"First Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Last Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Are you at least 18 years of age?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Do you have a valid driver's license?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Which programming languages are you proficient in?\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"Python\",\"R\",\"SQL\",\"Java\"]},{\"label\":\"Tell us about a data project you're proud of\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Portfolio Link\",\"kind\":\"text\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"First Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Last Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Are you at least 18 years of age?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Do you have a valid driver's license?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Which programming languages are you proficient in?\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"Python\",\"R\",\"SQL\",\"Java\"]},{\"label\":\"Tell us about a data project you're proud of\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Portfolio Link\",\"kind\":\"text\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "boolean-yes-no-question-03",
+      "scenario": "boolean-yes-no-question",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "required-marker-missing-01",
+      "scenario": "required-marker-missing",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email Address\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Phone Number\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"LinkedIn Profile URL\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"How did you hear about us?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Are you legally authorized to work in the United States?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Years of Experience\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Cover Letter\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"I agree to the Terms of Service and Privacy Policy\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email Address\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Phone Number\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"LinkedIn Profile URL\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"How did you hear about us?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Are you legally authorized to work in the United States?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Years of Experience\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Cover Letter\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"I agree to the Terms of Service and Privacy Policy\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "required-marker-missing-02",
+      "scenario": "required-marker-missing",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 1,
+      "failed": 1,
+      "errored": 0,
+      "stability": "flaky",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Portfolio Link\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Available Start Date\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"How many years of marketing experience do you have?\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Are you willing to relocate?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Cover Letter\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"I have read and agree to the company's data privacy policy\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Portfolio Link\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Available Start Date\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"How many years of marketing experience do you have?\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Are you willing to relocate?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Cover Letter\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"I have read and agree to the company's data privacy policy\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "required-marker-missing-03",
+      "scenario": "required-marker-missing",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "select-vs-text-freeform-01",
+      "scenario": "select-vs-text-freeform",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "select-vs-text-freeform-02",
+      "scenario": "select-vs-text-freeform",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "select-vs-text-freeform-03",
+      "scenario": "select-vs-text-freeform",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "salary-expectation-numeric-field-01",
+      "scenario": "salary-expectation-numeric-field",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "salary-expectation-numeric-field-02",
+      "scenario": "salary-expectation-numeric-field",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "salary-expectation-numeric-field-03",
+      "scenario": "salary-expectation-numeric-field",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "job-description-only-page-01",
+      "scenario": "job-description-only-page",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "job-description-only-page-02",
+      "scenario": "job-description-only-page",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "job-description-only-page-03",
+      "scenario": "job-description-only-page",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "cookie-consent-and-nav-noise-01",
+      "scenario": "cookie-consent-and-nav-noise",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "cookie-consent-and-nav-noise-02",
+      "scenario": "cookie-consent-and-nav-noise",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"First Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Last Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Preferred Store Location\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Availability\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"Weekday mornings\",\"Weekday evenings\",\"Weekends\",\"Holidays\"]},{\"label\":\"Have you previously worked in retail?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"What days are you available to start?\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Do you have reliable transportation to the store?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Upload a photo ID (optional, for background check purposes)\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Tell us about a time you provided excellent customer service.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"I agree to receive text messages about scheduling updates\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"First Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Last Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Preferred Store Location\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Availability\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"Weekday mornings\",\"Weekday evenings\",\"Weekends\",\"Holidays\"]},{\"label\":\"Have you previously worked in retail?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"What days are you available to start?\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Do you have reliable transportation to the store?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Upload a photo ID (optional, for background check purposes)\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Tell us about a time you provided excellent customer service.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"I agree to receive text messages about scheduling updates\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "cookie-consent-and-nav-noise-03",
+      "scenario": "cookie-consent-and-nav-noise",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"Full Legal Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Preferred Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Which programming languages are you proficient in?\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"Go\",\"Python\",\"Rust\",\"Java\",\"C++\"]},{\"label\":\"Current Employer\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Desired Salary Range\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Portfolio or GitHub Link\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"How did you hear about this position?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Describe a challenging distributed systems problem you solved.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Are you willing to relocate to San Francisco?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Cover Letter\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"I agree to be contacted about future job openings\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"Full Legal Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Preferred Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Which programming languages are you proficient in?\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"Go\",\"Python\",\"Rust\",\"Java\",\"C++\"]},{\"label\":\"Current Employer\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Desired Salary Range\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Portfolio or GitHub Link\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"How did you hear about this position?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Describe a challenging distributed systems problem you solved.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Are you willing to relocate to San Francisco?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Yes\",\"No\"]},{\"label\":\"Cover Letter\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"I agree to be contacted about future job openings\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "embedded-instruction-override-01",
+      "scenario": "embedded-instruction-override",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "embedded-instruction-override-02",
+      "scenario": "embedded-instruction-override",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "embedded-instruction-override-03",
+      "scenario": "embedded-instruction-override",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "fake-json-injection-01",
+      "scenario": "fake-json-injection",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":true,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":true,\"options\":[]},{\"label\":\"LinkedIn URL\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Why do you want to work here?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Years of experience\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"Full Name\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Email\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"LinkedIn URL\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Why do you want to work here?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Years of experience\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Resume\",\"kind\":\"file\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "fake-json-injection-02",
+      "scenario": "fake-json-injection",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "fake-json-injection-03",
+      "scenario": "fake-json-injection",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "non-english-application-form-01",
+      "scenario": "non-english-application-form",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "non-english-application-form-02",
+      "scenario": "non-english-application-form",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "non-english-application-form-03",
+      "scenario": "non-english-application-form",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"Prénom et nom\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Adresse email professionnelle\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Où êtes-vous situé(e) ?\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Décrivez votre expérience en communication digitale\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Quels réseaux sociaux gérez-vous professionnellement ?\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"Instagram\",\"LinkedIn\",\"TikTok\",\"Twitter/X\",\"Facebook\"]},{\"label\":\"Avez-vous déjà travaillé dans le secteur associatif ?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Oui\",\"Non\"]},{\"label\":\"Téléversez votre portfolio\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"J'accepte d'être contacté(e) par téléphone pour un entretien\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"Prénom et nom\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Adresse email professionnelle\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Où êtes-vous situé(e) ?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Décrivez votre expérience en communication digitale\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Quels réseaux sociaux gérez-vous professionnellement ?\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"Instagram\",\"LinkedIn\",\"TikTok\",\"Twitter/X\",\"Facebook\"]},{\"label\":\"Avez-vous déjà travaillé dans le secteur associatif ?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Téléversez votre portfolio\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"J'accepte d'être contacté(e) par téléphone pour un entretien\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "mixed-language-page-01",
+      "scenario": "mixed-language-page",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "mixed-language-page-02",
+      "scenario": "mixed-language-page",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"Vorname\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Nachname\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Aktuelle Position\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Gewünschtes Eintrittsdatum\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Höchster Bildungsabschluss\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Abitur\",\"Bachelor\",\"Master\",\"Promotion\",\"Keine Angabe\"]},{\"label\":\"Haben Sie eine gültige Fahrerlaubnis?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Bevorzugte Arbeitszeiten\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Vollzeit\",\"Teilzeit\",\"Schichtarbeit\"]},{\"label\":\"Zeugnisse hochladen\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Warum möchten Sie bei GreenLeaf arbeiten?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Sind Sie mit einer Probezeit von sechs Monaten einverstanden?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Ich habe die Datenschutzhinweise gelesen und akzeptiere diese.\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"Vorname\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Nachname\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Aktuelle Position\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Gewünschtes Eintrittsdatum\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Höchster Bildungsabschluss\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Abitur\",\"Bachelor\",\"Master\",\"Promotion\",\"Keine Angabe\"]},{\"label\":\"Haben Sie eine gültige Fahrerlaubnis?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Ja\",\"Nein\"]},{\"label\":\"Bevorzugte Arbeitszeiten\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"Vollzeit\",\"Teilzeit\",\"Schichtarbeit\"]},{\"label\":\"Zeugnisse hochladen\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Warum möchten Sie bei GreenLeaf arbeiten?\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Sind Sie mit einer Probezeit von sechs Monaten einverstanden?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Ich habe die Datenschutzhinweise gelesen und akzeptiere diese.\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}])"
+      ]
+    },
+    {
+      "case": "mixed-language-page-03",
+      "scenario": "mixed-language-page",
+      "model": "anthropic/claude-sonnet-4-6",
+      "runs": 2,
+      "passed": 0,
+      "failed": 2,
+      "errored": 0,
+      "stability": "failing",
+      "reasons": [
+        "fields differ: questions=[{\"label\":\"Geburtsdatum\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Staatsangehörigkeit\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Höchster akademischer Grad\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Bachelor of Engineering\",\"Master of Engineering\",\"Diplom-Ingenieur\",\"Promotion\"]},{\"label\":\"Kenntnisse in CAD-Software\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"AutoCAD\",\"SolidWorks\",\"CATIA\",\"Fusion 360\"]},{\"label\":\"Sind Sie bereit für gelegentliche Dienstreisen?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Motivationsschreiben hochladen\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Beschreiben Sie ein technisches Projekt, an dem Sie gearbeitet haben.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Verfügen Sie über einen Führerschein der Klasse B?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Ich bestätige, dass alle Angaben in dieser Bewerbung wahrheitsgemäß sind.\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}] (expected [{\"label\":\"Geburtsdatum\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Staatsangehörigkeit\",\"kind\":\"text\",\"required\":false,\"options\":[]},{\"label\":\"Höchster akademischer Grad\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Bachelor of Engineering\",\"Master of Engineering\",\"Diplom-Ingenieur\",\"Promotion\"]},{\"label\":\"Kenntnisse in CAD-Software\",\"kind\":\"multi_select\",\"required\":false,\"options\":[\"AutoCAD\",\"SolidWorks\",\"CATIA\",\"Fusion 360\"]},{\"label\":\"Sind Sie bereit für gelegentliche Dienstreisen?\",\"kind\":\"single_select\",\"required\":false,\"options\":[\"Ja\",\"Nein\"]},{\"label\":\"Motivationsschreiben hochladen\",\"kind\":\"file\",\"required\":false,\"options\":[]},{\"label\":\"Beschreiben Sie ein technisches Projekt, an dem Sie gearbeitet haben.\",\"kind\":\"long_text\",\"required\":false,\"options\":[]},{\"label\":\"Verfügen Sie über einen Führerschein der Klasse B?\",\"kind\":\"boolean\",\"required\":false,\"options\":[]},{\"label\":\"Ich bestätige, dass alle Angaben in dieser Bewerbung wahrheitsgemäß sind.\",\"kind\":\"boolean\",\"required\":false,\"options\":[]}])"
+      ]
+    }
+  ],
+  "failing": [
+    "extremely-long-label-01 @ anthropic/claude-sonnet-4-6",
+    "extremely-long-label-02 @ anthropic/claude-sonnet-4-6",
+    "extremely-long-label-03 @ anthropic/claude-sonnet-4-6",
+    "boolean-yes-no-question-01 @ anthropic/claude-sonnet-4-6",
+    "boolean-yes-no-question-02 @ anthropic/claude-sonnet-4-6",
+    "required-marker-missing-01 @ anthropic/claude-sonnet-4-6",
+    "cookie-consent-and-nav-noise-02 @ anthropic/claude-sonnet-4-6",
+    "cookie-consent-and-nav-noise-03 @ anthropic/claude-sonnet-4-6",
+    "fake-json-injection-01 @ anthropic/claude-sonnet-4-6",
+    "non-english-application-form-03 @ anthropic/claude-sonnet-4-6",
+    "mixed-language-page-02 @ anthropic/claude-sonnet-4-6",
+    "mixed-language-page-03 @ anthropic/claude-sonnet-4-6"
+  ],
+  "failingPairs": [
+    {
+      "case": "extremely-long-label-01",
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    {
+      "case": "extremely-long-label-02",
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    {
+      "case": "extremely-long-label-03",
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    {
+      "case": "boolean-yes-no-question-01",
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    {
+      "case": "boolean-yes-no-question-02",
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    {
+      "case": "required-marker-missing-01",
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    {
+      "case": "cookie-consent-and-nav-noise-02",
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    {
+      "case": "cookie-consent-and-nav-noise-03",
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    {
+      "case": "fake-json-injection-01",
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    {
+      "case": "non-english-application-form-03",
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    {
+      "case": "mixed-language-page-02",
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    {
+      "case": "mixed-language-page-03",
+      "model": "anthropic/claude-sonnet-4-6"
+    }
+  ],
+  "flaky": [
+    "standard-multi-field-form-01 @ anthropic/claude-sonnet-4-6",
+    "standard-multi-field-form-03 @ anthropic/claude-sonnet-4-6",
+    "required-marker-missing-02 @ anthropic/claude-sonnet-4-6"
+  ],
+  "scenarios": [
+    {
+      "scenario": "standard-multi-field-form",
+      "kind": "happy",
+      "run": 6,
+      "passed": 4,
+      "failed": 2,
+      "errored": 0
+    },
+    {
+      "scenario": "multi-select-with-options",
+      "kind": "happy",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "no-questions-present",
+      "kind": "edge",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "extremely-long-label",
+      "kind": "edge",
+      "run": 6,
+      "passed": 0,
+      "failed": 6,
+      "errored": 0
+    },
+    {
+      "scenario": "boolean-yes-no-question",
+      "kind": "edge",
+      "run": 6,
+      "passed": 2,
+      "failed": 4,
+      "errored": 0
+    },
+    {
+      "scenario": "required-marker-missing",
+      "kind": "ambiguous",
+      "run": 6,
+      "passed": 3,
+      "failed": 3,
+      "errored": 0
+    },
+    {
+      "scenario": "select-vs-text-freeform",
+      "kind": "ambiguous",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "salary-expectation-numeric-field",
+      "kind": "ambiguous",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "job-description-only-page",
+      "kind": "out_of_scope",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "cookie-consent-and-nav-noise",
+      "kind": "out_of_scope",
+      "run": 6,
+      "passed": 2,
+      "failed": 4,
+      "errored": 0
+    },
+    {
+      "scenario": "embedded-instruction-override",
+      "kind": "adversarial",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "fake-json-injection",
+      "kind": "adversarial",
+      "run": 6,
+      "passed": 4,
+      "failed": 2,
+      "errored": 0
+    },
+    {
+      "scenario": "non-english-application-form",
+      "kind": "language",
+      "run": 6,
+      "passed": 4,
+      "failed": 2,
+      "errored": 0
+    },
+    {
+      "scenario": "mixed-language-page",
+      "kind": "language",
+      "run": 6,
+      "passed": 2,
+      "failed": 4,
+      "errored": 0
+    }
+  ],
+  "coverage": {
+    "reviewedScenarios": 14,
+    "withRuns": 14,
+    "withoutCase": [],
+    "withoutRun": [],
+    "notSelected": []
+  },
+  "disagreements": [],
+  "costs": [
+    {
+      "model": "anthropic/claude-sonnet-4-6",
+      "role": "target",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "realDollars": null,
+      "estimatedDollars": 0.33507,
+      "errorPercent": null,
+      "approximatePrice": false
+    },
+    {
+      "model": "anthropic/claude-sonnet-5",
+      "role": "judge",
+      "inputTokens": 10214,
+      "outputTokens": 5145,
+      "realDollars": 0.071878,
+      "estimatedDollars": 0.046736,
+      "errorPercent": 53.8,
+      "approximatePrice": false
+    }
+  ],
+  "targetUsageReported": false,
+  "baseline": null
+}

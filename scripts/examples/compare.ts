@@ -3,46 +3,29 @@
  * in, and the comparison itself. Kept apart from the script that reads
  * `examples/`, so it is tested on plain strings.
  *
- * Two things are excluded, and only these two:
- *
- * - The time the report was written (`generatedAt` in report.json, the
- *   "Reported ..." line of report.md). Regenerating always changes it. The
- *   time of the run (`ranAt`) is not excluded: it comes from results.json.
- * - The baseline comparison (`baseline` in report.json, the "regressions
- *   since baseline" figure and the "Regressions since baseline" section of
- *   report.md). A committed report may have been produced with
- *   `--baseline` against an earlier report.json that was never committed,
- *   so the comparison cannot be reproduced. Everything else the baseline
- *   does not touch is still compared.
+ * One thing is excluded: the time the report was written (`generatedAt` in
+ * report.json, the "Reported ..." line of report.md). Regenerating always
+ * changes it. The time of the run (`ranAt`) is not excluded: it comes from
+ * results.json. The baseline comparison is compared like the rest: an example
+ * whose report has one commits the report it was compared with, as
+ * baseline-report.json, and the regeneration passes it to `--baseline`.
  */
 
 const REPORTED_LINE = /^Reported \S+\.$/;
-const BASELINE_FIGURE = / · \*\*regressions since baseline:\*\* \d+/;
-const BASELINE_HEADING = "## Regressions since baseline";
 
-/** report.json as pretty text, minus the fields the comparison excludes. */
+/** report.json as pretty text, minus the field the comparison excludes. */
 export function normalizeReportJson(text: string): string {
 	const report = JSON.parse(text) as Record<string, unknown>;
 	delete report.generatedAt;
-	delete report.baseline;
 	return JSON.stringify(report, null, 2);
 }
 
-/** report.md minus the lines and the section the comparison excludes. */
+/** report.md minus the line the comparison excludes. */
 export function normalizeReportMarkdown(text: string): string {
-	const kept: string[] = [];
-	let insideBaselineSection = false;
-	for (const line of text.split("\n")) {
-		if (line === BASELINE_HEADING) {
-			insideBaselineSection = true;
-			continue;
-		}
-		if (insideBaselineSection && line.startsWith("## "))
-			insideBaselineSection = false;
-		if (insideBaselineSection || REPORTED_LINE.test(line)) continue;
-		kept.push(line.replace(BASELINE_FIGURE, ""));
-	}
-	return kept.join("\n");
+	return text
+		.split("\n")
+		.filter((line) => !REPORTED_LINE.test(line))
+		.join("\n");
 }
 
 /** The first line where the two texts differ, described; null when they match. */

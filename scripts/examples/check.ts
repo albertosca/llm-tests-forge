@@ -22,6 +22,7 @@ import { compareReports } from "./compare";
 const REPOSITORY_ROOT = resolve(import.meta.dir, "../..");
 const FORGE_ENTRY = join(REPOSITORY_ROOT, "src/cli/bin.ts");
 const EXAMPLES_DIRECTORY = join(REPOSITORY_ROOT, "examples");
+const BASELINE_FILE = "baseline-report.json";
 
 /** The examples that carry a committed report and the results it came from. */
 export async function listExamples(
@@ -55,8 +56,19 @@ export async function checkExample(
 	try {
 		await cp(exampleDirectory, temporaryDirectory, { recursive: true });
 		await tamper?.(temporaryDirectory);
+		// An example whose report has a baseline comparison commits the report it
+		// was compared with, and the regeneration compares against it again.
+		const hasBaseline = await Bun.file(
+			join(temporaryDirectory, BASELINE_FILE),
+		).exists();
 		const reportProcess = Bun.spawn(
-			["bun", FORGE_ENTRY, "report", "results.json"],
+			[
+				"bun",
+				FORGE_ENTRY,
+				"report",
+				"results.json",
+				...(hasBaseline ? ["--baseline", BASELINE_FILE] : []),
+			],
 			{ cwd: temporaryDirectory, stdout: "pipe", stderr: "pipe" },
 		);
 		const [exitCode, errorText] = await Promise.all([
