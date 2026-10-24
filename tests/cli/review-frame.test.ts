@@ -221,6 +221,7 @@ describe("nextStep", () => {
 				stillPending: 3,
 				scenarios: [approvedScenario],
 				scenarioIdsWithCases: none,
+				approvedCaseCount: 1,
 			}),
 		).toBe("Next: 3 item(s) still pending: run llm-tests-forge review again.");
 	});
@@ -231,6 +232,7 @@ describe("nextStep", () => {
 				stillPending: 0,
 				scenarios: [],
 				scenarioIdsWithCases: none,
+				approvedCaseCount: 1,
 			}),
 		).toBe("Next: run llm-tests-forge scenarios.");
 	});
@@ -241,6 +243,7 @@ describe("nextStep", () => {
 				stillPending: 0,
 				scenarios: [approvedScenario],
 				scenarioIdsWithCases: none,
+				approvedCaseCount: 1,
 			}),
 		).toBe("Next: run llm-tests-forge cases.");
 	});
@@ -251,6 +254,7 @@ describe("nextStep", () => {
 				stillPending: 0,
 				scenarios: [{ ...scenario, status: "edited" }],
 				scenarioIdsWithCases: none,
+				approvedCaseCount: 1,
 			}),
 		).toBe("Next: run llm-tests-forge cases.");
 	});
@@ -259,8 +263,12 @@ describe("nextStep", () => {
 		expect(
 			nextStep({
 				stillPending: 0,
-				scenarios: [{ ...scenario, status: "rejected" }],
-				scenarioIdsWithCases: none,
+				scenarios: [
+					{ ...scenario, id: "kept", status: "approved" },
+					{ ...scenario, status: "rejected" },
+				],
+				scenarioIdsWithCases: new Set(["kept"]),
+				approvedCaseCount: 1,
 			}),
 		).toBe("Next: run llm-tests-forge estimate, then emit.");
 	});
@@ -274,6 +282,7 @@ describe("nextStep", () => {
 					{ ...approvedScenario, id: "no-cases" },
 				],
 				scenarioIdsWithCases: new Set(["has-cases"]),
+				approvedCaseCount: 1,
 			}),
 		).toBe("Next: run llm-tests-forge cases.");
 	});
@@ -284,7 +293,30 @@ describe("nextStep", () => {
 				stillPending: 0,
 				scenarios: [approvedScenario],
 				scenarioIdsWithCases: new Set(["polite-rejection"]),
+				approvedCaseCount: 1,
 			}),
 		).toBe("Next: run llm-tests-forge estimate, then emit.");
+	});
+
+	test("every scenario rejected: nothing to estimate, go back to scenarios", () => {
+		expect(
+			nextStep({
+				stillPending: 0,
+				scenarios: [{ ...scenario, status: "rejected" }],
+				scenarioIdsWithCases: none,
+				approvedCaseCount: 0,
+			}),
+		).toBe("Next: run llm-tests-forge scenarios.");
+	});
+
+	test("cases exist but none is approved or edited: generate cases again", () => {
+		expect(
+			nextStep({
+				stillPending: 0,
+				scenarios: [approvedScenario],
+				scenarioIdsWithCases: new Set(["polite-rejection"]),
+				approvedCaseCount: 0,
+			}),
+		).toBe("Next: run llm-tests-forge cases.");
 	});
 });

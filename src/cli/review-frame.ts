@@ -100,19 +100,22 @@ export interface NextStepState {
 	stillPending: number;
 	scenarios: Scenario[];
 	scenarioIdsWithCases: Set<string>;
+	/** Cases that will reach the suite: approved or edited. */
+	approvedCaseCount: number;
 }
 
 /** The one line that closes a pass: what to run next, given what exists. */
 export function nextStep(state: NextStepState): string {
 	if (state.stillPending > 0)
 		return `Next: ${state.stillPending} item(s) still pending: run llm-tests-forge review again.`;
-	if (state.scenarios.length === 0)
-		return "Next: run llm-tests-forge scenarios.";
-	const needsCases = state.scenarios.some(
+	const usable = state.scenarios.filter(
 		(scenario) =>
-			(scenario.status === "approved" || scenario.status === "edited") &&
-			!state.scenarioIdsWithCases.has(scenario.id),
+			scenario.status === "approved" || scenario.status === "edited",
 	);
+	if (usable.length === 0) return "Next: run llm-tests-forge scenarios.";
+	const needsCases =
+		state.approvedCaseCount === 0 ||
+		usable.some((scenario) => !state.scenarioIdsWithCases.has(scenario.id));
 	return needsCases
 		? "Next: run llm-tests-forge cases."
 		: "Next: run llm-tests-forge estimate, then emit.";

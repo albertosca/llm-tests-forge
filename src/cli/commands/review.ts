@@ -198,6 +198,9 @@ export async function reviewCommand(
 	// What comes after this pass, read from the same state the pass worked on;
 	// with --scenario, only that scenario is judged, so the others cannot
 	// make the line ask for cases it was never going to look at.
+	// The cases as they stand once this pass is written: what the next step
+	// is judged on, since the in-memory lists above are the pre-pass reads.
+	const casesAfterPass = new Map(casesById);
 	const nextStepLine = (stillPending: number) =>
 		nextStep({
 			stillPending,
@@ -207,6 +210,12 @@ export async function reviewCommand(
 			scenarioIdsWithCases: new Set(
 				[...casesById].filter(([, list]) => list.length > 0).map(([id]) => id),
 			),
+			approvedCaseCount: [...casesAfterPass.values()]
+				.flat()
+				.filter(
+					(caseEntry) =>
+						caseEntry.status === "approved" || caseEntry.status === "edited",
+				).length,
 		});
 	if (items.length === 0) {
 		// "nothing pending" has to mean nothing is pending. When --only is
@@ -508,6 +517,7 @@ export async function reviewCommand(
 					);
 					totalReopened += reopened;
 				}
+				casesAfterPass.set(id, next);
 				if (touched)
 					await writing(`cases/${id}.yaml`, () =>
 						writeCases(context.forgeDirectory, id, next),

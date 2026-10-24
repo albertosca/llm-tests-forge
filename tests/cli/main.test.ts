@@ -2209,6 +2209,37 @@ describe("review: startInteractivePass arms end-of-input only for the interactiv
 		]);
 	});
 
+	test("rejecting the only case does not send the person to estimate, which would refuse", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+		const out: string[] = [];
+		const context = createContext({
+			cwd,
+			drafter: MODEL,
+			stdin: async () => "reject",
+		});
+		context.stdout = (line) => out.push(line);
+
+		expect(
+			await run(
+				["review", "--scenario", "polite-rejection", "--only", "cases"],
+				context,
+			),
+		).toBe(0);
+
+		expect(out.at(-2)).toBe("Next: run llm-tests-forge cases.");
+	});
+
 	test("--all never calls it: it asks nothing, so an interrupt during its model calls must not be mistaken for the middle of a review pass", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);
