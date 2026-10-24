@@ -53,5 +53,6 @@ Gem::Specification.new do |specification|
   specification.bindir = "exe"
   specification.executables << "llm-tests-forge"
   # LICENSE is copied in beside this file by scripts/release/gems.ts, from the repository root.
-  specification.files = ["LICENSE", "exe/llm-tests-forge", "lib/llm_tests_forge.rb", *binary_files]
+  specification.files = ["LICENSE", "exe/llm-tests-forge", "lib/llm_tests_forge.rb", "lib/llm_tests_forge/messages.rb",
+                         *binary_files]
 end

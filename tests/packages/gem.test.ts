@@ -698,7 +698,12 @@ describe.skipIf(!packages)("the fallback gem", () => {
 		expect(inspected).toEqual({
 			platform: "ruby",
 			version: GEM_VERSION,
-			files: ["LICENSE", "exe/llm-tests-forge", "lib/llm_tests_forge.rb"],
+			files: [
+				"LICENSE",
+				"exe/llm-tests-forge",
+				"lib/llm_tests_forge.rb",
+				"lib/llm_tests_forge/messages.rb",
+			],
 			executables: ["llm-tests-forge"],
 		});
 	}, 600_000);
