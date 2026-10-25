@@ -20,7 +20,12 @@ import type { Case, Oracle } from "../../core/schemas";
 import { colorEnabled, palette, renderItem } from "../colors";
 import type { CliContext } from "../context";
 import { askChoice, askExpectedFor, openInEditor } from "../prompts";
-import { frameFor, nextStep, passPreface } from "../review-frame";
+import {
+	frameFor,
+	nextStep,
+	passPreface,
+	summaryLegend,
+} from "../review-frame";
 import { runReviewLoop } from "../review-loop";
 import { applyReviewDecisions, takeOnce } from "../review-writeback";
 import { reviewAllCommand } from "./review-all";
@@ -204,6 +209,7 @@ export async function reviewCommand(
 	const nextStepLine = (stillPending: number) =>
 		nextStep({
 			stillPending,
+			scenarioId: values.scenario,
 			scenarios: values.scenario
 				? scenarios.filter((scenario) => scenario.id === values.scenario)
 				: scenarios,
@@ -563,6 +569,12 @@ export async function reviewCommand(
 				totalDecisionsNotWritten > 0
 					? `; ${totalDecisionsNotWritten} decision(s) not written`
 					: "";
+			for (const line of summaryLegend({
+				skipped: summary.skipped,
+				stillPending,
+				reopened: totalReopened,
+			}))
+				context.stdout(paint.hint(line));
 			context.stdout(nextStepLine(stillPending));
 			context.stdout(
 				`review: ${summary.approved} approved, ${summary.rejected} rejected, ${summary.edited} edited, ${summary.skipped} skipped, ${totalReopened} re-opened, ${stillPending} still pending${notWrittenSuffix}`,

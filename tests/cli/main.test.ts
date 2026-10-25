@@ -2237,7 +2237,9 @@ describe("review: startInteractivePass arms end-of-input only for the interactiv
 			),
 		).toBe(0);
 
-		expect(out.at(-2)).toBe("Next: run llm-tests-forge cases.");
+		expect(out.at(-2)).toBe(
+			"Next: run llm-tests-forge cases --scenario polite-rejection.",
+		);
 	});
 
 	test("a pass over cases says once what the Expected is for, and each case lists the feature's invariants", async () => {
@@ -2705,9 +2707,12 @@ describe("review: the pass ends by saying what is next", () => {
 			await run(["review", "--scenario", "polite-rejection"], context),
 		).toBe(0);
 		expect(out.at(-2)).toBe(
-			"Next: 1 item(s) still pending: run llm-tests-forge review again.",
+			"Next: 1 item(s) still pending: run llm-tests-forge review --scenario polite-rejection again.",
 		);
 		expect(out.at(-1)).toStartWith("review: 0 approved");
+		expect(out.join("\n")).toContain(
+			"How to read the counts below:\nskipped: you chose to decide later",
+		);
 	});
 
 	test("an approved scenario with no cases yet points at cases", async () => {

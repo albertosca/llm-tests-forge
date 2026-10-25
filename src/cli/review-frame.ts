@@ -30,6 +30,15 @@ const ORACLE_MEANING: Record<Scenario["oracle"], string> = {
 		"a judge model grades the answer against this sentence (free text, no fixed labels)",
 };
 
+const KIND_MEANING: Record<Scenario["kind"], string> = {
+	happy: "a typical, clear input",
+	edge: "an unusual or extreme input, such as empty, very long or oddly formatted",
+	ambiguous: "an input that can reasonably be read two ways",
+	out_of_scope: "an input the feature is not meant to handle",
+	adversarial: "an input that tries to trick or break the app",
+	language: "an input in another language or register",
+};
+
 const KEYS_LINE: Record<PendingItem["kind"], string> = {
 	case: "approve = this expected answer is right for this input · reject = drop this case · edit = fix it · skip = decide later",
 	scenario:
@@ -76,7 +85,7 @@ export function frameFor(
 		const { kind, oracle } = pending.item;
 		return {
 			before: [
-				`${position} · a scenario (kind: ${kind}, oracle: ${oracle})`,
+				`${position} · a scenario (kind: ${kind}, ${KIND_MEANING[kind]})`,
 				checkedAs(oracle),
 			],
 			showYaml: true,
@@ -100,7 +109,12 @@ export function frameFor(
 	else before.push("Expected: none yet; approve or edit will ask you for it.");
 	if (scenario) before.push(checkedAs(scenario.oracle));
 	if (scenario?.oracle === "label" && labels.length > 0)
-		before.push(`Valid labels: ${labels.join(", ")}`);
+		before.push(
+			`Valid labels: ${labels.join(", ")}`,
+			...Object.entries(context.feature.output.label_notes ?? {}).flatMap(
+				([name, note]) => prose(`  • ${name}: `, note),
+			),
+		);
 	if (context.feature.invariants.length > 0)
 		before.push(
 			"Rules the answer must respect (the feature's invariants):",
@@ -109,7 +123,7 @@ export function frameFor(
 		);
 	if (kase.duplicate_of)
 		before.push(
-			`Note: looks like a near-duplicate of ${kase.duplicate_of} (flagged by dedupe). Reject to drop this one, approve to keep both.`,
+			`Note: looks like a near-duplicate of ${kase.duplicate_of} (flagged by the duplicate check). Reject to drop this one, approve to keep both.`,
 		);
 	return { before, showYaml: false, after };
 }
@@ -124,6 +138,7 @@ export function passPreface(): string[] {
 		"┃ READ THIS FIRST: what you are doing in this review",
 		"┃",
 		"┃  • You are setting the right answer for each case. Nothing has run yet.",
+		"┃  • A scenario is a situation worth testing; a case is one concrete Input inside it.",
 		"┃  • Later, `promptfoo eval` sends each Input to your app and checks the app's answer against the Expected you approve here.",
 		"┃  • Each scenario is checked one way: by label, fields or rubric. So one case shows a label and another a rubric; it follows its scenario, never both.",
 		"┃  • Approve what is correct, edit what is wrong, reject what should not be tested.",
@@ -137,12 +152,16 @@ export interface NextStepState {
 	scenarioIdsWithCases: Set<string>;
 	/** Cases that will reach the suite: approved or edited. */
 	approvedCaseCount: number;
+	/** The `--scenario` this pass was limited to, so the next command keeps it. */
+	scenarioId?: string;
 }
 
 /** The one line that closes a pass: what to run next, given what exists. */
 export function nextStep(state: NextStepState): string {
+	const scopeFlag =
+		state.scenarioId === undefined ? "" : ` --scenario ${state.scenarioId}`;
 	if (state.stillPending > 0)
-		return `Next: ${state.stillPending} item(s) still pending: run llm-tests-forge review again.`;
+		return `Next: ${state.stillPending} item(s) still pending: run llm-tests-forge review${scopeFlag} again.`;
 	const usable = state.scenarios.filter(
 		(scenario) =>
 			scenario.status === "approved" || scenario.status === "edited",
@@ -152,6 +171,33 @@ export function nextStep(state: NextStepState): string {
 		state.approvedCaseCount === 0 ||
 		usable.some((scenario) => !state.scenarioIdsWithCases.has(scenario.id));
 	return needsCases
-		? "Next: run llm-tests-forge cases."
+		? `Next: run llm-tests-forge cases${scopeFlag}.`
 		: "Next: run llm-tests-forge estimate, then emit.";
+}
+
+export interface SummaryCounts {
+	skipped: number;
+	stillPending: number;
+	reopened: number;
+}
+
+/**
+ * Plain words for the counts on the summary line, said only for the counts
+ * that are not zero: the line itself stays one stable line.
+ */
+export function summaryLegend(counts: SummaryCounts): string[] {
+	const lines: string[] = [];
+	if (counts.skipped > 0)
+		lines.push(
+			"skipped: you chose to decide later; the item stays pending, untouched.",
+		);
+	if (counts.reopened > 0)
+		lines.push(
+			"re-opened: approved cases sent back to pending because their scenario's way of being checked changed; they count as pending.",
+		);
+	if (counts.stillPending > 0)
+		lines.push(
+			"still pending: everything not decided yet, the skipped items included, plus anything this pass did not offer (--only leaves the other kinds out).",
+		);
+	return lines.length > 0 ? ["How to read the counts below:", ...lines] : [];
 }

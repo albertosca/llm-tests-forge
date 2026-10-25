@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { frameFor, nextStep, passPreface } from "../../src/cli/review-frame";
+import {
+	frameFor,
+	nextStep,
+	passPreface,
+	summaryLegend,
+} from "../../src/cli/review-frame";
 import type { Case, Feature, Scenario } from "../../src/core/schemas";
 
 const feature: Feature = {
@@ -137,7 +142,7 @@ describe("frameFor a case", () => {
 			scenarios: [scenario],
 		});
 		expect(frame.before.at(-1)).toBe(
-			"Note: looks like a near-duplicate of polite-rejection-00 (flagged by dedupe). Reject to drop this one, approve to keep both.",
+			"Note: looks like a near-duplicate of polite-rejection-00 (flagged by the duplicate check). Reject to drop this one, approve to keep both.",
 		);
 	});
 
@@ -177,14 +182,14 @@ describe("frameFor a case: edges", () => {
 });
 
 describe("frameFor a scenario and the feature", () => {
-	test("a scenario keeps the YAML and names its kind and oracle", () => {
+	test("a scenario keeps the YAML, says what its kind means and how it is checked", () => {
 		const frame = frameFor({ kind: "scenario", item: scenario }, place, {
 			feature,
 			scenarios: [scenario],
 		});
 		expect(frame).toEqual({
 			before: [
-				"Item 3 of 24 · a scenario (kind: happy, oracle: label)",
+				"Item 3 of 24 · a scenario (kind: happy, a typical, clear input)",
 				"Checked as label: the answer must come out as this label",
 			],
 			showYaml: true,
@@ -396,7 +401,10 @@ describe("passPreface", () => {
 		expect(lines.slice(2, -1).every((line) => line.startsWith("┃  • "))).toBe(
 			true,
 		);
-		expect(lines.slice(2, -1)).toHaveLength(4);
+		expect(lines.slice(2, -1)).toHaveLength(5);
+		expect(lines.join("\n")).toContain(
+			"A scenario is a situation worth testing; a case is one concrete Input inside it.",
+		);
 		expect(lines[1]).toBe("┃");
 		expect(lines.at(-1)).toBe("");
 	});
@@ -406,5 +414,139 @@ describe("passPreface", () => {
 		expect(text).toContain("Each scenario is checked one way");
 		expect(text).toContain("label, fields or rubric");
 		expect(text).toContain("never both");
+	});
+});
+
+describe("frameFor: what each scenario kind means", () => {
+	const meanings: Record<Scenario["kind"], string> = {
+		happy: "a typical, clear input",
+		edge: "an unusual or extreme input, such as empty, very long or oddly formatted",
+		ambiguous: "an input that can reasonably be read two ways",
+		out_of_scope: "an input the feature is not meant to handle",
+		adversarial: "an input that tries to trick or break the app",
+		language: "an input in another language or register",
+	};
+	for (const [kind, meaning] of Object.entries(meanings))
+		test(`${kind} is explained on the scenario's header`, () => {
+			const frame = frameFor(
+				{
+					kind: "scenario",
+					item: { ...scenario, kind: kind as Scenario["kind"] },
+				},
+				place,
+				{ feature, scenarios: [] },
+			);
+			expect(frame.before[0]).toBe(
+				`Item 3 of 24 · a scenario (kind: ${kind}, ${meaning})`,
+			);
+		});
+});
+
+describe("frameFor a case: what each label means", () => {
+	const noted: Feature = {
+		...feature,
+		output: {
+			kind: "label",
+			labels: ["rejection", "acknowledgement"],
+			label_notes: {
+				rejection: "the company says no",
+				acknowledgement: "line one\nline two",
+			},
+		},
+	};
+
+	test("each defined label is listed under the valid labels, a multi-line note indented", () => {
+		const frame = frameFor({ kind: "case", item: pendingCase }, place, {
+			feature: noted,
+			scenarios: [scenario],
+		});
+		const labelsIndex = frame.before.indexOf(
+			"Valid labels: rejection, acknowledgement",
+		);
+		expect(frame.before.slice(labelsIndex, labelsIndex + 4)).toEqual([
+			"Valid labels: rejection, acknowledgement",
+			"  • rejection: the company says no",
+			"  • acknowledgement: line one",
+			"  line two",
+		]);
+	});
+
+	test("a rubric scenario prints no label definitions", () => {
+		const frame = frameFor({ kind: "case", item: pendingCase }, place, {
+			feature: noted,
+			scenarios: [{ ...scenario, oracle: "rubric" }],
+		});
+		expect(frame.before.join("\n")).not.toContain("the company says no");
+	});
+
+	test("a feature with no notes adds nothing after the valid labels", () => {
+		const frame = frameFor({ kind: "case", item: pendingCase }, place, {
+			feature,
+			scenarios: [scenario],
+		});
+		expect(frame.before.join("\n")).not.toContain("  • rejection");
+	});
+});
+
+describe("nextStep keeps the --scenario scope", () => {
+	const approved: Scenario = { ...scenario, status: "approved" };
+	const none = new Set<string>();
+
+	test("pending items: review again names the scenario", () => {
+		expect(
+			nextStep({
+				stillPending: 2,
+				scenarios: [approved],
+				scenarioIdsWithCases: none,
+				approvedCaseCount: 0,
+				scenarioId: "polite-rejection",
+			}),
+		).toBe(
+			"Next: 2 item(s) still pending: run llm-tests-forge review --scenario polite-rejection again.",
+		);
+	});
+
+	test("cases to generate: cases names the scenario", () => {
+		expect(
+			nextStep({
+				stillPending: 0,
+				scenarios: [approved],
+				scenarioIdsWithCases: none,
+				approvedCaseCount: 0,
+				scenarioId: "polite-rejection",
+			}),
+		).toBe("Next: run llm-tests-forge cases --scenario polite-rejection.");
+	});
+});
+
+describe("summaryLegend", () => {
+	test("says nothing when no count needs explaining", () => {
+		expect(summaryLegend({ skipped: 0, stillPending: 0, reopened: 0 })).toEqual(
+			[],
+		);
+	});
+
+	test("explains each count that is not zero, under one heading", () => {
+		const lines = summaryLegend({ skipped: 2, stillPending: 5, reopened: 1 });
+		expect(lines[0]).toBe("How to read the counts below:");
+		expect(lines).toHaveLength(4);
+		expect(lines[1]).toStartWith("skipped: you chose to decide later");
+		expect(lines[2]).toStartWith("re-opened: approved cases sent back");
+		expect(lines[3]).toStartWith("still pending: everything not decided yet");
+	});
+
+	test("explains only the counts that are not zero", () => {
+		expect(summaryLegend({ skipped: 0, stillPending: 3, reopened: 0 })).toEqual(
+			[
+				"How to read the counts below:",
+				"still pending: everything not decided yet, the skipped items included, plus anything this pass did not offer (--only leaves the other kinds out).",
+			],
+		);
+		expect(summaryLegend({ skipped: 1, stillPending: 0, reopened: 0 })).toEqual(
+			[
+				"How to read the counts below:",
+				"skipped: you chose to decide later; the item stays pending, untouched.",
+			],
+		);
 	});
 });

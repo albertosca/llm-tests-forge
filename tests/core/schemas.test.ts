@@ -69,6 +69,41 @@ describe("FeatureSchema", () => {
 			}).success,
 		).toBe(true);
 	});
+	test("label_notes may describe some of the labels, never one that is not listed", () => {
+		const withNotes = (notes: Record<string, string>) =>
+			FeatureSchema.safeParse({
+				...feature,
+				output: { kind: "label", labels: ["a", "b"], label_notes: notes },
+			});
+		expect(withNotes({ a: "the first" }).success).toBe(true);
+		expect(withNotes({}).success).toBe(true);
+		expect(
+			withNotes({ a: "x", c: "y" }).error?.issues.map((issue) => [
+				issue.path.join("."),
+				issue.message,
+			]),
+		).toStrictEqual([
+			[
+				"output",
+				'output.label_notes describes "c", which is not in output.labels',
+			],
+		]);
+		expect(
+			withNotes({ c: "x", d: "y" }).error?.issues.map((issue) => issue.message),
+		).toStrictEqual([
+			'output.label_notes describes "c", "d", which are not in output.labels',
+		]);
+	});
+	test("label_notes on an output that lists no labels is refused too", () => {
+		expect(
+			FeatureSchema.safeParse({
+				...feature,
+				output: { kind: "text", label_notes: { a: "x" } },
+			}).error?.issues.map((issue) => issue.message),
+		).toStrictEqual([
+			'output.label_notes describes "a", which is not in output.labels',
+		]);
+	});
 	test("a label output without labels is refused with a message saying what is missing", () => {
 		const result = FeatureSchema.safeParse({
 			...feature,

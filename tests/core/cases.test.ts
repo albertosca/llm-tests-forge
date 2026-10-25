@@ -106,6 +106,31 @@ describe("generateCases, as the model is asked", () => {
 		expect(requests[0]?.verb).toBe("cases");
 	});
 
+	test("a feature that defines its labels hands the definitions to the model with the label list", async () => {
+		const { llm, requests } = recordingLlm(oneLabelCase);
+		const base = await feature();
+		await generateCases({
+			feature: {
+				...base,
+				output: {
+					...base.output,
+					label_notes: {
+						rejection: "a clear no",
+						offer: "an offer of employment",
+					},
+				},
+			},
+			scenario,
+			existing: [],
+			n: 1,
+			model: "anthropic/x",
+			llm,
+		});
+		expect(requests[0]?.prompt).toContain(
+			"not the one the input tries to suggest. What the labels mean: rejection: a clear no; offer: an offer of employment.\n",
+		);
+	});
+
 	test("the cases a scenario already has are listed by their inputs, as written", async () => {
 		const { llm, requests } = recordingLlm(oneLabelCase);
 		await generateCases({

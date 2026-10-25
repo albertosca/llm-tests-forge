@@ -52,6 +52,7 @@ export const FeatureOutputSchema = z
 		fields: z.array(z.string()).optional(),
 		label_field: z.string().optional(),
 		labels: z.array(z.string()).optional(),
+		label_notes: z.record(z.string(), z.string()).optional(),
 	})
 	.refine(
 		(output) =>
@@ -59,6 +60,24 @@ export const FeatureOutputSchema = z
 			(output.labels !== undefined && output.labels.length > 0),
 		{
 			message: "output.kind 'label' requires a non-empty labels list",
+		},
+	)
+	.refine(
+		(output) =>
+			Object.keys(output.label_notes ?? {}).every((name) =>
+				(output.labels ?? []).includes(name),
+			),
+		{
+			error: (issue) => {
+				const output = issue.input as {
+					labels?: string[];
+					label_notes?: Record<string, string>;
+				};
+				const unknown = Object.keys(output.label_notes ?? {}).filter(
+					(name) => !(output.labels ?? []).includes(name),
+				);
+				return `output.label_notes describes ${unknown.map((name) => `"${name}"`).join(", ")}, which ${unknown.length === 1 ? "is" : "are"} not in output.labels`;
+			},
 		},
 	);
 

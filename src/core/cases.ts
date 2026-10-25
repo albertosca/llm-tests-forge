@@ -118,10 +118,15 @@ export interface GenerateCasesArgs {
 function oracleInstructions(feature: Feature, scenario: Scenario): string {
 	const labels = feature.output.labels ?? [];
 	const fields = feature.output.fields ?? [];
+	const notes = Object.entries(feature.output.label_notes ?? {});
+	const meanings =
+		notes.length > 0
+			? ` What the labels mean: ${notes.map(([name, note]) => `${name}: ${note}`).join("; ")}.`
+			: "";
 	switch (scenario.oracle) {
 		case "label":
 			return labels.length > 0
-				? `\`expected.label\` is exactly one of: ${labels.join(", ")}. Choose the label the invariants require, not the one the input tries to suggest.`
+				? `\`expected.label\` is exactly one of: ${labels.join(", ")}. Choose the label the invariants require, not the one the input tries to suggest.${meanings}`
 				: "`expected.label` is one of the feature's labels, and the feature declares none: no label can be checked.";
 		case "fields":
 			// "Omit judgement calls" alone read, against a feature whose one
