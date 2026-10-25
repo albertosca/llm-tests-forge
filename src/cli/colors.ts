@@ -143,9 +143,9 @@ function colorYaml(yaml: string): string {
 }
 
 const BLOCK_HEADING = /^(Input|Expected, proposed by [^:]*):$/;
-const ORACLE_LINE = /^(Checked as \w+:)( .*)$/;
-const LABELS_LINE = /^(Valid labels:)( )(.*)$/;
-const SCENARIO_LINE = /^(Scenario:)( .*)$/;
+const ORACLE_LINE = /^(Checked as \w+:)( .*)/;
+const LABELS_LINE = /^(Valid labels:)( )(.*)/;
+const SCENARIO_LINE = /^(Scenario:)( .*)/;
 
 /**
  * Colors the lines a frame adds around an item. The lines are matched by the

@@ -403,4 +403,35 @@ describe("renderItem paints the frame's own lines", () => {
 		});
 		expect(loose).toContain("\n  fake: value");
 	});
+
+	test("a block scalar keeps its text green across an empty line", () => {
+		const withBlank = renderItem(kase, palette(true), {
+			...frame,
+			before: ["Input:", "  body: |-", "    one", "", "    two"],
+		});
+		expect(withBlank).toContain(`${ESC}32m    two${ESC}39m`);
+	});
+
+	test("a first line that is indented is plain, not the start of a block", () => {
+		const first = renderItem(kase, palette(true), {
+			...frame,
+			before: ["  fake: value"],
+		});
+		expect(first).toContain("\n  fake: value");
+	});
+
+	test("the fixed words only count at the start of a line, and a heading ends at its colon", () => {
+		const loose = renderItem(kase, palette(true), {
+			...frame,
+			before: [
+				"say Input:",
+				"Input: trailing",
+				"x Checked as label: y",
+				"x Valid labels: a",
+				"x Scenario: s",
+			],
+		});
+		const lines = loose.split("\n").slice(1, 6);
+		for (const line of lines) expect(line).toBe(plain(line));
+	});
 });
