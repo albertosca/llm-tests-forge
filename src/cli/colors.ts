@@ -168,7 +168,7 @@ function paintFrame(lines: string[]): string[] {
 		}
 		closeYaml();
 		inYaml = BLOCK_HEADING.test(line);
-		if (inYaml || line.startsWith("Rules ") || /^Item \d+ of \d+/.test(line))
+		if (inYaml || line.startsWith("Rules ") || /^Item \d+ of \d/.test(line))
 			out.push(bold(line));
 		else if (line.startsWith("Note: ") || line.startsWith("Expected: none"))
 			out.push(yellow(line));
