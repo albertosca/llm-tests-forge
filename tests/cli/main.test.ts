@@ -2281,6 +2281,40 @@ describe("review: startInteractivePass arms end-of-input only for the interactiv
 		expect(text).toContain("  • a receipt alone is an acknowledgement");
 	});
 
+	test("a pass holding a scenario and a case still prints the preface", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeScenarios(forgeDirectory, [
+			{
+				id: "polite-rejection",
+				kind: "happy",
+				oracle: "label",
+				description: "d",
+				status: "approved",
+			},
+			{
+				id: "later-one",
+				kind: "edge",
+				oracle: "label",
+				description: "d",
+				status: "pending",
+			},
+		]);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+		const { context, out } = await ctxIn(cwd, ["s", "s"]);
+		expect(await run(["review"], context)).toBe(0);
+		expect(out.join("\n")).toContain("You are setting the right answer");
+	});
+
 	test("a pass with no case to judge prints no preface", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = join(cwd, ".forge");

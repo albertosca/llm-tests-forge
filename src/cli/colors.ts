@@ -150,38 +150,27 @@ const SCENARIO_LINE = /^(Scenario:)( .*)$/;
 /**
  * Colors the lines a frame adds around an item. The lines are matched by the
  * fixed words `frameFor` starts them with; an indented line is painted only
- * while a block that owns it is open (the YAML under `Input:`, the rules under
- * their heading), so the text of a description or an input, which is indented
+ * while the YAML block under `Input:` or `Expected` is open, so the text of a description or an input, which is indented
  * by the frame, can never be mistaken for one of those words.
  */
 function paintFrame(lines: string[]): string[] {
 	const out: string[] = [];
-	let block: "yaml" | "rules" | null = null;
+	let inYaml = false;
 	let yamlLines: string[] = [];
 	const closeYaml = () => {
 		if (yamlLines.length > 0) out.push(colorYaml(yamlLines.join("\n")));
 		yamlLines = [];
 	};
 	for (const line of lines) {
-		const owned = line === "" || line.startsWith("  ");
-		if (block === "yaml" && owned) {
+		if (inYaml && (line === "" || line.startsWith("  "))) {
 			yamlLines.push(line);
 			continue;
 		}
 		closeYaml();
-		if (block === "rules" && owned) {
-			out.push(line);
-			continue;
-		}
-		block = null;
-		if (/^Item \d+ of \d+/.test(line)) out.push(bold(line));
-		else if (BLOCK_HEADING.test(line)) {
-			block = "yaml";
+		inYaml = BLOCK_HEADING.test(line);
+		if (inYaml || line.startsWith("Rules ") || /^Item \d+ of \d+/.test(line))
 			out.push(bold(line));
-		} else if (line.startsWith("Rules ")) {
-			block = "rules";
-			out.push(bold(line));
-		} else if (line.startsWith("Note: ") || line.startsWith("Expected: none"))
+		else if (line.startsWith("Note: ") || line.startsWith("Expected: none"))
 			out.push(yellow(line));
 		else out.push(paintLabelled(line));
 	}
@@ -192,10 +181,13 @@ function paintFrame(lines: string[]): string[] {
 /** The `Name: text` lines whose name is dim or cyan; any other line as it is. */
 function paintLabelled(line: string): string {
 	const scenario = SCENARIO_LINE.exec(line);
+	// Stryker disable next-line StringLiteral: the regex groups below always participate in a match, so these defaults are never read.
 	if (scenario) return `${dim(scenario[1] ?? "")}${scenario[2] ?? ""}`;
 	const oracle = ORACLE_LINE.exec(line);
+	// Stryker disable next-line StringLiteral: same as above, the groups always participate.
 	if (oracle) return `${cyan(oracle[1] ?? "")}${oracle[2] ?? ""}`;
 	const labels = LABELS_LINE.exec(line);
+	// Stryker disable next-line StringLiteral: same as above, the groups always participate.
 	if (labels) return `${dim(labels[1] ?? "")} ${green(labels[3] ?? "")}`;
 	return line;
 }

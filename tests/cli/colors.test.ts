@@ -381,4 +381,26 @@ describe("renderItem paints the frame's own lines", () => {
 		expect(palette(true).heading("x")).toBe(`${ESC}1mx${ESC}22m`);
 		expect(palette(false).heading("x")).toBe("x");
 	});
+
+	test("only a line that starts with the counter is bold, and two-digit counters count", () => {
+		const counters = renderItem(kase, palette(true), {
+			...frame,
+			before: [
+				"Item 10 of 100 · a case",
+				"see Item 3 of 24 above",
+				"Item 3 of x",
+			],
+		});
+		expect(counters).toContain(`${ESC}1mItem 10 of 100 · a case${ESC}22m`);
+		expect(counters).toContain("\nsee Item 3 of 24 above\n");
+		expect(counters).toContain("\nItem 3 of x");
+	});
+
+	test("an indented line outside a block is plain even when it looks like YAML", () => {
+		const loose = renderItem(kase, palette(true), {
+			...frame,
+			before: ["Scenario: first", "  fake: value"],
+		});
+		expect(loose).toContain("\n  fake: value");
+	});
 });

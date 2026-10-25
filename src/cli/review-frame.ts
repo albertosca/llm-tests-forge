@@ -53,6 +53,7 @@ function indentedYaml(value: unknown): string[] {
  * where a line like `--- case x ---` would read as a header.
  */
 function prose(prefix: string, text: string): string[] {
+	// Stryker disable next-line StringLiteral: `split` always returns at least one element, so the default is never read.
 	const [first = "", ...rest] = text.split("\n");
 	return [`${prefix}${first}`, ...rest.map((line) => `  ${line}`)];
 }
