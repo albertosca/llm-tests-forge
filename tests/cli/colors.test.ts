@@ -295,6 +295,7 @@ describe("renderItem paints the frame's own lines", () => {
 			"Checked as label: the answer must come out as this label",
 			"Valid labels: rejection, offer",
 			"Rules the answer must respect (the feature's invariants):",
+			"How these rules are used: the model that proposes cases is given them; check that the Expected follows them.",
 			"  • never invent a label",
 			"Note: looks like a near-duplicate of s-00 (flagged by dedupe).",
 			"Expected: none yet; approve or edit will ask you for it.",
@@ -330,12 +331,15 @@ describe("renderItem paints the frame's own lines", () => {
 		);
 	});
 
-	test("valid labels are green after a dim prefix; the invariants heading is bold", () => {
+	test("valid labels are green after a dim prefix; the rules label is bold magenta and their explanation dim", () => {
 		expect(colored).toContain(
 			`${ESC}2mValid labels:${ESC}22m ${ESC}32mrejection, offer${ESC}39m`,
 		);
 		expect(colored).toContain(
-			`${ESC}1mRules the answer must respect (the feature's invariants):${ESC}22m`,
+			`${ESC}1m${ESC}35mRules the answer must respect${ESC}39m${ESC}22m (the feature's invariants):`,
+		);
+		expect(colored).toContain(
+			`${ESC}2mHow these rules are used: the model that proposes cases is given them; check that the Expected follows them.${ESC}22m`,
 		);
 		expect(colored).toContain("  • never invent a label");
 	});

@@ -104,6 +104,7 @@ export function frameFor(
 	if (context.feature.invariants.length > 0)
 		before.push(
 			"Rules the answer must respect (the feature's invariants):",
+			"How these rules are used: the model that proposes cases is given them; check that the Expected follows them.",
 			...context.feature.invariants.flatMap((rule) => prose("  • ", rule)),
 		);
 	if (kase.duplicate_of)

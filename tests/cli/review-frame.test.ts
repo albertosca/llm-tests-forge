@@ -335,8 +335,9 @@ describe("frameFor a case: invariants and continuation lines", () => {
 			feature: withRules,
 			scenarios: [scenario],
 		});
-		expect(frame.before.slice(-3)).toEqual([
+		expect(frame.before.slice(-4)).toEqual([
 			"Rules the answer must respect (the feature's invariants):",
+			"How these rules are used: the model that proposes cases is given them; check that the Expected follows them.",
 			"  • never invent a label",
 			"  • a receipt alone is an acknowledgement",
 		]);

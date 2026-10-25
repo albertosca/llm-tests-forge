@@ -156,6 +156,7 @@ const BLOCK_HEADING = /^(Input|Expected, proposed by [^:]*):$/;
 const ORACLE_LINE = /^(Checked as \w+:)( .*)/;
 const LABELS_LINE = /^(Valid labels:)( )(.*)/;
 const SCENARIO_LINE = /^(Scenario:)( .*)/;
+const RULES_LINE = /^(Rules the answer must respect)( .*)/;
 
 /**
  * Colors the lines a frame adds around an item. The lines are matched by the
@@ -178,8 +179,7 @@ function paintFrame(lines: string[]): string[] {
 		}
 		closeYaml();
 		inYaml = BLOCK_HEADING.test(line);
-		if (inYaml || line.startsWith("Rules ") || /^Item \d+ of \d/.test(line))
-			out.push(bold(line));
+		if (inYaml || /^Item \d+ of \d/.test(line)) out.push(bold(line));
 		else if (line.startsWith("Note: ") || line.startsWith("Expected: none"))
 			out.push(yellow(line));
 		else out.push(paintLabelled(line));
@@ -193,6 +193,10 @@ function paintLabelled(line: string): string {
 	const scenario = SCENARIO_LINE.exec(line);
 	// Stryker disable next-line StringLiteral: the regex groups below always participate in a match, so these defaults are never read.
 	if (scenario) return `${dim(scenario[1] ?? "")}${scenario[2] ?? ""}`;
+	const rules = RULES_LINE.exec(line);
+	// Stryker disable next-line StringLiteral: same as above, the groups always participate.
+	if (rules) return `${bold(magenta(rules[1] ?? ""))}${rules[2] ?? ""}`;
+	if (line.startsWith("How these rules are used:")) return dim(line);
 	const oracle = ORACLE_LINE.exec(line);
 	// Stryker disable next-line StringLiteral: same as above, the groups always participate.
 	if (oracle) return `${cyan(oracle[1] ?? "")}${oracle[2] ?? ""}`;
