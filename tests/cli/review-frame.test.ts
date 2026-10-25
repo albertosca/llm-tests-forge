@@ -80,7 +80,7 @@ describe("frameFor a case", () => {
 			scenarios: [rubricScenario],
 		});
 		expect(frame.before).toContain(
-			"Checked as rubric: a judge model grades the answer against this sentence",
+			"Checked as rubric: a judge model grades the answer against this sentence (free text, no fixed labels)",
 		);
 		expect(frame.before.join("\n")).not.toContain("Valid labels");
 	});
@@ -384,6 +384,26 @@ describe("passPreface", () => {
 		expect(text).toContain("You are setting the right answer for each case");
 		expect(text).toContain("Nothing has run yet");
 		expect(text).toContain("promptfoo eval");
-		expect(text).toContain("approve what is correct");
+		expect(text).toContain("Approve what is correct");
+	});
+
+	test("is a boxed block: a titled bar, one bullet per idea, a blank line to close", () => {
+		const lines = passPreface();
+		expect(lines[0]).toBe(
+			"┃ READ THIS FIRST: what you are doing in this review",
+		);
+		expect(lines.slice(2, -1).every((line) => line.startsWith("┃  • "))).toBe(
+			true,
+		);
+		expect(lines.slice(2, -1)).toHaveLength(4);
+		expect(lines[1]).toBe("┃");
+		expect(lines.at(-1)).toBe("");
+	});
+
+	test("says each scenario is checked one way, so a case shows a label or a rubric, never both", () => {
+		const text = passPreface().join("\n");
+		expect(text).toContain("Each scenario is checked one way");
+		expect(text).toContain("label, fields or rubric");
+		expect(text).toContain("never both");
 	});
 });

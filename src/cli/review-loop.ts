@@ -64,6 +64,13 @@ export interface ReviewLoopArgs {
 	 * interactive terminal (see `src/cli/colors.ts`).
 	 */
 	render?: (item: PendingItem, place: Place) => string;
+	/**
+	 * Printed in front of the header of every item but the first, so each
+	 * item starts at the top of the screen. Not repeated when an item is
+	 * re-asked after a refusal: that would wipe the refusal. The first item
+	 * keeps what was printed before the pass (the preface).
+	 */
+	newScreen?: string;
 }
 
 /** The two ids every recorded decision carries, whatever kind it is. */
@@ -181,6 +188,7 @@ export async function runReviewLoop(
 		// `Feature | Scenario | Case` beside `pending.kind` had every case
 		// branch casting the two back together.
 		let current: PendingItem = pending;
+		let screenPrefix = position > 0 ? (loopArguments.newScreen ?? "") : "";
 		for (;;) {
 			// Header and body are two prints, as they always were: callers
 			// and tests read the header as a line of its own.
@@ -189,7 +197,9 @@ export async function runReviewLoop(
 				total: loopArguments.items.length,
 			});
 			const lineEnd = shown.indexOf("\n");
-			loopArguments.print(lineEnd === -1 ? shown : shown.slice(0, lineEnd));
+			const header = lineEnd === -1 ? shown : shown.slice(0, lineEnd);
+			loopArguments.print(`${screenPrefix}${header}`);
+			screenPrefix = "";
 			loopArguments.print(lineEnd === -1 ? "" : shown.slice(lineEnd + 1));
 			const raw = await loopArguments.ask(
 				`${pending.kind} ${current.item.id}:`,

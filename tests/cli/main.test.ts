@@ -2269,7 +2269,8 @@ describe("review: startInteractivePass arms end-of-input only for the interactiv
 		expect(await run(["review"], context)).toBe(0);
 
 		const text = out.join("\n");
-		expect(out[0]).toContain("You are setting the right answer for each case");
+		expect(out[0]).toContain("READ THIS FIRST");
+		expect(text).toContain("You are setting the right answer for each case");
 		expect(text.split("You are setting the right answer").length - 1).toBe(1);
 		expect(text.indexOf("You are setting")).toBeLessThan(
 			text.indexOf("--- case polite-rejection-01 ---"),
@@ -7220,6 +7221,68 @@ describe("review: what the person sees when the terminal paints, and when a scen
 		expect(header?.startsWith(`${ESCAPE}1m--- `)).toBe(true);
 		expect(header).not.toContain(`${ESCAPE}31m`);
 		expect(out.filter((line) => line.includes("cannot apply"))).toHaveLength(1);
+	});
+
+	test("a painting terminal is cleared before each item but the first; a plain run is never cleared", async () => {
+		const clear = `${ESCAPE}2J${ESCAPE}H`;
+		async function twoPending() {
+			const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+			const forgeDirectory = join(cwd, ".forge");
+			await writeFeature(forgeDirectory, FEATURE);
+			await writeScenarios(forgeDirectory, [
+				{
+					id: "alpha",
+					kind: "happy",
+					oracle: "label",
+					description: "d",
+					status: "pending",
+				},
+				{
+					id: "beta",
+					kind: "edge",
+					oracle: "label",
+					description: "d",
+					status: "pending",
+				},
+			]);
+			return ctxIn(cwd, ["skip", "skip"]);
+		}
+		const painted = await twoPending();
+		await onPaintingTerminal(async () => {
+			expect(await run(["review"], painted.context)).toBe(0);
+		});
+		const cleared = painted.out.filter((line) => line.includes(clear));
+		expect(cleared).toHaveLength(1);
+		expect(cleared[0]?.startsWith(clear)).toBe(true);
+		expect(cleared[0]).toContain("beta");
+
+		const plain = await twoPending();
+		expect(await run(["review"], plain.context)).toBe(0);
+		expect(plain.out.some((line) => line.includes("\x1b["))).toBe(false);
+	});
+
+	test("on a painting terminal only the preface's title is bold; the bar and the bullets are plain", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+		const { context, out } = await ctxIn(cwd, ["skip"]);
+		await onPaintingTerminal(async () => {
+			expect(await run(["review"], context)).toBe(0);
+		});
+		const title = "┃ READ THIS FIRST: what you are doing in this review";
+		expect(out[0]).toBe(`${ESCAPE}1m${title}${ESCAPE}22m`);
+		expect(out[1]).toBe("┃");
+		expect(out[2]?.startsWith("┃  • ")).toBe(true);
+		expect(out.slice(1, 6).some((line) => line.includes(ESCAPE))).toBe(false);
 	});
 
 	test("a failure that is not a write is shown as it is, not as a write-back that stopped", async () => {

@@ -563,6 +563,49 @@ describe("runReviewLoop: what a person reads and what the editor receives", () =
 		]);
 	});
 
+	test("the screen is cleared before every item but the first, and not again when an item is re-asked", async () => {
+		const clear = "<CLEAR>";
+		const printed: string[] = [];
+		const refused = stringify({ ...scn, id: "renamed" });
+		let edits = 0;
+		await runReviewLoop({
+			...base,
+			items: [
+				{ kind: "scenario", item: { ...scn, id: "first" } },
+				{ kind: "scenario", item: scn },
+				{ kind: "scenario", item: { ...scn, id: "third" } },
+			],
+			ask: scripted(["skip", "edit", "skip", "skip"]),
+			openEditor: async (yamlText) => {
+				edits += 1;
+				return edits === 1 ? refused : yamlText;
+			},
+			render: (item) => `head ${item.item.id}\nbody`,
+			newScreen: clear,
+			print: (line) => printed.push(line),
+		});
+		expect(printed.filter((line) => line.includes(clear))).toStrictEqual([
+			`${clear}head s`,
+			`${clear}head third`,
+		]);
+		expect(printed.filter((line) => line.startsWith("head s"))).toHaveLength(1);
+	});
+
+	test("without a newScreen nothing is prefixed to any header", async () => {
+		const printed: string[] = [];
+		await runReviewLoop({
+			...base,
+			items: [
+				{ kind: "scenario", item: scn },
+				{ kind: "scenario", item: { ...scn, id: "t" } },
+			],
+			ask: scripted(["skip", "skip"]),
+			render: (item) => `head ${item.item.id}\nbody`,
+			print: (line) => printed.push(line),
+		});
+		expect(printed).toStrictEqual(["head s", "body", "head t", "body"]);
+	});
+
 	test("an answer outside the choices is refused with the answer, the choices in order, and the item's id", async () => {
 		let caught: unknown;
 		try {

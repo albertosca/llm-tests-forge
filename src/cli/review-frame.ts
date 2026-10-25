@@ -26,7 +26,8 @@ export interface Frame {
 const ORACLE_MEANING: Record<Scenario["oracle"], string> = {
 	label: "the answer must come out as this label",
 	fields: "the answer's fields must match these values",
-	rubric: "a judge model grades the answer against this sentence",
+	rubric:
+		"a judge model grades the answer against this sentence (free text, no fixed labels)",
 };
 
 const KEYS_LINE: Record<PendingItem["kind"], string> = {
@@ -112,12 +113,20 @@ export function frameFor(
 	return { before, showYaml: false, after };
 }
 
-/** Said once, before the first item of a pass that holds a case. */
+/**
+ * Said once, before the first item of a pass that holds a case: a boxed
+ * block with a bar down the left side, a title and one bullet per idea. The
+ * first line is the title.
+ */
 export function passPreface(): string[] {
 	return [
-		"You are setting the right answer for each case. Nothing has run yet.",
-		"Later, `promptfoo eval` sends each Input to your app and checks the app's answer against the Expected you approve here.",
-		"So: approve what is correct, edit what is wrong, reject what should not be tested.",
+		"┃ READ THIS FIRST: what you are doing in this review",
+		"┃",
+		"┃  • You are setting the right answer for each case. Nothing has run yet.",
+		"┃  • Later, `promptfoo eval` sends each Input to your app and checks the app's answer against the Expected you approve here.",
+		"┃  • Each scenario is checked one way: by label, fields or rubric. So one case shows a label and another a rubric; it follows its scenario, never both.",
+		"┃  • Approve what is correct, edit what is wrong, reject what should not be tested.",
+		"",
 	];
 }
 

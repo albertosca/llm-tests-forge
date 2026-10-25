@@ -380,6 +380,8 @@ describe("renderItem paints the frame's own lines", () => {
 	test("the preface painter is bold when enabled and untouched when not", () => {
 		expect(palette(true).heading("x")).toBe(`${ESC}1mx${ESC}22m`);
 		expect(palette(false).heading("x")).toBe("x");
+		expect(palette(true).newScreen).toBe(`${ESC}2J${ESC}H`);
+		expect(palette(false).newScreen).toBe("");
 	});
 
 	test("only a line that starts with the counter is bold, and two-digit counters count", () => {

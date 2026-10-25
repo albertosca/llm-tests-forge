@@ -43,19 +43,29 @@ export interface Palette {
 	hint: (line: string) => string;
 	/** A line that says what the whole pass is for. */
 	heading: (line: string) => string;
+	/** Clears the screen and homes the cursor, so each item starts at the top. */
+	newScreen: string;
 }
 
 const identity = (text: string) => text;
 
 export function palette(enabled: boolean): Palette {
 	return enabled
-		? { enabled, error: red, prompt: bold, hint: dim, heading: bold }
+		? {
+				enabled,
+				error: red,
+				prompt: bold,
+				hint: dim,
+				heading: bold,
+				newScreen: "\x1b[2J\x1b[H",
+			}
 		: {
 				enabled,
 				error: identity,
 				prompt: identity,
 				hint: identity,
 				heading: identity,
+				newScreen: "",
 			};
 }
 

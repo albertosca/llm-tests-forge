@@ -293,7 +293,8 @@ export async function reviewCommand(
 	// A pass over cases is the one place a person is asked for an answer
 	// without being told what it is for; say it once, before the first item.
 	if (items.some((pendingItem) => pendingItem.kind === "case"))
-		for (const line of passPreface()) context.stdout(paint.heading(line));
+		for (const [index, line] of passPreface().entries())
+			context.stdout(index === 0 ? paint.heading(line) : line);
 	const pass = context.startInteractivePass();
 	const io = { stdin: pass.read, stdout: context.stdout };
 	const result = await runReviewLoop({
@@ -359,6 +360,7 @@ export async function reviewCommand(
 				scenario.id === originalId ? decided : scenario,
 			);
 		},
+		newScreen: paint.newScreen,
 		print: (line) =>
 			context.stdout(
 				line.startsWith("cannot apply:") ? paint.error(line) : line,
