@@ -344,6 +344,16 @@ describe("renderItem paints the frame's own lines", () => {
 		expect(colored).toContain("  • never invent a label");
 	});
 
+	test("the rules label is painted only where a line starts with it", () => {
+		const text = renderItem(kase, palette(true), {
+			before: ["see Rules the answer must respect here"],
+			showYaml: false,
+			after: [],
+		});
+		expect(text).toContain("\nsee Rules the answer must respect here");
+		expect(text).not.toContain(`${ESC}35m`);
+	});
+
 	test("a near-duplicate note and a missing expected are yellow", () => {
 		expect(colored).toContain(
 			`${ESC}33mNote: looks like a near-duplicate of s-00 (flagged by dedupe).${ESC}39m`,

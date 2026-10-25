@@ -65,16 +65,16 @@ export const FeatureOutputSchema = z
 	.refine(
 		(output) =>
 			Object.keys(output.label_notes ?? {}).every((name) =>
-				(output.labels ?? []).includes(name),
+				output.labels?.includes(name),
 			),
 		{
 			error: (issue) => {
 				const output = issue.input as {
 					labels?: string[];
-					label_notes?: Record<string, string>;
+					label_notes: Record<string, string>;
 				};
-				const unknown = Object.keys(output.label_notes ?? {}).filter(
-					(name) => !(output.labels ?? []).includes(name),
+				const unknown = Object.keys(output.label_notes).filter(
+					(name) => !output.labels?.includes(name),
 				);
 				return `output.label_notes describes ${unknown.map((name) => `"${name}"`).join(", ")}, which ${unknown.length === 1 ? "is" : "are"} not in output.labels`;
 			},
