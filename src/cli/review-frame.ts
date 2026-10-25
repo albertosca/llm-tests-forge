@@ -44,7 +44,17 @@ function indentedYaml(value: unknown): string[] {
 	return stringify(value, { lineWidth: 0 })
 		.trimEnd()
 		.split("\n")
-		.map((line) => `  ${line}`);
+		.map((line) => (line === "" ? line : `  ${line}`));
+}
+
+/**
+ * A line of prose with a prefix. Text that comes from a file can hold line
+ * breaks; its later lines are indented so none of them can start at column 0,
+ * where a line like `--- case x ---` would read as a header.
+ */
+function prose(prefix: string, text: string): string[] {
+	const [first = "", ...rest] = text.split("\n");
+	return [`${prefix}${first}`, ...rest.map((line) => `  ${line}`)];
 }
 
 function checkedAs(oracle: Scenario["oracle"]): string {
@@ -78,7 +88,7 @@ export function frameFor(
 	);
 	const labels = context.feature.output.labels ?? [];
 	const before = [`${position} · a case of scenario "${kase.scenario}"`];
-	if (scenario) before.push(`Scenario: ${scenario.description}`);
+	if (scenario) before.push(...prose("Scenario: ", scenario.description));
 	before.push("Input:", ...indentedYaml(kase.input));
 	if (kase.expected)
 		before.push(
@@ -89,11 +99,25 @@ export function frameFor(
 	if (scenario) before.push(checkedAs(scenario.oracle));
 	if (scenario?.oracle === "label" && labels.length > 0)
 		before.push(`Valid labels: ${labels.join(", ")}`);
+	if (context.feature.invariants.length > 0)
+		before.push(
+			"Rules the answer must respect (the feature's invariants):",
+			...context.feature.invariants.flatMap((rule) => prose("  • ", rule)),
+		);
 	if (kase.duplicate_of)
 		before.push(
 			`Note: looks like a near-duplicate of ${kase.duplicate_of} (flagged by dedupe). Reject to drop this one, approve to keep both.`,
 		);
 	return { before, showYaml: false, after };
+}
+
+/** Said once, before the first item of a pass that holds a case. */
+export function passPreface(): string[] {
+	return [
+		"You are setting the right answer for each case. Nothing has run yet.",
+		"Later, `promptfoo eval` sends each Input to your app and checks the app's answer against the Expected you approve here.",
+		"So: approve what is correct, edit what is wrong, reject what should not be tested.",
+	];
 }
 
 export interface NextStepState {

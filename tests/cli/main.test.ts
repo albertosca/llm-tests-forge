@@ -2240,6 +2240,56 @@ describe("review: startInteractivePass arms end-of-input only for the interactiv
 		expect(out.at(-2)).toBe("Next: run llm-tests-forge cases.");
 	});
 
+	test("a pass over cases says once what the Expected is for, and each case lists the feature's invariants", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedScenario(cwd);
+		await writeFeature(forgeDirectory, {
+			...FEATURE,
+			invariants: ["a receipt alone is an acknowledgement"],
+		});
+		await writeCases(forgeDirectory, "polite-rejection", [
+			{
+				id: "polite-rejection-01",
+				scenario: "polite-rejection",
+				input: { email: "one" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+			{
+				id: "polite-rejection-02",
+				scenario: "polite-rejection",
+				input: { email: "two" },
+				expected: { label: "rejection" },
+				status: "pending",
+				generated_by: "hand",
+			},
+		]);
+		const { context, out } = await ctxIn(cwd, ["s", "s"]);
+		expect(await run(["review"], context)).toBe(0);
+
+		const text = out.join("\n");
+		expect(out[0]).toContain("You are setting the right answer for each case");
+		expect(text.split("You are setting the right answer").length - 1).toBe(1);
+		expect(text.indexOf("You are setting")).toBeLessThan(
+			text.indexOf("--- case polite-rejection-01 ---"),
+		);
+		expect(
+			text.split("Rules the answer must respect (the feature's invariants):")
+				.length - 1,
+		).toBe(2);
+		expect(text).toContain("  • a receipt alone is an acknowledgement");
+	});
+
+	test("a pass with no case to judge prints no preface", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = join(cwd, ".forge");
+		await writeFeature(forgeDirectory, { ...FEATURE, status: "pending" });
+		const { context, out } = await ctxIn(cwd, ["s"]);
+		expect(await run(["review"], context)).toBe(0);
+		expect(out.join("\n")).not.toContain("You are setting the right answer");
+	});
+
 	test("--all never calls it: it asks nothing, so an interrupt during its model calls must not be mistaken for the middle of a review pass", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedScenario(cwd);

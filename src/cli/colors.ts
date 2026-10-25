@@ -41,14 +41,22 @@ export interface Palette {
 	prompt: (line: string) => string;
 	/** The lines that explain the keys, quieter than the item itself. */
 	hint: (line: string) => string;
+	/** A line that says what the whole pass is for. */
+	heading: (line: string) => string;
 }
 
 const identity = (text: string) => text;
 
 export function palette(enabled: boolean): Palette {
 	return enabled
-		? { enabled, error: red, prompt: bold, hint: dim }
-		: { enabled, error: identity, prompt: identity, hint: identity };
+		? { enabled, error: red, prompt: bold, hint: dim, heading: bold }
+		: {
+				enabled,
+				error: identity,
+				prompt: identity,
+				hint: identity,
+				heading: identity,
+			};
 }
 
 const KIND_COLOR: Record<PendingItem["kind"], (text: string) => string> = {
@@ -134,6 +142,64 @@ function colorYaml(yaml: string): string {
 	return out.join("\n");
 }
 
+const BLOCK_HEADING = /^(Input|Expected, proposed by [^:]*):$/;
+const ORACLE_LINE = /^(Checked as \w+:)( .*)$/;
+const LABELS_LINE = /^(Valid labels:)( )(.*)$/;
+const SCENARIO_LINE = /^(Scenario:)( .*)$/;
+
+/**
+ * Colors the lines a frame adds around an item. The lines are matched by the
+ * fixed words `frameFor` starts them with; an indented line is painted only
+ * while a block that owns it is open (the YAML under `Input:`, the rules under
+ * their heading), so the text of a description or an input, which is indented
+ * by the frame, can never be mistaken for one of those words.
+ */
+function paintFrame(lines: string[]): string[] {
+	const out: string[] = [];
+	let block: "yaml" | "rules" | null = null;
+	let yamlLines: string[] = [];
+	const closeYaml = () => {
+		if (yamlLines.length > 0) out.push(colorYaml(yamlLines.join("\n")));
+		yamlLines = [];
+	};
+	for (const line of lines) {
+		const owned = line === "" || line.startsWith("  ");
+		if (block === "yaml" && owned) {
+			yamlLines.push(line);
+			continue;
+		}
+		closeYaml();
+		if (block === "rules" && owned) {
+			out.push(line);
+			continue;
+		}
+		block = null;
+		if (/^Item \d+ of \d+/.test(line)) out.push(bold(line));
+		else if (BLOCK_HEADING.test(line)) {
+			block = "yaml";
+			out.push(bold(line));
+		} else if (line.startsWith("Rules ")) {
+			block = "rules";
+			out.push(bold(line));
+		} else if (line.startsWith("Note: ") || line.startsWith("Expected: none"))
+			out.push(yellow(line));
+		else out.push(paintLabelled(line));
+	}
+	closeYaml();
+	return out;
+}
+
+/** The `Name: text` lines whose name is dim or cyan; any other line as it is. */
+function paintLabelled(line: string): string {
+	const scenario = SCENARIO_LINE.exec(line);
+	if (scenario) return `${dim(scenario[1] ?? "")}${scenario[2] ?? ""}`;
+	const oracle = ORACLE_LINE.exec(line);
+	if (oracle) return `${cyan(oracle[1] ?? "")}${oracle[2] ?? ""}`;
+	const labels = LABELS_LINE.exec(line);
+	if (labels) return `${dim(labels[1] ?? "")} ${green(labels[3] ?? "")}`;
+	return line;
+}
+
 /**
  * What the review loop prints for one item: a header naming its kind and id,
  * then the item as YAML. Without color and without a frame it is exactly what
@@ -154,7 +220,7 @@ export function renderItem(
 	if (!frame) return `${header}\n${body}`;
 	return [
 		header,
-		...frame.before,
+		...(colors.enabled ? paintFrame(frame.before) : frame.before),
 		...(frame.showYaml ? [body] : []),
 		...frame.after.map(colors.hint),
 	].join("\n");

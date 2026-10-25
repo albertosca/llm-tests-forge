@@ -282,3 +282,103 @@ describe("renderItem with a frame", () => {
 		expect(palette(false).hint("x")).toBe("x");
 	});
 });
+
+describe("renderItem paints the frame's own lines", () => {
+	const frame = {
+		before: [
+			'Item 3 of 24 · a case of scenario "s"',
+			"Scenario: a courteous no",
+			"Input:",
+			"  email: hello",
+			"Expected, proposed by m (you confirm or correct it):",
+			"  label: rejection",
+			"Checked as label: the answer must come out as this label",
+			"Valid labels: rejection, offer",
+			"Rules the answer must respect (the feature's invariants):",
+			"  • never invent a label",
+			"Note: looks like a near-duplicate of s-00 (flagged by dedupe).",
+			"Expected: none yet; approve or edit will ask you for it.",
+		],
+		showYaml: false,
+		after: [],
+	};
+	const colored = renderItem(kase, palette(true), frame);
+
+	test("the counter line is bold", () => {
+		expect(colored).toContain(
+			`${ESC}1mItem 3 of 24 · a case of scenario "s"${ESC}22m`,
+		);
+	});
+
+	test("the Input and Expected blocks go through the YAML colorer, their headings bold", () => {
+		expect(colored).toContain(`${ESC}1mInput:${ESC}22m`);
+		expect(colored).toContain(
+			`${ESC}1mExpected, proposed by m (you confirm or correct it):${ESC}22m`,
+		);
+		expect(colored).toContain(
+			`  ${ESC}36memail${ESC}39m: ${ESC}32mhello${ESC}39m`,
+		);
+		expect(colored).toContain(
+			`  ${ESC}36mlabel${ESC}39m: ${ESC}32mrejection${ESC}39m`,
+		);
+	});
+
+	test("the scenario label is dim and the oracle line is cyan", () => {
+		expect(colored).toContain(`${ESC}2mScenario:${ESC}22m a courteous no`);
+		expect(colored).toContain(
+			`${ESC}36mChecked as label:${ESC}39m the answer must come out as this label`,
+		);
+	});
+
+	test("valid labels are green after a dim prefix; the invariants heading is bold", () => {
+		expect(colored).toContain(
+			`${ESC}2mValid labels:${ESC}22m ${ESC}32mrejection, offer${ESC}39m`,
+		);
+		expect(colored).toContain(
+			`${ESC}1mRules the answer must respect (the feature's invariants):${ESC}22m`,
+		);
+		expect(colored).toContain("  • never invent a label");
+	});
+
+	test("a near-duplicate note and a missing expected are yellow", () => {
+		expect(colored).toContain(
+			`${ESC}33mNote: looks like a near-duplicate of s-00 (flagged by dedupe).${ESC}39m`,
+		);
+		expect(colored).toContain(
+			`${ESC}33mExpected: none yet; approve or edit will ask you for it.${ESC}39m`,
+		);
+	});
+
+	test("the escapes add nothing: removed, the text is the uncolored rendering", () => {
+		expect(plain(colored)).toBe(renderItem(kase, palette(false), frame));
+	});
+
+	test("an empty line inside an Input block stays in the block and stays empty", () => {
+		const withBlank = renderItem(kase, palette(true), {
+			...frame,
+			before: [
+				"Input:",
+				"  body: |-",
+				"    one",
+				"",
+				"    two",
+				"Valid labels: a",
+			],
+		});
+		expect(plain(withBlank)).toContain("    one\n\n    two\nValid labels: a");
+		expect(withBlank).toContain(`${ESC}2mValid labels:${ESC}22m`);
+	});
+
+	test("an indented line outside any block is left alone", () => {
+		const loose = renderItem(kase, palette(true), {
+			...frame,
+			before: ["Scenario: first", "  second line of the description"],
+		});
+		expect(loose).toContain("\n  second line of the description");
+	});
+
+	test("the preface painter is bold when enabled and untouched when not", () => {
+		expect(palette(true).heading("x")).toBe(`${ESC}1mx${ESC}22m`);
+		expect(palette(false).heading("x")).toBe("x");
+	});
+});

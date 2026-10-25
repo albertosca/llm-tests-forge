@@ -20,7 +20,7 @@ import type { Case, Oracle } from "../../core/schemas";
 import { colorEnabled, palette, renderItem } from "../colors";
 import type { CliContext } from "../context";
 import { askChoice, askExpectedFor, openInEditor } from "../prompts";
-import { frameFor, nextStep } from "../review-frame";
+import { frameFor, nextStep, passPreface } from "../review-frame";
 import { runReviewLoop } from "../review-loop";
 import { applyReviewDecisions, takeOnce } from "../review-writeback";
 import { reviewAllCommand } from "./review-all";
@@ -290,6 +290,10 @@ export async function reviewCommand(
 	// `--all` returns above without ever reaching here, so it never arms
 	// it: it asks nothing, and an interrupt during its model calls should
 	// exit as it always did, not be mistaken for the middle of a review pass.
+	// A pass over cases is the one place a person is asked for an answer
+	// without being told what it is for; say it once, before the first item.
+	if (items.some((pendingItem) => pendingItem.kind === "case"))
+		for (const line of passPreface()) context.stdout(paint.heading(line));
 	const pass = context.startInteractivePass();
 	const io = { stdin: pass.read, stdout: context.stdout };
 	const result = await runReviewLoop({

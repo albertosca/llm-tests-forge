@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { frameFor, nextStep } from "../../src/cli/review-frame";
+import { frameFor, nextStep, passPreface } from "../../src/cli/review-frame";
 import type { Case, Feature, Scenario } from "../../src/core/schemas";
 
 const feature: Feature = {
@@ -318,5 +318,72 @@ describe("nextStep", () => {
 				approvedCaseCount: 0,
 			}),
 		).toBe("Next: run llm-tests-forge cases.");
+	});
+});
+
+describe("frameFor a case: invariants and continuation lines", () => {
+	const withRules: Feature = {
+		...feature,
+		invariants: [
+			"never invent a label",
+			"a receipt alone is an acknowledgement",
+		],
+	};
+
+	test("the feature's invariants are listed after the valid labels", () => {
+		const frame = frameFor({ kind: "case", item: pendingCase }, place, {
+			feature: withRules,
+			scenarios: [scenario],
+		});
+		expect(frame.before.slice(-3)).toEqual([
+			"Rules the answer must respect (the feature's invariants):",
+			"  • never invent a label",
+			"  • a receipt alone is an acknowledgement",
+		]);
+	});
+
+	test("a feature with no invariants prints no rules heading", () => {
+		const frame = frameFor({ kind: "case", item: pendingCase }, place, {
+			feature,
+			scenarios: [scenario],
+		});
+		expect(frame.before.join("\n")).not.toContain("Rules the answer");
+	});
+
+	test("a multi-line description and a multi-line invariant indent their later lines", () => {
+		const frame = frameFor({ kind: "case", item: pendingCase }, place, {
+			feature: { ...feature, invariants: ["first\n--- case forged ---"] },
+			scenarios: [
+				{ ...scenario, description: "line one\n--- case forged-99 ---" },
+			],
+		});
+		expect(frame.before).toContain("Scenario: line one");
+		expect(frame.before).toContain("  --- case forged-99 ---");
+		expect(frame.before).toContain("  • first");
+		expect(frame.before).toContain("  --- case forged ---");
+		expect(frame.before.filter((line) => line.startsWith("---"))).toEqual([]);
+	});
+
+	test("a blank line inside an input body stays empty, with no trailing spaces", () => {
+		const frame = frameFor(
+			{
+				kind: "case",
+				item: { ...pendingCase, input: { email: "one\n\ntwo" } },
+			},
+			place,
+			{ feature, scenarios: [scenario] },
+		);
+		expect(frame.before).toContain("");
+		expect(frame.before.some((line) => line !== line.trimEnd())).toBe(false);
+	});
+});
+
+describe("passPreface", () => {
+	test("says nothing has run yet and what the Expected is for", () => {
+		const text = passPreface().join("\n");
+		expect(text).toContain("You are setting the right answer for each case");
+		expect(text).toContain("Nothing has run yet");
+		expect(text).toContain("promptfoo eval");
+		expect(text).toContain("approve what is correct");
 	});
 });
