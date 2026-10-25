@@ -16,6 +16,7 @@ import {
 	readSuite,
 } from "../../core/files";
 import { selectCases } from "../../core/select";
+import { parseModelSpec } from "../../llm/models";
 import { loadPrices } from "../../llm/prices";
 import type { CliContext } from "../context";
 import { requireApprovedFeature } from "../gates";
@@ -54,6 +55,18 @@ export async function estimateCommand(
 		context.forgeDirectory,
 		context.project?.config.language,
 	);
+	// priceFor stays lenient (report reads old runs); a suite about to be
+	// priced must name every model as provider/model, as emit requires.
+	for (const spec of [...suite.target.models, ...suite.judges]) {
+		try {
+			parseModelSpec(spec);
+		} catch (error) {
+			throw new ForgeError(
+				error instanceof Error ? error.message : String(error),
+				{ file: paths.suite },
+			);
+		}
+	}
 	const selection = selectCases({
 		suite,
 		scenarios: await readScenarios(context.forgeDirectory),

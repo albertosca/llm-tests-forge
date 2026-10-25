@@ -4290,6 +4290,31 @@ describe("estimate", () => {
 		expect(await run(["estimate"], context)).toBe(1);
 		expect(out.at(-1)).toContain("gone.txt");
 	});
+	test("a target model with no provider part is refused, naming the model and the suite file, like emit does", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		await writeSuite(forgeDirectory, {
+			...SUITE,
+			target: { ...SUITE.target, models: ["claude-haiku-4-5"] },
+		});
+		const { context, out } = await ctxIn(cwd);
+		expect(await run(["estimate"], context)).toBe(1);
+		expect(out.at(-1)).toBe(
+			`error: model spec must be provider/model, got "claude-haiku-4-5" (file: ${join(forgeDirectory, "suite.yaml")})`,
+		);
+	});
+	test("a judge with no provider part, or with an empty one, is refused too", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
+		const forgeDirectory = await forgeWithApprovedCases(cwd);
+		for (const judge of ["gemini-3.5-flash", "/gemini-3.5-flash"]) {
+			await writeSuite(forgeDirectory, { ...SUITE, judges: [judge] });
+			const { context, out } = await ctxIn(cwd);
+			expect(await run(["estimate"], context)).toBe(1);
+			expect(out.at(-1)).toContain(
+				`model spec must be provider/model, got "${judge}"`,
+			);
+		}
+	});
 	test("an absolute prompt_file is read from that path, not joined under the application root", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "forge-cli-"));
 		const forgeDirectory = await forgeWithApprovedCases(cwd);

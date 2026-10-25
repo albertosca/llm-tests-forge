@@ -95,13 +95,11 @@ describe("priceFor", () => {
 			"anthropic/claude-haiku-4-5",
 		);
 	});
-	// Not an endorsement: `emit` and parseModelSpec refuse a model string with
-	// no provider part, while `estimate` and `report` price it as written. That
-	// inconsistency is known and left alone on purpose: making estimateSuite
-	// refuse it broke 13 report tests, because the frozen results fixtures
-	// name a model `target-haiku-4-5`, and `report` must keep reading runs
-	// already made. This test only pins what priceFor does today.
-	test("KNOWN QUIRK, pinned as is: a model with no provider part is taken whole as the provider", () => {
+	// priceFor itself stays lenient on purpose: `report` must keep reading runs
+	// already made, and the frozen results fixtures name a model
+	// `target-haiku-4-5`. The refusal lives in the `estimate` command (see its
+	// "no provider part" tests), which is where a suite is priced before a run.
+	test("priceFor stays lenient, pinned: a model with no provider part is taken whole as the provider", () => {
 		expect(priceFor("anthropic", table)).toMatchObject({
 			pricedAs: "anthropic/claude-haiku-4-5",
 			approximate: true,
