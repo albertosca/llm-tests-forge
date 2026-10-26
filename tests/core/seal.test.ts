@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ForgeError } from "../../src/core/errors";
 import type { Report } from "../../src/core/report";
 import type { Suite } from "../../src/core/schemas";
 import {
@@ -61,6 +62,45 @@ describe("resolveInputs", () => {
 		);
 	});
 
+	test("refuses a Windows-style absolute path even on a platform that reads it as relative", async () => {
+		const base = await tree({ "project/p.txt": "p" });
+		await expect(resolveInputs(base, ["C:\\inputs\\p.txt"])).rejects.toThrow(
+			"is an absolute path",
+		);
+	});
+
+	test("a glob that matches only a directory matches no file", async () => {
+		const base = await tree({ "project/dir/q.txt": "q" });
+		await expect(resolveInputs(base, ["d*"])).rejects.toThrow(
+			'stamp.inputs entry "d*" matches no file',
+		);
+	});
+
+	test("a glob keeps matching files after the first: every one is hashed", async () => {
+		const base = await tree({
+			"project/p/a.txt": "a",
+			"project/p/b.txt": "b",
+			"project/p/c.txt": "c",
+		});
+		const hashes = await resolveInputs(base, ["p/*.txt"]);
+		expect(Object.keys(hashes)).toEqual(["p/a.txt", "p/b.txt", "p/c.txt"]);
+	});
+
+	test("lenient lets an empty glob through without refusing", async () => {
+		const base = await tree({ "project/p.txt": "p" });
+		expect(
+			await resolveInputs(base, ["nothing/*.txt"], { lenient: true }),
+		).toEqual({});
+	});
+
+	test("a refusal for a missing literal carries the resolved file in its details", async () => {
+		const base = await tree({ "project/p.txt": "p" });
+		const error = await resolveInputs(base, ["missing.txt"]).catch(
+			(thrown: unknown) => thrown,
+		);
+		expect((error as ForgeError).details.file).toBe(join(base, "missing.txt"));
+	});
+
 	test("refuses a literal path that does not exist, naming the entry", async () => {
 		const base = await tree({ "project/p.txt": "p" });
 		await expect(resolveInputs(base, ["missing.txt"])).rejects.toThrow(
@@ -108,6 +148,12 @@ describe("inputsHashOf", () => {
 		);
 		expect(inputsHashOf({ "a.txt": "sha256:1", "b.txt": "sha256:3" })).not.toBe(
 			first,
+		);
+	});
+
+	test("is the sha256 of the sorted path, NUL, hash, newline lines", () => {
+		expect(inputsHashOf({ "b.txt": "sha256:2", "a.txt": "sha256:1" })).toBe(
+			"sha256:caeaf4df848f6542e4a060ca450a1de20addb53428c18c871bf07b8d0ac2fd08",
 		);
 	});
 
@@ -273,6 +319,62 @@ describe("checkStamp", () => {
 		} as Suite;
 		expect(check({ suite }).failures).toEqual([
 			"target models changed: sealed anthropic/claude-haiku-4-5, now anthropic/claude-sonnet-5",
+		]);
+	});
+
+	test("names several target models on both sides, joined with a comma", () => {
+		const stamp = {
+			...STAMP,
+			models: { ...STAMP.models, targets: ["a/x", "b/y"] },
+		};
+		const suite = {
+			...SUITE,
+			target: { ...SUITE.target, models: ["a/x", "c/z"] },
+		} as Suite;
+		expect(check({ stamp, suite }).failures).toEqual([
+			"target models changed: sealed a/x, b/y, now a/x, c/z",
+		]);
+	});
+
+	test("a sealed list that is a prefix of the current one is a change, and so is the reverse", () => {
+		const longer = {
+			...SUITE,
+			target: {
+				...SUITE.target,
+				models: ["anthropic/claude-haiku-4-5", "extra/model"],
+			},
+		} as Suite;
+		expect(check({ suite: longer }).failures).toHaveLength(1);
+		const stamp = {
+			...STAMP,
+			models: {
+				...STAMP.models,
+				targets: [...STAMP.models.targets, "extra/model"],
+			},
+		};
+		expect(check({ stamp }).failures).toHaveLength(1);
+	});
+
+	test("a change in one position of several is a change", () => {
+		const stamp = {
+			...STAMP,
+			models: { ...STAMP.models, judges: ["j/one", "j/two"] },
+		};
+		const suite = { ...SUITE, judges: ["j/one", "j/other"] } as Suite;
+		expect(check({ stamp, suite }).failures).toEqual([
+			"judges changed: sealed j/one, j/two, now j/one, j/other",
+		]);
+	});
+
+	test("a sealed pass rate exactly on the current line holds", () => {
+		const stamp = { ...STAMP, passRate: 0.9 };
+		expect(check({ stamp }).failures).toEqual([]);
+	});
+
+	test("says the sealed promptfoo was of unknown version when the stamp has none", () => {
+		const stamp = { ...STAMP, promptfooVersion: null };
+		expect(check({ stamp }).warnings).toEqual([
+			"sealed from a promptfoo of unknown version run, the last run here is 0.123.0",
 		]);
 	});
 

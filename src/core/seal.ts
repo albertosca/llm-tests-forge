@@ -74,16 +74,15 @@ export async function resolveInputs(
 			paths.add(resolve(baseDirectory, pattern));
 			continue;
 		}
-		let matched = 0;
+		const matches: string[] = [];
 		for await (const match of new Bun.Glob(pattern).scan({
 			cwd: baseDirectory,
 			onlyFiles: true,
-		})) {
-			paths.add(resolve(baseDirectory, match));
-			matched += 1;
-		}
-		if (matched === 0 && !options.lenient)
+		}))
+			matches.push(match);
+		if (matches.length === 0 && !options.lenient)
 			throw new ForgeError(`stamp.inputs entry "${pattern}" matches no file`);
+		for (const match of matches) paths.add(resolve(baseDirectory, match));
 	}
 	const hashes: Record<string, string> = {};
 	for (const path of [...paths].sort()) {

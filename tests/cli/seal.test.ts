@@ -185,6 +185,125 @@ async function sealed(options: { block?: string } = {}): Promise<string> {
 	return directory;
 }
 
+describe("stamp output", () => {
+	test("prints the exact headline and where it wrote, with the flaky count when there is one", async () => {
+		const directory = await project();
+		const clean = await run(directory, [
+			"stamp",
+			await cleanResults(directory),
+		]);
+		expect(clean.lines).toEqual([
+			"stamp: sealed 1 input at pass rate 100.0% (line 90.0%)",
+			`stamp: wrote ${stampPath(directory)}; commit it`,
+		]);
+		const results = JSON.parse(
+			await readFile(await cleanResults(directory), "utf8"),
+		);
+		results.results.results[0].success = false;
+		await writeFile(join(directory, "mixed.json"), JSON.stringify(results));
+		const mixed = await run(directory, [
+			"stamp",
+			join(directory, "mixed.json"),
+		]);
+		expect(mixed.lines[0]).toBe(
+			"stamp: sealed 1 input at pass rate 97.9% (line 90.0%); 1 flaky pair listed",
+		);
+	});
+
+	test("lists each refusal on its own line under the heading, then says what to do", async () => {
+		const directory = await project();
+		const { lines } = await run(directory, [
+			"stamp",
+			join(directory, "results.json"),
+		]);
+		const text = lines.join("\n");
+		expect(text).toContain(
+			`not sealed, nothing written:\n  - empty-subject-and-minimal-body-03 @ ${MODEL} is failing`,
+		);
+		expect(text).toContain(
+			"fix these, run the eval again, `llm-tests-forge report`, then `llm-tests-forge stamp`",
+		);
+	});
+});
+
+describe("lists with more than one entry", () => {
+	test("stamp puts each refusal on its own line", async () => {
+		const directory = await project({ block: STAMP_BLOCK(1) });
+		const { lines } = await run(directory, [
+			"stamp",
+			join(directory, "results.json"),
+		]);
+		expect(lines.join("\n")).toMatch(
+			/nothing written:\n {2}- [^\n]+ is failing\n {2}- pass rate [^\n]+ is under the line 100\.0%\nfix these/,
+		);
+	});
+
+	test("check puts each failure on its own line", async () => {
+		const directory = await sealed();
+		await writeFile(join(directory, "prompt.txt"), "different");
+		const suitePath = join(directory, ".forge", "suite.yaml");
+		const suite = await readFile(suitePath, "utf8");
+		await writeFile(
+			suitePath,
+			suite.replace("judges: [anthropic/claude-sonnet-5]", "judges: [x/y]"),
+		);
+		const { lines } = await run(directory, ["check"]);
+		expect(lines.join("\n")).toMatch(
+			/repository:\n {2}- prompt\.txt changed since the stamp\n {2}- judges changed: [^\n]+\nrun the eval again/,
+		);
+	});
+
+	test("check names a nested field of a malformed stamp by its dotted path", async () => {
+		const directory = await sealed();
+		const path = stampPath(directory);
+		const stamp = JSON.parse(await readFile(path, "utf8"));
+		stamp.models.targets = "not a list";
+		await writeFile(path, JSON.stringify(stamp));
+		const { lines } = await run(directory, ["check"]);
+		expect(lines.join("\n")).toContain("models.targets: ");
+	});
+});
+
+describe("check output", () => {
+	test("the ok line carries the seal date, the pass rate in percent and the input count", async () => {
+		const directory = await sealed();
+		const stamp = JSON.parse(await readFile(stampPath(directory), "utf8"));
+		const { lines } = await run(directory, ["check"]);
+		expect(lines).toEqual([
+			`check: ok; sealed ${stamp.sealedAt} at pass rate 100.0%, 1 input unchanged`,
+		]);
+	});
+
+	test("every refusal names the stamp file, and the failures come as a list with the next step", async () => {
+		const directory = await project();
+		const missing = await run(directory, ["check"]);
+		expect(missing.lines.join("\n")).toContain(`file: ${stampPath(directory)}`);
+		await run(directory, ["stamp", await cleanResults(directory)]);
+		const path = stampPath(directory);
+		const good = await readFile(path, "utf8");
+		await writeFile(path, "{ not json");
+		expect((await run(directory, ["check"])).lines.join("\n")).toContain(
+			`file: ${path}`,
+		);
+		await writeFile(path, JSON.stringify({ format: 1, rows: "many" }));
+		const shape = (await run(directory, ["check"])).lines.join("\n");
+		expect(shape).toContain(`file: ${path}`);
+		expect(shape).toMatch(/sealedAt: [^;]+; [a-zA-Z.]+: /);
+		expect(shape).toContain("rows: ");
+		await writeFile(path, JSON.stringify({ ...JSON.parse(good), format: 2 }));
+		expect((await run(directory, ["check"])).lines.join("\n")).toContain(
+			`file: ${path}`,
+		);
+		await writeFile(path, good);
+		await writeFile(join(directory, "prompt.txt"), "different");
+		const failed = (await run(directory, ["check"])).lines.join("\n");
+		expect(failed).toContain(
+			"the stamp no longer describes this repository:\n  - prompt.txt changed since the stamp\nrun the eval again",
+		);
+		expect(failed).toContain(`file: ${path}`);
+	});
+});
+
 describe("check", () => {
 	test("passes untouched, and says it is offline-ok", async () => {
 		const directory = await sealed();
