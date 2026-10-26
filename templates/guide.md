@@ -88,6 +88,8 @@ then `llm-tests-forge report results.json`. promptfoo exits with status 100 when
 - `llm-tests-forge estimate`: tokens and dollars per model, with no call.
 - `llm-tests-forge emit`: approved cases become `.forge/promptfooconfig.yaml` and the shim (or `--format jsonl` for `cases.jsonl`).
 - `llm-tests-forge report`: promptfoo's `results.json` becomes `.forge/report.md` and `report.json`.
+- `llm-tests-forge stamp`: seal a passing run: `results.json` plus the files `stamp.inputs` names become `.forge/stamp.json`, to be committed. Refuses, writing nothing, when any case fails on every repeat, the pass rate is under `stamp.minimum_pass_rate`, or an input is missing. Run it only after the person has read the report.
+- `llm-tests-forge check`: offline, no model call, for CI. Fails when an input changed, vanished or appeared, when the target models or judges differ from the sealed ones, or when the line was raised above the sealed pass rate; a different forge or promptfoo version only warns.
 - `llm-tests-forge status`: every registered suite, with `--json` for agents.
 - `llm-tests-forge guide`: print this manual.
 - `llm-tests-forge help`: the usage summary.
@@ -111,6 +113,7 @@ then `llm-tests-forge report results.json`. promptfoo exits with status 100 when
 - `judges`: the judge models.
 - `repeat`: how many times each case runs.
 - `include`: scenario ids to run; empty means every approved scenario.
+- `stamp` (optional): `inputs` (paths or globs, relative to the directory that holds `.forge/`: the prompt file, a lockfile) and `minimum_pass_rate` (0 to 1). Needed by `stamp` and `check`.
 - Kind-specific: `target.python` (interpreter, python), `target.command` (exec), `target.url`, `target.method`, `target.headers`, `target.body`, `target.response` (http), all described above.
 
 How `suite.yaml` comes to exist: `describe` writes a starting `suite.yaml` when none exists yet, the project's language is not `other`, and both `defaults.target_models` and `defaults.judges` are set; otherwise the person writes it, and the error `emit` gives shows an example.

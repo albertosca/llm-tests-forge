@@ -170,6 +170,11 @@ Promptfoo runs the suite from the suite directory (`bunx` works too); the forge 
 
 Reads promptfoo's output into `.forge/report.md` and `.forge/report.json`: pass rate, a per-scenario table, which reviewed scenarios had no case, no matched run, or were not in this suite, cases that passed on one repeat and failed on another, judges that disagreed (with both reasons), and real cost against the estimate's range: within it, or how far above or below its nearer bound, and a line that recorded no tokens says so instead of claiming a match. With `--baseline`, an earlier `report.json` is compared and regressions are listed first; pairs the baseline has and this run does not (after a rename, say) are named rather than silently left out of the diff; a `--baseline` written by an older version of the forge is accepted, keys it spelled differently included.
 
+    llm-tests-forge stamp results.json
+    llm-tests-forge check
+
+A run only protects you if something notices when its inputs move. `stamp` seals a passing run to the files you list in `suite.yaml` (`stamp.inputs`: the prompt file, a lockfile; `stamp.minimum_pass_rate`: the line) in `.forge/stamp.json`, which you commit. It refuses, writing nothing, while any case fails on every repeat, the pass rate is under the line, or an input is missing; a case that failed on only some repeats is listed in the stamp and does not block it. `check` is what CI runs: offline, no model call, it exits 1 naming the input that changed, vanished or appeared, the target model or judge that differs from the sealed one, or a line raised above the sealed pass rate, and only warns when the forge or promptfoo version differs. Sealing is a maintainer step after reading the report; the stamp proves that one run passed on those inputs, not that the feature works.
+
 ### The nine target kinds
 
 The shim lives in `.forge/<entry>`, using the default names below unless `target.entry` renames it. `emit` writes it once and never overwrites it; you fill in the one function it names.

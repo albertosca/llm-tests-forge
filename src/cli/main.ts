@@ -7,6 +7,7 @@ import { resolveSuite } from "../core/resolve";
 import { FORGE_VERSION, versionWarning } from "../core/version";
 import { loadProviderKeys } from "../llm/credentials";
 import { casesCommand } from "./commands/cases";
+import { checkCommand } from "./commands/check";
 import { dedupeCommand } from "./commands/dedupe";
 import { describeCommand } from "./commands/describe";
 import { emitCommand } from "./commands/emit";
@@ -18,6 +19,7 @@ import { moveCommand } from "./commands/move";
 import { reportCommand } from "./commands/report";
 import { reviewCommand } from "./commands/review";
 import { scenariosCommand } from "./commands/scenarios";
+import { stampCommand } from "./commands/stamp";
 import { statusCommand } from "./commands/status";
 import { type CliContext, createContext } from "./context";
 import type { InteractivePass } from "./interruptible-stdin";
@@ -36,6 +38,8 @@ export const USAGE = `usage: llm-tests-forge <verb> [options]
   estimate                                            suite + approved cases -> tokens and dollars per model (no call)
   emit [--format promptfoo|jsonl]                    approved cases -> .forge/promptfooconfig.yaml + the target kind's shim, or cases.jsonl
   report <results.json> [--baseline report.json]      promptfoo output -> .forge/report.md + report.json
+  stamp <results.json>                                seal a passing run to suite.yaml's stamp.inputs -> .forge/stamp.json (commit it)
+  check                                               offline: fail if an input, a model or the line moved since the stamp (for CI)
   status [--json]                                     every registered suite: feature, counts, last run, version warning; --json for agents
   guide                                               print the manual for an agent operating the forge in a project
   --suite <path>  run on a registered suite from anywhere in the project
@@ -57,6 +61,8 @@ export const COMMANDS: Record<
 	estimate: estimateCommand,
 	emit: emitCommand,
 	report: reportCommand,
+	stamp: stampCommand,
+	check: checkCommand,
 	status: statusCommand,
 	guide: guideCommand,
 };

@@ -55,6 +55,7 @@ export interface ForgePaths {
 	casesJsonl: string;
 	reportMd: string;
 	reportJson: string;
+	stamp: string;
 }
 
 export function forgePaths(forgeDirectory: string): ForgePaths {
@@ -70,6 +71,7 @@ export function forgePaths(forgeDirectory: string): ForgePaths {
 		casesJsonl: join(forgeDirectory, "cases.jsonl"),
 		reportMd: join(forgeDirectory, "report.md"),
 		reportJson: join(forgeDirectory, "report.json"),
+		stamp: join(forgeDirectory, "stamp.json"),
 	};
 }
 

@@ -170,6 +170,11 @@ O promptfoo roda a suíte a partir do diretório da suíte (`bunx` também serve
 
 Lê a saída do promptfoo para `.forge/report.md` e `.forge/report.json`: taxa de acerto, tabela por cenário, quais cenários revisados não têm caso, não tiveram rodada casada ou não estão nesta suíte, casos que passaram em uma repetição e falharam em outra, juízes que discordaram (com as duas justificativas) e custo real contra a faixa estimada: dentro dela, ou quanto acima ou abaixo do limite mais próximo, e uma linha que não registrou tokens diz isso em vez de afirmar que bateu. Com `--baseline`, um `report.json` anterior é comparado e as regressões vêm primeiro; pares que a baseline tem e esta rodada não (depois de um rename, por exemplo) são nomeados em vez de sumirem do diff em silêncio; um `--baseline` escrito por uma versão mais antiga da forja é aceito, inclusive as chaves que ela escrevia com outro nome.
 
+    llm-tests-forge stamp results.json
+    llm-tests-forge check
+
+Uma rodada só protege se algo avisar quando os insumos dela mudam. O `stamp` sela uma rodada aprovada aos arquivos que você lista no `suite.yaml` (`stamp.inputs`: o arquivo de prompt, um lockfile; `stamp.minimum_pass_rate`: a linha) em `.forge/stamp.json`, que você commita. Ele recusa, sem escrever nada, enquanto algum caso falha em todas as repetições, a taxa de acerto está abaixo da linha ou falta um insumo; um caso que falhou só em algumas repetições entra na lista do stamp e não bloqueia. O `check` é o que o CI roda: offline, sem chamada de modelo, sai com 1 nomeando o insumo que mudou, sumiu ou apareceu, o modelo alvo ou o juiz diferente do selado, ou uma linha subida acima da taxa selada, e só avisa quando a versão do forge ou do promptfoo difere. Selar é um passo do mantenedor depois de ler o relatório; o stamp prova que uma rodada passou com aqueles insumos, não que a feature funciona.
+
 ### Os nove tipos de alvo
 
 O shim mora em `.forge/<entry>`, com os nomes padrão abaixo a menos que `target.entry` o renomeie. O `emit` o escreve uma vez e nunca o sobrescreve; você preenche a única função que ele nomeia.

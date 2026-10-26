@@ -240,6 +240,13 @@ const TargetSchema = z
 			});
 	});
 
+/** What `stamp` seals and `check` verifies: the files whose change invalidates a blessed run, and the line a run must clear. */
+export const StampBlockSchema = z.object({
+	/** Paths or globs relative to the directory that holds `.forge/`. */
+	inputs: z.array(z.string().min(1)).min(1),
+	minimum_pass_rate: z.number().min(0).max(1),
+});
+
 export const SuiteSchema = z.object({
 	/** The forge version that last wrote this suite; absent on suites older than the stamp. */
 	forge_version: z.string().optional(),
@@ -247,6 +254,7 @@ export const SuiteSchema = z.object({
 	judges: z.array(z.string()).min(1),
 	repeat: z.number().int().min(1).default(1),
 	include: z.array(z.string()).default([]),
+	stamp: StampBlockSchema.optional(),
 });
 
 export const PricesSchema = z.object({
@@ -276,4 +284,5 @@ export type Scenario = z.infer<typeof ScenarioSchema>;
 export type Expected = z.infer<typeof ExpectedSchema>;
 export type Case = z.infer<typeof CaseSchema>;
 export type Suite = z.infer<typeof SuiteSchema>;
+export type StampBlock = z.infer<typeof StampBlockSchema>;
 export type Prices = z.infer<typeof PricesSchema>;

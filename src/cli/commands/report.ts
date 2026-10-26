@@ -48,18 +48,16 @@ async function readBaseline(path: string): Promise<Report> {
 	return parsed.data;
 }
 
-export async function reportCommand(
-	commandArguments: string[],
+/**
+ * The report for a promptfoo `results.json`, built from the suite as it is
+ * on disk. `report` writes it; `stamp` seals it, so both read the same
+ * selection, estimate and matching rules rather than two copies of them.
+ */
+export async function buildReportFor(
 	context: CliContext,
-): Promise<void> {
-	const { values, positionals } = parseArgs({
-		args: commandArguments,
-		options: { baseline: { type: "string" } },
-		allowPositionals: true,
-	});
-	const resultsPath = positionals[0];
-	if (!resultsPath)
-		throw new UsageError("report needs the path of promptfoo's results.json");
+	resultsPath: string,
+	baselinePath?: string,
+): Promise<Report> {
 	const paths = forgePaths(context.forgeDirectory);
 	const feature = await readFeature(context.forgeDirectory);
 	requireApprovedFeature(feature, paths.feature);
@@ -94,8 +92,8 @@ export async function reportCommand(
 	// Checked against undefined, not truthiness: `--baseline ""` is a
 	// mistake to name, not a flag to drop on the floor.
 	const baseline =
-		values.baseline === undefined ? null : await readBaseline(values.baseline);
-	const report = buildReport({
+		baselinePath === undefined ? null : await readBaseline(baselinePath);
+	return buildReport({
 		results,
 		resultsPath,
 		scenarios,
@@ -107,6 +105,22 @@ export async function reportCommand(
 		baseline,
 		now: new Date(),
 	});
+}
+
+export async function reportCommand(
+	commandArguments: string[],
+	context: CliContext,
+): Promise<void> {
+	const { values, positionals } = parseArgs({
+		args: commandArguments,
+		options: { baseline: { type: "string" } },
+		allowPositionals: true,
+	});
+	const resultsPath = positionals[0];
+	if (!resultsPath)
+		throw new UsageError("report needs the path of promptfoo's results.json");
+	const paths = forgePaths(context.forgeDirectory);
+	const report = await buildReportFor(context, resultsPath, values.baseline);
 	await writeText(paths.reportMd, renderReportMarkdown(report));
 	await writeText(paths.reportJson, `${JSON.stringify(report, null, 2)}\n`);
 	context.stdout(
