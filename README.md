@@ -10,6 +10,8 @@ Regression suites for the LLM features in your application: drafted by a model, 
 
 ## Quickstart
 
+The forge is a development-only command you install beside your project, never inside your code: it writes everything under `.forge/`, and promptfoo, which runs separately through `npx`, is what calls your function through a small shim. Once released it installs as a dev dependency through npm, uv, gem, Hex or Homebrew ([Install](guide/en/install.md)).
+
 Needs [bun](https://bun.sh) 1.4+ for now: nothing is published to a registry yet, so install from a clone.
 
 ```

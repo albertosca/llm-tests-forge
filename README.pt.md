@@ -10,6 +10,8 @@ Suítes de regressão para as funcionalidades de LLM da sua aplicação: rascunh
 
 ## Início rápido
 
+A forja é um comando só de desenvolvimento que você instala ao lado do seu projeto, nunca dentro do seu código: ela escreve tudo em `.forge/`, e quem chama a sua função, por um shim pequeno, é o promptfoo, que roda à parte pelo `npx`. Depois da primeira release ela entra como dependência de desenvolvimento pelo npm, uv, gem, Hex ou Homebrew ([Instalação](guide/pt/install.md)).
+
 Por enquanto precisa do [bun](https://bun.sh) 1.4+: nada está publicado em registro ainda, então instale a partir de um clone.
 
 ```
