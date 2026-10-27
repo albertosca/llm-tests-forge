@@ -1,14 +1,36 @@
 🇺🇸 [English](README.md) · 🇧🇷 [Português](README.pt.md)
 
-[![ci](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![lint](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml) [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-tests-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml)
+[![ci](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![lint](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml) [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-tests-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 # llm-tests-forge
 
 Forja suítes de regressão revisadas para as funcionalidades de LLM da sua aplicação, de dentro da sua aplicação.
 
+![A forja em um terminal: status, a revisão de dois casos, estimate e report](assets/demo.gif)
+
 Você descreve o que uma função faz, e a forja enumera cenários de seis tipos (happy, edge, ambiguous, out-of-scope, adversarial, language), gera casos por cenário já com uma saída esperada, e deixa você revisar cada um deles em arquivos simples, um por um. Depois ela calcula o preço da rodada antes de você gastar, gera uma config para o [promptfoo](https://promptfoo.dev) executar contra o seu código de verdade, e transforma a saída do promptfoo de volta em um relatório com tabela por cenário, casos instáveis e custo real contra o estimado.
 
 Duas suítes prontas, geradas e revisadas contra uma aplicação real: [`examples/moonlighter-classify-email/`](examples/moonlighter-classify-email/) e [`examples/moonlighter-extract-questions/`](examples/moonlighter-extract-questions/).
+
+## Por quê
+
+Uma funcionalidade de LLM muda de comportamento sempre que o prompt, o modelo ou o código em volta mudam, e a proteção de costume, um conjunto de avaliação escrito à mão, ou fica desatualizado ou nunca é escrito. A forja barateia escrevê-lo e mantém uma pessoa no comando do que significa "correto": um modelo rascunha, você aprova, edita ou rejeita cada saída esperada, e o resultado é YAML simples no seu próprio repositório, que aparece nos seus pull requests.
+
+## Como se diferencia
+
+Ferramentas que geram conjuntos de teste costumam guardá-los em um serviço ou em um dataset, e pontuam as rodadas com um juiz. A forja guarda as saídas esperadas revisadas como arquivos ao lado do código testado, cobre seis tipos de cenário em vez de só o caminho feliz, calcula o preço da rodada antes de ela ser gasta, e sela uma rodada aprovada aos arquivos, modelos e taxa de acerto em que ela foi conquistada, para o CI conferir offline que nenhum deles mudou. Ela não executa a avaliação: isso é trabalho do promptfoo, e a forja gera a config dele. Pelo que conseguimos ler das alternativas, nenhuma combina tudo isso.
+
+## Início rápido
+
+De dentro do projeto cuja funcionalidade de LLM você está testando (a instalação vem abaixo):
+
+    llm-tests-forge init
+    llm-tests-forge describe "o que a função faz" --prompt-file caminho/para/prompt.txt
+    llm-tests-forge review        # aprove, edite ou rejeite cada cenário e caso
+    llm-tests-forge estimate      # quanto uma rodada vai custar, antes de gastar
+    llm-tests-forge emit          # a config do promptfoo e um shim para a sua linguagem
+
+`llm-tests-forge guide` imprime o manual para um agente que opera a forja. O passo a passo completo está em [Use em um projeto](#use-em-um-projeto).
 
 ## Instalação
 
@@ -240,6 +262,10 @@ O `test:live` precisa de `GOOGLE_API_KEY` e falha de forma explícita (não em s
 Os alvos de release ficam em `scripts/release/targets.ts`. Antes de remover um, saiba que o pip e o RubyGems põem uma versão mais nova acima de uma plataforma que casa: o wheel e o gem reserva da release seguinte passariam na frente do pacote de plataforma antigo naquela plataforma, e quem atualizar ali recebe a mensagem de "sem binário" no lugar do binário que tinha.
 
 O workflow de release atesta os binários e o `SHA256SUMS` antes de criar a GitHub Release. Uma atestação que falha interrompe uma release final; só uma tag de pré-release (com hífen, como `v0.2.0-rc.1`) num repositório privado segue com um aviso, já que os planos Free, Pro e Team do GitHub só têm atestações para repositórios públicos. Por isso o repositório precisa ser público, ou estar num plano com atestações para repositórios privados, antes da primeira release final.
+
+## Comunidade
+
+Leia o [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir um pull request, relate vulnerabilidades como o [SECURITY.md](SECURITY.md) descreve, e siga o [Código de Conduta](CODE_OF_CONDUCT.md). O que mudou em cada versão está no [changelog](CHANGELOG.md).
 
 ## Licença
 

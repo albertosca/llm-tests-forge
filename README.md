@@ -1,14 +1,36 @@
 🇺🇸 [English](README.md) · 🇧🇷 [Português](README.pt.md)
 
-[![ci](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![lint](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml) [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-tests-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml)
+[![ci](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![lint](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml) [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-tests-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 # llm-tests-forge
 
 Forge reviewed regression suites for the LLM features in your application, from inside your application.
 
+![The forge in a terminal: status, a review of two cases, estimate and report](assets/demo.gif)
+
 Describe what a function does, and the forge enumerates scenarios of six kinds (happy, edge, ambiguous, out-of-scope, adversarial, language), generates cases per scenario with an expected output, and lets you review every one of them in plain files, one by one. Then it prices the run before you spend it, emits a config for [promptfoo](https://promptfoo.dev) to run against your real code, and turns promptfoo's output back into a report with a per-scenario table, flaky cases and real-against-estimated cost.
 
 Two finished suites, generated and reviewed against a real application: [`examples/moonlighter-classify-email/`](examples/moonlighter-classify-email/) and [`examples/moonlighter-extract-questions/`](examples/moonlighter-extract-questions/).
+
+## Why
+
+An LLM feature changes behavior whenever the prompt, the model or the code around it changes, and the usual safeguard, an evaluation set someone wrote by hand, either goes stale or never gets written. The forge makes writing it cheap and keeps a person in charge of what "correct" means: a model drafts, you approve, edit or reject each expected output, and the result is plain YAML in your own repository that shows up in your pull requests.
+
+## How it differs
+
+Tools that generate test sets usually keep them in a service or a dataset, and score runs with a judge. The forge keeps the reviewed expected outputs as files next to the code under test, covers six kinds of scenario instead of the happy path alone, prices a run before it is spent, and seals a passing run to the files, models and pass rate it was earned on, so CI can check offline that none of them moved. It does not run the evaluation itself: that is promptfoo's job, and the forge emits its config. As far as we could read of the alternatives, none combines all of these.
+
+## Quick start
+
+From inside the project whose LLM feature you are testing (installation is below):
+
+    llm-tests-forge init
+    llm-tests-forge describe "what the function does" --prompt-file path/to/prompt.txt
+    llm-tests-forge review        # approve, edit or reject each scenario and case
+    llm-tests-forge estimate      # what a run will cost, before you spend it
+    llm-tests-forge emit          # the promptfoo config and a shim for your language
+
+`llm-tests-forge guide` prints the manual for an agent operating the forge. The full walk-through is under [Use it in a project](#use-it-in-a-project).
 
 ## Install
 
@@ -240,6 +262,10 @@ The coverage gate is bun's own: a 1.0 floor on **lines and functions**, with `sr
 The release targets live in `scripts/release/targets.ts`. Before you drop one, know that pip and RubyGems rank a newer version above a platform match: the next release's fallback wheel and gem would outrank the older platform package on that platform, so anyone who upgrades there gets the "no binary" message instead of the binary they had.
 
 The release workflow attests the binaries and `SHA256SUMS` before it creates the GitHub Release. A failed attestation stops a final release; only a prerelease tag (one holding a hyphen, such as `v0.2.0-rc.1`) in a private repository goes on with a warning, since GitHub Free, Pro and Team plans have attestations for public repositories only. So the repository must be public, or on a plan with attestations for private repositories, before the first final release.
+
+## Community
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, report vulnerabilities as [SECURITY.md](SECURITY.md) describes, and follow the [Code of Conduct](CODE_OF_CONDUCT.md). What changed in each release is in the [changelog](CHANGELOG.md).
 
 ## License
 
