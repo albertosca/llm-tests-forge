@@ -2,27 +2,65 @@
 
 [![ci](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![lint](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml) [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-tests-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-# llm-tests-forge
+# LLM Tests Forge
 
-Forge reviewed regression suites for the LLM features in your application, from inside your application.
+Regression suites for the LLM features in your application: drafted by a model, approved by you, and kept as plain files in your repository.
 
 ![The forge in a terminal: status, a review of two cases, estimate and report](assets/demo.gif)
 
-Describe what a function does, and the forge enumerates scenarios of six kinds (happy, edge, ambiguous, out-of-scope, adversarial, language), generates cases per scenario with an expected output, and lets you review every one of them in plain files, one by one. Then it prices the run before you spend it, emits a config for [promptfoo](https://promptfoo.dev) to run against your real code, and turns promptfoo's output back into a report with a per-scenario table, flaky cases and real-against-estimated cost.
+You describe what a function does. The forge enumerates scenarios of six kinds (happy, edge, ambiguous, out-of-scope, adversarial, language), drafts cases for each with an expected output, and walks you through reviewing every one. It prices the run before you spend it, emits a config for [promptfoo](https://promptfoo.dev) to run against your real code, and reads promptfoo's output back into a report: a per-scenario table, flaky cases, real cost against the estimate.
 
 Two finished suites, generated and reviewed against a real application: [`examples/moonlighter-classify-email/`](examples/moonlighter-classify-email/) and [`examples/moonlighter-extract-questions/`](examples/moonlighter-extract-questions/).
 
-## Why
+## How it differs, and why
 
-An LLM feature changes behavior whenever the prompt, the model or the code around it changes, and the usual safeguard, an evaluation set someone wrote by hand, either goes stale or never gets written. The forge makes writing it cheap and keeps a person in charge of what "correct" means: a model drafts, you approve, edit or reject each expected output, and the result is plain YAML in your own repository that shows up in your pull requests.
+An LLM feature changes behavior whenever the prompt, the model or the code around it changes, so the evaluation set that guards it has to be cheap to write and cheap to keep honest. Four choices follow from that.
 
-## How it differs
+The expected outputs are YAML files in the repository, next to the code they test, and a person approves each one. A model drafts; it never decides what "correct" means. The suite then shows up in pull requests like any other fixture, instead of living in a service or a dataset that has to be kept in step with the code.
 
-Tools that generate test sets usually keep them in a service or a dataset, and score runs with a judge. The forge keeps the reviewed expected outputs as files next to the code under test, covers six kinds of scenario instead of the happy path alone, prices a run before it is spent, and seals a passing run to the files, models and pass rate it was earned on, so CI can check offline that none of them moved. It does not run the evaluation itself: that is promptfoo's job, and the forge emits its config. As far as we could read of the alternatives, none combines all of these.
+Coverage is organised by kind of scenario rather than by volume, so the adversarial and out-of-scope inputs get written alongside the happy path instead of after it.
+
+A run is priced before it is spent, and a passing run can be sealed to the files, models and pass rate it was earned on, so CI can check offline that none of them moved.
+
+Execution is left to promptfoo. The forge decides what to test and emits the config; it does not ship a runner of its own.
+
+## Install
+
+One prebuilt binary, several ways to get it. Nothing is published yet, so until the first release the only path that works is the clone at the end of this section.
+
+    npm i -D llm-tests-forge                # JavaScript / TypeScript
+    uv add --dev llm-tests-forge            # Python
+    brew install albertosca/tap/llm-tests-forge   # any project
+    curl -fsSL https://github.com/albertosca/llm-tests-forge/releases/latest/download/install.sh | sh   # any project
+
+Elixir: add `{:llm_tests_forge, "~> 0.1", only: :dev, runtime: false}` to `mix.exs`, then `mix deps.get` and `mix llm_tests_forge.install`. An interactive `review` runs as `_build/llm-tests-forge review`, because `mix llm_tests_forge review` refuses (exit 2); `review --scenario <id> --all` asks nothing and runs through mix.
+
+Ruby: add `gem "llm-tests-forge", group: :development` to the `Gemfile` and run `bundle install`.
+
+Rust and Go have no package of their own: use Homebrew or the script. `install.sh` writes to `~/.local/bin`; `--dir <bin-directory>` chooses another and `--version vX.Y.Z` pins a release (through the pipe, after `sh -s --`).
+
+From a clone, which needs [bun](https://bun.sh) 1.4 or newer:
+
+    git clone https://github.com/albertosca/llm-tests-forge.git
+    cd llm-tests-forge
+    bun install
+    bun link      # puts `llm-tests-forge` in bun's global bin directory, ~/.bun/bin by default
+
+Running a suite needs promptfoo, which is Node. The forge itself does not, and never runs promptfoo for you.
+
+The binaries cover macOS (arm64, x64), Linux with glibc (x64, arm64) and Windows x64. Anywhere else, musl/Alpine included, pip and gem install a fallback package with no binary; its command says so and exits 1, as npm's and `install.sh` do. On a supported platform the fallback says how to get the binary instead: pip's `--platform`, Bundler's `force_ruby_platform`, `bundle lock --add-platform` for a `Gemfile.lock` whose `PLATFORMS` lack this platform, or `gem install --platform ruby`.
+
+### Verifying a download
+
+`install.sh` checks the binary's SHA256 against the release's `SHA256SUMS`. That proves the download is intact, not who built it, since both come from the same place (Homebrew and Hex pin each binary's hash in the package itself instead). Provenance is the second check: every release binary and `SHA256SUMS` carry a GitHub artifact attestation, signed through Sigstore by this repository's release workflow. With [`gh`](https://cli.github.com) 2.49 or newer on the PATH, the script verifies it, logged in or anonymously (within GitHub's 60 anonymous API requests an hour per address). If it does not verify, nothing is installed and the script prints what `gh` said and what to check. Without a suitable `gh`, the binary is installed on its checksum alone, and the script says provenance was not checked and prints the command that checks it later, which works on any downloaded binary:
+
+    gh attestation verify ~/.local/bin/llm-tests-forge --repo albertosca/llm-tests-forge --signer-workflow albertosca/llm-tests-forge/.github/workflows/release.yml --deny-self-hosted-runners
+
+`install.sh` always asks github.com, even when `GH_HOST` names another host, so a GitHub Enterprise token in `GH_TOKEN` or `GITHUB_TOKEN` is rejected there: unset it for the install. To install on the checksum alone after a refusal, knowing that it does not prove who built the binary, set `LLM_TESTS_FORGE_PROVENANCE=skip` for `sh`; the script then says, with a warning, that provenance was not checked.
 
 ## Quick start
 
-From inside the project whose LLM feature you are testing (installation is below):
+From inside the project whose LLM feature you are testing:
 
     llm-tests-forge init
     llm-tests-forge describe "what the function does" --prompt-file path/to/prompt.txt
@@ -30,53 +68,11 @@ From inside the project whose LLM feature you are testing (installation is below
     llm-tests-forge estimate      # what a run will cost, before you spend it
     llm-tests-forge emit          # the promptfoo config and a shim for your language
 
-`llm-tests-forge guide` prints the manual for an agent operating the forge. The full walk-through is under [Use it in a project](#use-it-in-a-project).
+`llm-tests-forge guide` prints the manual for an agent operating the forge. The full walk-through is under [Usage](#usage).
 
-## Install
+## Usage
 
-Each channel below installs the same prebuilt `llm-tests-forge` binary, so the forge itself needs no bun. None of them is published yet, so today the only path that works is building from a clone, further down.
-
-Pick the one that matches your project:
-
-    npm i -D llm-tests-forge                # JavaScript / TypeScript
-    uv add --dev llm-tests-forge            # Python
-    brew install albertosca/tap/llm-tests-forge   # any project
-    curl -fsSL https://github.com/albertosca/llm-tests-forge/releases/latest/download/install.sh | sh   # any project
-
-For Elixir, add the dependency to `mix.exs`, then fetch the binary:
-
-    {:llm_tests_forge, "~> 0.1", only: :dev, runtime: false}
-    mix deps.get
-    mix llm_tests_forge.install
-
-For Ruby, add this line to your `Gemfile` and run `bundle install`:
-
-    gem "llm-tests-forge", group: :development
-
-Rust and Go projects have no package of their own: use Homebrew or the script. `install.sh` puts the binary in `~/.local/bin` by default; `--dir <bin-directory>` chooses another directory and `--version vX.Y.Z` pins a release; through the pipe, pass them after `sh -s --`. Under Elixir, an interactive `review` runs as `_build/llm-tests-forge review`, because `mix llm_tests_forge review` refuses (it exits 2); `review --scenario <id> --all` asks nothing and runs through mix.
-
-Before installing, `install.sh` checks two different things. Integrity: the binary's SHA256 must match the release's `SHA256SUMS`, which proves the download arrived intact, but not who built it, since `SHA256SUMS` comes from the same place as the binary (Homebrew and Hex pin each binary's hash in the package itself instead). Provenance: every release binary and `SHA256SUMS` carry a GitHub artifact attestation, signed through Sigstore by this repository's release workflow when it built them, and with [`gh`](https://cli.github.com) 2.49 or newer on your PATH `install.sh` checks it with `gh attestation verify`, logged in or not: a `gh` that is not logged in checks anonymously, within GitHub's limit of 60 anonymous API requests an hour per address. When the attestation verifies, one line says so. When it does not, nothing is installed, and the script prints what `gh` said and what to check: no attestation (the release may predate attestations), an attestation from another workflow or tag, the rate limit, a rejected token, a network error (`gh` needs `api.github.com`, `tuf-repo-cdn.sigstore.dev` and `tuf-repo.github.com`), no answer within 60 seconds, or a `gh` that fails before it runs any command (a configuration it cannot read, for one). When `gh` is not installed, or is older than 2.49 (it answers `unknown command "attestation"`), the binary is installed on its checksum alone, and the script says provenance was not checked and prints the command to check it, which works on any downloaded or installed binary:
-
-    gh attestation verify ~/.local/bin/llm-tests-forge --repo albertosca/llm-tests-forge --signer-workflow albertosca/llm-tests-forge/.github/workflows/release.yml --deny-self-hosted-runners
-
-`install.sh` always asks github.com, even when `GH_HOST` names another host, so a GitHub Enterprise token in `GH_TOKEN` or `GITHUB_TOKEN` is rejected there: unset it for the install, and `gh` checks with its own github.com login, or anonymously. To install on the checksum alone after a refusal, knowing that it does not prove who built the binary, set `LLM_TESTS_FORGE_PROVENANCE=skip` for `sh` (`curl -fsSL .../install.sh | LLM_TESTS_FORGE_PROVENANCE=skip sh`); the script then says, with a warning, that provenance was not checked.
-
-The binaries cover macOS (arm64 and x64), Linux with glibc (x64 and arm64) and Windows x64. Anywhere else, musl/Alpine included, pip and gem install a fallback package without a binary, and its command, like npm's and `install.sh`, says the platform has no binary and exits 1. On a supported platform the fallback says what installed it and how to get the binary instead: pip's `--platform`, Bundler's `force_ruby_platform`, a `Gemfile.lock` whose `PLATFORMS` lack this platform (fixed by `bundle lock --add-platform`), or `gem install --platform ruby`.
-
-From a clone, which works today, requires [bun](https://bun.sh) 1.4 or newer:
-
-    git clone https://github.com/albertosca/llm-tests-forge.git
-    cd llm-tests-forge
-    bun install
-    bun link      # links `llm-tests-forge` into bun's global bin directory
-
-`bun link` puts the command in bun's global bin directory, `~/.bun/bin` by default, which must be on your `PATH` (a Homebrew install of bun does not add it).
-
-The forge ships no short alias of its own. If you want one, `alias ltf=llm-tests-forge` in your shell is your choice to make.
-
-Running a suite needs promptfoo, which is Node: the forge itself does not, and never runs promptfoo for you.
-
-## Use it in a project
+### Setting up a project
 
 Run these from inside the project whose LLM feature you are testing.
 
@@ -237,15 +233,16 @@ Commit `forge.yaml`, and in each suite `feature.yaml`, `scenarios.yaml`, `cases/
 | `1` | the work failed: a file that is not there, a model that refused, a feature still pending review |
 | `2` | the command line is unusable: an unknown verb or option, a bad flag value, a missing required argument, no model configured |
 
-## What this does not do yet
+## Limitations
 
 - It does not call promptfoo for you: `llm-tests-forge emit` writes the config and you run the eval yourself.
+- promptfoo is the only emitter today.
 - There is no MCP server, so the review loop cannot run inside a conversation.
 - It tests one turn at a time. Multi-turn cases where your application's own reply shapes the next turn need a simulated user, which this is not.
 - It keeps no history: `--baseline` compares two runs, and nothing collects them over time.
 - It is not published to any package registry yet.
 
-## Develop
+## Development
 
     bun test          # unit tests, no network, coverage gate
     bun run lint       # Biome
@@ -255,13 +252,27 @@ Commit `forge.yaml`, and in each suite `feature.yaml`, `scenarios.yaml`, `cases/
     bun run test:shims # runs every shim against its real toolchain and promptfoo (FORGE_SHIMS=1); slow, needs the toolchains
     bun run validate:example  # checks the committed example's promptfooconfig.yaml with the real promptfoo; no API key
 
-The coverage gate is bun's own: a 1.0 floor on **lines and functions**, with `src/cli/bin.ts` excluded. Bun measures no branch coverage at all, so a file at 100% can still have untested guard arms — read the gate as a floor, not as proof the suite is complete.
-
 `test:live` needs `GOOGLE_API_KEY` and fails loudly (not silently) if it's unset. Google's free tier is intermittent rather than simply down, so the test retries a 503/"high demand" response up to 3 attempts with a short pause between them; any other failure (quota, auth, an unknown model id, a schema mismatch) fails on the first occurrence instead of retrying.
 
 The release targets live in `scripts/release/targets.ts`. Before you drop one, know that pip and RubyGems rank a newer version above a platform match: the next release's fallback wheel and gem would outrank the older platform package on that platform, so anyone who upgrades there gets the "no binary" message instead of the binary they had.
 
-The release workflow attests the binaries and `SHA256SUMS` before it creates the GitHub Release. A failed attestation stops a final release; only a prerelease tag (one holding a hyphen, such as `v0.2.0-rc.1`) in a private repository goes on with a warning, since GitHub Free, Pro and Team plans have attestations for public repositories only. So the repository must be public, or on a plan with attestations for private repositories, before the first final release.
+## Engineering decisions
+
+**The forge writes config; promptfoo runs it.** Providers, concurrency, caching and the results viewer are promptfoo's. The forge owns what to test and what "correct" means, and its emitter sits in its own module, `src/emit`. `--format jsonl` hands the same selection to a runner of your own. The cost is one emitter today and a dependency on promptfoo's config format.
+
+**Approval is a human act.** A drafted item is pending until a person decides on it in `review`. The agent manual says an agent never marks anything approved by editing a file and never runs `review`, and `emit` refuses to write while anything is pending.
+
+**Expected outputs are plain files.** YAML under `.forge/`, one file of cases per scenario, so a change to what "correct" means is a diff someone has to read and approve.
+
+**Estimates are ranges.** The count is characters ÷ 4, re-counted at 3.5 to 4.2 characters per token, with the judge's overhead and the target's output sized from recorded runs. The bands were fit to the few runs committed here, so they are a calibrated guess, not a budget. A provider with no price row is left unpriced and counted as left out, never priced as something else. No API call is made.
+
+**Sealing is offline.** `check` reads files and compares; it calls no model. It proves that one run passed on those inputs, not that the feature works.
+
+**Writes fail safe.** `move` writes the destination before touching the source, so a failure part-way leaves a duplicate, not a missing case. The first Ctrl+C in a review saves what was decided; a second one before the save aborts without writing. The shim is written once and never overwritten.
+
+**One binary, thin packages.** Every channel installs the same prebuilt binary. Its checksum is verified, and its provenance through a GitHub artifact attestation signed by the release workflow. A final release stops if the attestation fails; only a prerelease tag (one holding a hyphen, such as `v0.2.0-rc.1`) in a private repository goes on with a warning, since GitHub Free, Pro and Team plans have attestations for public repositories only. The repository therefore has to be public, or on a plan with attestations for private ones, before the first final release.
+
+**A strict gate.** Every file is held at 100% line and function coverage, and the five modules (`core`, `cli`, `emit`, `report`, `llm`) are mutation-tested with the threshold at 100, so a surviving mutant is either killed or disabled with a stated reason. The committed example reports are regenerated from their raw results in CI, and the Ruby, Elixir and Python packages have their own linters. Bun measures no branch coverage, so a file at 100% can still hide untested guard arms: the gate is a floor, not proof that the suite is complete.
 
 ## Community
 
