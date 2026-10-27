@@ -1,0 +1,20 @@
+name: Feature request
+description: Something the forge should do, or a library it should emit to.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do and what stops you today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: The behavior you expect. For a new emit target, name the library, why a project would pick it over promptfoo, and how its judge model is wired.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead

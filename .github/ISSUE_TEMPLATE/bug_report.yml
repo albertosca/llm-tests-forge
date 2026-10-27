@@ -1,0 +1,30 @@
+name: Bug report
+description: Something the forge does that it should not, or fails to do.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you ran, what you expected and what you got. Paste the exact command and its output.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `llm-tests-forge --version`, and how you installed it.
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: Operating system, architecture and, for a shim, the language toolchain version.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: The smallest suite (or `forge.yaml`) that shows it. Remove anything private first; never paste an API key.
