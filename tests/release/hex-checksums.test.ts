@@ -18,13 +18,13 @@ import { FORGE_VERSION } from "../../src/core/version";
 const REPOSITORY = resolve(import.meta.dir, "../..");
 
 describe("the Hex package's documentation", () => {
-	test("the moduledoc shows the dependency line both READMEs show: dev only, not at runtime", async () => {
+	test("the moduledoc shows the dependency line both install guides show: dev only, not at runtime", async () => {
 		const dependency =
 			'{:llm_tests_forge, "~> 0.1", only: :dev, runtime: false}';
 		for (const path of [
 			"packages/hex/lib/llm_tests_forge.ex",
-			"README.md",
-			"README.pt.md",
+			"guide/en/install.md",
+			"guide/pt/install.md",
 		])
 			expect({
 				path,

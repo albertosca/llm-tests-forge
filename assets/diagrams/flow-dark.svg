@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" width="760" height="300" role="img" aria-labelledby="title desc">
+  <title id="title">From a prompt in your code to a promptfoo suite</title>
+  <desc id="desc">Your prompt and function are described to the forge, which drafts scenarios and cases as YAML files. You review and approve them. emit writes a promptfoo config and a shim that calls your function. promptfoo runs the suite and the forge reads the results into a report, which stamp seals and check verifies in CI.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9a9aa6"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #ececf1; }
+    .title { font-size: 14px; font-weight: 600; }
+    .sub { font-size: 12px; fill: #a0a0ac; }
+    .note { font-size: 12px; fill: #a893f0; }
+  </style>
+  <rect x="20" y="60" width="120" height="76" rx="8" fill="#23232b" stroke="#9a9aa6" stroke-width="1.5"/>
+  <text x="80" y="90" text-anchor="middle" class="title">Your code</text>
+  <text x="80" y="110" text-anchor="middle" class="sub">prompt + function</text>
+  <rect x="170" y="60" width="120" height="76" rx="8" fill="#23232b" stroke="#9a9aa6" stroke-width="1.5"/>
+  <text x="230" y="90" text-anchor="middle" class="title">Draft</text>
+  <text x="230" y="110" text-anchor="middle" class="sub">scenarios, cases</text>
+  <text x="230" y="156" text-anchor="middle" class="note">.forge/*.yaml</text>
+  <rect x="320" y="60" width="120" height="76" rx="8" fill="#23232b" stroke="#9a9aa6" stroke-width="1.5"/>
+  <text x="380" y="90" text-anchor="middle" class="title">You review</text>
+  <text x="380" y="110" text-anchor="middle" class="sub">approve, edit, reject</text>
+  <text x="380" y="156" text-anchor="middle" class="note">nothing pending</text>
+  <rect x="470" y="60" width="120" height="76" rx="8" fill="#23232b" stroke="#9a9aa6" stroke-width="1.5"/>
+  <text x="530" y="90" text-anchor="middle" class="title">emit</text>
+  <text x="530" y="110" text-anchor="middle" class="sub">config + shim</text>
+  <text x="530" y="156" text-anchor="middle" class="note">promptfooconfig.yaml</text>
+  <rect x="620" y="60" width="120" height="76" rx="8" fill="#23232b" stroke="#9a9aa6" stroke-width="1.5"/>
+  <text x="680" y="90" text-anchor="middle" class="title">promptfoo</text>
+  <text x="680" y="110" text-anchor="middle" class="sub">runs the suite</text>
+  <text x="680" y="156" text-anchor="middle" class="note">results.json</text>
+  <line x1="142" y1="98" x2="168" y2="98" stroke="#9a9aa6" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="292" y1="98" x2="318" y2="98" stroke="#9a9aa6" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="442" y1="98" x2="468" y2="98" stroke="#9a9aa6" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="592" y1="98" x2="618" y2="98" stroke="#9a9aa6" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M640 138 C640 214 80 214 80 140" fill="none" stroke="#9a9aa6" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="350" y="214" text-anchor="middle" class="note">the shim calls your function, once per case and model</text>
+  <line x1="720" y1="138" x2="720" y2="238" stroke="#9a9aa6" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <rect x="560" y="238" width="180" height="44" rx="8" fill="#23232b" stroke="#9a9aa6" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="650" y="258" text-anchor="middle" class="title">report</text>
+  <text x="650" y="274" text-anchor="middle" class="sub">stamp and check in CI</text>
+  <text x="20" y="34" class="sub">Everything between the boxes is a plain file in your repository.</text>
+</svg>

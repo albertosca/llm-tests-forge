@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 const REPOSITORY = resolve(import.meta.dir, "../..");
@@ -72,4 +72,48 @@ describe("the two READMEs", () => {
 			expect(firstLine).toContain("](README.pt.md)");
 		}
 	});
+});
+
+const GUIDE_LANGUAGES = ["en", "pt"];
+
+async function guidePages(language: string): Promise<string[]> {
+	const names = await readdir(join(REPOSITORY, "guide", language));
+	return names.filter((name) => name.endsWith(".md")).sort();
+}
+
+describe("the guide", () => {
+	test("lists the same pages in both languages", async () => {
+		const [english, portuguese] = await Promise.all(
+			GUIDE_LANGUAGES.map(guidePages),
+		);
+		expect(english?.length).toBeGreaterThan(0);
+		expect(portuguese).toEqual(english);
+	});
+
+	test.each(GUIDE_LANGUAGES)(
+		"every relative link in guide/%s points at a file that exists",
+		async (language) => {
+			for (const page of await guidePages(language)) {
+				const file = join(REPOSITORY, "guide", language, page);
+				for (const target of relativeTargets(await readFile(file, "utf8"))) {
+					expect([
+						page,
+						target,
+						existsSync(join(dirname(file), target)),
+					]).toEqual([page, target, true]);
+				}
+			}
+		},
+	);
+
+	test.each(READMES)(
+		"%s links every guide page of its language",
+		async (name) => {
+			const language = name === "README.md" ? "en" : "pt";
+			const targets = relativeTargets(await readReadme(name));
+			for (const page of await guidePages(language)) {
+				expect(targets).toContain(`guide/${language}/${page}`);
+			}
+		},
+	);
 });
