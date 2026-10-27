@@ -2,7 +2,7 @@
 
 # LLM Tests Forge
 
-[![ci](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![lint](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml) [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-tests-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![Lint](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml) [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-tests-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Suítes de regressão para as funcionalidades de LLM da sua aplicação: rascunhadas por um modelo, aprovadas por você e guardadas como arquivos simples no seu repositório.
 
@@ -23,18 +23,15 @@ Depois, dentro do projeto que tem o prompt e a função que chama o modelo (o dr
 export FORGE_DRAFTER=anthropic/claude-sonnet-5
 llm-tests-forge init
 llm-tests-forge describe "o que a função faz" --prompt-file caminho/do/prompt.txt
-llm-tests-forge review                      # aprove a funcionalidade
-llm-tests-forge scenarios && llm-tests-forge review --only scenarios
-llm-tests-forge cases --n 5 && llm-tests-forge review
-llm-tests-forge estimate                    # o preço, antes de gastar
-llm-tests-forge emit                        # .forge/promptfooconfig.yaml e um shim
-npx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml -o results.json
-llm-tests-forge report results.json
+llm-tests-forge review      # aprove; depois repita scenarios, cases e review
+llm-tests-forge emit        # escreve .forge/promptfooconfig.yaml e um shim
 ```
 
-Preencha a única função que o shim nomeia para ela chamar o seu código, e a suíte testa a sua aplicação em vez de uma cópia do seu prompt. Duas suítes prontas, revisadas contra uma aplicação real, estão em [`examples/moonlighter-classify-email/`](examples/moonlighter-classify-email/) e [`examples/moonlighter-extract-questions/`](examples/moonlighter-extract-questions/).
+Preencha a única função que o shim nomeia para ela chamar o seu código e rode `npx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml`. A cadeia completa, com `estimate` e `report`, está em [Do seu prompt a uma suíte do promptfoo](guide/pt/flow.md); duas suítes prontas estão em [`examples/moonlighter-classify-email/`](examples/moonlighter-classify-email/) e [`examples/moonlighter-extract-questions/`](examples/moonlighter-extract-questions/).
 
 ## Visão geral
+
+Você aponta a forja para um prompt e para a função que chama o modelo; um modelo rascunha cenários e casos de teste, cada um com uma saída esperada, e você revisa e aprova todos eles. A forja então exporta a suíte aprovada como uma config do promptfoo mais um shim que chama a sua função, e o promptfoo a roda contra o seu código de verdade, enquanto a forja relata o resultado e o custo.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/flow-dark.svg">

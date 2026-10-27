@@ -2,7 +2,7 @@
 
 # LLM Tests Forge
 
-[![ci](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![lint](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml) [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-tests-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![Lint](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml/badge.svg)](https://github.com/albertosca/llm-tests-forge/actions/workflows/lint.yml) [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Falbertosca%2Fllm-tests-forge%2Fbadges%2Fcoverage.json)](https://github.com/albertosca/llm-tests-forge/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Regression suites for the LLM features in your application: drafted by a model, approved by you, and kept as plain files in your repository.
 
@@ -23,18 +23,15 @@ Then, from the project that holds the prompt and the function that calls the mod
 export FORGE_DRAFTER=anthropic/claude-sonnet-5
 llm-tests-forge init
 llm-tests-forge describe "what the function does" --prompt-file path/to/prompt.txt
-llm-tests-forge review                      # approve the feature
-llm-tests-forge scenarios && llm-tests-forge review --only scenarios
-llm-tests-forge cases --n 5 && llm-tests-forge review
-llm-tests-forge estimate                    # the price, before you spend it
-llm-tests-forge emit                        # .forge/promptfooconfig.yaml and a shim
-npx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml -o results.json
-llm-tests-forge report results.json
+llm-tests-forge review      # approve it; then repeat scenarios, cases and review
+llm-tests-forge emit        # writes .forge/promptfooconfig.yaml and a shim
 ```
 
-Fill in the one function the shim names so it calls your code, and the suite tests your application rather than a copy of your prompt. Two finished suites, reviewed against a real application, are in [`examples/moonlighter-classify-email/`](examples/moonlighter-classify-email/) and [`examples/moonlighter-extract-questions/`](examples/moonlighter-extract-questions/).
+Fill in the one function the shim names so it calls your code, then run `npx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml`. The whole chain, with `estimate` and `report`, is in [From your prompt to a promptfoo suite](guide/en/flow.md); two finished suites are in [`examples/moonlighter-classify-email/`](examples/moonlighter-classify-email/) and [`examples/moonlighter-extract-questions/`](examples/moonlighter-extract-questions/).
 
 ## Overview
+
+You point the forge at a prompt and the function that calls the model; a model drafts scenarios and test cases with an expected output each, and you review and approve every one of them. The forge then exports the approved suite as a promptfoo config plus a shim that calls your function, so promptfoo runs it against your real code and the forge reports the result and its cost.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/flow-dark.svg">
