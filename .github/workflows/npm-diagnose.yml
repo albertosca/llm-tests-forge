@@ -1,0 +1,29 @@
+name: npm-diagnose
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      # Prints only non-secret facts about the token behind NPM_TOKEN.
+      - name: Inspect the npm token
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm --version
+          echo "--- whoami"
+          npm whoami || true
+          echo "--- profile"
+          npm profile get --json 2>&1 | node -e 'let text="";process.stdin.on("data",c=>text+=c).on("end",()=>{try{const p=JSON.parse(text);console.log(JSON.stringify({name:p.name,tfa:p.tfa}))}catch{console.log(text.slice(0,400))}})' || true
+          echo "--- tokens"
+          curl -s -H "Authorization: Bearer $NODE_AUTH_TOKEN" https://registry.npmjs.org/-/npm/v1/tokens | node -e 'let text="";process.stdin.on("data",c=>text+=c).on("end",()=>{try{const r=JSON.parse(text);for(const t of r.objects||[])console.log(JSON.stringify({token:t.token,readonly:t.readonly,bypass_2fa:t.bypass_2fa,created:t.created,expires:t.expires}));if(!r.objects)console.log(text.slice(0,400))}catch{console.log(text.slice(0,400))}})' || true
+          echo "--- orgs"
+          npm org ls llm-tests-forge 2>&1 | head -5 || true
