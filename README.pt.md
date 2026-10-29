@@ -10,23 +10,22 @@ Suítes de regressão para as funcionalidades de LLM da sua aplicação: rascunh
 
 ## Início rápido
 
-A forja é um comando só de desenvolvimento que você instala ao lado do seu projeto, nunca dentro do seu código: ela escreve tudo em `.forge/`, e quem chama a sua função, por um shim pequeno, é o promptfoo, que roda à parte pelo `npx`. Depois da primeira release ela entra como dependência de desenvolvimento pelo npm, uv, gem, Hex ou Homebrew ([Instalação](guide/pt/install.md)).
+A forja é um comando só de desenvolvimento que você instala ao lado do seu projeto, nunca dentro do seu código: ela escreve tudo em `.forge/`, e quem chama a sua função, por um shim pequeno, é o promptfoo, que roda à parte pelo `npx`. Ela entra como dependência de desenvolvimento pelo npm; os outros canais estão em [Instalação](guide/pt/install.md).
 
-Por enquanto precisa do [bun](https://bun.sh) 1.4+: nada está publicado em registro ainda, então instale a partir de um clone.
+Instale no projeto que tem o prompt, com Node 16.9 ou mais novo:
 
 ```
-git clone https://github.com/albertosca/llm-tests-forge.git
-cd llm-tests-forge && bun install && bun link
+npm i -D llm-tests-forge
 ```
 
-Depois, dentro do projeto que tem o prompt e a função que chama o modelo (o drafter precisa de uma chave, como `ANTHROPIC_API_KEY`):
+Depois, dentro desse projeto que tem o prompt e a função que chama o modelo (o drafter precisa de uma chave, como `ANTHROPIC_API_KEY`):
 
 ```
 export FORGE_DRAFTER=anthropic/claude-sonnet-5
-llm-tests-forge init
-llm-tests-forge describe "o que a função faz" --prompt-file caminho/do/prompt.txt
-llm-tests-forge review      # aprove; depois repita scenarios, cases e review
-llm-tests-forge emit        # escreve .forge/promptfooconfig.yaml e um shim
+npx llm-tests-forge init
+npx llm-tests-forge describe "o que a função faz" --prompt-file caminho/do/prompt.txt
+npx llm-tests-forge review      # aprove; depois repita scenarios, cases e review
+npx llm-tests-forge emit        # escreve .forge/promptfooconfig.yaml e um shim
 ```
 
 Preencha a única função que o shim nomeia para ela chamar o seu código e rode `npx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml`. A cadeia completa, com `estimate` e `report`, está em [Do seu prompt a uma suíte do promptfoo](guide/pt/flow.md); duas suítes prontas estão em [`examples/moonlighter-classify-email/`](examples/moonlighter-classify-email/) e [`examples/moonlighter-extract-questions/`](examples/moonlighter-extract-questions/).
@@ -66,7 +65,7 @@ A lista completa está em [Decisões de engenharia](guide/pt/decisions.md).
 
 ## Limites
 
-O promptfoo é o único emissor hoje. Testa um turno por vez, não guarda histórico além da comparação do `--baseline`, e ainda não está publicado em nenhum registro de pacotes. [Mais](guide/pt/development.md#limitações).
+O promptfoo é o único emissor hoje. Testa um turno por vez, não guarda histórico além da comparação do `--baseline`. [Mais](guide/pt/development.md#limitações).
 
 ## Documentação
 

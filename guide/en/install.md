@@ -1,6 +1,6 @@
 # Install
 
-One prebuilt binary, several ways to get it. Nothing is published yet, so until the first release the only path that works is the clone at the end of this section.
+One prebuilt binary, several ways to get it. Release 0.1.0 is on npm; the other channels publish as their tokens are set up, so until a channel's package appears, use npm, the script or the clone at the end of this section.
 
     npm i -D llm-tests-forge                # JavaScript / TypeScript
     uv add --dev llm-tests-forge            # Python

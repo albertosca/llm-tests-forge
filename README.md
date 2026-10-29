@@ -10,23 +10,22 @@ Regression suites for the LLM features in your application: drafted by a model, 
 
 ## Quickstart
 
-The forge is a development-only command you install beside your project, never inside your code: it writes everything under `.forge/`, and promptfoo, which runs separately through `npx`, is what calls your function through a small shim. Once released it installs as a dev dependency through npm, uv, gem, Hex or Homebrew ([Install](guide/en/install.md)).
+The forge is a development-only command you install beside your project, never inside your code: it writes everything under `.forge/`, and promptfoo, which runs separately through `npx`, is what calls your function through a small shim. It installs as a dev dependency from npm; the other channels are in [Install](guide/en/install.md).
 
-Needs [bun](https://bun.sh) 1.4+ for now: nothing is published to a registry yet, so install from a clone.
+Install it in the project that holds the prompt, with Node 16.9 or newer:
 
 ```
-git clone https://github.com/albertosca/llm-tests-forge.git
-cd llm-tests-forge && bun install && bun link
+npm i -D llm-tests-forge
 ```
 
-Then, from the project that holds the prompt and the function that calls the model (the drafter needs a key, such as `ANTHROPIC_API_KEY`):
+Then, from that project that holds the prompt and the function that calls the model (the drafter needs a key, such as `ANTHROPIC_API_KEY`):
 
 ```
 export FORGE_DRAFTER=anthropic/claude-sonnet-5
-llm-tests-forge init
-llm-tests-forge describe "what the function does" --prompt-file path/to/prompt.txt
-llm-tests-forge review      # approve it; then repeat scenarios, cases and review
-llm-tests-forge emit        # writes .forge/promptfooconfig.yaml and a shim
+npx llm-tests-forge init
+npx llm-tests-forge describe "what the function does" --prompt-file path/to/prompt.txt
+npx llm-tests-forge review      # approve it; then repeat scenarios, cases and review
+npx llm-tests-forge emit        # writes .forge/promptfooconfig.yaml and a shim
 ```
 
 Fill in the one function the shim names so it calls your code, then run `npx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml`. The whole chain, with `estimate` and `report`, is in [From your prompt to a promptfoo suite](guide/en/flow.md); two finished suites are in [`examples/moonlighter-classify-email/`](examples/moonlighter-classify-email/) and [`examples/moonlighter-extract-questions/`](examples/moonlighter-extract-questions/).
@@ -66,7 +65,7 @@ The full list is in [Engineering decisions](guide/en/decisions.md).
 
 ## Limits
 
-promptfoo is the only emitter today. It tests one turn at a time, keeps no history beyond a `--baseline` comparison, and is not published to a package registry yet. [More](guide/en/development.md#limitations).
+promptfoo is the only emitter today. It tests one turn at a time, keeps no history beyond a `--baseline` comparison. [More](guide/en/development.md#limitations).
 
 ## Documentation
 

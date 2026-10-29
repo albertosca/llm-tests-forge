@@ -1,6 +1,6 @@
 # Instalação
 
-Um binário pré-compilado, vários jeitos de obtê-lo. Nada está publicado ainda, então até a primeira release o único caminho que funciona é o clone, no fim desta seção.
+Um binário pré-compilado, vários jeitos de obtê-lo. A release 0.1.0 está no npm; os outros canais publicam quando seus tokens forem configurados, então até o pacote de um canal aparecer, use o npm, o script ou o clone no fim desta seção.
 
     npm i -D llm-tests-forge                # JavaScript / TypeScript
     uv add --dev llm-tests-forge            # Python

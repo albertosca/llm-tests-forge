@@ -4,7 +4,9 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## Unreleased
 
-First release, 0.1.0 (not published yet).
+## 0.1.0 - 2026-10-29
+
+First release, published to npm; the PyPI, RubyGems, Hex and Homebrew packages are built too and publish once their tokens are set.
 
 ### Added
 

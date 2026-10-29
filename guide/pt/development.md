@@ -7,7 +7,6 @@
 - Não existe servidor MCP, então o loop de revisão não roda dentro de uma conversa.
 - Testa um turno por vez. Casos multi-turno, em que a própria resposta da aplicação molda o turno seguinte, precisam de um usuário simulado, que isto não é.
 - Não guarda histórico: o `--baseline` compara duas rodadas, e nada as acumula ao longo do tempo.
-- Ainda não está publicado em nenhum registro de pacotes.
 
 ## Desenvolvimento
 

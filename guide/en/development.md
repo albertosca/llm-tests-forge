@@ -7,7 +7,6 @@
 - There is no MCP server, so the review loop cannot run inside a conversation.
 - It tests one turn at a time. Multi-turn cases where your application's own reply shapes the next turn need a simulated user, which this is not.
 - It keeps no history: `--baseline` compares two runs, and nothing collects them over time.
-- It is not published to any package registry yet.
 
 ## Development
 
