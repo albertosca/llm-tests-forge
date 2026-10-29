@@ -32,6 +32,16 @@ describe("loadPrices", () => {
 			approximate: false,
 		});
 	});
+
+	test("the default table prices Haiku 5.5 at the up-to-100k rate, exactly and not as Haiku 4.5", async () => {
+		const prices = await loadPrices();
+		expect(priceFor("anthropic/claude-haiku-5-5", prices)).toMatchObject({
+			input: 0.1,
+			output: 0.5,
+			pricedAs: "anthropic/claude-haiku-5-5",
+			approximate: false,
+		});
+	});
 	test("an embedded table that does not parse is named `prices.yaml (embedded)`, since it has no path", async () => {
 		const error = await loadPrices(undefined, "models: {}\n").catch(
 			(caught: Error) => caught,
