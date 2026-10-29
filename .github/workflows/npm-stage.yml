@@ -1,0 +1,36 @@
+name: npm-stage
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: The release run whose packages artifact is staged
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - run: tar -xf packages.tar
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+      - name: Stage the platform packages, then the main package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm install -g npm@latest
+          npm --version
+          for directory in darwin-arm64 darwin-x64 linux-arm64 linux-x64 win32-x64 main; do
+            npm stage publish --access public "assembled/npm/$directory"
+          done
+          npm stage list
