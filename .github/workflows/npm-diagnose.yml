@@ -25,5 +25,8 @@ jobs:
           npm profile get --json 2>&1 | node -e 'let text="";process.stdin.on("data",c=>text+=c).on("end",()=>{try{const p=JSON.parse(text);console.log(JSON.stringify({name:p.name,tfa:p.tfa}))}catch{console.log(text.slice(0,400))}})' || true
           echo "--- tokens"
           curl -s -H "Authorization: Bearer $NODE_AUTH_TOKEN" https://registry.npmjs.org/-/npm/v1/tokens | node -e 'let text="";process.stdin.on("data",c=>text+=c).on("end",()=>{try{const r=JSON.parse(text);for(const t of r.objects||[])console.log(JSON.stringify({token:t.token,readonly:t.readonly,bypass_2fa:t.bypass_2fa,created:t.created,expires:t.expires}));if(!r.objects)console.log(text.slice(0,400))}catch{console.log(text.slice(0,400))}})' || true
+          echo "--- staged"
+          npm install -g npm@latest >/dev/null 2>&1; npm --version
+          npm stage list 2>&1 | head -40 || true
           echo "--- orgs"
           npm org ls llm-tests-forge 2>&1 | head -5 || true
