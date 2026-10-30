@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { stubClaude } from "./stub-claude";
 
 const target = join(import.meta.dir, "../../scripts/dogfood/dedupe-target.ts");
 const cases =
@@ -42,6 +43,21 @@ describe("dedupe-target", () => {
 		});
 		expect(result.exitCode).toBe(0);
 		expect(result.stdout.trimEnd().split("\n")).toHaveLength(1);
+		expect(JSON.parse(result.stdout)).toEqual({
+			duplicates: [{ id: "c2", duplicate_of: "c1" }],
+		});
+	}, 30_000);
+	test("DOGFOOD_TRANSPORT=claude-cli reaches the model through the claude executable on PATH", async () => {
+		const stub = await stubClaude(
+			JSON.stringify({
+				result: '{"duplicates":[{"id":"c2","duplicate_of":"c1"}]}',
+			}),
+		);
+		const result = await run("anthropic/claude-haiku-4-5", {
+			PATH: `${dirname(stub.command)}:${process.env.PATH ?? ""}`,
+			DOGFOOD_TRANSPORT: "claude-cli",
+		});
+		expect(result.exitCode).toBe(0);
 		expect(JSON.parse(result.stdout)).toEqual({
 			duplicates: [{ id: "c2", duplicate_of: "c1" }],
 		});

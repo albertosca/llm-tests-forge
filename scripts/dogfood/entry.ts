@@ -7,9 +7,18 @@ import {
 	loadProviderKeys,
 } from "../../src/llm/credentials";
 import { createLlm, type Llm } from "../../src/llm/generate";
+import { createClaudeCliLlm } from "./claude-cli-llm";
 import { type ExecInvocation, parseExecArguments } from "./exec-arguments";
 
 export type Handler = (invocation: ExecInvocation, llm: Llm) => Promise<string>;
+
+export interface TargetOptions {
+	/** Where the provider key files live; the home directory's `.config` by default. */
+	configDirectory?: string;
+	/** `claude-cli` reaches the model through the Claude Code CLI (subscription quota) instead of the API. */
+	transport?: "api" | "claude-cli";
+	claudeCommand?: string;
+}
 
 export interface Sinks {
 	stdout(text: string): void;
@@ -27,20 +36,24 @@ export async function runTarget(
 	handler: Handler,
 	argumentList: string[],
 	sinks: Sinks,
-	configDirectory: string = defaultConfigDirectory(),
+	options: TargetOptions = {},
 ): Promise<number> {
 	const forgeDirectory = await mkdtemp(join(tmpdir(), "forge-dogfood-"));
 	try {
 		const invocation = parseExecArguments(argumentList);
-		const llm = createLlm({
-			forgeDirectory,
-			beforeResolve: async () => {
-				await loadProviderKeys({
-					environment: process.env,
-					configDirectory,
-				});
-			},
-		});
+		const llm =
+			options.transport === "claude-cli"
+				? createClaudeCliLlm({ command: options.claudeCommand })
+				: createLlm({
+						forgeDirectory,
+						beforeResolve: async () => {
+							await loadProviderKeys({
+								environment: process.env,
+								configDirectory:
+									options.configDirectory ?? defaultConfigDirectory(),
+							});
+						},
+					});
 		sinks.stdout(`${await handler(invocation, llm)}\n`);
 		return 0;
 	} catch (error) {

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runDedupe } from "../../scripts/dogfood/dedupe-run";
 import { runTarget } from "../../scripts/dogfood/entry";
+import { stubClaude } from "./stub-claude";
 
 const options = JSON.stringify({ config: { model: "fake/none" } });
 
@@ -72,7 +73,7 @@ describe("runTarget", () => {
 					}),
 				],
 				captured.sinks,
-				configDirectory,
+				{ configDirectory },
 			);
 			expect(code).toBe(1);
 			expect(captured.printed).toEqual([]);
@@ -80,5 +81,32 @@ describe("runTarget", () => {
 		} finally {
 			if (saved !== undefined) process.env.ANTHROPIC_API_KEY = saved;
 		}
+	});
+	test("the claude-cli transport runs the handler against the claude executable and never touches the API", async () => {
+		const stub = await stubClaude(
+			JSON.stringify({
+				result: '{"duplicates":[{"id":"c2","duplicate_of":"c1"}]}',
+			}),
+		);
+		const captured = capture();
+		const code = await runTarget(
+			runDedupe,
+			[
+				"p",
+				JSON.stringify({ config: { model: "anthropic/claude-haiku-4-5" } }),
+				JSON.stringify({
+					vars: {
+						cases:
+							"- id: c1\n  input: { message: a }\n  expected: { label: x }\n- id: c2\n  input: { message: b }\n  expected: { label: x }\n",
+					},
+				}),
+			],
+			captured.sinks,
+			{ transport: "claude-cli", claudeCommand: stub.command },
+		);
+		expect(code).toBe(0);
+		expect(JSON.parse(captured.printed.join(""))).toEqual({
+			duplicates: [{ id: "c2", duplicate_of: "c1" }],
+		});
 	});
 });
