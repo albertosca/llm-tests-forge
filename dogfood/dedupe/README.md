@@ -47,7 +47,7 @@ $FORGE report results.json
 $FORGE stamp results.json
 ```
 
-`$FORGE check` is free and offline: it fails when the prompt, the function, the target, the entry runner or `bun.lock` changed after the seal. That is what runs on every pull request.
+`$FORGE check` is free and offline: it fails when the prompt, the function and what it imports, the target, the entry runner, the claude-cli client, `bun.lock` or the suite's own config and case files changed after the seal (the full list is in [`../README.md`](../README.md)). That is what runs on every pull request.
 
 ## What was run, and how it differs from the plan
 

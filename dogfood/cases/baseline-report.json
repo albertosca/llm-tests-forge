@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-30T22:34:10.723Z",
-  "ranAt": "2026-10-30T22:27:40.575Z",
+  "generatedAt": "2026-10-30T23:32:08.746Z",
+  "ranAt": "2026-10-30T23:27:02.168Z",
   "promptfooVersion": "0.123.0",
   "rows": 36,
   "matched": 36,
@@ -282,5 +282,9 @@
     }
   ],
   "targetUsageReported": false,
-  "baseline": null
+  "baseline": {
+    "regressions": [],
+    "fixed": [],
+    "onlyInBaseline": []
+  }
 }

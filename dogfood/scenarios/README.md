@@ -21,7 +21,7 @@ There is no `out_of_scope` scenario on purpose: the real function is not given p
 
 A rubric judge would need Anthropic API credit, which the account did not have, and the claude-cli transport cannot serve it. So the target prints a deterministic structural summary of what the real function returned, and the `fields` oracle compares it exactly. The judge is declared in `suite.yaml` because the schema requires one, and it is never called. These suites show that the function still returns the right shape and the right choices on these inputs; they do not judge the quality of the generated text.
 
-Only the presence of wanted kinds is checked: the prompt asks for "at least one of each", and nothing in the function or the prompt restricts the proposal to them.
+The one value the target prints, `covered`, is read from what the function returned, but the function already refuses an answer that misses a wanted kind, so in practice the signal of this suite is whether the call threw (an error row), not a wrong value. Only the presence of wanted kinds is checked: the prompt asks for "at least one of each", and nothing in the function or the prompt restricts the proposal to them.
 
 ## Models
 

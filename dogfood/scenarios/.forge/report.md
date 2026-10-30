@@ -1,7 +1,13 @@
-# llm-tests-forge report — run 2026-10-30T22:12:18.678Z
-Reported 2026-10-30T22:27:27.229Z.
+# llm-tests-forge report — run 2026-10-30T23:40:22.680Z
+Reported 2026-10-30T23:54:10.628Z.
 
-**Pass rate:** 100.0% (36 of 36 runs, 0 errored) · **failing or errored:** 0 · **flaky:** 0 · **judge disagreements:** 0
+**Pass rate:** 100.0% (36 of 36 runs, 0 errored) · **failing or errored:** 0 · **flaky:** 0 · **judge disagreements:** 0 · **regressions since baseline:** 0
+
+## Regressions since baseline
+
+No regression since baseline.
+
+Fixed since baseline: 0.
 
 ## Failing or errored cases
 

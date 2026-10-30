@@ -9,8 +9,21 @@ stamp:
   inputs:
     - ../../templates/dedupe.md
     - ../../src/core/dedupe.ts
+    - ../../src/core/schemas.ts
+    - ../../src/core/errors.ts
+    - ../../src/llm/templates.ts
+    - ../../src/llm/generate.ts
+    - ../../src/llm/models.ts
+    - ../../src/llm/credentials.ts
     - ../../scripts/dogfood/dedupe-run.ts
+    - ../../scripts/dogfood/dedupe-target.ts
     - ../../scripts/dogfood/entry.ts
+    - ../../scripts/dogfood/exec-arguments.ts
+    - ../../scripts/dogfood/claude-cli-llm.ts
     - ../../bun.lock
+    - .forge/promptfooconfig.yaml
+    - .forge/feature.yaml
+    - .forge/scenarios.yaml
+    - .forge/cases/*.yaml
   minimum_pass_rate: 0.8
 forge_version: 0.1.0
