@@ -17,23 +17,25 @@ function kindsFrom(text: string | undefined) {
 }
 
 /**
- * Runs the real `enumerateScenarios` on the suite's `feature` input (and the
- * optional comma-separated `kinds`) and prints which kinds the model covered.
- * The function itself refuses an answer that misses a wanted kind, so a row
- * passes only when every wanted kind is there.
+ * Runs the real `enumerateScenarios` on the suite's `feature` input and the
+ * comma-separated `kinds` it must cover, and prints which of the wanted kinds
+ * the model covered. The prompt asks for "at least one of each", never for
+ * "only these", so extra kinds are not reported; a missing one makes the
+ * function itself refuse, which is an error row.
  */
 export const runScenarios: Handler = async (invocation, llm) => {
 	const feature = featureFrom(
 		requiredVariable(invocation, "feature", "scenarios"),
 	);
-	const scenarios = await enumerateScenarios({
+	const wanted = kindsFrom(invocation.variables.kinds);
+	await enumerateScenarios({
 		feature,
 		existing: [],
-		kinds: kindsFrom(invocation.variables.kinds),
+		kinds: wanted,
 		model: invocation.model,
 		llm,
 	});
-	return JSON.stringify({
-		kinds: [...new Set(scenarios.map((scenario) => scenario.kind))].sort(),
-	});
+	// Every wanted kind is present or the call above has already thrown.
+	const covered = [...(wanted ?? Kind.options)].sort();
+	return JSON.stringify({ covered });
 };
