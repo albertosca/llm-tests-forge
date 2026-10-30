@@ -41,6 +41,7 @@
 		"@stryker-mutator/core": "10.1.1",
 		"@stryker-mutator/typescript-checker": "10.1.1",
 		"@types/bun": "latest",
+		"forge-released": "npm:llm-tests-forge@0.1.0",
 		"typescript": "7.0.2",
 		"typescript5": "npm:typescript@5.9.3"
 	}
