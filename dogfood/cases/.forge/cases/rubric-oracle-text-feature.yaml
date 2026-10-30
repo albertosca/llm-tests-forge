@@ -1,0 +1,84 @@
+- id: rubric-oracle-text-feature-01
+  scenario: rubric-oracle-text-feature
+  input:
+    feature: |
+      id: article-summary
+      purpose: Summarise an article in two sentences.
+      inputs:
+      - name: article
+        kind: text
+      output:
+        kind: text
+      invariants:
+      - At most two sentences.
+    scenario: |
+      id: friendly-summary
+      kind: happy
+      oracle: rubric
+      description: A long article about a local election.
+    n: "2"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - article
+      expected_kinds:
+        - rubric
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: rubric-oracle-text-feature-02
+  scenario: rubric-oracle-text-feature
+  input:
+    feature: |
+      id: article-summary
+      purpose: Summarise an article in two sentences.
+      inputs:
+      - name: article
+        kind: text
+      output:
+        kind: text
+      invariants:
+      - At most two sentences.
+    scenario: |
+      id: friendly-summary
+      kind: happy
+      oracle: rubric
+      description: A long article about a local election.
+    n: "3"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - article
+      expected_kinds:
+        - rubric
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: rubric-oracle-text-feature-03
+  scenario: rubric-oracle-text-feature
+  input:
+    feature: |
+      id: article-summary
+      purpose: Summarise an article in two sentences.
+      inputs:
+      - name: article
+        kind: text
+      output:
+        kind: text
+      invariants:
+      - At most two sentences.
+    scenario: |
+      id: very-short-article
+      kind: edge
+      oracle: rubric
+      description: An article of one sentence.
+    n: "2"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - article
+      expected_kinds:
+        - rubric
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

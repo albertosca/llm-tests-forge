@@ -1,0 +1,80 @@
+- id: portuguese-feature-01
+  scenario: portuguese-feature
+  input:
+    feature: |
+      id: triagem-de-chamados
+      purpose: Classificar um chamado de suporte pelo time responsável. Os chamados chegam em português.
+      inputs:
+      - name: mensagem
+        kind: text
+      output:
+        kind: label
+        labels:
+        - cobranca
+        - defeito
+        - conta
+      invariants:
+      - Responda com exatamente um rótulo.
+    kinds: happy,language
+  expected:
+    fields:
+      covered:
+        - happy
+        - language
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: portuguese-feature-02
+  scenario: portuguese-feature
+  input:
+    feature: |
+      id: triagem-de-chamados
+      purpose: Classificar um chamado de suporte pelo time responsável. Os chamados chegam em português.
+      inputs:
+      - name: mensagem
+        kind: text
+      output:
+        kind: label
+        labels:
+        - cobranca
+        - defeito
+        - conta
+      invariants:
+      - Responda com exatamente um rótulo.
+    kinds: edge,happy,language
+  expected:
+    fields:
+      covered:
+        - edge
+        - happy
+        - language
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: portuguese-feature-03
+  scenario: portuguese-feature
+  input:
+    feature: |
+      id: triagem-de-chamados
+      purpose: Classificar um chamado de suporte pelo time responsável. Os chamados chegam em português.
+      inputs:
+      - name: mensagem
+        kind: text
+      output:
+        kind: label
+        labels:
+        - cobranca
+        - defeito
+        - conta
+      invariants:
+      - Responda com exatamente um rótulo.
+    kinds: happy,edge,ambiguous,out_of_scope,adversarial,language
+  expected:
+    fields:
+      covered:
+        - adversarial
+        - ambiguous
+        - edge
+        - happy
+        - language
+        - out_of_scope
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

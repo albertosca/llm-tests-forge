@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "sealedAt": "2026-10-30T22:34:11.002Z",
+  "forgeVersion": "0.1.0",
+  "promptfooVersion": "0.123.0",
+  "ranAt": "2026-10-30T22:27:40.575Z",
+  "models": {
+    "targets": [
+      "anthropic/claude-haiku-4-5"
+    ],
+    "judges": [
+      "anthropic/claude-sonnet-5"
+    ]
+  },
+  "inputs": {
+    "../../bun.lock": "sha256:0e8dd1b1179434d7c04ff0e2c9c8537a9add82cfe82c661501e5d997728d2e33",
+    "../../scripts/dogfood/cases-run.ts": "sha256:f33fea26916e707f75852c3f56c1caed7daae25cdcacb443da1038cd6916c43e",
+    "../../scripts/dogfood/entry.ts": "sha256:ea13d399cccf5214c8b660b557ea7fa9ebc836782cc8c6194674b3bfa0f52885",
+    "../../scripts/dogfood/inputs.ts": "sha256:c0093d1f67f3aff45043c7eef67ecc612be71aecdee165793b9b1aa27932024e",
+    "../../src/core/cases.ts": "sha256:9fa8f15edc60bed834187d83d8379ea920a5a77e126c2c8d020582d5988271f7",
+    "../../templates/cases.md": "sha256:4d30bea90a53c16a584afae9e0db3047cf2a50318361ffe934b09984ec223b1e"
+  },
+  "inputsHash": "sha256:ec3185e25bee42d25dfbe5f38888bdf1770c16cca0e181bc87b02f4e6cfef0da",
+  "rows": 36,
+  "passRate": 1,
+  "minimumPassRate": 0.8,
+  "flaky": []
+}

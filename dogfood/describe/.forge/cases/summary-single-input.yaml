@@ -1,0 +1,30 @@
+- id: summary-single-input-01
+  scenario: summary-single-input
+  input:
+    description: Summarise a news article in two sentences of plain text.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: text
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: summary-single-input-02
+  scenario: summary-single-input
+  input:
+    description: Write a one-paragraph summary of a meeting transcript.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: text
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: summary-single-input-03
+  scenario: summary-single-input
+  input:
+    description: Shorten a product description to fit in 140 characters, as plain text.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: text
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

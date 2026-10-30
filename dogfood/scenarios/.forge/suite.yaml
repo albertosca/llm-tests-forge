@@ -1,0 +1,17 @@
+target:
+  kind: exec
+  command: ../../../scripts/dogfood/scenarios-target.ts
+  models: [anthropic/claude-haiku-4-5]
+judges: [anthropic/claude-sonnet-5]
+repeat: 2
+include: []
+stamp:
+  inputs:
+    - ../../templates/scenarios.md
+    - ../../src/core/scenarios.ts
+    - ../../scripts/dogfood/scenarios-run.ts
+    - ../../scripts/dogfood/inputs.ts
+    - ../../scripts/dogfood/entry.ts
+    - ../../bun.lock
+  minimum_pass_rate: 0.8
+forge_version: 0.1.0
