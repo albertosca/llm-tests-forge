@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runDedupe } from "../../scripts/dogfood/dedupe-run";
@@ -45,6 +45,22 @@ describe("runTarget", () => {
 		expect(code).toBe(1);
 		expect(captured.printed).toEqual([]);
 		expect(captured.failures).toEqual(["boom\n"]);
+	});
+	test("the throwaway directory is removed after a success and kept after a failure, since an error may name a file in it", async () => {
+		const root = await mkdtemp(join(tmpdir(), "forge-dogfood-root-"));
+		await runTarget(async () => "{}", ["p", options, "{}"], capture().sinks, {
+			temporaryRoot: root,
+		});
+		expect(await readdir(root)).toEqual([]);
+		await runTarget(
+			async () => {
+				throw new Error("boom");
+			},
+			["p", options, "{}"],
+			capture().sinks,
+			{ temporaryRoot: root },
+		);
+		expect(await readdir(root)).toHaveLength(1);
 	});
 	test("bad arguments fail the same way, before any model is touched", async () => {
 		const captured = capture();

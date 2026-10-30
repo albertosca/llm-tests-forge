@@ -45,7 +45,17 @@ describe("runCases", () => {
 	});
 	test("n must be a positive integer", async () => {
 		const { llm } = llmReturning(answer("refund"));
-		for (const count of ["0", "-1", "1.5", "many"])
+		for (const count of [
+			"0",
+			"-1",
+			"1.5",
+			"many",
+			"1e1",
+			"0x2",
+			" 3 ",
+			"03",
+			"",
+		])
 			await expect(
 				runCases(
 					{ model: "fake/x", variables: { feature, scenario, n: count } },

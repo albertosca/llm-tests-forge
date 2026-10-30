@@ -23,17 +23,30 @@ const CliReplySchema = z.object({
 		.optional(),
 });
 
-/** The JSON object in a reply that may be wrapped in a code fence or a sentence. */
+/**
+ * The JSON object in a reply that may be wrapped in a code fence or a
+ * sentence, braces in the prose included: the widest span that parses wins.
+ */
 function jsonObjectIn(text: string): unknown {
-	const first = text.indexOf("{");
-	const last = text.lastIndexOf("}");
-	if (first === -1 || last < first)
+	if (!text.includes("{"))
 		throw new ForgeError("the model's reply holds no JSON object");
-	try {
-		return JSON.parse(text.slice(first, last + 1));
-	} catch {
-		throw new ForgeError("the model's reply holds no valid JSON object");
-	}
+	for (
+		let first = text.indexOf("{");
+		first !== -1;
+		first = text.indexOf("{", first + 1)
+	)
+		for (
+			let last = text.lastIndexOf("}");
+			last > first;
+			last = text.lastIndexOf("}", last - 1)
+		)
+			try {
+				const parsed: unknown = JSON.parse(text.slice(first, last + 1));
+				if (typeof parsed === "object" && parsed !== null) return parsed;
+			} catch {
+				// a shorter or later span may still be the object
+			}
+	throw new ForgeError("the model's reply holds no valid JSON object");
 }
 
 async function runClaude(
@@ -42,6 +55,12 @@ async function runClaude(
 	model: string,
 	prompt: string,
 ): Promise<string> {
+	// An exported API key would make claude bill the API, not the subscription.
+	const {
+		ANTHROPIC_API_KEY: _apiKey,
+		ANTHROPIC_AUTH_TOKEN: _authToken,
+		...subscriptionEnvironment
+	} = environment;
 	const child = Bun.spawn(
 		[
 			command,
@@ -64,7 +83,7 @@ async function runClaude(
 			stdin: new Response(prompt),
 			stdout: "pipe",
 			stderr: "pipe",
-			env: environment,
+			env: subscriptionEnvironment,
 		},
 	);
 	const [stdout, stderr, exitCode] = await Promise.all([

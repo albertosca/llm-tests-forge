@@ -28,14 +28,15 @@ export const runScenarios: Handler = async (invocation, llm) => {
 		requiredVariable(invocation, "feature", "scenarios"),
 	);
 	const wanted = kindsFrom(invocation.variables.kinds);
-	await enumerateScenarios({
+	const scenarios = await enumerateScenarios({
 		feature,
 		existing: [],
 		kinds: wanted,
 		model: invocation.model,
 		llm,
 	});
-	// Every wanted kind is present or the call above has already thrown.
-	const covered = [...(wanted ?? Kind.options)].sort();
-	return JSON.stringify({ covered });
+	// Read from what came back, so the answer can fail if the function ever stops refusing a missing kind.
+	const present = new Set(scenarios.map((scenario) => scenario.kind));
+	const covered = (wanted ?? Kind.options).filter((kind) => present.has(kind));
+	return JSON.stringify({ covered: [...covered].sort() });
 };

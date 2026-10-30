@@ -5,7 +5,7 @@ import { featureFrom, requiredVariable, scenarioFrom } from "./inputs";
 
 function countFrom(text: string): number {
 	const count = Number(text);
-	if (!Number.isInteger(count) || count < 1)
+	if (!/^[1-9][0-9]*$/.test(text) || !Number.isSafeInteger(count))
 		throw new ForgeError(
 			`the n input must be a positive integer, got "${text}"`,
 		);

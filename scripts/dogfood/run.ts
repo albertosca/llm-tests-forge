@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { messageOf } from "../../src/core/errors";
-import { evalRan, regressionsIn, selectFeatures } from "./plan";
+import { evalRan, minimumPassRateOf, problemsIn, selectFeatures } from "./plan";
 
 const repository = resolve(import.meta.dir, "../..");
 const forge = join(repository, "node_modules/.bin/llm-tests-forge");
@@ -20,13 +20,13 @@ async function run(command: string[], directory: string): Promise<number> {
 async function dogfoodFeature(name: string): Promise<boolean> {
 	const directory = join(repository, "dogfood", name);
 	const baseline = join(directory, "baseline-report.json");
-	const reportCommand = [forge, "report", "results.json"];
-	if (existsSync(baseline))
-		reportCommand.push("--baseline", "baseline-report.json");
-	else
+	if (!existsSync(baseline)) {
 		console.log(
-			`${name}: no baseline yet: commit .forge/report.json as baseline-report.json to start one`,
+			`${name}: no baseline-report.json; commit .forge/report.json as baseline-report.json to start one`,
 		);
+		return false;
+	}
+	// The sealed results.json stays as committed; the new run goes beside it.
 	const steps = [
 		[forge, "estimate"],
 		[
@@ -36,13 +36,19 @@ async function dogfoodFeature(name: string): Promise<boolean> {
 			"-c",
 			".forge/promptfooconfig.yaml",
 			"-o",
-			"results.json",
+			"results.latest.json",
 			"--no-cache",
 			"--no-progress-bar",
 			"-j",
 			"2",
 		],
-		reportCommand,
+		[
+			forge,
+			"report",
+			"results.latest.json",
+			"--baseline",
+			"baseline-report.json",
+		],
 	];
 	for (const step of steps) {
 		const exitCode = await run(step, directory);
@@ -52,11 +58,16 @@ async function dogfoodFeature(name: string): Promise<boolean> {
 			return false;
 		}
 	}
-	const regressions = regressionsIn(
+	const problems = problemsIn(
 		readFileSync(join(directory, ".forge/report.json"), "utf8"),
+		minimumPassRateOf(
+			readFileSync(join(directory, ".forge/suite.yaml"), "utf8"),
+		),
 	);
-	console.log(`${name}: ${regressions} regressions`);
-	return regressions === 0;
+	console.log(
+		`${name}: ${problems.length === 0 ? "clean" : problems.join("; ")}`,
+	);
+	return problems.length === 0;
 }
 
 try {

@@ -18,6 +18,8 @@ export interface TargetOptions {
 	/** `claude-cli` reaches the model through the Claude Code CLI (subscription quota) instead of the API. */
 	transport?: "api" | "claude-cli";
 	claudeCommand?: string;
+	/** Where the throwaway directory is made; the system temp directory by default. */
+	temporaryRoot?: string;
 }
 
 export interface Sinks {
@@ -38,7 +40,10 @@ export async function runTarget(
 	sinks: Sinks,
 	options: TargetOptions = {},
 ): Promise<number> {
-	const forgeDirectory = await mkdtemp(join(tmpdir(), "forge-dogfood-"));
+	const forgeDirectory = await mkdtemp(
+		join(options.temporaryRoot ?? tmpdir(), "forge-dogfood-"),
+	);
+	let succeeded = false;
 	try {
 		const invocation = parseExecArguments(argumentList);
 		const llm =
@@ -55,11 +60,13 @@ export async function runTarget(
 						},
 					});
 		sinks.stdout(`${await handler(invocation, llm)}\n`);
+		succeeded = true;
 		return 0;
 	} catch (error) {
 		sinks.stderr(`${messageOf(error)}\n`);
 		return 1;
 	} finally {
-		await rm(forgeDirectory, { recursive: true, force: true });
+		// A failure may name a file inside it (the raw model output), so it stays.
+		if (succeeded) await rm(forgeDirectory, { recursive: true, force: true });
 	}
 }

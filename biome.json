@@ -14,6 +14,8 @@
 			"!examples/**/results.json",
 			"!examples/**/baseline-report.json",
 			"!dogfood/**/results.json",
+			"!dogfood/**/results.latest.json",
+			"!dogfood/**/reruns",
 			"!dogfood/**/baseline-report.json",
 			"!tests/fixtures/*/results.json"
 		]

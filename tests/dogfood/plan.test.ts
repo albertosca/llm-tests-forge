@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
 	evalRan,
-	regressionsIn,
+	minimumPassRateOf,
+	problemsIn,
 	selectFeatures,
 } from "../../scripts/dogfood/plan";
 
@@ -30,14 +31,43 @@ describe("selectFeatures", () => {
 	});
 });
 
-describe("regressionsIn", () => {
+describe("problemsIn", () => {
+	test("a run with no baseline findings and a passing rate is clean", () => {
+		expect(problemsIn(JSON.stringify({ passRate: 1 }), 0.8)).toEqual([]);
+		expect(problemsIn(JSON.stringify({ baseline: {} }), 0.8)).toEqual([]);
+	});
 	test("counts the regressions against the baseline", () => {
 		const report = JSON.stringify({ baseline: { regressions: [{}, {}] } });
-		expect(regressionsIn(report)).toBe(2);
+		expect(problemsIn(report, 0.8)).toEqual(["2 regressions"]);
 	});
-	test("a report with no baseline comparison has none", () => {
-		expect(regressionsIn(JSON.stringify({}))).toBe(0);
-		expect(regressionsIn(JSON.stringify({ baseline: {} }))).toBe(0);
+	test("a baseline pair missing from the run is a problem, so deleting a case cannot turn the run green", () => {
+		const report = JSON.stringify({ baseline: { onlyInBaseline: [{}] } });
+		expect(problemsIn(report, 0.8)).toEqual([
+			"1 baseline pairs are missing from this run",
+		]);
+	});
+	test("a pass rate under the minimum fails even with nothing regressed, and the minimum itself passes", () => {
+		expect(problemsIn(JSON.stringify({ passRate: 0.79 }), 0.8)).toEqual([
+			"pass rate 0.79 is under the suite's minimum 0.8",
+		]);
+		expect(problemsIn(JSON.stringify({ passRate: 0.8 }), 0.8)).toEqual([]);
+	});
+	test("reports every problem at once", () => {
+		const report = JSON.stringify({
+			passRate: 0.5,
+			baseline: { regressions: [{}], onlyInBaseline: [{}] },
+		});
+		expect(problemsIn(report, 0.8)).toHaveLength(3);
+	});
+});
+
+describe("minimumPassRateOf", () => {
+	test("reads stamp.minimum_pass_rate", () => {
+		expect(minimumPassRateOf("stamp:\n  minimum_pass_rate: 0.8\n")).toBe(0.8);
+	});
+	test("refuses a suite that declares none", () => {
+		for (const text of ["stamp: {}\n", "other: 1\n", ""])
+			expect(() => minimumPassRateOf(text)).toThrow("minimum_pass_rate");
 	});
 });
 

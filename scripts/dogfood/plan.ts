@@ -1,3 +1,4 @@
+import { parse } from "yaml";
 import { ForgeError } from "../../src/core/errors";
 
 /** The features to run: all of them, or the ones named, refusing a name that is not a feature. */
@@ -16,15 +17,43 @@ export function selectFeatures(
 		: sorted.filter((name) => requested.includes(name));
 }
 
+/** The `stamp.minimum_pass_rate` a suite declares, or a refusal when it declares none. */
+export function minimumPassRateOf(suiteYaml: string): number {
+	const rate = (
+		parse(suiteYaml) as { stamp?: { minimum_pass_rate?: unknown } } | null
+	)?.stamp?.minimum_pass_rate;
+	if (typeof rate !== "number")
+		throw new ForgeError("suite.yaml has no stamp.minimum_pass_rate");
+	return rate;
+}
+
 /**
- * `report --baseline` prints its regression count and exits 0 either way, so
- * the verdict is read back from the report it wrote.
+ * What is wrong with a finished run, read back from the report it wrote:
+ * `report --baseline` prints its findings and exits 0 either way, so the
+ * verdict is made here. A baseline pair missing from the run counts as much
+ * as a pair that got worse (deleting a failing case must not turn the run
+ * green), and a run under the suite's own minimum pass rate fails even when
+ * nothing regressed. Empty means clean.
  */
-export function regressionsIn(reportJson: string): number {
+export function problemsIn(
+	reportJson: string,
+	minimumPassRate: number,
+): string[] {
 	const report = JSON.parse(reportJson) as {
-		baseline?: { regressions?: unknown[] };
+		passRate?: number;
+		baseline?: { regressions?: unknown[]; onlyInBaseline?: unknown[] };
 	};
-	return report.baseline?.regressions?.length ?? 0;
+	const problems: string[] = [];
+	const regressions = report.baseline?.regressions?.length ?? 0;
+	if (regressions > 0) problems.push(`${regressions} regressions`);
+	const dropped = report.baseline?.onlyInBaseline?.length ?? 0;
+	if (dropped > 0)
+		problems.push(`${dropped} baseline pairs are missing from this run`);
+	if (typeof report.passRate === "number" && report.passRate < minimumPassRate)
+		problems.push(
+			`pass rate ${report.passRate} is under the suite's minimum ${minimumPassRate}`,
+		);
+	return problems;
 }
 
 /**

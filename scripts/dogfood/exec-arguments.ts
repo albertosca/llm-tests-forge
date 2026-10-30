@@ -35,8 +35,13 @@ export function parseExecArguments(argumentList: string[]): ExecInvocation {
 	const rawVariables = parseObject(contextText, "context").vars;
 	const variables: Record<string, string> = {};
 	if (typeof rawVariables === "object" && rawVariables !== null)
-		for (const [name, value] of Object.entries(rawVariables))
-			if (!name.startsWith("__") && typeof value === "string")
-				variables[name] = value;
+		for (const [name, value] of Object.entries(rawVariables)) {
+			if (name.startsWith("__")) continue;
+			if (typeof value !== "string")
+				throw new ForgeError(
+					`the \`${name}\` input must be text, got ${value === null ? "null" : typeof value}`,
+				);
+			variables[name] = value;
+		}
 	return { model, variables };
 }

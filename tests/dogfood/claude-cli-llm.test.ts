@@ -54,6 +54,39 @@ describe("createClaudeCliLlm", () => {
 		const llm = createClaudeCliLlm({ command: stub.command, environment: {} });
 		expect((await llm.generate(request)).object).toEqual({ label: "status" });
 	});
+	test("prose around the object may hold braces of its own", async () => {
+		for (const reply of [
+			'Use {curly} braces. {"label":"status"} Done {x}.',
+			'{"label":"status"} and a stray }',
+			'a { b {"label":"status"}',
+		]) {
+			const stub = await stubClaude(envelope(reply));
+			const llm = createClaudeCliLlm({
+				command: stub.command,
+				environment: {},
+			});
+			expect((await llm.generate(request)).object).toEqual({
+				label: "status",
+			});
+		}
+	});
+	test("an environment key for the API is not passed on, so the run is billed to the subscription", async () => {
+		const stub = await stubClaude(envelope('{"label":"a"}'));
+		const llm = createClaudeCliLlm({
+			command: stub.command,
+			environment: {
+				PATH: process.env.PATH,
+				ANTHROPIC_API_KEY: "must-not-reach-claude",
+				ANTHROPIC_AUTH_TOKEN: "must-not-reach-claude",
+				KEPT: "yes",
+			},
+		});
+		await llm.generate(request);
+		const seen = await readFile(join(stub.directory, "environment"), "utf8");
+		expect(seen).toContain("KEPT=yes");
+		expect(seen).not.toContain("ANTHROPIC_");
+		expect(seen).not.toContain("must-not-reach-claude");
+	});
 	test("an envelope without usage counts zero tokens", async () => {
 		const stub = await stubClaude(JSON.stringify({ result: '{"label":"a"}' }));
 		const llm = createClaudeCliLlm({ command: stub.command, environment: {} });
