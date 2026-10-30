@@ -120,6 +120,8 @@ jobs:
   # inputs without sealing a new run. Free and offline: `check` reads the stamp.
   check-dogfood:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -128,6 +130,9 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Every sealed suite still matches its stamp
         run: |
+          # Every suite is checked, so one failing seal does not hide the others.
+          failed=0
           for suite in dogfood/*/; do
-            (cd "$suite" && ../../node_modules/.bin/llm-tests-forge check)
+            (cd "$suite" && ../../node_modules/.bin/llm-tests-forge check) || failed=1
           done
+          exit "$failed"

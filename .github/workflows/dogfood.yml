@@ -29,3 +29,11 @@ jobs:
         run: bun run dogfood
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - if: always() && env.ANTHROPIC_API_KEY_SET == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: dogfood-results
+          path: |
+            dogfood/*/results.latest.json
+            dogfood/*/.forge/report.md
+            dogfood/*/.forge/report.json
