@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## Unreleased
 
+### Added
+
+- `dogfood/`: sealed suites for the `describe`, `scenarios`, `cases` and `dedupe` prompts, built by the released forge (`forge-released`, an alias of `llm-tests-forge@0.1.0`) and run against this checkout; `bun run dogfood [verb]` reruns them against a baseline, `check-dogfood` guards the seals in CI, and an opt-in weekly workflow reruns them with an API key.
+
 ## 0.1.0 - 2026-10-29
 
 First release, published to npm; the PyPI, RubyGems, Hex and Homebrew packages are built too and publish once their tokens are set.
