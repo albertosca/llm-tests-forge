@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "sealedAt": "2026-10-30T21:32:41.553Z",
+  "forgeVersion": "0.1.0",
+  "promptfooVersion": "0.123.0",
+  "ranAt": "2026-10-30T21:27:48.969Z",
+  "models": {
+    "targets": [
+      "anthropic/claude-haiku-4-5"
+    ],
+    "judges": [
+      "anthropic/claude-sonnet-5"
+    ]
+  },
+  "inputs": {
+    "../../bun.lock": "sha256:0e8dd1b1179434d7c04ff0e2c9c8537a9add82cfe82c661501e5d997728d2e33",
+    "../../scripts/dogfood/dedupe-run.ts": "sha256:5df08e14c14106547c6707a6bf5432200ada585a1fa7d5692c11a718318887de",
+    "../../scripts/dogfood/entry.ts": "sha256:ea13d399cccf5214c8b660b557ea7fa9ebc836782cc8c6194674b3bfa0f52885",
+    "../../src/core/dedupe.ts": "sha256:64c84d8a405757122f4123eef9fc8c9f320c712dd74869d6a496b21533add654",
+    "../../templates/dedupe.md": "sha256:7ab7e8cc819351e51e6ac46e39d48187fb9f44c7d945ceed37b23e26fda634e6"
+  },
+  "inputsHash": "sha256:2953276651acdacaab84a925dab4e671ab24e65431315f2ef483edce51e2617c",
+  "rows": 48,
+  "passRate": 1,
+  "minimumPassRate": 0.8,
+  "flaky": []
+}

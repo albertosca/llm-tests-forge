@@ -1,0 +1,76 @@
+- id: portuguese-tickets-01
+  scenario: portuguese-tickets
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: Fui cobrado duas vezes na fatura de março, quero o estorno de uma delas.
+        expected:
+          label: billing
+      - id: c2
+        input:
+          message: Aparecem duas cobranças no meu cartão referentes a março. Podem devolver uma?
+        expected:
+          label: billing
+      - id: c3
+        input:
+          message: O aplicativo fecha sozinho quando abro a câmera.
+        expected:
+          label: bug
+  expected:
+    fields:
+      duplicates:
+        - id: c2
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: portuguese-tickets-02
+  scenario: portuguese-tickets
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: Como altero o e-mail da minha conta?
+        expected:
+          label: account
+      - id: c2
+        input:
+          message: Quero trocar o e-mail cadastrado no meu perfil.
+        expected:
+          label: account
+      - id: c3
+        input:
+          message: Preciso da nota fiscal do mês passado.
+        expected:
+          label: billing
+  expected:
+    fields:
+      duplicates:
+        - id: c2
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: portuguese-tickets-03
+  scenario: portuguese-tickets
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: Quero cancelar minha assinatura hoje.
+        expected:
+          label: cancellation
+      - id: c2
+        input:
+          message: A página de relatórios não carrega no celular.
+        expected:
+          label: bug
+      - id: c3
+        input:
+          message: Vocês têm desconto para estudantes?
+        expected:
+          label: sales
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

@@ -1,0 +1,16 @@
+target:
+  kind: exec
+  command: ../../../scripts/dogfood/dedupe-target.ts
+  models: [anthropic/claude-haiku-4-5]
+judges: [anthropic/claude-sonnet-5]
+repeat: 2
+include: []
+stamp:
+  inputs:
+    - ../../templates/dedupe.md
+    - ../../src/core/dedupe.ts
+    - ../../scripts/dogfood/dedupe-run.ts
+    - ../../scripts/dogfood/entry.ts
+    - ../../bun.lock
+  minimum_pass_rate: 0.8
+forge_version: 0.1.0

@@ -1,0 +1,67 @@
+- id: nothing-repeated-01
+  scenario: nothing-repeated
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: I was charged twice for my March invoice.
+        expected:
+          label: billing
+      - id: c2
+        input:
+          message: The app crashes when I open the camera screen.
+        expected:
+          label: bug
+      - id: c3
+        input:
+          message: How do I change my profile photo?
+        expected:
+          label: account
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: nothing-repeated-02
+  scenario: nothing-repeated
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: Please cancel my plan today.
+        expected:
+          label: cancellation
+      - id: c2
+        input:
+          message: Do you offer a student discount?
+        expected:
+          label: sales
+      - id: c3
+        input:
+          message: The login page shows a blank screen on Firefox.
+        expected:
+          label: bug
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: nothing-repeated-03
+  scenario: nothing-repeated
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: Can I add a second user to my team workspace?
+        expected:
+          label: account
+      - id: c2
+        input:
+          message: My invoice is missing the company tax number.
+        expected:
+          label: billing
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

@@ -1,0 +1,62 @@
+- id: negation-flips-meaning-01
+  scenario: negation-flips-meaning
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: I want a refund for this order.
+        expected:
+          label: billing
+      - id: c2
+        input:
+          message: I do not want a refund for this order, just a replacement.
+        expected:
+          label: billing
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: negation-flips-meaning-02
+  scenario: negation-flips-meaning
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: Please renew my subscription automatically.
+        expected:
+          label: account
+      - id: c2
+        input:
+          message: Please do not renew my subscription automatically.
+        expected:
+          label: cancellation
+      - id: c3
+        input:
+          message: What payment methods do you accept?
+        expected:
+          label: sales
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: negation-flips-meaning-03
+  scenario: negation-flips-meaning
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: Notify me by email when my ticket is answered.
+        expected:
+          label: account
+      - id: c2
+        input:
+          message: Do not notify me by email when my ticket is answered.
+        expected:
+          label: account
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
