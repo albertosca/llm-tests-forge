@@ -1,20 +1,20 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { messageOf } from "../../src/core/errors";
-import { regressionsIn, selectFeatures } from "./plan";
+import { evalRan, regressionsIn, selectFeatures } from "./plan";
 
 const repository = resolve(import.meta.dir, "../..");
 const forge = join(repository, "node_modules/.bin/llm-tests-forge");
 
-/** Runs a command with its output on this terminal, so the cost lines show; true when it exited 0. */
-async function run(command: string[], directory: string): Promise<boolean> {
+/** Runs a command with its output on this terminal, so the cost lines show; resolves to its exit code. */
+async function run(command: string[], directory: string): Promise<number> {
 	const child = Bun.spawn(command, {
 		cwd: directory,
 		stdin: "inherit",
 		stdout: "inherit",
 		stderr: "inherit",
 	});
-	return (await child.exited) === 0;
+	return await child.exited;
 }
 
 async function dogfoodFeature(name: string): Promise<boolean> {
@@ -44,11 +44,14 @@ async function dogfoodFeature(name: string): Promise<boolean> {
 		],
 		reportCommand,
 	];
-	for (const step of steps)
-		if (!(await run(step, directory))) {
+	for (const step of steps) {
+		const exitCode = await run(step, directory);
+		const isEval = step.includes("eval");
+		if (isEval ? !evalRan(exitCode) : exitCode !== 0) {
 			console.log(`${name}: ${step.slice(0, 2).join(" ")} failed`);
 			return false;
 		}
+	}
 	const regressions = regressionsIn(
 		readFileSync(join(directory, ".forge/report.json"), "utf8"),
 	);

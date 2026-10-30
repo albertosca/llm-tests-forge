@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { regressionsIn, selectFeatures } from "../../scripts/dogfood/plan";
+import {
+	evalRan,
+	regressionsIn,
+	selectFeatures,
+} from "../../scripts/dogfood/plan";
 
 describe("selectFeatures", () => {
 	const available = ["cases", "dedupe", "describe", "scenarios"];
@@ -34,5 +38,15 @@ describe("regressionsIn", () => {
 	test("a report with no baseline comparison has none", () => {
 		expect(regressionsIn(JSON.stringify({}))).toBe(0);
 		expect(regressionsIn(JSON.stringify({ baseline: {} }))).toBe(0);
+	});
+});
+
+describe("evalRan", () => {
+	test("a clean exit and promptfoo's failed-rows exit both count as a run", () => {
+		expect(evalRan(0)).toBe(true);
+		expect(evalRan(100)).toBe(true);
+	});
+	test("any other exit code is a broken step", () => {
+		for (const code of [1, 2, 99, 101, 127]) expect(evalRan(code)).toBe(false);
 	});
 });

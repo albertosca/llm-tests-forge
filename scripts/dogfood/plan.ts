@@ -26,3 +26,12 @@ export function regressionsIn(reportJson: string): number {
 	};
 	return report.baseline?.regressions?.length ?? 0;
 }
+
+/**
+ * promptfoo exits 100 when the eval ran and some rows failed. That is a
+ * verdict for the report's baseline comparison, not a broken step; any other
+ * non-zero code (crash, bad config) still stops the run.
+ */
+export function evalRan(exitCode: number): boolean {
+	return exitCode === 0 || exitCode === 100;
+}
