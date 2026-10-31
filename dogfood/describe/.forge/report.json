@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-31T00:15:51.903Z",
-  "ranAt": "2026-10-31T00:09:48.080Z",
+  "generatedAt": "2026-10-31T00:54:02.484Z",
+  "ranAt": "2026-10-31T00:47:46.179Z",
   "promptfooVersion": "0.123.0",
   "rows": 42,
   "matched": 42,
@@ -315,9 +315,9 @@
       "inputTokens": 0,
       "outputTokens": 0,
       "realDollars": null,
-      "estimatedDollars": 0.028044,
-      "estimatedLowDollars": 0.019868,
-      "estimatedHighDollars": 0.033671,
+      "estimatedDollars": 0.03405,
+      "estimatedLowDollars": 0.025588,
+      "estimatedHighDollars": 0.040535,
       "errorPercent": null,
       "approximatePrice": false
     }
@@ -325,14 +325,7 @@
   "targetUsageReported": false,
   "baseline": {
     "regressions": [],
-    "fixed": [
-      {
-        "case": "instruction-inside-the-description-02",
-        "model": "anthropic/claude-haiku-4-5",
-        "before": "flaky",
-        "after": "stable"
-      }
-    ],
+    "fixed": [],
     "onlyInBaseline": []
   }
 }

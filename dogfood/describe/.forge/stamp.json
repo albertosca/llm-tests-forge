@@ -1,9 +1,9 @@
 {
   "format": 1,
-  "sealedAt": "2026-10-31T00:31:25.094Z",
+  "sealedAt": "2026-10-31T00:54:06.923Z",
   "forgeVersion": "0.1.0",
   "promptfooVersion": "0.123.0",
-  "ranAt": "2026-10-31T00:09:48.080Z",
+  "ranAt": "2026-10-31T00:47:46.179Z",
   "models": {
     "targets": [
       "anthropic/claude-haiku-4-5"
@@ -40,9 +40,9 @@
     "../../src/llm/generate.ts": "sha256:ad616ed732c1473ef7853f348916e9c381d91ed18a3b9f8f83966a24a0a3ff84",
     "../../src/llm/models.ts": "sha256:c5095d2f7e22957351d6e7015f22ff1290e4ba709e183739b0afc7c50debda2e",
     "../../src/llm/templates.ts": "sha256:e9d9afc31e4d7c2228e7d8b03fb3a2917aaec540c534de6b43ffbc2993e0bb44",
-    "../../templates/describe.md": "sha256:38368993a6f9a5cbd62b8842c4d47fd6b7158f73f54959f41881d59c244855d1"
+    "../../templates/describe.md": "sha256:196f8aa19b74b32dcc5d81e6495dc86f72b7277ca6f4c70a9310f09917e50fd8"
   },
-  "inputsHash": "sha256:b57460a6b7ed8ac031b2be6a06774abfdad4896ee84887dda461f3586ede2ba3",
+  "inputsHash": "sha256:5e76a85a18112e3737f66f6625f6dc3059a6c64f9bae5300ca4ecb03ca69b143",
   "rows": 42,
   "passRate": 1,
   "minimumPassRate": 0.8,
