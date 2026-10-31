@@ -1,8 +1,8 @@
 {
-  "evalId": "eval-vGh-2026-10-30T23:27:02",
+  "evalId": "eval-pjU-2026-10-31T00:00:59",
   "results": {
     "version": 3,
-    "timestamp": "2026-10-30T23:27:02.168Z",
+    "timestamp": "2026-10-31T00:00:59.736Z",
     "prompts": [
       {
         "id": "71f802d29609c6e6921fbed5d6a0d09614e849ccdfca593bf8ea8dfb118b7182",
@@ -16,7 +16,7 @@
           "testErrorCount": 0,
           "assertPassCount": 36,
           "assertFailCount": 0,
-          "totalLatencyMs": 601466,
+          "totalLatencyMs": 793684,
           "tokenUsage": {
             "prompt": 0,
             "completion": 0,
@@ -79,8 +79,8 @@
             }
           ]
         },
-        "id": "5406457a-0d73-4779-8598-aaf4a1c1a22a",
-        "latencyMs": 7861,
+        "id": "7b9c4a70-c87e-41f8-8fe2-5e485a8e2893",
+        "latencyMs": 9301,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -188,8 +188,8 @@
             }
           ]
         },
-        "id": "ad748ce9-0665-4ce5-b1a9-8a9a9935413b",
-        "latencyMs": 7900,
+        "id": "1b281451-736c-4cae-9d55-8addb0bbf61c",
+        "latencyMs": 22179,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -297,8 +297,8 @@
             }
           ]
         },
-        "id": "d121f113-957a-4a94-bcd8-33539f01829b",
-        "latencyMs": 12145,
+        "id": "f23a4b73-8fa6-412a-b3d2-bc661aa1d23e",
+        "latencyMs": 16060,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -406,8 +406,8 @@
             }
           ]
         },
-        "id": "75a6cb72-ed3f-4951-a412-ca9ab155abbd",
-        "latencyMs": 11656,
+        "id": "77cab2cf-e1f4-4036-8d2f-9fd431fe8033",
+        "latencyMs": 9632,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -515,8 +515,8 @@
             }
           ]
         },
-        "id": "5b510802-8876-4058-adbd-c9efcf2af6c2",
-        "latencyMs": 10394,
+        "id": "c7d60f4e-6a6a-4750-968e-e8b187d6a5c6",
+        "latencyMs": 11551,
         "namedScores": {},
         "prompt": {
           "raw": "id: triagem-de-chamados\npurpose: Classificar um chamado de suporte pelo time responsável. Os chamados chegam em português.\ninputs:\n- name: mensagem\n  kind: text\noutput:\n  kind: label\n  labels:\n  - cobranca\n  - defeito\n  - conta\ninvariants:\n- Responda com exatamente um rótulo.",
@@ -624,8 +624,8 @@
             }
           ]
         },
-        "id": "7cb1d6a3-0c10-457f-914f-220ce663379e",
-        "latencyMs": 10057,
+        "id": "6bb2274a-4c22-49fd-9764-462c7a630e80",
+        "latencyMs": 14098,
         "namedScores": {},
         "prompt": {
           "raw": "id: triagem-de-chamados\npurpose: Classificar um chamado de suporte pelo time responsável. Os chamados chegam em português.\ninputs:\n- name: mensagem\n  kind: text\noutput:\n  kind: label\n  labels:\n  - cobranca\n  - defeito\n  - conta\ninvariants:\n- Responda com exatamente um rótulo.",
@@ -733,8 +733,8 @@
             }
           ]
         },
-        "id": "337bb33e-35cd-41ba-a88e-9b71190bc07c",
-        "latencyMs": 21317,
+        "id": "76963349-0afe-49b9-86db-ce90903e152c",
+        "latencyMs": 47632,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -842,8 +842,8 @@
             }
           ]
         },
-        "id": "1e98bdea-0ae2-4065-b5e9-e28cdfb18670",
-        "latencyMs": 49118,
+        "id": "6a984423-35d8-4329-8d61-e0b9eff72e6a",
+        "latencyMs": 31833,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -951,8 +951,8 @@
             }
           ]
         },
-        "id": "d0f7cfaa-5b35-47bb-a9a6-34e580235f59",
-        "latencyMs": 18046,
+        "id": "d18156e3-ef57-4ee4-a591-090bb28f4c9a",
+        "latencyMs": 18608,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -1060,8 +1060,8 @@
             }
           ]
         },
-        "id": "d3c0579a-d4a0-4594-aebc-6b05d13e8064",
-        "latencyMs": 18522,
+        "id": "c8a25db7-b61b-4e07-ab29-f97e93ed5da3",
+        "latencyMs": 73855,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -1169,8 +1169,8 @@
             }
           ]
         },
-        "id": "c3830582-41a2-41b1-bacf-ee756919c835",
-        "latencyMs": 20763,
+        "id": "90115232-d85c-44f6-81da-be99f9879b30",
+        "latencyMs": 19224,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -1278,8 +1278,8 @@
             }
           ]
         },
-        "id": "410d54d4-f163-446b-91db-855ea25cd106",
-        "latencyMs": 28795,
+        "id": "f32bf02b-33fc-40c7-8da4-570ca2ebd3f7",
+        "latencyMs": 22945,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -1387,8 +1387,8 @@
             }
           ]
         },
-        "id": "55cdd013-4456-49ac-a5d0-d3914b517568",
-        "latencyMs": 24940,
+        "id": "8f79fa05-7f0c-45aa-ae66-a59fa85e2cdb",
+        "latencyMs": 34092,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -1496,8 +1496,8 @@
             }
           ]
         },
-        "id": "2c64d94c-63f5-4f7c-b957-b14a9a1b4f5b",
-        "latencyMs": 16501,
+        "id": "ba665f69-9c19-477f-b645-b3ace7c4f031",
+        "latencyMs": 24822,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -1605,8 +1605,8 @@
             }
           ]
         },
-        "id": "401105b0-4df2-4a70-bda9-358f038f7fb4",
-        "latencyMs": 27041,
+        "id": "22414aa4-6512-472d-936e-d624cdba11e4",
+        "latencyMs": 54548,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -1714,8 +1714,8 @@
             }
           ]
         },
-        "id": "d4e1c550-45a3-4c49-a6df-a169ea74ab44",
-        "latencyMs": 29304,
+        "id": "0619d4b5-410f-44d7-867f-9e881acafb10",
+        "latencyMs": 24999,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -1823,8 +1823,8 @@
             }
           ]
         },
-        "id": "e5e324dc-0962-421c-aeba-5ba19465db1d",
-        "latencyMs": 10965,
+        "id": "ad7bf2d5-10f1-40c1-93fd-66cfa40b2b97",
+        "latencyMs": 11197,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -1932,8 +1932,8 @@
             }
           ]
         },
-        "id": "24296130-6e1f-41b9-8af0-b7ad031d61a7",
-        "latencyMs": 15025,
+        "id": "4d94f5a6-9956-4c2d-a1dc-58ddeabca160",
+        "latencyMs": 23845,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -2041,8 +2041,8 @@
             }
           ]
         },
-        "id": "7657b957-cd7e-4775-8c23-4e27c1a50392",
-        "latencyMs": 11615,
+        "id": "3e7116ed-2486-4c99-a646-c0499e9b81d6",
+        "latencyMs": 15125,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2150,8 +2150,8 @@
             }
           ]
         },
-        "id": "f79a3d73-3c3c-4433-9aca-ead91534d115",
-        "latencyMs": 8035,
+        "id": "0c01633d-1674-4ba7-8741-2be8c3179b85",
+        "latencyMs": 10252,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2259,8 +2259,8 @@
             }
           ]
         },
-        "id": "c49d7122-3105-43ea-97d3-6b134d3a2f5e",
-        "latencyMs": 10401,
+        "id": "76a48a16-b0eb-49f2-895d-262b8490a104",
+        "latencyMs": 10807,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2368,8 +2368,8 @@
             }
           ]
         },
-        "id": "65d31203-dc56-4e58-9d6f-1848b3e5badd",
-        "latencyMs": 8368,
+        "id": "fb2adf96-93b4-409b-a95a-b17dcbccbcf7",
+        "latencyMs": 17893,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2477,8 +2477,8 @@
             }
           ]
         },
-        "id": "928c1760-3bb9-4ada-bb3b-dbb90f8160de",
-        "latencyMs": 15747,
+        "id": "47f16ac0-fa7f-4477-b2bb-02b1961ae601",
+        "latencyMs": 30348,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2586,8 +2586,8 @@
             }
           ]
         },
-        "id": "ded5b87c-89bd-474b-aeaf-d0556b035336",
-        "latencyMs": 13928,
+        "id": "adb29473-06c9-49cc-9e25-4f33bd189cad",
+        "latencyMs": 15650,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2695,8 +2695,8 @@
             }
           ]
         },
-        "id": "e1241923-86c0-43ba-baa6-e4bc2b7f7a41",
-        "latencyMs": 7290,
+        "id": "3b9e6aed-b719-48e8-af46-3c4fc36077f2",
+        "latencyMs": 7628,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -2804,8 +2804,8 @@
             }
           ]
         },
-        "id": "7cdf725f-510e-400c-b3f0-3d01c580a3a9",
-        "latencyMs": 9420,
+        "id": "fd900dc0-21ae-4e55-9293-26cddda4134b",
+        "latencyMs": 8201,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -2913,8 +2913,8 @@
             }
           ]
         },
-        "id": "9dca31d9-a19f-42dd-a2b6-895a97b83434",
-        "latencyMs": 14321,
+        "id": "445d7448-1487-4bd9-a2da-71d9c328398b",
+        "latencyMs": 16043,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -3022,8 +3022,8 @@
             }
           ]
         },
-        "id": "9ad70ff7-45bd-4953-9bb4-94383b0c58fc",
-        "latencyMs": 14817,
+        "id": "b8bf88a0-3cd3-4d97-afa2-40aa3a4fc6be",
+        "latencyMs": 14917,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -3131,8 +3131,8 @@
             }
           ]
         },
-        "id": "9806ac82-38fe-4706-b31c-c64c3fd47e98",
-        "latencyMs": 15757,
+        "id": "b72d2868-1769-4b03-8dfd-dd8a32e4627d",
+        "latencyMs": 15861,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -3240,8 +3240,8 @@
             }
           ]
         },
-        "id": "8a0ba7f3-5f62-4cc8-ab5f-5eee9fc0a66b",
-        "latencyMs": 15677,
+        "id": "5e58260e-9af9-4553-9794-a76ef80de917",
+        "latencyMs": 12326,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -3349,8 +3349,8 @@
             }
           ]
         },
-        "id": "8bb52058-3fc8-4832-8962-51d5436f20f3",
-        "latencyMs": 16880,
+        "id": "c32997e5-e0bc-40e9-987f-4188ef5231d3",
+        "latencyMs": 25107,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -3458,8 +3458,8 @@
             }
           ]
         },
-        "id": "36b291c1-2e4d-4e5b-8fb0-c5a701f10415",
-        "latencyMs": 16878,
+        "id": "3705c3c3-2f4c-4eb5-9e07-16faf0c43402",
+        "latencyMs": 23860,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -3567,8 +3567,8 @@
             }
           ]
         },
-        "id": "92efcfbc-1471-4f9d-a146-c075bddca56f",
-        "latencyMs": 29413,
+        "id": "62cc8d6d-d22a-41c4-838a-7ee838ba5793",
+        "latencyMs": 31517,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -3676,8 +3676,8 @@
             }
           ]
         },
-        "id": "4f4029ba-b0a0-4e45-a6a2-dd56f2d3583b",
-        "latencyMs": 14728,
+        "id": "e3598dd9-f35a-47d6-a427-7055b13e9e12",
+        "latencyMs": 26550,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -3785,8 +3785,8 @@
             }
           ]
         },
-        "id": "0c47bb30-e6f6-4f6c-905a-2ed94f562994",
-        "latencyMs": 20347,
+        "id": "25a608bf-b8d6-4120-9b98-6dde6f2483a3",
+        "latencyMs": 27721,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -3894,8 +3894,8 @@
             }
           ]
         },
-        "id": "2b6cf7c9-3af0-458a-9588-3907732c8c11",
-        "latencyMs": 17494,
+        "id": "3f078222-40dd-4c96-b0a2-43236941ccdb",
+        "latencyMs": 13457,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -4010,8 +4010,8 @@
           }
         }
       },
-      "durationMs": 304996,
-      "evaluationDurationMs": 304996
+      "durationMs": 402382,
+      "evaluationDurationMs": 402382
     }
   },
   "config": {
@@ -4407,8 +4407,8 @@
     "nodeVersion": "v26.12.1",
     "platform": "darwin",
     "arch": "arm64",
-    "exportedAt": "2026-10-30T23:32:07.618Z",
-    "evaluationCreatedAt": "2026-10-30T23:27:02.168Z"
+    "exportedAt": "2026-10-31T00:07:42.610Z",
+    "evaluationCreatedAt": "2026-10-31T00:00:59.736Z"
   },
   "vars": [
     "feature",

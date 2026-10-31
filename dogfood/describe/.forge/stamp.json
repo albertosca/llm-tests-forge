@@ -1,9 +1,9 @@
 {
   "format": 1,
-  "sealedAt": "2026-10-30T23:54:36.327Z",
+  "sealedAt": "2026-10-31T00:31:25.094Z",
   "forgeVersion": "0.1.0",
   "promptfooVersion": "0.123.0",
-  "ranAt": "2026-10-30T23:34:09.696Z",
+  "ranAt": "2026-10-31T00:09:48.080Z",
   "models": {
     "targets": [
       "anthropic/claude-haiku-4-5"
@@ -24,7 +24,7 @@
     ".forge/feature.yaml": "sha256:a20138f0ce5480b77fb1326da880c8042ab03cea78b9cc04239b8655d1e6756f",
     ".forge/promptfooconfig.yaml": "sha256:cc8d6091216a173499e39a6b7e478c2d8619535ebbbe260b442b6669d8368e6b",
     ".forge/scenarios.yaml": "sha256:70c01c9f6624cd3f76cec32b01398d7a7b7fb4c0e431c4772ef61274153ce0ec",
-    "../../scripts/dogfood/claude-cli-llm.ts": "sha256:825515a4959b9e454a86587644dae7b25e6597d4c47af399691c634d305a34ff",
+    "../../scripts/dogfood/claude-cli-llm.ts": "sha256:bccebc94a1a34860a181dbe1d78031260f481249769266b3821eaed8adbc3312",
     "../../scripts/dogfood/describe-run.ts": "sha256:0e382fb2e4498bb06843d1d94339d6340a9b6ec347728ea61d552f59fb5c1163",
     "../../scripts/dogfood/describe-target.ts": "sha256:ecbbeb32fd5342e6ff6e3c015b0c9ac0e18e16a74fad7604b278ae6ef849de7f",
     "../../scripts/dogfood/entry.ts": "sha256:665d9e20a4daee6bb6ba120a614bbd0cdf96c1763bb2af0b3cc6bf4aa251f73e",
@@ -32,18 +32,19 @@
     "../../scripts/dogfood/inputs.ts": "sha256:c0093d1f67f3aff45043c7eef67ecc612be71aecdee165793b9b1aa27932024e",
     "../../src/core/describe.ts": "sha256:90a5b36d8e3de828338c7a151fa41052bbbf6eed690628724fa17a0e7ea4b511",
     "../../src/core/errors.ts": "sha256:85063ca53758b21859d42760aa2b54bed77d7edf1166ac2093488e54eac6f820",
+    "../../src/core/files.ts": "sha256:674eeadeef3aa2ef9888986b38c883797f689daf6ca13a8bbc6c590e0fdef4b7",
     "../../src/core/schemas.ts": "sha256:f322b795e006163d347bfe371068e7769b0a2bc7372a8cc1b1d1b1cf0bf1f3be",
+    "../../src/core/target.ts": "sha256:56dee21887af264e269224a2b9a0f9ce30ee30e7e8de2327d59a74ff7d2cf540",
+    "../../src/core/version.ts": "sha256:e245073ce1781616b0cfb0f27897b52a97b28e04f583c79de2e4c8ba8dc08c63",
     "../../src/llm/credentials.ts": "sha256:423859d5f29dbbf50e05f7a6193cc2ea74d2a685d883db4807953cf0004e5e27",
     "../../src/llm/generate.ts": "sha256:ad616ed732c1473ef7853f348916e9c381d91ed18a3b9f8f83966a24a0a3ff84",
     "../../src/llm/models.ts": "sha256:c5095d2f7e22957351d6e7015f22ff1290e4ba709e183739b0afc7c50debda2e",
     "../../src/llm/templates.ts": "sha256:e9d9afc31e4d7c2228e7d8b03fb3a2917aaec540c534de6b43ffbc2993e0bb44",
     "../../templates/describe.md": "sha256:38368993a6f9a5cbd62b8842c4d47fd6b7158f73f54959f41881d59c244855d1"
   },
-  "inputsHash": "sha256:a550673bffae41a1da30f56fcb98b75da6d8744ac23f8635a7399bfff6a89d40",
+  "inputsHash": "sha256:b57460a6b7ed8ac031b2be6a06774abfdad4896ee84887dda461f3586ede2ba3",
   "rows": 42,
-  "passRate": 0.9762,
+  "passRate": 1,
   "minimumPassRate": 0.8,
-  "flaky": [
-    "instruction-inside-the-description-02 @ anthropic/claude-haiku-4-5"
-  ]
+  "flaky": []
 }

@@ -13,6 +13,10 @@ stamp:
     - ../../src/core/oracle.ts
     - ../../src/core/ids.ts
     - ../../src/core/schemas.ts
+    - ../../src/core/describe.ts
+    - ../../src/core/version.ts
+    - ../../src/core/files.ts
+    - ../../src/core/target.ts
     - ../../src/core/errors.ts
     - ../../src/llm/templates.ts
     - ../../src/llm/generate.ts

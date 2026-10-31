@@ -1,9 +1,9 @@
 {
   "format": 1,
-  "sealedAt": "2026-10-30T23:54:36.081Z",
+  "sealedAt": "2026-10-31T00:31:24.838Z",
   "forgeVersion": "0.1.0",
   "promptfooVersion": "0.123.0",
-  "ranAt": "2026-10-30T23:32:11.101Z",
+  "ranAt": "2026-10-31T00:07:45.951Z",
   "models": {
     "targets": [
       "anthropic/claude-haiku-4-5"
@@ -25,21 +25,24 @@
     ".forge/feature.yaml": "sha256:3a66117c0446b2e01902e5c90b74818e5f2ccb66de9ae20f4f8e9d18bf733e2f",
     ".forge/promptfooconfig.yaml": "sha256:178fdc86351284dc1ac9759835a2b6e5c8ea81a73318b590381b94eae194a280",
     ".forge/scenarios.yaml": "sha256:2d24eec1b826398d35dda10b40908e180584b6acbd9223cf6310156b2cfe2b5d",
-    "../../scripts/dogfood/claude-cli-llm.ts": "sha256:825515a4959b9e454a86587644dae7b25e6597d4c47af399691c634d305a34ff",
+    "../../scripts/dogfood/claude-cli-llm.ts": "sha256:bccebc94a1a34860a181dbe1d78031260f481249769266b3821eaed8adbc3312",
     "../../scripts/dogfood/dedupe-run.ts": "sha256:5df08e14c14106547c6707a6bf5432200ada585a1fa7d5692c11a718318887de",
     "../../scripts/dogfood/dedupe-target.ts": "sha256:bffcb6b9dbc1bfd6b00d921ac3d31fabc0a10a4618626a71c4f16a00028a4f53",
     "../../scripts/dogfood/entry.ts": "sha256:665d9e20a4daee6bb6ba120a614bbd0cdf96c1763bb2af0b3cc6bf4aa251f73e",
     "../../scripts/dogfood/exec-arguments.ts": "sha256:41ac466f3deb489789fb3c02922a4ed3f0f23a06dddcb08b5d48c5f8a116613c",
     "../../src/core/dedupe.ts": "sha256:64c84d8a405757122f4123eef9fc8c9f320c712dd74869d6a496b21533add654",
     "../../src/core/errors.ts": "sha256:85063ca53758b21859d42760aa2b54bed77d7edf1166ac2093488e54eac6f820",
+    "../../src/core/files.ts": "sha256:674eeadeef3aa2ef9888986b38c883797f689daf6ca13a8bbc6c590e0fdef4b7",
     "../../src/core/schemas.ts": "sha256:f322b795e006163d347bfe371068e7769b0a2bc7372a8cc1b1d1b1cf0bf1f3be",
+    "../../src/core/target.ts": "sha256:56dee21887af264e269224a2b9a0f9ce30ee30e7e8de2327d59a74ff7d2cf540",
+    "../../src/core/version.ts": "sha256:e245073ce1781616b0cfb0f27897b52a97b28e04f583c79de2e4c8ba8dc08c63",
     "../../src/llm/credentials.ts": "sha256:423859d5f29dbbf50e05f7a6193cc2ea74d2a685d883db4807953cf0004e5e27",
     "../../src/llm/generate.ts": "sha256:ad616ed732c1473ef7853f348916e9c381d91ed18a3b9f8f83966a24a0a3ff84",
     "../../src/llm/models.ts": "sha256:c5095d2f7e22957351d6e7015f22ff1290e4ba709e183739b0afc7c50debda2e",
     "../../src/llm/templates.ts": "sha256:e9d9afc31e4d7c2228e7d8b03fb3a2917aaec540c534de6b43ffbc2993e0bb44",
     "../../templates/dedupe.md": "sha256:7ab7e8cc819351e51e6ac46e39d48187fb9f44c7d945ceed37b23e26fda634e6"
   },
-  "inputsHash": "sha256:d098124bbbdc8f70c431f670e6d7c39fabf6fb0096705e3069ab3003e5dac683",
+  "inputsHash": "sha256:2e147843e37a80f7cc0344acfc98b873e223f08597bdd94d6adc946009ef6a51",
   "rows": 48,
   "passRate": 1,
   "minimumPassRate": 0.8,

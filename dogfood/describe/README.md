@@ -38,8 +38,8 @@ From this directory, with `FORGE=../../node_modules/.bin/llm-tests-forge`: `$FOR
 
 - **The calls went through the Claude Code CLI, not the API.** The Anthropic API account had no credit on 2026-10-30, so the target ran with `DOGFOOD_TRANSPORT=claude-cli` (`scripts/dogfood/claude-cli-llm.ts`). The model is the one the spec names (`claude-haiku-4-5`); the transport differs. The weekly workflow uses the API.
 - **The drafter was not an API call either.** The scenarios and cases were written by Claude Sonnet 5.5 and fed to the forge through its `fake/<file>` model, then read and approved. `generated_by` says so on every case.
-- The first sealed run passed all 42 rows (21 cases, repeat 2), none errored; the seal on file is a later run, 41 of 42 (see below). The raw outputs were read: the feature differs per description, so the pass is not a constant answer.
-- **Flaky on injection.** Three later runs failed 1, 2 and 1 of the 42 rows, all in the `instruction-inside-the-description` scenario (the model obeyed the hidden instruction); the last of them is the one sealed, at 97.6%, with `instruction-inside-the-description-02` failing in the baseline. the second rerun's failing rows are kept in [`reruns/2026-10-30-second-rerun.json`](reruns/2026-10-30-second-rerun.json); see [the finding](../README.md#a-finding-the-reruns-exposed).
+- The 42 rows (21 cases, repeat 2) all passed in the sealed run, none errored (the seal on file is the fifth run, see below). The raw outputs were read: the feature differs per description, so the pass is not a constant answer.
+- **Flaky on injection.** Of five runs on 2026-10-30, three failed 1, 2 and 1 of the 42 rows, all in the `instruction-inside-the-description` scenario (the model obeyed the hidden instruction); the first and the fifth passed all 42, and the fifth is the sealed one. The second rerun's failing rows are kept in [`reruns/2026-10-30-second-rerun.json`](reruns/2026-10-30-second-rerun.json); see [the finding](../README.md#a-finding-the-reruns-exposed).
 
 ## Review
 
