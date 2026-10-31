@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { messageOf } from "../../src/core/errors";
 import { evalRan, minimumPassRateOf, problemsIn, selectFeatures } from "./plan";
@@ -17,7 +17,10 @@ async function run(command: string[], directory: string): Promise<number> {
 	return await child.exited;
 }
 
-async function dogfoodFeature(name: string): Promise<boolean> {
+async function dogfoodFeature(
+	name: string,
+	minimumPassRate: number,
+): Promise<boolean> {
 	const directory = join(repository, "dogfood", name);
 	const baseline = join(directory, "baseline-report.json");
 	if (!existsSync(baseline)) {
@@ -26,7 +29,9 @@ async function dogfoodFeature(name: string): Promise<boolean> {
 		);
 		return false;
 	}
-	// The sealed results.json stays as committed; the new run goes beside it.
+	// The sealed results.json stays as committed; the new run goes beside it,
+	// and a copy left by an earlier run is removed so it can never be read as new.
+	rmSync(join(directory, "results.latest.json"), { force: true });
 	const steps = [
 		[forge, "estimate"],
 		[
@@ -60,9 +65,7 @@ async function dogfoodFeature(name: string): Promise<boolean> {
 	}
 	const problems = problemsIn(
 		readFileSync(join(directory, ".forge/report.json"), "utf8"),
-		minimumPassRateOf(
-			readFileSync(join(directory, ".forge/suite.yaml"), "utf8"),
-		),
+		minimumPassRate,
 	);
 	console.log(
 		`${name}: ${problems.length === 0 ? "clean" : problems.join("; ")}`,
@@ -77,9 +80,20 @@ try {
 		.filter((entry) => entry.isDirectory())
 		.map((entry) => entry.name);
 	const features = selectFeatures(available, process.argv.slice(2));
+	// Every suite is validated before the first paid step, so a broken
+	// suite.yaml cannot cut the run short after money was spent.
+	const minimums = features.map((name) =>
+		minimumPassRateOf(
+			readFileSync(
+				join(repository, "dogfood", name, ".forge/suite.yaml"),
+				"utf8",
+			),
+		),
+	);
 	let allClean = true;
-	for (const name of features)
-		allClean = (await dogfoodFeature(name)) && allClean;
+	for (const [index, name] of features.entries())
+		allClean =
+			(await dogfoodFeature(name, minimums[index] as number)) && allClean;
 	process.exitCode = allClean ? 0 : 1;
 } catch (error) {
 	console.error(messageOf(error));

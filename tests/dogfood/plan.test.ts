@@ -34,14 +34,22 @@ describe("selectFeatures", () => {
 describe("problemsIn", () => {
 	test("a run with no baseline findings and a passing rate is clean", () => {
 		expect(problemsIn(JSON.stringify({ passRate: 1 }), 0.8)).toEqual([]);
-		expect(problemsIn(JSON.stringify({ baseline: {} }), 0.8)).toEqual([]);
+		expect(
+			problemsIn(JSON.stringify({ passRate: 1, baseline: {} }), 0.8),
+		).toEqual([]);
 	});
 	test("counts the regressions against the baseline", () => {
-		const report = JSON.stringify({ baseline: { regressions: [{}, {}] } });
+		const report = JSON.stringify({
+			passRate: 1,
+			baseline: { regressions: [{}, {}] },
+		});
 		expect(problemsIn(report, 0.8)).toEqual(["2 regressions"]);
 	});
 	test("a baseline pair missing from the run is a problem, so deleting a case cannot turn the run green", () => {
-		const report = JSON.stringify({ baseline: { onlyInBaseline: [{}] } });
+		const report = JSON.stringify({
+			passRate: 1,
+			baseline: { onlyInBaseline: [{}] },
+		});
 		expect(problemsIn(report, 0.8)).toEqual([
 			"1 baseline pairs are missing from this run",
 		]);
@@ -51,6 +59,10 @@ describe("problemsIn", () => {
 			"pass rate 0.79 is under the suite's minimum 0.8",
 		]);
 		expect(problemsIn(JSON.stringify({ passRate: 0.8 }), 0.8)).toEqual([]);
+	});
+	test("a report with no pass rate is refused, not read as clean", () => {
+		for (const report of [{}, { passRate: "1" }, { baseline: {} }])
+			expect(() => problemsIn(JSON.stringify(report), 0.8)).toThrow("passRate");
 	});
 	test("reports every problem at once", () => {
 		const report = JSON.stringify({

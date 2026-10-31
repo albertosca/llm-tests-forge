@@ -23,29 +23,47 @@ const CliReplySchema = z.object({
 		.optional(),
 });
 
+/** The `}` that closes the `{` at `first`, skipping braces inside strings; -1 when it never closes. */
+function closingBrace(text: string, first: number): number {
+	let depth = 0;
+	let inString = false;
+	for (let index = first; index < text.length; index += 1) {
+		const character = text[index];
+		if (inString) {
+			if (character === "\\") index += 1;
+			else if (character === '"') inString = false;
+		} else if (character === '"') inString = true;
+		else if (character === "{") depth += 1;
+		else if (character === "}") {
+			depth -= 1;
+			if (depth === 0) return index;
+		}
+	}
+	return -1;
+}
+
+/** How many `{` are tried as the start of the object; a reply made of braces cannot make this slow. */
+const MAXIMUM_STARTS = 50;
+
 /**
  * The JSON object in a reply that may be wrapped in a code fence or a
- * sentence, braces in the prose included: the widest span that parses wins.
+ * sentence, braces in the prose included: the first balanced span that parses.
  */
 function jsonObjectIn(text: string): unknown {
 	if (!text.includes("{"))
 		throw new ForgeError("the model's reply holds no JSON object");
-	for (
-		let first = text.indexOf("{");
-		first !== -1;
-		first = text.indexOf("{", first + 1)
-	)
-		for (
-			let last = text.lastIndexOf("}");
-			last > first;
-			last = text.lastIndexOf("}", last - 1)
-		)
+	let first = text.indexOf("{");
+	for (let tried = 0; first !== -1 && tried < MAXIMUM_STARTS; tried += 1) {
+		const last = closingBrace(text, first);
+		if (last !== -1)
 			try {
 				const parsed: unknown = JSON.parse(text.slice(first, last + 1));
 				if (typeof parsed === "object" && parsed !== null) return parsed;
 			} catch {
-				// a shorter or later span may still be the object
+				// not the object; the next `{` may be
 			}
+		first = text.indexOf("{", first + 1);
+	}
 	throw new ForgeError("the model's reply holds no valid JSON object");
 }
 

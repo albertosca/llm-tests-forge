@@ -49,7 +49,9 @@ export function problemsIn(
 	const dropped = report.baseline?.onlyInBaseline?.length ?? 0;
 	if (dropped > 0)
 		problems.push(`${dropped} baseline pairs are missing from this run`);
-	if (typeof report.passRate === "number" && report.passRate < minimumPassRate)
+	if (typeof report.passRate !== "number")
+		throw new ForgeError("the report has no passRate");
+	if (report.passRate < minimumPassRate)
 		problems.push(
 			`pass rate ${report.passRate} is under the suite's minimum ${minimumPassRate}`,
 		);

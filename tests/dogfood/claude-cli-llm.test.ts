@@ -70,6 +70,24 @@ describe("createClaudeCliLlm", () => {
 			});
 		}
 	});
+	test("a reply made of thousands of braces is refused quickly instead of hanging", async () => {
+		const stub = await stubClaude(
+			envelope(`${"{".repeat(100_000)}${"}".repeat(100_000)}`),
+		);
+		const llm = createClaudeCliLlm({ command: stub.command, environment: {} });
+		const started = Date.now();
+		await expect(llm.generate(request)).rejects.toThrow("no valid JSON object");
+		expect(Date.now() - started).toBeLessThan(5000);
+	});
+	test("a brace inside a string of the object does not end it early", async () => {
+		const stub = await stubClaude(
+			envelope('Sure: {"label":"a } \\" { b"} thanks'),
+		);
+		const llm = createClaudeCliLlm({ command: stub.command, environment: {} });
+		expect((await llm.generate(request)).object).toEqual({
+			label: 'a } " { b',
+		});
+	});
 	test("an environment key for the API is not passed on, so the run is billed to the subscription", async () => {
 		const stub = await stubClaude(envelope('{"label":"a"}'));
 		const llm = createClaudeCliLlm({
