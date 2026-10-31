@@ -246,6 +246,15 @@ describe("forge CLI end to end (fake provider)", () => {
 		);
 	});
 
+	test("USAGE's scenarios line says --kinds is a floor, not a filter", () => {
+		const scenariosLine = USAGE.split("\n").find((line) =>
+			line.startsWith("  scenarios "),
+		);
+		expect(scenariosLine).toContain(
+			"--kinds is a floor (at least one of each), not a filter",
+		);
+	});
+
 	test("every message that names a command says llm-tests-forge", async () => {
 		expect(USAGE).toStartWith("usage: llm-tests-forge <verb>");
 		expect(USAGE).not.toMatch(
