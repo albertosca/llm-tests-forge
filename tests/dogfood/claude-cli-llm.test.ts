@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { createClaudeCliLlm } from "../../scripts/dogfood/claude-cli-llm";
@@ -104,6 +105,66 @@ describe("createClaudeCliLlm", () => {
 		expect(seen).toContain("KEPT=yes");
 		expect(seen).not.toContain("ANTHROPIC_");
 		expect(seen).not.toContain("must-not-reach-claude");
+	});
+	test("with a usage file, every call appends one line with its tokens, cache tokens and list-price cost, even when the reply does not match the schema", async () => {
+		const usageFile = join(
+			await mkdtemp(join(tmpdir(), "forge-usage-")),
+			"usage.jsonl",
+		);
+		const full = envelope('{"label":"a"}', {
+			total_cost_usd: 0.0162,
+			usage: {
+				input_tokens: 9,
+				output_tokens: 323,
+				cache_read_input_tokens: 40843,
+				cache_creation_input_tokens: 5266,
+			},
+		});
+		const llm = createClaudeCliLlm({
+			command: (await stubClaude(full)).command,
+			environment: {},
+			usageFile,
+		});
+		await llm.generate(request);
+		const wrongShape = createClaudeCliLlm({
+			command: (await stubClaude(envelope('{"label":3}'))).command,
+			environment: {},
+			usageFile,
+		});
+		await expect(wrongShape.generate(request)).rejects.toThrow();
+		const lines = (await readFile(usageFile, "utf8")).trim().split("\n");
+		expect(lines.map((line) => JSON.parse(line))).toEqual([
+			{
+				model: "claude-haiku-4-5",
+				inputTokens: 9,
+				outputTokens: 323,
+				cacheReadTokens: 40843,
+				cacheCreationTokens: 5266,
+				costUsd: 0.0162,
+			},
+			{
+				model: "claude-haiku-4-5",
+				inputTokens: 11,
+				outputTokens: 7,
+				cacheReadTokens: 0,
+				cacheCreationTokens: 0,
+				costUsd: 0,
+			},
+		]);
+	});
+	test("an error envelope writes no usage line", async () => {
+		const usageFile = join(
+			await mkdtemp(join(tmpdir(), "forge-usage-")),
+			"usage.jsonl",
+		);
+		const llm = createClaudeCliLlm({
+			command: (await stubClaude(envelope("limit", { is_error: true })))
+				.command,
+			environment: {},
+			usageFile,
+		});
+		await expect(llm.generate(request)).rejects.toThrow("claude: limit");
+		expect(await Bun.file(usageFile).exists()).toBe(false);
 	});
 	test("an envelope without usage counts zero tokens", async () => {
 		const stub = await stubClaude(JSON.stringify({ result: '{"label":"a"}' }));
