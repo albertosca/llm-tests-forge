@@ -63,6 +63,10 @@ You point the forge at a prompt and the function that calls the model; a model d
 
 The full list is in [Engineering decisions](guide/en/decisions.md).
 
+## The forge tests itself
+
+Four of the forge's own prompts (`describe`, `scenarios`, `cases`, `dedupe`) are tested by suites that the released forge built, in [`dogfood/`](dogfood/README.md): version N-1 tests version N. Each suite is sealed, so `check` fails a pull request that edits a prompt, a function or a runner without a new seal, and a weekly opt-in workflow reruns them against a baseline. The sealed 2026-10-30 runs (162 rows, all passing) went through the Claude Code CLI, not the API, with the cases drafted and reviewed by Claude pending the maintainer's spot-check. In `describe` the model sometimes obeyed an instruction hidden in the description (three of five runs failed one or two such rows); the prompt was hardened, a first hardening still failed one row of 42, and after a second one two runs in a row passed all 42, which is evidence and not proof. The suites are otherwise easy, and each README says what it does not prove.
+
 ## Limits
 
 promptfoo is the only emitter today. It tests one turn at a time, keeps no history beyond a `--baseline` comparison. [More](guide/en/development.md#limitations).

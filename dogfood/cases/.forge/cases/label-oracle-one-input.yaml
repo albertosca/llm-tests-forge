@@ -1,0 +1,96 @@
+- id: label-oracle-one-input-01
+  scenario: label-oracle-one-input
+  input:
+    feature: |
+      id: ticket-triage
+      purpose: Label a support ticket with the team that should handle it.
+      inputs:
+      - name: message
+        kind: text
+      output:
+        kind: label
+        labels:
+        - billing
+        - bug
+        - account
+      invariants:
+      - Answer with exactly one label.
+    scenario: |
+      id: plain-refund
+      kind: happy
+      oracle: label
+      description: A customer clearly asks for their money back.
+    n: "2"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - message
+      expected_kinds:
+        - label
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: label-oracle-one-input-02
+  scenario: label-oracle-one-input
+  input:
+    feature: |
+      id: ticket-triage
+      purpose: Label a support ticket with the team that should handle it.
+      inputs:
+      - name: message
+        kind: text
+      output:
+        kind: label
+        labels:
+        - billing
+        - bug
+        - account
+      invariants:
+      - Answer with exactly one label.
+    scenario: |
+      id: plain-refund
+      kind: happy
+      oracle: label
+      description: A customer clearly asks for their money back.
+    n: "3"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - message
+      expected_kinds:
+        - label
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: label-oracle-one-input-03
+  scenario: label-oracle-one-input
+  input:
+    feature: |
+      id: triagem-de-chamados
+      purpose: Classificar um chamado de suporte pelo time responsável. Os chamados chegam em português.
+      inputs:
+      - name: mensagem
+        kind: text
+      output:
+        kind: label
+        labels:
+        - cobranca
+        - defeito
+        - conta
+      invariants:
+      - Responda com exatamente um rótulo.
+    scenario: |
+      id: cobranca-clara
+      kind: happy
+      oracle: label
+      description: Um cliente pede o dinheiro de volta.
+    n: "2"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - mensagem
+      expected_kinds:
+        - label
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

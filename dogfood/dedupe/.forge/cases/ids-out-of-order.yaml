@@ -1,0 +1,73 @@
+- id: ids-out-of-order-01
+  scenario: ids-out-of-order
+  input:
+    cases: |
+      - id: c2
+        input:
+          message: Please send me last month's invoice as a PDF.
+        expected:
+          label: billing
+      - id: c1
+        input:
+          message: Can I get the PDF invoice for last month?
+        expected:
+          label: billing
+      - id: c3
+        input:
+          message: The search box ignores my filters.
+        expected:
+          label: bug
+  expected:
+    fields:
+      duplicates:
+        - id: c2
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: ids-out-of-order-02
+  scenario: ids-out-of-order
+  input:
+    cases: |
+      - id: c3
+        input:
+          message: I need to cancel my subscription now.
+        expected:
+          label: cancellation
+      - id: c1
+        input:
+          message: Cancel my plan, I do not want it anymore.
+        expected:
+          label: cancellation
+      - id: c2
+        input:
+          message: Where do I update my billing address?
+        expected:
+          label: account
+  expected:
+    fields:
+      duplicates:
+        - id: c3
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: ids-out-of-order-03
+  scenario: ids-out-of-order
+  input:
+    cases: |
+      - id: c2
+        input:
+          message: The dashboard does not load on my tablet.
+        expected:
+          label: bug
+      - id: c1
+        input:
+          message: Dashboard fails to open on the tablet.
+        expected:
+          label: bug
+  expected:
+    fields:
+      duplicates:
+        - id: c2
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

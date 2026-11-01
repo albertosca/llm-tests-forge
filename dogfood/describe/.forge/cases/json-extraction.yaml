@@ -1,0 +1,30 @@
+- id: json-extraction-01
+  scenario: json-extraction
+  input:
+    description: Read an invoice text and return its number, its total and its due date as JSON.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: json
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: json-extraction-02
+  scenario: json-extraction
+  input:
+    description: From a job posting, extract the title, the city and the salary range and give them back as a JSON object.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: json
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: json-extraction-03
+  scenario: json-extraction
+  input:
+    description: Take a free-form address and return street, number, city and postal code as JSON.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: json
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

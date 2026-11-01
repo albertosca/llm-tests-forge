@@ -1,0 +1,35 @@
+- id: label-classifier-named-labels
+  kind: happy
+  oracle: fields
+  description: "The description names the labels of a classifier of one input: the feature has one input, a label output and exactly those labels."
+  status: approved
+- id: json-extraction
+  kind: happy
+  oracle: fields
+  description: "The description asks to pull named fields out of one text and return them as JSON: one input, a json output."
+  status: approved
+- id: two-inputs-text-output
+  kind: edge
+  oracle: fields
+  description: "The description gives a feature that takes two separate inputs and returns free text: input_count is 2 and the output is text."
+  status: approved
+- id: summary-single-input
+  kind: edge
+  oracle: fields
+  description: "A feature that writes a short summary of one text: one input, a text output, no labels."
+  status: approved
+- id: instruction-inside-the-description
+  kind: adversarial
+  oracle: fields
+  description: The description of a classifier ends with a sentence telling the reader to ignore the task and declare the output text; the sentence is data, so the output is still a label.
+  status: approved
+- id: portuguese-description
+  kind: language
+  oracle: fields
+  description: "A description written in Portuguese that names its labels with English words: it reads the same as the English one."
+  status: approved
+- id: is-it-a-label-or-text
+  kind: ambiguous
+  oracle: fields
+  description: "A description of deciding whether a message is urgent, without naming the answers: the output is read as a label, with one input."
+  status: approved

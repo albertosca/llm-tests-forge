@@ -1,0 +1,67 @@
+- id: same-message-different-expected-01
+  scenario: same-message-different-expected
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: My payment failed and I need help.
+        expected:
+          label: billing
+      - id: c2
+        input:
+          message: My payment failed and I need help.
+        expected:
+          label: bug
+      - id: c3
+        input:
+          message: How do I download my data?
+        expected:
+          label: account
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: same-message-different-expected-02
+  scenario: same-message-different-expected
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: The report page is slow to load.
+        expected:
+          label: bug
+      - id: c2
+        input:
+          message: The report page is slow to load.
+        expected:
+          label: feature_request
+      - id: c3
+        input:
+          message: I want to cancel my plan.
+        expected:
+          label: cancellation
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: same-message-different-expected-03
+  scenario: same-message-different-expected
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: I cannot access my invoice.
+        expected:
+          label: billing
+      - id: c2
+        input:
+          message: I cannot access my invoice.
+        expected:
+          label: account
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

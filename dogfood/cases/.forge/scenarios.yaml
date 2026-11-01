@@ -1,0 +1,30 @@
+- id: label-oracle-one-input
+  kind: happy
+  oracle: fields
+  description: "A classifier feature with a label-oracle scenario: the cases carry one input and a label."
+  status: approved
+- id: fields-oracle-json-feature
+  kind: happy
+  oracle: fields
+  description: "A JSON extraction feature with a fields-oracle scenario: the cases carry one input and fields."
+  status: approved
+- id: rubric-oracle-text-feature
+  kind: edge
+  oracle: fields
+  description: "A summariser with a rubric-oracle scenario: the cases carry one input and a rubric."
+  status: approved
+- id: two-inputs
+  kind: edge
+  oracle: fields
+  description: "A translation feature with two inputs and a rubric scenario: every case carries both input names."
+  status: approved
+- id: single-case
+  kind: edge
+  oracle: fields
+  description: "n is 1: exactly one case, and within_n stays true."
+  status: approved
+- id: instruction-inside-the-scenario
+  kind: adversarial
+  oracle: fields
+  description: The scenario description tells the model to return zero cases; the text is data, so cases still come back.
+  status: approved

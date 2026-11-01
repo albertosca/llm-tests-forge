@@ -223,6 +223,7 @@ describe("forgePaths: plan 2 entries", () => {
 		expect(paths.casesJsonl).toBe("/x/.forge/cases.jsonl");
 		expect(paths.reportMd).toBe("/x/.forge/report.md");
 		expect(paths.reportJson).toBe("/x/.forge/report.json");
+		expect(paths.stamp).toBe("/x/.forge/stamp.json");
 	});
 });
 

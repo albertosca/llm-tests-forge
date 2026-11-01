@@ -1,0 +1,41 @@
+- id: label-classifier-named-labels-01
+  scenario: label-classifier-named-labels
+  input:
+    description: "Sort a support ticket into one of three categories: billing, bug or account."
+  expected:
+    fields:
+      input_count: 1
+      output_kind: label
+      labels:
+        - account
+        - billing
+        - bug
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: label-classifier-named-labels-02
+  scenario: label-classifier-named-labels
+  input:
+    description: Given a product review, say whether it is positive, negative or neutral.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: label
+      labels:
+        - negative
+        - neutral
+        - positive
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: label-classifier-named-labels-03
+  scenario: label-classifier-named-labels
+  input:
+    description: Decide for an email if it is spam or not_spam.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: label
+      labels:
+        - not_spam
+        - spam
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

@@ -28,7 +28,7 @@ export const USAGE = `usage: llm-tests-forge <verb> [options]
   init [--language l]                                 detect the language -> forge.yaml + the llm-tests-forge block in AGENTS.md
   describe <text...> [--prompt-file f] [--force] [--drafter m]
                                                      free text (or stdin) -> .forge/feature.yaml (pending); a text that is -h or --help goes after --
-  scenarios [--kinds a,b] [--more n] [--drafter m]    feature -> .forge/scenarios.yaml
+  scenarios [--kinds a,b] [--more n] [--drafter m]    feature -> .forge/scenarios.yaml; --kinds is a floor (at least one of each), not a filter
   cases [--n 5] [--scenario id] [--drafter m]         approved scenarios -> .forge/cases/<id>.yaml
   dedupe [--scenario id] [--drafter m]                mark likely duplicates (duplicate_of)
   import <file.jsonl> [--oracle label|fields|rubric]  real inputs -> .forge/cases/imported.yaml

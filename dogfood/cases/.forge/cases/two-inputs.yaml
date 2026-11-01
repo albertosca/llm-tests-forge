@@ -1,0 +1,90 @@
+- id: two-inputs-01
+  scenario: two-inputs
+  input:
+    feature: |
+      id: translate
+      purpose: Translate a text into a target language.
+      inputs:
+      - name: text
+        kind: text
+      - name: language
+        kind: text
+      output:
+        kind: text
+      invariants: []
+    scenario: |
+      id: polite-translation
+      kind: edge
+      oracle: rubric
+      description: A rude sentence that must stay rude in translation.
+    n: "2"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - language
+        - text
+      expected_kinds:
+        - rubric
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: two-inputs-02
+  scenario: two-inputs
+  input:
+    feature: |
+      id: translate
+      purpose: Translate a text into a target language.
+      inputs:
+      - name: text
+        kind: text
+      - name: language
+        kind: text
+      output:
+        kind: text
+      invariants: []
+    scenario: |
+      id: polite-translation
+      kind: edge
+      oracle: rubric
+      description: A rude sentence that must stay rude in translation.
+    n: "3"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - language
+        - text
+      expected_kinds:
+        - rubric
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: two-inputs-03
+  scenario: two-inputs
+  input:
+    feature: |
+      id: translate
+      purpose: Translate a text into a target language.
+      inputs:
+      - name: text
+        kind: text
+      - name: language
+        kind: text
+      output:
+        kind: text
+      invariants: []
+    scenario: |
+      id: empty-language
+      kind: edge
+      oracle: rubric
+      description: The language input names a language that does not exist.
+    n: "2"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - language
+        - text
+      expected_kinds:
+        - rubric
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

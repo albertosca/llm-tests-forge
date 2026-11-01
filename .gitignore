@@ -22,3 +22,6 @@ dist/
 
 # The binary a gemspec run copies to exe/<platform>/ (scripts/release/gems.ts builds from a scratch copy, but a direct gem build writes here)
 /packages/gem/exe/*/
+
+# The newest `bun run dogfood` results, written beside the sealed results.json
+dogfood/*/results.latest.json

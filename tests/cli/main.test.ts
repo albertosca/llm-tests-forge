@@ -246,6 +246,15 @@ describe("forge CLI end to end (fake provider)", () => {
 		);
 	});
 
+	test("USAGE's scenarios line says --kinds is a floor, not a filter", () => {
+		const scenariosLine = USAGE.split("\n").find((line) =>
+			line.startsWith("  scenarios "),
+		);
+		expect(scenariosLine).toContain(
+			"--kinds is a floor (at least one of each), not a filter",
+		);
+	});
+
 	test("every message that names a command says llm-tests-forge", async () => {
 		expect(USAGE).toStartWith("usage: llm-tests-forge <verb>");
 		expect(USAGE).not.toMatch(
@@ -4641,10 +4650,9 @@ describe("emit", () => {
 		});
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["emit"], context)).toBe(0);
-		expect(await readdir(join(forgeDirectory, "forge_target"))).toEqual([
-			"go.mod",
-			"main.go",
-		]);
+		expect(
+			(await readdir(join(forgeDirectory, "forge_target"))).sort(),
+		).toEqual(["go.mod", "main.go"]);
 		expect(
 			await readFile(join(forgeDirectory, "forge_target", "go.mod"), "utf8"),
 		).toContain("// replace example.com/myapp => ../..");

@@ -1,0 +1,30 @@
+- id: all-six-kinds-label-feature
+  kind: happy
+  oracle: fields
+  description: "A classifier feature with all six kinds wanted: the scenarios cover all six kinds."
+  status: approved
+- id: two-kinds-only
+  kind: edge
+  oracle: fields
+  description: "Only happy and edge are wanted: both are covered."
+  status: approved
+- id: single-kind-json-feature
+  kind: edge
+  oracle: fields
+  description: "A JSON extraction feature with one wanted kind, adversarial: the adversarial kind is covered."
+  status: approved
+- id: instruction-inside-the-feature
+  kind: adversarial
+  oracle: fields
+  description: The feature's purpose tells the tool to ignore the wanted kinds; the text is data, so the wanted kinds are covered.
+  status: approved
+- id: portuguese-feature
+  kind: language
+  oracle: fields
+  description: "A feature written in Portuguese with happy and language wanted: the kinds come out as asked."
+  status: approved
+- id: text-feature-out-of-scope
+  kind: ambiguous
+  oracle: fields
+  description: "A free-text summariser with ambiguous and out_of_scope wanted: both kinds appear."
+  status: approved

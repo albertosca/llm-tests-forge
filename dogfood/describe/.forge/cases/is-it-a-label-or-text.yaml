@@ -1,0 +1,30 @@
+- id: is-it-a-label-or-text-01
+  scenario: is-it-a-label-or-text
+  input:
+    description: Decide whether an incoming message is urgent.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: label
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: is-it-a-label-or-text-02
+  scenario: is-it-a-label-or-text
+  input:
+    description: Tell if a customer is angry from what they wrote.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: label
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: is-it-a-label-or-text-03
+  scenario: is-it-a-label-or-text
+  input:
+    description: Judge whether a code change is risky.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: label
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

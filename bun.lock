@@ -18,6 +18,7 @@
         "@stryker-mutator/core": "10.1.1",
         "@stryker-mutator/typescript-checker": "10.1.1",
         "@types/bun": "latest",
+        "forge-released": "npm:llm-tests-forge@0.1.0",
         "typescript": "7.0.2",
         "typescript5": "npm:typescript@5.9.3",
       },
@@ -170,6 +171,16 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
+    "@llm-tests-forge/darwin-arm64": ["@llm-tests-forge/darwin-arm64@0.1.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-zsr6Pci0VP0fLLP4vZwYe40vdmj2B/3FI4TNrC56L4gpYeiawS2eRlXgtFmSnif+Wo+OMWT2k5aZy+imtxw5FQ=="],
+
+    "@llm-tests-forge/darwin-x64": ["@llm-tests-forge/darwin-x64@0.1.0", "", { "os": "darwin", "cpu": "x64" }, "sha512-DLrn8GPN5lai0MGYblAhLS/3qNDIpNIHVHD929WiGWVD+ZPvbRwJEG1oPfxZ/FBZ1QsH9mHbLbauMQini+yv2Q=="],
+
+    "@llm-tests-forge/linux-arm64": ["@llm-tests-forge/linux-arm64@0.1.0", "", { "os": "linux", "cpu": "arm64", "libc": "glibc" }, "sha512-Sk/2IH90Q0BVkUXQ9RDkj8AWe+buo1FWHajcmEYkwT/3UpysgJTIqak+Qx7sBSiJ7FjBdJpKH9f31PzRtxvrBg=="],
+
+    "@llm-tests-forge/linux-x64": ["@llm-tests-forge/linux-x64@0.1.0", "", { "os": "linux", "cpu": "x64", "libc": "glibc" }, "sha512-HgMOoNOSEyr0T0/YVKWEVgq8PWuQO4CmKcltLb1ZQklpryUG69440xqU6A0IoefR7rfann1+QbTaPscIeOWz7g=="],
+
+    "@llm-tests-forge/win32-x64": ["@llm-tests-forge/win32-x64@0.1.0", "", { "os": "win32", "cpu": "x64" }, "sha512-sNNR9lnNVb1YXHSVf11qoyzetOY9KaLSIiFnqZTHyCvDLG2EHF9RFFJIZa6a8+HbayXRiPF+IBLNj4iVYG/teg=="],
+
     "@sec-ant/readable-stream": ["@sec-ant/readable-stream@0.4.1", "", {}, "sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg=="],
 
     "@sindresorhus/merge-streams": ["@sindresorhus/merge-streams@4.0.0", "", {}, "sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ=="],
@@ -311,6 +322,8 @@
     "figures": ["figures@6.1.0", "", { "dependencies": { "is-unicode-supported": "^2.0.0" } }, "sha512-d+l3qxjSesT4V7v2fh+QnmFnUWv9lSpjarhShNTgBOfA0ttejbQUAlHLitbjkoRiDulW0OPoQPYIGhIC8ohejg=="],
 
     "flru": ["flru@1.0.2", "", {}, "sha512-kWyh8ADvHBFz6ua5xYOPnUroZTT/bwWfrCeL0Wj1dzG4/YOmOcfJ99W8dOVyyynJN35rZ9aCOtHChqQovV7yog=="],
+
+    "forge-released": ["llm-tests-forge@0.1.0", "", { "optionalDependencies": { "@llm-tests-forge/darwin-arm64": "0.1.0", "@llm-tests-forge/darwin-x64": "0.1.0", "@llm-tests-forge/linux-arm64": "0.1.0", "@llm-tests-forge/linux-x64": "0.1.0", "@llm-tests-forge/win32-x64": "0.1.0" }, "bin": { "llm-tests-forge": "bin/llm-tests-forge.js" } }, "sha512-IijKskIg86NopXje534KX3qPweYbzlEopGN3vtecYydQYWLuUiqMb9ecznq3Ovb7xAG2a3U5KWu4eB/OTwJQeQ=="],
 
     "function-bind": ["function-bind@1.1.2", "", {}, "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA=="],
 

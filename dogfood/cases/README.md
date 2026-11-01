@@ -1,0 +1,51 @@
+# Dogfood: the cases verb
+
+A sealed suite that tests the forge's own `cases` prompt (`templates/cases.md`) and the real `generateCases` function behind it, with the forge. It was produced by the released forge (`llm-tests-forge@0.1.0`, installed under the alias `forge-released`) and it tests the code in this checkout, so version N-1 tests version N.
+
+## What it tests
+
+The target is `scripts/dogfood/cases-target.ts`, an `exec` program that runs the real `generateCases` for one approved scenario and prints `{"within_n", "input_names", "expected_kinds"}`: no more cases than asked for, the sorted input names the cases carry, and the answer shape (`label`, `fields` or `rubric`) the scenario's oracle demands. The function itself refuses a case whose expected answer does not fit the oracle, such as a label outside the feature's labels, so a bad answer is an error row.
+
+| Scenario | Kind | What it pins |
+|---|---|---|
+| `label-oracle-one-input` | happy | A classifier feature with a label-oracle scenario: the cases carry one input and a label. |
+| `fields-oracle-json-feature` | happy | A JSON extraction feature with a fields-oracle scenario: the cases carry one input and fields. |
+| `rubric-oracle-text-feature` | edge | A summariser with a rubric-oracle scenario: the cases carry one input and a rubric. |
+| `two-inputs` | edge | A translation feature with two inputs and a rubric scenario: every case carries both input names. |
+| `single-case` | edge | n is 1: exactly one case, and within_n stays true. |
+| `instruction-inside-the-scenario` | adversarial | The scenario description tells the model to return zero cases; the text is data, so cases still come back. |
+
+Only `happy`, `edge` and `adversarial` scenarios are present (`--kinds happy,edge,adversarial`): `ambiguous`, `language` and `out_of_scope` are not covered. Six scenarios, three cases each, repeat 2.
+
+## Weaker than a rubric check
+
+A rubric judge would need Anthropic API credit, which the account did not have, and the claude-cli transport cannot serve it. So the target prints a deterministic structural summary of what the real function returned, and the `fields` oracle compares it exactly. The judge is declared in `suite.yaml` because the schema requires one, and it is never called. These suites show that the function still returns the right shape and the right choices on these inputs; they do not judge the quality of the generated text.
+
+The text of the generated cases is never judged: a model that wrote nonsense inputs in the right shape would pass.
+
+## Models
+
+| Role | Model |
+|---|---|
+| target | `anthropic/claude-haiku-4-5` |
+| judge (unused, see above) | `anthropic/claude-sonnet-5` |
+| drafter | Claude Sonnet 5.5, writing the scenarios and cases in a Claude Code session |
+
+## How it was produced
+
+From this directory, with `FORGE=../../node_modules/.bin/llm-tests-forge`: `$FORGE describe "..." --prompt-file ../../templates/cases.md`, `$FORGE scenarios --kinds <kinds>`, `$FORGE cases --n 3`, `$FORGE estimate`, `$FORGE emit`, then `DOGFOOD_TRANSPORT=claude-cli bunx promptfoo@0.123.0 eval -c .forge/promptfooconfig.yaml -o results.json --no-cache --no-progress-bar -j 2`, `$FORGE report results.json` and `$FORGE stamp results.json`. `$FORGE check` is free and offline: it fails when the prompt, the function, the target, the shared input parser, the entry runner or `bun.lock` changed after the seal.
+
+## What was run, and how it differs from the plan
+
+- **The calls went through the Claude Code CLI, not the API.** The Anthropic API account had no credit on 2026-10-30, so the target ran with `DOGFOOD_TRANSPORT=claude-cli` (`scripts/dogfood/claude-cli-llm.ts`). The model is the one the spec names (`claude-haiku-4-5`); the transport differs. The weekly workflow uses the API.
+- **The drafter was not an API call either.** The scenarios and cases were written by Claude Sonnet 5.5 and fed to the forge through its `fake/<file>` model, then read and approved. `generated_by` says so on every case.
+- The 36 rows (18 cases, repeat 2) all passed, none errored.
+
+## Review
+
+18 cases approved, 0 rejected, 0 edited; 6 scenarios approved, 0 rejected. This review is Claude's (Sonnet 5.5, 2026-10-30), not the maintainer's, and it is pending the maintainer's spot-check.
+
+## Caveats
+
+- **Circularity.** The cases and the code under test come from the same model family, and the suite is run by the forge it tests. A bug that fools both the released and the current forge in the same way would not be seen. The seal and the weekly run catch drift, not a flaw present from the start.
+- **A 100% first run is weak evidence.** It means Haiku 4.5 finds these cases easy, so a regression would have to be large to show. Harder cases are the way to make the pass rate informative.

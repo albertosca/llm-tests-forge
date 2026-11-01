@@ -1,0 +1,89 @@
+- id: three-equal-cases-01
+  scenario: three-equal-cases
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: I want my money back for the annual plan.
+        expected:
+          label: billing
+      - id: c2
+        input:
+          message: Please refund me for the yearly subscription.
+        expected:
+          label: billing
+      - id: c3
+        input:
+          message: Can you return the payment I made for the annual plan?
+        expected:
+          label: billing
+  expected:
+    fields:
+      duplicates:
+        - id: c2
+          duplicate_of: c1
+        - id: c3
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: three-equal-cases-02
+  scenario: three-equal-cases
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: The mobile app closes by itself when I upload a photo.
+        expected:
+          label: bug
+      - id: c2
+        input:
+          message: Uploading a picture makes the phone app shut down.
+        expected:
+          label: bug
+      - id: c3
+        input:
+          message: App crashes on photo upload from my phone.
+        expected:
+          label: bug
+  expected:
+    fields:
+      duplicates:
+        - id: c2
+          duplicate_of: c1
+        - id: c3
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: three-equal-cases-03
+  scenario: three-equal-cases
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: How do I reset my password?
+        expected:
+          label: account
+      - id: c2
+        input:
+          message: I forgot my password, what do I do?
+        expected:
+          label: account
+      - id: c3
+        input:
+          message: Need help getting back into my account, the password is lost.
+        expected:
+          label: account
+      - id: c4
+        input:
+          message: The invoice for April is wrong.
+        expected:
+          label: billing
+  expected:
+    fields:
+      duplicates:
+        - id: c2
+          duplicate_of: c1
+        - id: c3
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

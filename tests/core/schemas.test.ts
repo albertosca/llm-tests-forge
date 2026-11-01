@@ -8,6 +8,7 @@ import {
 	PricesSchema,
 	ProjectConfigSchema,
 	ScenarioSchema,
+	StampBlockSchema,
 	SuiteSchema,
 } from "../../src/core/schemas";
 import { RESPONSE_FUNCTION_REFUSAL } from "../../src/core/target";
@@ -561,5 +562,30 @@ describe("PricesSchema", () => {
 				models: { m: { input: -1, output: 5 } },
 			}).success,
 		).toBe(false);
+	});
+});
+
+describe("StampBlockSchema", () => {
+	test("takes any number of inputs, each a non-empty path of any length", () => {
+		expect(
+			StampBlockSchema.safeParse({
+				inputs: ["prompt.txt", "src/**/*.ts"],
+				minimum_pass_rate: 0.9,
+			}).success,
+		).toBe(true);
+		expect(
+			StampBlockSchema.safeParse({ inputs: [], minimum_pass_rate: 0.9 })
+				.success,
+		).toBe(false);
+		expect(
+			StampBlockSchema.safeParse({ inputs: [""], minimum_pass_rate: 0.9 })
+				.success,
+		).toBe(false);
+	});
+	test("the pass rate is a fraction from 0 to 1, both ends included", () => {
+		const accepts = (minimum_pass_rate: number) =>
+			StampBlockSchema.safeParse({ inputs: ["a"], minimum_pass_rate }).success;
+		expect([0, 0.5, 1].map(accepts)).toEqual([true, true, true]);
+		expect([-0.1, 1.1].map(accepts)).toEqual([false, false]);
 	});
 });

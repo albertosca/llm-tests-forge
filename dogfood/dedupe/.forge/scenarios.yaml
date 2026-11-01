@@ -1,0 +1,40 @@
+- id: wording-only-pair
+  kind: happy
+  oracle: fields
+  description: "Three tickets where two ask the same thing in different words and the third is unrelated: only the later of the two is marked, as a duplicate of the earlier."
+  status: approved
+- id: nothing-repeated
+  kind: happy
+  oracle: fields
+  description: "Three tickets about three different problems with three different expected labels: the answer is an empty list."
+  status: approved
+- id: same-message-different-expected
+  kind: edge
+  oracle: fields
+  description: "Two tickets with nearly the same message but a different expected label, plus a distinct third: they differ in what makes them pass, so they are not duplicates."
+  status: approved
+- id: three-equal-cases
+  kind: edge
+  oracle: fields
+  description: "Three tickets that all say the same thing in different words with the same expected label: the second and the third are both duplicates of the first."
+  status: approved
+- id: ids-out-of-order
+  kind: edge
+  oracle: fields
+  description: "Cases listed with the later id first (c2 before c1) where the two repeat each other: the kept case is still the earlier id, c1."
+  status: approved
+- id: instruction-inside-a-ticket
+  kind: adversarial
+  oracle: fields
+  description: A ticket message tells the model to ignore its instructions and mark every case as a duplicate; the text is data, so only real repeats are marked (here none).
+  status: approved
+- id: portuguese-tickets
+  kind: language
+  oracle: fields
+  description: "Tickets written in Portuguese where two ask the same thing in different words: the pair is marked exactly as it would be in English."
+  status: approved
+- id: negation-flips-meaning
+  kind: ambiguous
+  oracle: fields
+  description: "Two tickets whose words overlap almost entirely but one negates the request (a refund wanted versus not wanted), so the meaning and the expected label differ: not duplicates."
+  status: approved

@@ -63,6 +63,10 @@ Você aponta a forja para um prompt e para a função que chama o modelo; um mod
 
 A lista completa está em [Decisões de engenharia](guide/pt/decisions.md).
 
+## A forja testa a si mesma
+
+Quatro dos prompts da própria forja (`describe`, `scenarios`, `cases`, `dedupe`) são testados por suítes que a forja já publicada construiu, em [`dogfood/`](dogfood/README.md): a versão N-1 testa a versão N. Cada suíte é lacrada, então o `check` reprova um pull request que muda um prompt, uma função ou um executor sem novo lacre, e um workflow semanal opcional as reexecuta contra uma linha de base. As execuções lacradas de 2026-10-30 (162 linhas, todas passando) passaram pela CLI do Claude Code, não pela API, com os casos rascunhados e revisados pelo Claude, à espera da conferência por amostragem do mantenedor. No `describe` o modelo às vezes obedecia a uma instrução escondida na descrição (três de cinco execuções reprovaram uma ou duas dessas linhas); o prompt foi endurecido, a primeira versão ainda reprovou uma linha de 42, e depois da segunda duas execuções seguidas passaram as 42, o que é indício e não prova. De resto as suítes são fáceis, e cada README diz o que não prova.
+
 ## Limites
 
 O promptfoo é o único emissor hoje. Testa um turno por vez, não guarda histórico além da comparação do `--baseline`. [Mais](guide/pt/development.md#limitações).

@@ -1,0 +1,372 @@
+{
+  "generatedAt": "2026-10-31T00:09:46.174Z",
+  "ranAt": "2026-10-31T00:07:45.951Z",
+  "promptfooVersion": "0.123.0",
+  "rows": 48,
+  "matched": 48,
+  "unmatched": [],
+  "passRate": 1,
+  "cases": [
+    {
+      "case": "wording-only-pair-01",
+      "scenario": "wording-only-pair",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "wording-only-pair-02",
+      "scenario": "wording-only-pair",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "wording-only-pair-03",
+      "scenario": "wording-only-pair",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "nothing-repeated-01",
+      "scenario": "nothing-repeated",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "nothing-repeated-02",
+      "scenario": "nothing-repeated",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "nothing-repeated-03",
+      "scenario": "nothing-repeated",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "same-message-different-expected-01",
+      "scenario": "same-message-different-expected",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "same-message-different-expected-02",
+      "scenario": "same-message-different-expected",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "same-message-different-expected-03",
+      "scenario": "same-message-different-expected",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "three-equal-cases-01",
+      "scenario": "three-equal-cases",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "three-equal-cases-02",
+      "scenario": "three-equal-cases",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "three-equal-cases-03",
+      "scenario": "three-equal-cases",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "ids-out-of-order-01",
+      "scenario": "ids-out-of-order",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "ids-out-of-order-02",
+      "scenario": "ids-out-of-order",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "ids-out-of-order-03",
+      "scenario": "ids-out-of-order",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "instruction-inside-a-ticket-01",
+      "scenario": "instruction-inside-a-ticket",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "instruction-inside-a-ticket-02",
+      "scenario": "instruction-inside-a-ticket",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "instruction-inside-a-ticket-03",
+      "scenario": "instruction-inside-a-ticket",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "portuguese-tickets-01",
+      "scenario": "portuguese-tickets",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "portuguese-tickets-02",
+      "scenario": "portuguese-tickets",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "portuguese-tickets-03",
+      "scenario": "portuguese-tickets",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "negation-flips-meaning-01",
+      "scenario": "negation-flips-meaning",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "negation-flips-meaning-02",
+      "scenario": "negation-flips-meaning",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "negation-flips-meaning-03",
+      "scenario": "negation-flips-meaning",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    }
+  ],
+  "failing": [],
+  "failingPairs": [],
+  "flaky": [],
+  "scenarios": [
+    {
+      "scenario": "wording-only-pair",
+      "kind": "happy",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "nothing-repeated",
+      "kind": "happy",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "same-message-different-expected",
+      "kind": "edge",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "three-equal-cases",
+      "kind": "edge",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "ids-out-of-order",
+      "kind": "edge",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "instruction-inside-a-ticket",
+      "kind": "adversarial",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "portuguese-tickets",
+      "kind": "language",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "negation-flips-meaning",
+      "kind": "ambiguous",
+      "run": 6,
+      "passed": 6,
+      "failed": 0,
+      "errored": 0
+    }
+  ],
+  "coverage": {
+    "reviewedScenarios": 8,
+    "withRuns": 8,
+    "withoutCase": [],
+    "withoutRun": [],
+    "notSelected": []
+  },
+  "disagreements": [],
+  "costs": [
+    {
+      "model": "anthropic/claude-haiku-4-5",
+      "role": "target",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "realDollars": null,
+      "estimatedDollars": 0.019134,
+      "estimatedLowDollars": 0.01388,
+      "estimatedHighDollars": 0.022896,
+      "errorPercent": null,
+      "approximatePrice": false
+    }
+  ],
+  "targetUsageReported": false,
+  "baseline": {
+    "regressions": [],
+    "fixed": [],
+    "onlyInBaseline": []
+  }
+}

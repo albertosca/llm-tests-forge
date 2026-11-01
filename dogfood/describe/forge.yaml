@@ -1,0 +1,8 @@
+# llm-tests-forge project file. `llm-tests-forge guide` explains every key.
+version: 1
+language: other
+suites: [.]
+defaults:
+  # drafter: google/gemini-3.5-flash
+  # target_models: [anthropic/claude-haiku-4-5]
+  # judges: [google/gemini-3.5-flash]

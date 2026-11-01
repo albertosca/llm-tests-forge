@@ -1,0 +1,37 @@
+target:
+  kind: exec
+  command: ../../../scripts/dogfood/cases-target.ts
+  models: [anthropic/claude-haiku-4-5]
+judges: [anthropic/claude-sonnet-5]
+repeat: 2
+include: []
+stamp:
+  inputs:
+    - ../../templates/cases.md
+    - ../../src/core/cases.ts
+    - ../../src/core/compare.ts
+    - ../../src/core/oracle.ts
+    - ../../src/core/ids.ts
+    - ../../src/core/schemas.ts
+    - ../../src/core/describe.ts
+    - ../../src/core/version.ts
+    - ../../src/core/files.ts
+    - ../../src/core/target.ts
+    - ../../src/core/errors.ts
+    - ../../src/llm/templates.ts
+    - ../../src/llm/generate.ts
+    - ../../src/llm/models.ts
+    - ../../src/llm/credentials.ts
+    - ../../scripts/dogfood/cases-run.ts
+    - ../../scripts/dogfood/cases-target.ts
+    - ../../scripts/dogfood/inputs.ts
+    - ../../scripts/dogfood/entry.ts
+    - ../../scripts/dogfood/exec-arguments.ts
+    - ../../scripts/dogfood/claude-cli-llm.ts
+    - ../../bun.lock
+    - .forge/promptfooconfig.yaml
+    - .forge/feature.yaml
+    - .forge/scenarios.yaml
+    - .forge/cases/*.yaml
+  minimum_pass_rate: 0.8
+forge_version: 0.1.0

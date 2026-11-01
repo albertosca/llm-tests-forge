@@ -1,0 +1,30 @@
+- id: two-inputs-text-output-01
+  scenario: two-inputs-text-output
+  input:
+    description: Translate a text into a target language. The feature receives the text and the name of the target language, and answers with the translated text.
+  expected:
+    fields:
+      input_count: 2
+      output_kind: text
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: two-inputs-text-output-02
+  scenario: two-inputs-text-output
+  input:
+    description: Rewrite a paragraph in a given tone. It takes the paragraph and the tone (formal, friendly, short) as two inputs and returns the rewritten paragraph as plain text.
+  expected:
+    fields:
+      input_count: 2
+      output_kind: text
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: two-inputs-text-output-03
+  scenario: two-inputs-text-output
+  input:
+    description: "Answer a question using a document: the inputs are the document and the question, the output is a short text answer."
+  expected:
+    fields:
+      input_count: 2
+      output_kind: text
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

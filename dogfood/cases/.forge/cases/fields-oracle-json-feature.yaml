@@ -1,0 +1,93 @@
+- id: fields-oracle-json-feature-01
+  scenario: fields-oracle-json-feature
+  input:
+    feature: |
+      id: invoice-extract
+      purpose: Pull the invoice number and the total out of an invoice text.
+      inputs:
+      - name: invoice
+        kind: text
+      output:
+        kind: json
+        fields:
+        - number
+        - total
+      invariants:
+      - Return JSON with exactly the fields number and total.
+    scenario: |
+      id: invoice-total
+      kind: happy
+      oracle: fields
+      description: An invoice with a clear number and a total in euros.
+    n: "2"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - invoice
+      expected_kinds:
+        - fields
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: fields-oracle-json-feature-02
+  scenario: fields-oracle-json-feature
+  input:
+    feature: |
+      id: invoice-extract
+      purpose: Pull the invoice number and the total out of an invoice text.
+      inputs:
+      - name: invoice
+        kind: text
+      output:
+        kind: json
+        fields:
+        - number
+        - total
+      invariants:
+      - Return JSON with exactly the fields number and total.
+    scenario: |
+      id: invoice-total
+      kind: happy
+      oracle: fields
+      description: An invoice with a clear number and a total in euros.
+    n: "3"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - invoice
+      expected_kinds:
+        - fields
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: fields-oracle-json-feature-03
+  scenario: fields-oracle-json-feature
+  input:
+    feature: |
+      id: invoice-extract
+      purpose: Pull the invoice number and the total out of an invoice text.
+      inputs:
+      - name: invoice
+        kind: text
+      output:
+        kind: json
+        fields:
+        - number
+        - total
+      invariants:
+      - Return JSON with exactly the fields number and total.
+    scenario: |
+      id: no-total
+      kind: edge
+      oracle: fields
+      description: An invoice that shows the number but no total.
+    n: "2"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - invoice
+      expected_kinds:
+        - fields
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

@@ -1,0 +1,78 @@
+- id: wording-only-pair-01
+  scenario: wording-only-pair
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: I was charged twice for my March invoice, please refund one payment.
+        expected:
+          label: billing
+      - id: c2
+        input:
+          message: My card shows two charges for the March invoice. Can you give one of them back?
+        expected:
+          label: billing
+      - id: c3
+        input:
+          message: The app crashes every time I open the camera screen.
+        expected:
+          label: bug
+  expected:
+    fields:
+      duplicates:
+        - id: c2
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: wording-only-pair-02
+  scenario: wording-only-pair
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: How do I change the email address on my account?
+        expected:
+          label: account
+      - id: c2
+        input:
+          message: The export button does nothing when I click it.
+        expected:
+          label: bug
+      - id: c3
+        input:
+          message: Where can I update the e-mail tied to my profile?
+        expected:
+          label: account
+  expected:
+    fields:
+      duplicates:
+        - id: c3
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: wording-only-pair-03
+  scenario: wording-only-pair
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: Please cancel my subscription before the next renewal date.
+        expected:
+          label: cancellation
+      - id: c2
+        input:
+          message: I would like to stop my plan so it does not renew next month.
+        expected:
+          label: cancellation
+      - id: c3
+        input:
+          message: Can I get a receipt for last month in PDF?
+        expected:
+          label: billing
+  expected:
+    fields:
+      duplicates:
+        - id: c2
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

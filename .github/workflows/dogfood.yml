@@ -1,0 +1,39 @@
+name: dogfood
+# The paid half of the dogfood: reruns each suite under dogfood/ against the
+# real model and fails on a regression against its committed baseline. It
+# never runs on a pull request (the cheap half is `check-dogfood` in ci.yml),
+# and without the ANTHROPIC_API_KEY secret it only prints a notice.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 5 * * 1"
+permissions:
+  contents: read
+jobs:
+  dogfood:
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY_SET: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - if: env.ANTHROPIC_API_KEY_SET != 'true'
+        run: echo "::notice::ANTHROPIC_API_KEY is not set; the dogfood suites were not run"
+      - if: env.ANTHROPIC_API_KEY_SET == 'true'
+        uses: actions/checkout@v7
+      - if: env.ANTHROPIC_API_KEY_SET == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - if: env.ANTHROPIC_API_KEY_SET == 'true'
+        run: bun install --frozen-lockfile
+      - if: env.ANTHROPIC_API_KEY_SET == 'true'
+        run: bun run dogfood
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - if: always() && env.ANTHROPIC_API_KEY_SET == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: dogfood-results
+          path: |
+            dogfood/*/results.latest.json
+            dogfood/*/.forge/report.md
+            dogfood/*/.forge/report.json
