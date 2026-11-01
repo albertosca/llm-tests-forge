@@ -22,7 +22,7 @@
       duplicates:
         - id: c3
           duplicate_of: c1
-  status: approved
+  status: rejected
   generated_by: claude-sonnet-5-5 (written in a Claude Code session)
 - id: identifiers-differ-only-02
   scenario: identifiers-differ-only

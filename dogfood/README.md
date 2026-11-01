@@ -4,12 +4,12 @@ The forge's own prompts are tested with the forge. Each directory here is a stan
 
 | Suite | Prompt and function under test | Rows (cases × 2) | Result on 2026-11-01 |
 |---|---|---|---|
-| [`dedupe`](dedupe/README.md) | `templates/dedupe.md`, `dedupeCases` | 60 (30) | 56 of 60 rows pass; the 2 failing cases are a known weakness of the prompt (it over-merges), kept in the baseline |
+| [`dedupe`](dedupe/README.md) | `templates/dedupe.md`, `dedupeCases` | 58 (29) | all passing; one added case the prompt cannot pass (it over-merges) is rejected and kept as evidence, see below |
 | [`describe`](describe/README.md) | `templates/describe.md`, `describeFeature` | 52 (26) | all passing; the injection rows were flaky before the prompt was hardened, see below |
 | [`scenarios`](scenarios/README.md) | `templates/scenarios.md`, `enumerateScenarios` | 42 (21) | all passing, after the first run exposed a wrong expectation of the suite |
 | [`cases`](cases/README.md) | `templates/cases.md`, `generateCases` | 40 (20) | all passing |
 
-On 2026-11-01 each suite got harder cases (a total of 16 cases written by hand by Claude, pending the maintainer's spot-check). Two of them failed on `dedupe` and one error on `describe` showed a prompt fault that is now fixed.
+On 2026-11-01 each suite got harder cases (16 cases written by hand by Claude, pending the maintainer's spot-check). They found two prompt faults: `describe` returned a label with no labels for a decision without named answers (fixed), and `dedupe` merges tickets about the same kind of order that report different events (one case fixed by rewording the template, one still failing, so it is out of the suite).
 
 ## Running
 
