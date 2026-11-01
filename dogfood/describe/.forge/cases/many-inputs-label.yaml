@@ -1,0 +1,20 @@
+- id: many-inputs-label-01
+  scenario: many-inputs-label
+  input:
+    description: "Given the customer's name, their email, the order id, the text of the complaint and the date it was sent, decide which department should handle it: billing, shipping, returns or technical."
+  expected:
+    fields:
+      input_count: 5
+      output_kind: label
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: many-inputs-label-02
+  scenario: many-inputs-label
+  input:
+    description: A loan officer gives the applicant's income, debts, age, employment length and requested amount, and the feature answers approve, review or reject.
+  expected:
+    fields:
+      input_count: 5
+      output_kind: label
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

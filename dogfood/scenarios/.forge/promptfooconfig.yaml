@@ -1,5 +1,5 @@
 # Written by llm-tests-forge emit; edit suite.yaml and re-run instead of editing this file.
-description: "enumerate-scenarios: forge suite, 18 cases from 6 scenarios"
+description: "enumerate-scenarios: forge suite, 21 cases from 8 scenarios"
 prompts:
   - "{{feature}}"
 providers:
@@ -1341,6 +1341,236 @@ tests:
           if (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;
           let obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }
           const want = {"covered":["ambiguous"]};
+          const differences = [];
+          const show = (value) => JSON.stringify(value);
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
+          const compareItems = (name, gotItems, wantItems) => {
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
+              for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
+              return;
+            }
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
+            for (const wantItem of wantItems) {
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
+              const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
+            }
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
+          };
+          for (const field of Object.keys(want)) {
+            if (show(obj[field]) === show(want[field])) continue;
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+          }
+          if (differences.length === 0) return true;
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
+          })();
+          return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
+  - description: all-six-kinds-json-feature-01
+    metadata:
+      scenario: all-six-kinds-json-feature
+      case: all-six-kinds-json-feature-01
+      kind: edge
+      oracle: fields
+    vars:
+      feature: |
+        id: invoice-extract
+        purpose: Pull the invoice number, the total and the due date out of an invoice text.
+        inputs:
+        - name: invoice_text
+          kind: text
+        output:
+          kind: json
+          fields:
+          - number
+          - total
+          - due_date
+        invariants:
+        - Return JSON with exactly the three fields.
+      kinds: happy,edge,ambiguous,out_of_scope,adversarial,language
+    assert:
+      - type: javascript
+        value: |-
+          const verdict = (() => {
+          const text = String(output).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+          const start = text.indexOf("{"); const end = text.lastIndexOf("}");
+          if (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;
+          let obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }
+          const want = {"covered":["adversarial","ambiguous","edge","happy","language","out_of_scope"]};
+          const differences = [];
+          const show = (value) => JSON.stringify(value);
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
+          const compareItems = (name, gotItems, wantItems) => {
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
+              for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
+              return;
+            }
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
+            for (const wantItem of wantItems) {
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
+              const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
+            }
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
+          };
+          for (const field of Object.keys(want)) {
+            if (show(obj[field]) === show(want[field])) continue;
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+          }
+          if (differences.length === 0) return true;
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
+          })();
+          return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
+  - description: rare-kind-on-a-narrow-feature-01
+    metadata:
+      scenario: rare-kind-on-a-narrow-feature
+      case: rare-kind-on-a-narrow-feature-01
+      kind: ambiguous
+      oracle: fields
+    vars:
+      feature: |
+        id: sum-two-numbers
+        purpose: Add two integers and answer with their sum as text.
+        inputs:
+        - name: first
+          kind: text
+        - name: second
+          kind: text
+        output:
+          kind: text
+        invariants:
+        - Answer with the number only.
+      kinds: out_of_scope,language
+    assert:
+      - type: javascript
+        value: |-
+          const verdict = (() => {
+          const text = String(output).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+          const start = text.indexOf("{"); const end = text.lastIndexOf("}");
+          if (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;
+          let obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }
+          const want = {"covered":["language","out_of_scope"]};
+          const differences = [];
+          const show = (value) => JSON.stringify(value);
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
+          const compareItems = (name, gotItems, wantItems) => {
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
+              for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
+              return;
+            }
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
+            for (const wantItem of wantItems) {
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
+              const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
+            }
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
+          };
+          for (const field of Object.keys(want)) {
+            if (show(obj[field]) === show(want[field])) continue;
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+          }
+          if (differences.length === 0) return true;
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
+          })();
+          return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
+  - description: rare-kind-on-a-narrow-feature-02
+    metadata:
+      scenario: rare-kind-on-a-narrow-feature
+      case: rare-kind-on-a-narrow-feature-02
+      kind: ambiguous
+      oracle: fields
+    vars:
+      feature: |
+        id: sum-two-numbers
+        purpose: Add two integers and answer with their sum as text.
+        inputs:
+        - name: first
+          kind: text
+        - name: second
+          kind: text
+        output:
+          kind: text
+        invariants:
+        - Answer with the number only.
+      kinds: adversarial,ambiguous
+    assert:
+      - type: javascript
+        value: |-
+          const verdict = (() => {
+          const text = String(output).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+          const start = text.indexOf("{"); const end = text.lastIndexOf("}");
+          if (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;
+          let obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }
+          const want = {"covered":["adversarial","ambiguous"]};
           const differences = [];
           const show = (value) => JSON.stringify(value);
           const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';

@@ -38,3 +38,18 @@
   oracle: fields
   description: "Two tickets whose words overlap almost entirely but one negates the request (a refund wanted versus not wanted), so the meaning and the expected label differ: not duplicates."
   status: approved
+- id: two-groups-and-a-near-miss
+  kind: edge
+  oracle: fields
+  description: "Six tickets: three repeat one problem, two repeat another, and one is on the same topic as the first group but asks something else with a different expected label. Both groups are marked against their earliest id, and the odd one is left alone."
+  status: approved
+- id: identifiers-differ-only
+  kind: edge
+  oracle: fields
+  description: "Tickets that differ only in an order number or a date are duplicates; a ticket about a different problem on the same kind of order is not."
+  status: approved
+- id: near-miss-same-label
+  kind: ambiguous
+  oracle: fields
+  description: "Tickets on the same topic with the same expected label that ask for different things (the billing date versus the billing address): the situation differs, so they are not duplicates."
+  status: approved

@@ -20,4 +20,4 @@ Stryker's checker runs TypeScript 7 (the native port) in its experimental native
 
 ## Publishing
 
-This repository is private on purpose; publishing it is a deliberate step with a history rewrite first (see `BACKLOG.md`). Until then the README badges do not render.
+This repository is public and 0.1.0 is on npm. A push or a pull request is a publication: it needs the maintainer's explicit authorization, and history is never rewritten. The paid `bun run dogfood` never runs on `pull_request`.

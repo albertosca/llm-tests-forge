@@ -1,0 +1,10 @@
+- id: json-list-output-01
+  scenario: json-list-output
+  input:
+    description: From a product review, list every product name it mentions and return them as a JSON object with a products field.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: json
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

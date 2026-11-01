@@ -1,0 +1,37 @@
+- id: three-inputs-fields-oracle-01
+  scenario: three-inputs-fields-oracle
+  input:
+    feature: |
+      id: shipping-quote
+      purpose: Quote a shipping price from the weight, the distance and the service level.
+      inputs:
+      - name: weight
+        kind: text
+      - name: distance
+        kind: text
+      - name: service
+        kind: text
+      output:
+        kind: json
+        fields:
+        - price
+        - currency
+      invariants:
+      - Return JSON with exactly the two fields.
+    scenario: |
+      id: heavy-parcel
+      kind: edge
+      oracle: fields
+      description: A parcel over the normal weight limit shipped far away.
+    n: "3"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - distance
+        - service
+        - weight
+      expected_kinds:
+        - fields
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

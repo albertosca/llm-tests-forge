@@ -2,12 +2,14 @@
 
 The forge's own prompts are tested with the forge. Each directory here is a stand-alone forge project, built by the released forge (`llm-tests-forge@0.1.0`, installed under the alias `forge-released` in `package.json`) and run against the real functions in `src/` through an `exec` target in `scripts/dogfood/`. Version N-1 tests version N.
 
-| Suite | Prompt and function under test | Rows (cases × 2) | Result on 2026-10-30 |
+| Suite | Prompt and function under test | Rows (cases × 2) | Result on 2026-11-01 |
 |---|---|---|---|
-| [`dedupe`](dedupe/README.md) | `templates/dedupe.md`, `dedupeCases` | 48 (24) | all passing |
-| [`describe`](describe/README.md) | `templates/describe.md`, `describeFeature` | 42 (21) | all passing; the injection rows were flaky before the prompt was hardened, see below |
-| [`scenarios`](scenarios/README.md) | `templates/scenarios.md`, `enumerateScenarios` | 36 (18) | all passing, after the first run exposed a wrong expectation of the suite |
-| [`cases`](cases/README.md) | `templates/cases.md`, `generateCases` | 36 (18) | all passing |
+| [`dedupe`](dedupe/README.md) | `templates/dedupe.md`, `dedupeCases` | 60 (30) | 56 of 60 rows pass; the 2 failing cases are a known weakness of the prompt (it over-merges), kept in the baseline |
+| [`describe`](describe/README.md) | `templates/describe.md`, `describeFeature` | 52 (26) | all passing; the injection rows were flaky before the prompt was hardened, see below |
+| [`scenarios`](scenarios/README.md) | `templates/scenarios.md`, `enumerateScenarios` | 42 (21) | all passing, after the first run exposed a wrong expectation of the suite |
+| [`cases`](cases/README.md) | `templates/cases.md`, `generateCases` | 40 (20) | all passing |
+
+On 2026-11-01 each suite got harder cases (a total of 16 cases written by hand by Claude, pending the maintainer's spot-check). Two of them failed on `dedupe` and one error on `describe` showed a prompt fault that is now fixed.
 
 ## Running
 
@@ -35,7 +37,7 @@ The spec's test of the whole idea: on 2026-10-30, `templates/dedupe.md` was repl
 
 ## Cost
 
-The sealed runs went through `claude -p`, which records no token usage here, so `report` shows no measured cost for them (`targetUsageReported` is false). The estimate printed before a run is the only cost figure; the API transport reports usage, so the weekly API run should show a measured cost (not yet seen, since no API run has happened).
+promptfoo's `exec` provider keeps only the target's stdout, so no transport (API or CLI) can put the target's token usage in the report: `report` shows no measured cost for these suites (`targetUsageReported` is false). A `claude-cli` run therefore logs each call itself: the client appends one line (tokens, cache tokens and the CLI's list-price cost) to the file named by `DOGFOOD_USAGE_FILE`, and `bun run dogfood` prints the sum after each eval. The cost is list price, not a bill, since the subscription is not billed per token. The first full run that measured it (2026-11-01, 182 calls) came to about $2.64 at list price: `cases` $0.53, `dedupe` $0.22, `describe` $0.62, `scenarios` $1.35. That is far above the estimate printed before a run (about $0.02 to $0.04 per suite), which counts the prompt and a guessed output from `output.kind`, while the `scenarios` and `cases` targets write long answers. The client replaces the system prompt, so a call carries no cache tokens.
 
 ## What this does not prove
 

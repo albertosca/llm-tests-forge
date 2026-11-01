@@ -33,3 +33,18 @@
   oracle: fields
   description: "A description of deciding whether a message is urgent, without naming the answers: the output is read as a label, with one input."
   status: approved
+- id: many-inputs-label
+  kind: edge
+  oracle: fields
+  description: "A description that names five separate things the feature receives and picks one of a few departments: five inputs and a label output."
+  status: approved
+- id: spanish-description
+  kind: language
+  oracle: fields
+  description: "A description written in Spanish: the fields come out as they would from the same description in English."
+  status: approved
+- id: json-list-output
+  kind: edge
+  oracle: fields
+  description: "A description whose output is a JSON object that holds a list: one input and a json output."
+  status: approved

@@ -1,0 +1,31 @@
+- id: larger-batch-label-01
+  scenario: larger-batch-label
+  input:
+    feature: |
+      id: sentiment
+      purpose: Label a customer message as positive or negative.
+      inputs:
+      - name: message
+        kind: text
+      output:
+        kind: label
+        labels:
+        - positive
+        - negative
+      invariants:
+      - Answer with exactly one label.
+    scenario: |
+      id: mixed-tone
+      kind: edge
+      oracle: label
+      description: A message with praise and a complaint in the same sentence.
+    n: "5"
+  expected:
+    fields:
+      within_n: true
+      input_names:
+        - message
+      expected_kinds:
+        - label
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

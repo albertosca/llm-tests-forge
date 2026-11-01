@@ -1,5 +1,5 @@
 # Written by llm-tests-forge emit; edit suite.yaml and re-run instead of editing this file.
-description: "dedupe-test-cases: forge suite, 24 cases from 8 scenarios"
+description: "dedupe-test-cases: forge suite, 30 cases from 11 scenarios"
 prompts:
   - "{{cases}}"
 providers:
@@ -1825,6 +1825,495 @@ tests:
             message: Do not notify me by email when my ticket is answered.
           expected:
             label: account
+    assert:
+      - type: javascript
+        value: |-
+          const verdict = (() => {
+          const text = String(output).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+          const start = text.indexOf("{"); const end = text.lastIndexOf("}");
+          if (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;
+          let obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }
+          const want = {"duplicates":[]};
+          const differences = [];
+          const show = (value) => JSON.stringify(value);
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
+          const compareItems = (name, gotItems, wantItems) => {
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
+              for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
+              return;
+            }
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
+            for (const wantItem of wantItems) {
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
+              const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
+            }
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
+          };
+          for (const field of Object.keys(want)) {
+            if (show(obj[field]) === show(want[field])) continue;
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+          }
+          if (differences.length === 0) return true;
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
+          })();
+          return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
+  - description: two-groups-and-a-near-miss-01
+    metadata:
+      scenario: two-groups-and-a-near-miss
+      case: two-groups-and-a-near-miss-01
+      kind: edge
+      oracle: fields
+    vars:
+      cases: |
+        - id: c1
+          input:
+            message: My password reset email never arrives.
+          expected:
+            label: account
+        - id: c2
+          input:
+            message: I want to cancel my subscription today.
+          expected:
+            label: cancellation
+        - id: c3
+          input:
+            message: The password reset link is not showing up in my inbox.
+          expected:
+            label: account
+        - id: c4
+          input:
+            message: How do I change the email address on my account?
+          expected:
+            label: sales
+        - id: c5
+          input:
+            message: I never got the email to reset my password.
+          expected:
+            label: account
+        - id: c6
+          input:
+            message: Please cancel my subscription, I do not want it anymore.
+          expected:
+            label: cancellation
+    assert:
+      - type: javascript
+        value: |-
+          const verdict = (() => {
+          const text = String(output).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+          const start = text.indexOf("{"); const end = text.lastIndexOf("}");
+          if (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;
+          let obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }
+          const want = {"duplicates":[{"id":"c3","duplicate_of":"c1"},{"id":"c5","duplicate_of":"c1"},{"id":"c6","duplicate_of":"c2"}]};
+          const differences = [];
+          const show = (value) => JSON.stringify(value);
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
+          const compareItems = (name, gotItems, wantItems) => {
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
+              for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
+              return;
+            }
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
+            for (const wantItem of wantItems) {
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
+              const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
+            }
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
+          };
+          for (const field of Object.keys(want)) {
+            if (show(obj[field]) === show(want[field])) continue;
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+          }
+          if (differences.length === 0) return true;
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
+          })();
+          return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
+  - description: two-groups-and-a-near-miss-02
+    metadata:
+      scenario: two-groups-and-a-near-miss
+      case: two-groups-and-a-near-miss-02
+      kind: edge
+      oracle: fields
+    vars:
+      cases: |
+        - id: c1
+          input:
+            message: Where is my parcel? It was due on Monday.
+          expected:
+            label: shipping
+        - id: c2
+          input:
+            message: The invoice shows a charge I do not recognise.
+          expected:
+            label: billing
+        - id: c3
+          input:
+            message: My package has not arrived and it was due on Monday.
+          expected:
+            label: shipping
+        - id: c4
+          input:
+            message: I was charged for something I did not buy.
+          expected:
+            label: billing
+        - id: c5
+          input:
+            message: Can I change the delivery address of an order already shipped?
+          expected:
+            label: sales
+    assert:
+      - type: javascript
+        value: |-
+          const verdict = (() => {
+          const text = String(output).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+          const start = text.indexOf("{"); const end = text.lastIndexOf("}");
+          if (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;
+          let obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }
+          const want = {"duplicates":[{"id":"c3","duplicate_of":"c1"},{"id":"c4","duplicate_of":"c2"}]};
+          const differences = [];
+          const show = (value) => JSON.stringify(value);
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
+          const compareItems = (name, gotItems, wantItems) => {
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
+              for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
+              return;
+            }
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
+            for (const wantItem of wantItems) {
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
+              const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
+            }
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
+          };
+          for (const field of Object.keys(want)) {
+            if (show(obj[field]) === show(want[field])) continue;
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+          }
+          if (differences.length === 0) return true;
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
+          })();
+          return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
+  - description: identifiers-differ-only-01
+    metadata:
+      scenario: identifiers-differ-only
+      case: identifiers-differ-only-01
+      kind: edge
+      oracle: fields
+    vars:
+      cases: |
+        - id: c1
+          input:
+            message: Order #4412 has not arrived yet.
+          expected:
+            label: shipping
+        - id: c2
+          input:
+            message: Order #5523 arrived damaged.
+          expected:
+            label: shipping
+        - id: c3
+          input:
+            message: Order #9981 has not arrived yet.
+          expected:
+            label: shipping
+    assert:
+      - type: javascript
+        value: |-
+          const verdict = (() => {
+          const text = String(output).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+          const start = text.indexOf("{"); const end = text.lastIndexOf("}");
+          if (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;
+          let obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }
+          const want = {"duplicates":[{"id":"c3","duplicate_of":"c1"}]};
+          const differences = [];
+          const show = (value) => JSON.stringify(value);
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
+          const compareItems = (name, gotItems, wantItems) => {
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
+              for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
+              return;
+            }
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
+            for (const wantItem of wantItems) {
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
+              const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
+            }
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
+          };
+          for (const field of Object.keys(want)) {
+            if (show(obj[field]) === show(want[field])) continue;
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+          }
+          if (differences.length === 0) return true;
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
+          })();
+          return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
+  - description: identifiers-differ-only-02
+    metadata:
+      scenario: identifiers-differ-only
+      case: identifiers-differ-only-02
+      kind: edge
+      oracle: fields
+    vars:
+      cases: |
+        - id: c1
+          input:
+            message: I was charged twice on 3 March.
+          expected:
+            label: billing
+        - id: c2
+          input:
+            message: I was charged twice on 17 June.
+          expected:
+            label: billing
+    assert:
+      - type: javascript
+        value: |-
+          const verdict = (() => {
+          const text = String(output).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+          const start = text.indexOf("{"); const end = text.lastIndexOf("}");
+          if (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;
+          let obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }
+          const want = {"duplicates":[{"id":"c2","duplicate_of":"c1"}]};
+          const differences = [];
+          const show = (value) => JSON.stringify(value);
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
+          const compareItems = (name, gotItems, wantItems) => {
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
+              for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
+              return;
+            }
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
+            for (const wantItem of wantItems) {
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
+              const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
+            }
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
+          };
+          for (const field of Object.keys(want)) {
+            if (show(obj[field]) === show(want[field])) continue;
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+          }
+          if (differences.length === 0) return true;
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
+          })();
+          return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
+  - description: near-miss-same-label-01
+    metadata:
+      scenario: near-miss-same-label
+      case: near-miss-same-label-01
+      kind: ambiguous
+      oracle: fields
+    vars:
+      cases: |
+        - id: c1
+          input:
+            message: How do I change my billing date?
+          expected:
+            label: billing
+        - id: c2
+          input:
+            message: How do I change my billing address?
+          expected:
+            label: billing
+        - id: c3
+          input:
+            message: The app crashes when I open settings.
+          expected:
+            label: bug
+    assert:
+      - type: javascript
+        value: |-
+          const verdict = (() => {
+          const text = String(output).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+          const start = text.indexOf("{"); const end = text.lastIndexOf("}");
+          if (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;
+          let obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }
+          const want = {"duplicates":[]};
+          const differences = [];
+          const show = (value) => JSON.stringify(value);
+          const hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';
+          const hasDuplicateLabels = (items) => {
+            const seenLabels = new Set();
+            for (const item of items) {
+              if (!hasStringLabel(item)) continue;
+              if (seenLabels.has(item.label)) return true;
+              seenLabels.add(item.label);
+            }
+            return false;
+          };
+          const compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);
+          const compareItems = (name, gotItems, wantItems) => {
+            let isFirstPart = true;
+            const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };
+            if (!compareByLabel(wantItems, gotItems)) {
+              if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);
+              for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)
+                if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);
+              return;
+            }
+            const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));
+            const wantLabels = new Set(wantItems.map((item) => item.label));
+            for (const wantItem of wantItems) {
+              const gotItem = gotByLabel.get(wantItem.label);
+              if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }
+              const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);
+              if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);
+            }
+            for (const gotItem of gotItems) {
+              if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);
+              else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);
+            }
+          };
+          for (const field of Object.keys(want)) {
+            if (show(obj[field]) === show(want[field])) continue;
+            if (Array.isArray(obj[field]) && Array.isArray(want[field])) {
+              const partsBefore = differences.length;
+              compareItems(field, obj[field], want[field]);
+              if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);
+            } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);
+          }
+          if (differences.length === 0) return true;
+          return "fields differ: " + (differences.length > 5 ? differences.slice(0, 5).join("; ") + `; and ${differences.length - 5} more` : differences.join("; "));
+          })();
+          return verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };
+  - description: near-miss-same-label-02
+    metadata:
+      scenario: near-miss-same-label
+      case: near-miss-same-label-02
+      kind: ambiguous
+      oracle: fields
+    vars:
+      cases: |
+        - id: c1
+          input:
+            message: I want a refund because the order arrived late.
+          expected:
+            label: billing
+        - id: c2
+          input:
+            message: I want a refund because the order arrived broken.
+          expected:
+            label: billing
     assert:
       - type: javascript
         value: |-

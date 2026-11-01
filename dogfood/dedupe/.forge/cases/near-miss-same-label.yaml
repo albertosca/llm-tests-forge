@@ -1,0 +1,43 @@
+- id: near-miss-same-label-01
+  scenario: near-miss-same-label
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: How do I change my billing date?
+        expected:
+          label: billing
+      - id: c2
+        input:
+          message: How do I change my billing address?
+        expected:
+          label: billing
+      - id: c3
+        input:
+          message: The app crashes when I open settings.
+        expected:
+          label: bug
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: near-miss-same-label-02
+  scenario: near-miss-same-label
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: I want a refund because the order arrived late.
+        expected:
+          label: billing
+      - id: c2
+        input:
+          message: I want a refund because the order arrived broken.
+        expected:
+          label: billing
+  expected:
+    fields:
+      duplicates: []
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

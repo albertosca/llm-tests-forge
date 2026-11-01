@@ -1,0 +1,29 @@
+- id: all-six-kinds-json-feature-01
+  scenario: all-six-kinds-json-feature
+  input:
+    feature: |
+      id: invoice-extract
+      purpose: Pull the invoice number, the total and the due date out of an invoice text.
+      inputs:
+      - name: invoice_text
+        kind: text
+      output:
+        kind: json
+        fields:
+        - number
+        - total
+        - due_date
+      invariants:
+      - Return JSON with exactly the three fields.
+    kinds: happy,edge,ambiguous,out_of_scope,adversarial,language
+  expected:
+    fields:
+      covered:
+        - adversarial
+        - ambiguous
+        - edge
+        - happy
+        - language
+        - out_of_scope
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
