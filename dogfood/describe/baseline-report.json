@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-31T00:54:02.484Z",
-  "ranAt": "2026-10-31T00:47:46.179Z",
+  "generatedAt": "2026-11-01T17:42:48.806Z",
+  "ranAt": "2026-11-01T17:36:19.993Z",
   "promptfooVersion": "0.123.0",
-  "rows": 42,
-  "matched": 42,
+  "rows": 52,
+  "matched": 52,
   "unmatched": [],
   "passRate": 1,
   "cases": [
@@ -237,6 +237,61 @@
       "errored": 0,
       "stability": "stable",
       "reasons": []
+    },
+    {
+      "case": "many-inputs-label-01",
+      "scenario": "many-inputs-label",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "many-inputs-label-02",
+      "scenario": "many-inputs-label",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "spanish-description-01",
+      "scenario": "spanish-description",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "spanish-description-02",
+      "scenario": "spanish-description",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "json-list-output-01",
+      "scenario": "json-list-output",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
     }
   ],
   "failing": [],
@@ -298,11 +353,35 @@
       "passed": 6,
       "failed": 0,
       "errored": 0
+    },
+    {
+      "scenario": "many-inputs-label",
+      "kind": "edge",
+      "run": 4,
+      "passed": 4,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "spanish-description",
+      "kind": "language",
+      "run": 4,
+      "passed": 4,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "json-list-output",
+      "kind": "edge",
+      "run": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0
     }
   ],
   "coverage": {
-    "reviewedScenarios": 7,
-    "withRuns": 7,
+    "reviewedScenarios": 10,
+    "withRuns": 10,
     "withoutCase": [],
     "withoutRun": [],
     "notSelected": []
@@ -315,9 +394,9 @@
       "inputTokens": 0,
       "outputTokens": 0,
       "realDollars": null,
-      "estimatedDollars": 0.03405,
-      "estimatedLowDollars": 0.025588,
-      "estimatedHighDollars": 0.040535,
+      "estimatedDollars": 0.045694,
+      "estimatedLowDollars": 0.035049,
+      "estimatedHighDollars": 0.054228,
       "errorPercent": null,
       "approximatePrice": false
     }

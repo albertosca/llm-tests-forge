@@ -1,8 +1,8 @@
 {
-  "evalId": "eval-pjU-2026-10-31T00:00:59",
+  "evalId": "eval-c6H-2026-11-01T16:59:38",
   "results": {
     "version": 3,
-    "timestamp": "2026-10-31T00:00:59.736Z",
+    "timestamp": "2026-11-01T16:59:38.365Z",
     "prompts": [
       {
         "id": "71f802d29609c6e6921fbed5d6a0d09614e849ccdfca593bf8ea8dfb118b7182",
@@ -10,19 +10,19 @@
         "label": "{{feature}}",
         "provider": "anthropic/claude-haiku-4-5",
         "metrics": {
-          "score": 36,
-          "testPassCount": 36,
+          "score": 40,
+          "testPassCount": 40,
           "testFailCount": 0,
           "testErrorCount": 0,
-          "assertPassCount": 36,
+          "assertPassCount": 40,
           "assertFailCount": 0,
-          "totalLatencyMs": 793684,
+          "totalLatencyMs": 810206,
           "tokenUsage": {
             "prompt": 0,
             "completion": 0,
             "cached": 0,
             "total": 0,
-            "numRequests": 36,
+            "numRequests": 40,
             "completionDetails": {
               "reasoning": 0,
               "acceptedPrediction": 0,
@@ -79,8 +79,8 @@
             }
           ]
         },
-        "id": "7b9c4a70-c87e-41f8-8fe2-5e485a8e2893",
-        "latencyMs": 9301,
+        "id": "6b00b583-8f81-4624-8a37-8b9f2628e09f",
+        "latencyMs": 10345,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -188,8 +188,8 @@
             }
           ]
         },
-        "id": "1b281451-736c-4cae-9d55-8addb0bbf61c",
-        "latencyMs": 22179,
+        "id": "551c9b5b-b9d7-4927-b460-0d43b8f1a407",
+        "latencyMs": 8628,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -297,8 +297,8 @@
             }
           ]
         },
-        "id": "f23a4b73-8fa6-412a-b3d2-bc661aa1d23e",
-        "latencyMs": 16060,
+        "id": "c750af63-35a8-4435-80f3-d9aa46d67397",
+        "latencyMs": 12796,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -406,8 +406,8 @@
             }
           ]
         },
-        "id": "77cab2cf-e1f4-4036-8d2f-9fd431fe8033",
-        "latencyMs": 9632,
+        "id": "63fad971-6140-4385-8481-6a9d22214326",
+        "latencyMs": 10599,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -515,8 +515,8 @@
             }
           ]
         },
-        "id": "c7d60f4e-6a6a-4750-968e-e8b187d6a5c6",
-        "latencyMs": 11551,
+        "id": "34ee71ea-92e6-438c-b04f-d59c9c1909dc",
+        "latencyMs": 18181,
         "namedScores": {},
         "prompt": {
           "raw": "id: triagem-de-chamados\npurpose: Classificar um chamado de suporte pelo time responsável. Os chamados chegam em português.\ninputs:\n- name: mensagem\n  kind: text\noutput:\n  kind: label\n  labels:\n  - cobranca\n  - defeito\n  - conta\ninvariants:\n- Responda com exatamente um rótulo.",
@@ -624,8 +624,8 @@
             }
           ]
         },
-        "id": "6bb2274a-4c22-49fd-9764-462c7a630e80",
-        "latencyMs": 14098,
+        "id": "d77d426b-1ac3-4399-b0fb-b4d74d1cd416",
+        "latencyMs": 10255,
         "namedScores": {},
         "prompt": {
           "raw": "id: triagem-de-chamados\npurpose: Classificar um chamado de suporte pelo time responsável. Os chamados chegam em português.\ninputs:\n- name: mensagem\n  kind: text\noutput:\n  kind: label\n  labels:\n  - cobranca\n  - defeito\n  - conta\ninvariants:\n- Responda com exatamente um rótulo.",
@@ -733,8 +733,8 @@
             }
           ]
         },
-        "id": "76963349-0afe-49b9-86db-ce90903e152c",
-        "latencyMs": 47632,
+        "id": "61ccd609-fe30-4f74-9420-ee4370d9e29a",
+        "latencyMs": 20437,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -842,8 +842,8 @@
             }
           ]
         },
-        "id": "6a984423-35d8-4329-8d61-e0b9eff72e6a",
-        "latencyMs": 31833,
+        "id": "68e1fc09-10ed-4ae1-a242-cebf6055606b",
+        "latencyMs": 39380,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -951,8 +951,8 @@
             }
           ]
         },
-        "id": "d18156e3-ef57-4ee4-a591-090bb28f4c9a",
-        "latencyMs": 18608,
+        "id": "ad7454db-845b-4188-8437-d6d693dcef5a",
+        "latencyMs": 27864,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -1060,8 +1060,8 @@
             }
           ]
         },
-        "id": "c8a25db7-b61b-4e07-ab29-f97e93ed5da3",
-        "latencyMs": 73855,
+        "id": "5e2f103a-956e-4ef2-8545-17117962dfc4",
+        "latencyMs": 16449,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -1169,8 +1169,8 @@
             }
           ]
         },
-        "id": "90115232-d85c-44f6-81da-be99f9879b30",
-        "latencyMs": 19224,
+        "id": "3457210f-0050-4ca2-a8e3-7f6733b654cc",
+        "latencyMs": 28524,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -1278,8 +1278,8 @@
             }
           ]
         },
-        "id": "f32bf02b-33fc-40c7-8da4-570ca2ebd3f7",
-        "latencyMs": 22945,
+        "id": "cf4e1975-f4a3-49a1-b2ac-2ccffd912aa8",
+        "latencyMs": 33793,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -1387,8 +1387,8 @@
             }
           ]
         },
-        "id": "8f79fa05-7f0c-45aa-ae66-a59fa85e2cdb",
-        "latencyMs": 34092,
+        "id": "ab03f0bc-f017-41e0-b8a2-166210b918b5",
+        "latencyMs": 43014,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -1496,8 +1496,8 @@
             }
           ]
         },
-        "id": "ba665f69-9c19-477f-b645-b3ace7c4f031",
-        "latencyMs": 24822,
+        "id": "a5e6fb38-80da-4ffe-ac7c-b6a9febc95f2",
+        "latencyMs": 22127,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -1605,8 +1605,8 @@
             }
           ]
         },
-        "id": "22414aa4-6512-472d-936e-d624cdba11e4",
-        "latencyMs": 54548,
+        "id": "b1666765-b579-4949-b13f-462993ac5aeb",
+        "latencyMs": 50884,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -1714,8 +1714,8 @@
             }
           ]
         },
-        "id": "0619d4b5-410f-44d7-867f-9e881acafb10",
-        "latencyMs": 24999,
+        "id": "a5d8bf22-16f1-4eb5-97e7-0adc3bc9447c",
+        "latencyMs": 24328,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -1823,8 +1823,8 @@
             }
           ]
         },
-        "id": "ad7bf2d5-10f1-40c1-93fd-66cfa40b2b97",
-        "latencyMs": 11197,
+        "id": "13d56a82-e641-4a9e-a55f-b0065e78d2ca",
+        "latencyMs": 9089,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -1932,8 +1932,8 @@
             }
           ]
         },
-        "id": "4d94f5a6-9956-4c2d-a1dc-58ddeabca160",
-        "latencyMs": 23845,
+        "id": "6612cca6-a934-40af-be28-6909f5891e3c",
+        "latencyMs": 11611,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -2041,8 +2041,8 @@
             }
           ]
         },
-        "id": "3e7116ed-2486-4c99-a646-c0499e9b81d6",
-        "latencyMs": 15125,
+        "id": "7abf4e98-fbd6-40d3-a281-249780e5da5a",
+        "latencyMs": 24220,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2150,8 +2150,8 @@
             }
           ]
         },
-        "id": "0c01633d-1674-4ba7-8741-2be8c3179b85",
-        "latencyMs": 10252,
+        "id": "f30e7fc3-ac6f-4640-b87d-d5c4bb024a1a",
+        "latencyMs": 22832,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2259,8 +2259,8 @@
             }
           ]
         },
-        "id": "76a48a16-b0eb-49f2-895d-262b8490a104",
-        "latencyMs": 10807,
+        "id": "1192117a-27d7-40e5-9259-d5df91e1cb09",
+        "latencyMs": 9710,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2368,8 +2368,8 @@
             }
           ]
         },
-        "id": "fb2adf96-93b4-409b-a95a-b17dcbccbcf7",
-        "latencyMs": 17893,
+        "id": "c50da965-e0c4-4b17-a8bb-2e1499cc6d39",
+        "latencyMs": 12315,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2477,8 +2477,8 @@
             }
           ]
         },
-        "id": "47f16ac0-fa7f-4477-b2bb-02b1961ae601",
-        "latencyMs": 30348,
+        "id": "de093661-701b-4db5-9114-5dcc9403278c",
+        "latencyMs": 30333,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2586,8 +2586,8 @@
             }
           ]
         },
-        "id": "adb29473-06c9-49cc-9e25-4f33bd189cad",
-        "latencyMs": 15650,
+        "id": "f5a06413-bb64-458f-bbf8-72a0395249f2",
+        "latencyMs": 12094,
         "namedScores": {},
         "prompt": {
           "raw": "id: translate\npurpose: Translate a text into a target language.\ninputs:\n- name: text\n  kind: text\n- name: language\n  kind: text\noutput:\n  kind: text\ninvariants: []",
@@ -2695,8 +2695,8 @@
             }
           ]
         },
-        "id": "3b9e6aed-b719-48e8-af46-3c4fc36077f2",
-        "latencyMs": 7628,
+        "id": "df9504d3-bc39-4465-a1d3-6677872d85ce",
+        "latencyMs": 9846,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -2804,8 +2804,8 @@
             }
           ]
         },
-        "id": "fd900dc0-21ae-4e55-9293-26cddda4134b",
-        "latencyMs": 8201,
+        "id": "68b990d2-09d5-4e6b-8545-292e16b0cc43",
+        "latencyMs": 6779,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -2913,8 +2913,8 @@
             }
           ]
         },
-        "id": "445d7448-1487-4bd9-a2da-71d9c328398b",
-        "latencyMs": 16043,
+        "id": "0520ee29-3fe1-439f-9120-be8eccca8189",
+        "latencyMs": 12525,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -3022,8 +3022,8 @@
             }
           ]
         },
-        "id": "b8bf88a0-3cd3-4d97-afa2-40aa3a4fc6be",
-        "latencyMs": 14917,
+        "id": "9d9dccd4-806e-441e-9fdc-c623d2e029af",
+        "latencyMs": 13376,
         "namedScores": {},
         "prompt": {
           "raw": "id: invoice-extract\npurpose: Pull the invoice number and the total out of an invoice text.\ninputs:\n- name: invoice\n  kind: text\noutput:\n  kind: json\n  fields:\n  - number\n  - total\ninvariants:\n- Return JSON with exactly the fields number and total.",
@@ -3131,8 +3131,8 @@
             }
           ]
         },
-        "id": "b72d2868-1769-4b03-8dfd-dd8a32e4627d",
-        "latencyMs": 15861,
+        "id": "305632d3-0e66-4426-8d23-56399f7495a3",
+        "latencyMs": 21555,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -3240,8 +3240,8 @@
             }
           ]
         },
-        "id": "5e58260e-9af9-4553-9794-a76ef80de917",
-        "latencyMs": 12326,
+        "id": "06da6c14-5a60-4948-a090-937263dd8dfa",
+        "latencyMs": 9940,
         "namedScores": {},
         "prompt": {
           "raw": "id: article-summary\npurpose: Summarise an article in two sentences.\ninputs:\n- name: article\n  kind: text\noutput:\n  kind: text\ninvariants:\n- At most two sentences.",
@@ -3349,8 +3349,8 @@
             }
           ]
         },
-        "id": "c32997e5-e0bc-40e9-987f-4188ef5231d3",
-        "latencyMs": 25107,
+        "id": "e3af7084-aafb-415c-98fd-6a7e8737aaba",
+        "latencyMs": 22541,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -3458,8 +3458,8 @@
             }
           ]
         },
-        "id": "3705c3c3-2f4c-4eb5-9e07-16faf0c43402",
-        "latencyMs": 23860,
+        "id": "0a251149-2411-4922-83d9-00a538cc0997",
+        "latencyMs": 23292,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -3567,8 +3567,8 @@
             }
           ]
         },
-        "id": "62cc8d6d-d22a-41c4-838a-7ee838ba5793",
-        "latencyMs": 31517,
+        "id": "c12fd6b0-34d3-4435-99e8-186734e9e6a7",
+        "latencyMs": 21604,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -3676,8 +3676,8 @@
             }
           ]
         },
-        "id": "e3598dd9-f35a-47d6-a427-7055b13e9e12",
-        "latencyMs": 26550,
+        "id": "220c01cb-432b-41b1-8888-63f071039a39",
+        "latencyMs": 18542,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -3785,8 +3785,8 @@
             }
           ]
         },
-        "id": "25a608bf-b8d6-4120-9b98-6dde6f2483a3",
-        "latencyMs": 27721,
+        "id": "021787c9-9974-4891-91c2-d3affba4ef0c",
+        "latencyMs": 9266,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -3894,8 +3894,8 @@
             }
           ]
         },
-        "id": "3f078222-40dd-4c96-b0a2-43236941ccdb",
-        "latencyMs": 13457,
+        "id": "7b18e138-5508-42e1-bb1a-92f8f0252fe5",
+        "latencyMs": 13178,
         "namedScores": {},
         "prompt": {
           "raw": "id: ticket-triage\npurpose: Label a support ticket with the team that should handle it.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - billing\n  - bug\n  - account\ninvariants:\n- Answer with exactly one label.",
@@ -3976,10 +3976,446 @@
           "_promptfooFileMetadata": {}
         },
         "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {},
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "javascript",
+                "value": "const verdict = (() => {\nconst text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nif (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;\nlet obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }\nconst want = {\"within_n\":true,\"input_names\":[\"message\"],\"expected_kinds\":[\"label\"]};\nconst differences = [];\nconst show = (value) => JSON.stringify(value);\nconst hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';\nconst hasDuplicateLabels = (items) => {\n  const seenLabels = new Set();\n  for (const item of items) {\n    if (!hasStringLabel(item)) continue;\n    if (seenLabels.has(item.label)) return true;\n    seenLabels.add(item.label);\n  }\n  return false;\n};\nconst compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);\nconst compareItems = (name, gotItems, wantItems) => {\n  let isFirstPart = true;\n  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };\n  if (!compareByLabel(wantItems, gotItems)) {\n    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);\n    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)\n      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);\n    return;\n  }\n  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));\n  const wantLabels = new Set(wantItems.map((item) => item.label));\n  for (const wantItem of wantItems) {\n    const gotItem = gotByLabel.get(wantItem.label);\n    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }\n    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);\n    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);\n  }\n  for (const gotItem of gotItems) {\n    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);\n    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);\n  }\n};\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);\n  } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);\n}\nif (differences.length === 0) return true;\nreturn \"fields differ: \" + (differences.length > 5 ? differences.slice(0, 5).join(\"; \") + `; and ${differences.length - 5} more` : differences.join(\"; \"));\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };"
+              }
+            }
+          ]
+        },
+        "id": "673f42f7-d2b8-4f83-b9b0-6bc9107034eb",
+        "latencyMs": 41394,
+        "namedScores": {},
+        "prompt": {
+          "raw": "id: sentiment\npurpose: Label a customer message as positive or negative.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - positive\n  - negative\ninvariants:\n- Answer with exactly one label.",
+          "label": "{{feature}}",
+          "config": {}
+        },
+        "promptId": "71f802d29609c6e6921fbed5d6a0d09614e849ccdfca593bf8ea8dfb118b7182",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: ../../../scripts/dogfood/cases-target.ts",
+          "label": "anthropic/claude-haiku-4-5"
+        },
+        "response": {
+          "output": "{\"within_n\":true,\"input_names\":[\"message\"],\"expected_kinds\":[\"label\"]}"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "description": "larger-batch-label-01",
+          "metadata": {
+            "scenario": "larger-batch-label",
+            "case": "larger-batch-label-01",
+            "kind": "edge",
+            "oracle": "fields"
+          },
+          "vars": {
+            "feature": "id: sentiment\npurpose: Label a customer message as positive or negative.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - positive\n  - negative\ninvariants:\n- Answer with exactly one label.\n",
+            "scenario": "id: mixed-tone\nkind: edge\noracle: label\ndescription: A message with praise and a complaint in the same sentence.\n",
+            "n": "5"
+          },
+          "assert": [
+            {
+              "type": "javascript",
+              "value": "const verdict = (() => {\nconst text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nif (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;\nlet obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }\nconst want = {\"within_n\":true,\"input_names\":[\"message\"],\"expected_kinds\":[\"label\"]};\nconst differences = [];\nconst show = (value) => JSON.stringify(value);\nconst hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';\nconst hasDuplicateLabels = (items) => {\n  const seenLabels = new Set();\n  for (const item of items) {\n    if (!hasStringLabel(item)) continue;\n    if (seenLabels.has(item.label)) return true;\n    seenLabels.add(item.label);\n  }\n  return false;\n};\nconst compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);\nconst compareItems = (name, gotItems, wantItems) => {\n  let isFirstPart = true;\n  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };\n  if (!compareByLabel(wantItems, gotItems)) {\n    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);\n    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)\n      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);\n    return;\n  }\n  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));\n  const wantLabels = new Set(wantItems.map((item) => item.label));\n  for (const wantItem of wantItems) {\n    const gotItem = gotByLabel.get(wantItem.label);\n    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }\n    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);\n    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);\n  }\n  for (const gotItem of gotItems) {\n    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);\n    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);\n  }\n};\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);\n  } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);\n}\nif (differences.length === 0) return true;\nreturn \"fields differ: \" + (differences.length > 5 ? differences.slice(0, 5).join(\"; \") + `; and ${differences.length - 5} more` : differences.join(\"; \"));\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };"
+            }
+          ],
+          "options": {}
+        },
+        "testIdx": 36,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "feature": "id: sentiment\npurpose: Label a customer message as positive or negative.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - positive\n  - negative\ninvariants:\n- Answer with exactly one label.\n",
+          "scenario": "id: mixed-tone\nkind: edge\noracle: label\ndescription: A message with praise and a complaint in the same sentence.\n",
+          "n": "5"
+        },
+        "metadata": {
+          "scenario": "larger-batch-label",
+          "case": "larger-batch-label-01",
+          "kind": "edge",
+          "oracle": "fields",
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {},
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "javascript",
+                "value": "const verdict = (() => {\nconst text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nif (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;\nlet obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }\nconst want = {\"within_n\":true,\"input_names\":[\"message\"],\"expected_kinds\":[\"label\"]};\nconst differences = [];\nconst show = (value) => JSON.stringify(value);\nconst hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';\nconst hasDuplicateLabels = (items) => {\n  const seenLabels = new Set();\n  for (const item of items) {\n    if (!hasStringLabel(item)) continue;\n    if (seenLabels.has(item.label)) return true;\n    seenLabels.add(item.label);\n  }\n  return false;\n};\nconst compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);\nconst compareItems = (name, gotItems, wantItems) => {\n  let isFirstPart = true;\n  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };\n  if (!compareByLabel(wantItems, gotItems)) {\n    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);\n    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)\n      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);\n    return;\n  }\n  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));\n  const wantLabels = new Set(wantItems.map((item) => item.label));\n  for (const wantItem of wantItems) {\n    const gotItem = gotByLabel.get(wantItem.label);\n    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }\n    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);\n    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);\n  }\n  for (const gotItem of gotItems) {\n    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);\n    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);\n  }\n};\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);\n  } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);\n}\nif (differences.length === 0) return true;\nreturn \"fields differ: \" + (differences.length > 5 ? differences.slice(0, 5).join(\"; \") + `; and ${differences.length - 5} more` : differences.join(\"; \"));\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };"
+              }
+            }
+          ]
+        },
+        "id": "a4d090a2-99f9-4718-aea2-f6c308bf3e0e",
+        "latencyMs": 29462,
+        "namedScores": {},
+        "prompt": {
+          "raw": "id: sentiment\npurpose: Label a customer message as positive or negative.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - positive\n  - negative\ninvariants:\n- Answer with exactly one label.",
+          "label": "{{feature}}",
+          "config": {}
+        },
+        "promptId": "71f802d29609c6e6921fbed5d6a0d09614e849ccdfca593bf8ea8dfb118b7182",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: ../../../scripts/dogfood/cases-target.ts",
+          "label": "anthropic/claude-haiku-4-5"
+        },
+        "response": {
+          "output": "{\"within_n\":true,\"input_names\":[\"message\"],\"expected_kinds\":[\"label\"]}"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "description": "larger-batch-label-01",
+          "metadata": {
+            "scenario": "larger-batch-label",
+            "case": "larger-batch-label-01",
+            "kind": "edge",
+            "oracle": "fields"
+          },
+          "vars": {
+            "feature": "id: sentiment\npurpose: Label a customer message as positive or negative.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - positive\n  - negative\ninvariants:\n- Answer with exactly one label.\n",
+            "scenario": "id: mixed-tone\nkind: edge\noracle: label\ndescription: A message with praise and a complaint in the same sentence.\n",
+            "n": "5"
+          },
+          "assert": [
+            {
+              "type": "javascript",
+              "value": "const verdict = (() => {\nconst text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nif (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;\nlet obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }\nconst want = {\"within_n\":true,\"input_names\":[\"message\"],\"expected_kinds\":[\"label\"]};\nconst differences = [];\nconst show = (value) => JSON.stringify(value);\nconst hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';\nconst hasDuplicateLabels = (items) => {\n  const seenLabels = new Set();\n  for (const item of items) {\n    if (!hasStringLabel(item)) continue;\n    if (seenLabels.has(item.label)) return true;\n    seenLabels.add(item.label);\n  }\n  return false;\n};\nconst compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);\nconst compareItems = (name, gotItems, wantItems) => {\n  let isFirstPart = true;\n  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };\n  if (!compareByLabel(wantItems, gotItems)) {\n    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);\n    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)\n      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);\n    return;\n  }\n  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));\n  const wantLabels = new Set(wantItems.map((item) => item.label));\n  for (const wantItem of wantItems) {\n    const gotItem = gotByLabel.get(wantItem.label);\n    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }\n    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);\n    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);\n  }\n  for (const gotItem of gotItems) {\n    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);\n    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);\n  }\n};\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);\n  } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);\n}\nif (differences.length === 0) return true;\nreturn \"fields differ: \" + (differences.length > 5 ? differences.slice(0, 5).join(\"; \") + `; and ${differences.length - 5} more` : differences.join(\"; \"));\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };"
+            }
+          ],
+          "options": {}
+        },
+        "testIdx": 37,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "feature": "id: sentiment\npurpose: Label a customer message as positive or negative.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - positive\n  - negative\ninvariants:\n- Answer with exactly one label.\n",
+          "scenario": "id: mixed-tone\nkind: edge\noracle: label\ndescription: A message with praise and a complaint in the same sentence.\n",
+          "n": "5"
+        },
+        "metadata": {
+          "scenario": "larger-batch-label",
+          "case": "larger-batch-label-01",
+          "kind": "edge",
+          "oracle": "fields",
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {},
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "javascript",
+                "value": "const verdict = (() => {\nconst text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nif (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;\nlet obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }\nconst want = {\"within_n\":true,\"input_names\":[\"distance\",\"service\",\"weight\"],\"expected_kinds\":[\"fields\"]};\nconst differences = [];\nconst show = (value) => JSON.stringify(value);\nconst hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';\nconst hasDuplicateLabels = (items) => {\n  const seenLabels = new Set();\n  for (const item of items) {\n    if (!hasStringLabel(item)) continue;\n    if (seenLabels.has(item.label)) return true;\n    seenLabels.add(item.label);\n  }\n  return false;\n};\nconst compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);\nconst compareItems = (name, gotItems, wantItems) => {\n  let isFirstPart = true;\n  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };\n  if (!compareByLabel(wantItems, gotItems)) {\n    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);\n    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)\n      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);\n    return;\n  }\n  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));\n  const wantLabels = new Set(wantItems.map((item) => item.label));\n  for (const wantItem of wantItems) {\n    const gotItem = gotByLabel.get(wantItem.label);\n    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }\n    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);\n    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);\n  }\n  for (const gotItem of gotItems) {\n    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);\n    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);\n  }\n};\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);\n  } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);\n}\nif (differences.length === 0) return true;\nreturn \"fields differ: \" + (differences.length > 5 ? differences.slice(0, 5).join(\"; \") + `; and ${differences.length - 5} more` : differences.join(\"; \"));\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };"
+              }
+            }
+          ]
+        },
+        "id": "5ae71fb9-04f7-408b-b4d7-753982549b80",
+        "latencyMs": 25869,
+        "namedScores": {},
+        "prompt": {
+          "raw": "id: shipping-quote\npurpose: Quote a shipping price from the weight, the distance and the service level.\ninputs:\n- name: weight\n  kind: text\n- name: distance\n  kind: text\n- name: service\n  kind: text\noutput:\n  kind: json\n  fields:\n  - price\n  - currency\ninvariants:\n- Return JSON with exactly the two fields.",
+          "label": "{{feature}}",
+          "config": {}
+        },
+        "promptId": "71f802d29609c6e6921fbed5d6a0d09614e849ccdfca593bf8ea8dfb118b7182",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: ../../../scripts/dogfood/cases-target.ts",
+          "label": "anthropic/claude-haiku-4-5"
+        },
+        "response": {
+          "output": "{\"within_n\":true,\"input_names\":[\"distance\",\"service\",\"weight\"],\"expected_kinds\":[\"fields\"]}"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "description": "three-inputs-fields-oracle-01",
+          "metadata": {
+            "scenario": "three-inputs-fields-oracle",
+            "case": "three-inputs-fields-oracle-01",
+            "kind": "edge",
+            "oracle": "fields"
+          },
+          "vars": {
+            "feature": "id: shipping-quote\npurpose: Quote a shipping price from the weight, the distance and the service level.\ninputs:\n- name: weight\n  kind: text\n- name: distance\n  kind: text\n- name: service\n  kind: text\noutput:\n  kind: json\n  fields:\n  - price\n  - currency\ninvariants:\n- Return JSON with exactly the two fields.\n",
+            "scenario": "id: heavy-parcel\nkind: edge\noracle: fields\ndescription: A parcel over the normal weight limit shipped far away.\n",
+            "n": "3"
+          },
+          "assert": [
+            {
+              "type": "javascript",
+              "value": "const verdict = (() => {\nconst text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nif (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;\nlet obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }\nconst want = {\"within_n\":true,\"input_names\":[\"distance\",\"service\",\"weight\"],\"expected_kinds\":[\"fields\"]};\nconst differences = [];\nconst show = (value) => JSON.stringify(value);\nconst hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';\nconst hasDuplicateLabels = (items) => {\n  const seenLabels = new Set();\n  for (const item of items) {\n    if (!hasStringLabel(item)) continue;\n    if (seenLabels.has(item.label)) return true;\n    seenLabels.add(item.label);\n  }\n  return false;\n};\nconst compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);\nconst compareItems = (name, gotItems, wantItems) => {\n  let isFirstPart = true;\n  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };\n  if (!compareByLabel(wantItems, gotItems)) {\n    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);\n    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)\n      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);\n    return;\n  }\n  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));\n  const wantLabels = new Set(wantItems.map((item) => item.label));\n  for (const wantItem of wantItems) {\n    const gotItem = gotByLabel.get(wantItem.label);\n    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }\n    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);\n    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);\n  }\n  for (const gotItem of gotItems) {\n    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);\n    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);\n  }\n};\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);\n  } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);\n}\nif (differences.length === 0) return true;\nreturn \"fields differ: \" + (differences.length > 5 ? differences.slice(0, 5).join(\"; \") + `; and ${differences.length - 5} more` : differences.join(\"; \"));\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };"
+            }
+          ],
+          "options": {}
+        },
+        "testIdx": 38,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "feature": "id: shipping-quote\npurpose: Quote a shipping price from the weight, the distance and the service level.\ninputs:\n- name: weight\n  kind: text\n- name: distance\n  kind: text\n- name: service\n  kind: text\noutput:\n  kind: json\n  fields:\n  - price\n  - currency\ninvariants:\n- Return JSON with exactly the two fields.\n",
+          "scenario": "id: heavy-parcel\nkind: edge\noracle: fields\ndescription: A parcel over the normal weight limit shipped far away.\n",
+          "n": "3"
+        },
+        "metadata": {
+          "scenario": "three-inputs-fields-oracle",
+          "case": "three-inputs-fields-oracle-01",
+          "kind": "edge",
+          "oracle": "fields",
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {},
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "javascript",
+                "value": "const verdict = (() => {\nconst text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nif (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;\nlet obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }\nconst want = {\"within_n\":true,\"input_names\":[\"distance\",\"service\",\"weight\"],\"expected_kinds\":[\"fields\"]};\nconst differences = [];\nconst show = (value) => JSON.stringify(value);\nconst hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';\nconst hasDuplicateLabels = (items) => {\n  const seenLabels = new Set();\n  for (const item of items) {\n    if (!hasStringLabel(item)) continue;\n    if (seenLabels.has(item.label)) return true;\n    seenLabels.add(item.label);\n  }\n  return false;\n};\nconst compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);\nconst compareItems = (name, gotItems, wantItems) => {\n  let isFirstPart = true;\n  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };\n  if (!compareByLabel(wantItems, gotItems)) {\n    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);\n    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)\n      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);\n    return;\n  }\n  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));\n  const wantLabels = new Set(wantItems.map((item) => item.label));\n  for (const wantItem of wantItems) {\n    const gotItem = gotByLabel.get(wantItem.label);\n    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }\n    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);\n    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);\n  }\n  for (const gotItem of gotItems) {\n    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);\n    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);\n  }\n};\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);\n  } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);\n}\nif (differences.length === 0) return true;\nreturn \"fields differ: \" + (differences.length > 5 ? differences.slice(0, 5).join(\"; \") + `; and ${differences.length - 5} more` : differences.join(\"; \"));\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };"
+              }
+            }
+          ]
+        },
+        "id": "3511e051-9e96-45e5-807e-b71ed0580302",
+        "latencyMs": 21229,
+        "namedScores": {},
+        "prompt": {
+          "raw": "id: shipping-quote\npurpose: Quote a shipping price from the weight, the distance and the service level.\ninputs:\n- name: weight\n  kind: text\n- name: distance\n  kind: text\n- name: service\n  kind: text\noutput:\n  kind: json\n  fields:\n  - price\n  - currency\ninvariants:\n- Return JSON with exactly the two fields.",
+          "label": "{{feature}}",
+          "config": {}
+        },
+        "promptId": "71f802d29609c6e6921fbed5d6a0d09614e849ccdfca593bf8ea8dfb118b7182",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: ../../../scripts/dogfood/cases-target.ts",
+          "label": "anthropic/claude-haiku-4-5"
+        },
+        "response": {
+          "output": "{\"within_n\":true,\"input_names\":[\"distance\",\"service\",\"weight\"],\"expected_kinds\":[\"fields\"]}"
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "description": "three-inputs-fields-oracle-01",
+          "metadata": {
+            "scenario": "three-inputs-fields-oracle",
+            "case": "three-inputs-fields-oracle-01",
+            "kind": "edge",
+            "oracle": "fields"
+          },
+          "vars": {
+            "feature": "id: shipping-quote\npurpose: Quote a shipping price from the weight, the distance and the service level.\ninputs:\n- name: weight\n  kind: text\n- name: distance\n  kind: text\n- name: service\n  kind: text\noutput:\n  kind: json\n  fields:\n  - price\n  - currency\ninvariants:\n- Return JSON with exactly the two fields.\n",
+            "scenario": "id: heavy-parcel\nkind: edge\noracle: fields\ndescription: A parcel over the normal weight limit shipped far away.\n",
+            "n": "3"
+          },
+          "assert": [
+            {
+              "type": "javascript",
+              "value": "const verdict = (() => {\nconst text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nif (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;\nlet obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }\nconst want = {\"within_n\":true,\"input_names\":[\"distance\",\"service\",\"weight\"],\"expected_kinds\":[\"fields\"]};\nconst differences = [];\nconst show = (value) => JSON.stringify(value);\nconst hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';\nconst hasDuplicateLabels = (items) => {\n  const seenLabels = new Set();\n  for (const item of items) {\n    if (!hasStringLabel(item)) continue;\n    if (seenLabels.has(item.label)) return true;\n    seenLabels.add(item.label);\n  }\n  return false;\n};\nconst compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);\nconst compareItems = (name, gotItems, wantItems) => {\n  let isFirstPart = true;\n  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };\n  if (!compareByLabel(wantItems, gotItems)) {\n    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);\n    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)\n      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);\n    return;\n  }\n  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));\n  const wantLabels = new Set(wantItems.map((item) => item.label));\n  for (const wantItem of wantItems) {\n    const gotItem = gotByLabel.get(wantItem.label);\n    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }\n    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);\n    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);\n  }\n  for (const gotItem of gotItems) {\n    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);\n    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);\n  }\n};\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);\n  } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);\n}\nif (differences.length === 0) return true;\nreturn \"fields differ: \" + (differences.length > 5 ? differences.slice(0, 5).join(\"; \") + `; and ${differences.length - 5} more` : differences.join(\"; \"));\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };"
+            }
+          ],
+          "options": {}
+        },
+        "testIdx": 39,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "feature": "id: shipping-quote\npurpose: Quote a shipping price from the weight, the distance and the service level.\ninputs:\n- name: weight\n  kind: text\n- name: distance\n  kind: text\n- name: service\n  kind: text\noutput:\n  kind: json\n  fields:\n  - price\n  - currency\ninvariants:\n- Return JSON with exactly the two fields.\n",
+          "scenario": "id: heavy-parcel\nkind: edge\noracle: fields\ndescription: A parcel over the normal weight limit shipped far away.\n",
+          "n": "3"
+        },
+        "metadata": {
+          "scenario": "three-inputs-fields-oracle",
+          "case": "three-inputs-fields-oracle-01",
+          "kind": "edge",
+          "oracle": "fields",
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
       }
     ],
     "stats": {
-      "successes": 36,
+      "successes": 40,
       "failures": 0,
       "errors": 0,
       "tokenUsage": {
@@ -3987,7 +4423,7 @@
         "completion": 0,
         "cached": 0,
         "total": 0,
-        "numRequests": 36,
+        "numRequests": 40,
         "completionDetails": {
           "reasoning": 0,
           "acceptedPrediction": 0,
@@ -4010,13 +4446,13 @@
           }
         }
       },
-      "durationMs": 402382,
-      "evaluationDurationMs": 402382
+      "durationMs": 405689,
+      "evaluationDurationMs": 405689
     }
   },
   "config": {
     "tags": {},
-    "description": "generate-cases: forge suite, 18 cases from 6 scenarios",
+    "description": "generate-cases: forge suite, 20 cases from 8 scenarios",
     "prompts": [
       "{{feature}}"
     ],
@@ -4389,6 +4825,46 @@
             "value": "const verdict = (() => {\nconst text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nif (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;\nlet obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }\nconst want = {\"within_n\":true,\"input_names\":[\"message\"],\"expected_kinds\":[\"label\"]};\nconst differences = [];\nconst show = (value) => JSON.stringify(value);\nconst hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';\nconst hasDuplicateLabels = (items) => {\n  const seenLabels = new Set();\n  for (const item of items) {\n    if (!hasStringLabel(item)) continue;\n    if (seenLabels.has(item.label)) return true;\n    seenLabels.add(item.label);\n  }\n  return false;\n};\nconst compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);\nconst compareItems = (name, gotItems, wantItems) => {\n  let isFirstPart = true;\n  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };\n  if (!compareByLabel(wantItems, gotItems)) {\n    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);\n    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)\n      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);\n    return;\n  }\n  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));\n  const wantLabels = new Set(wantItems.map((item) => item.label));\n  for (const wantItem of wantItems) {\n    const gotItem = gotByLabel.get(wantItem.label);\n    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }\n    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);\n    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);\n  }\n  for (const gotItem of gotItems) {\n    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);\n    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);\n  }\n};\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);\n  } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);\n}\nif (differences.length === 0) return true;\nreturn \"fields differ: \" + (differences.length > 5 ? differences.slice(0, 5).join(\"; \") + `; and ${differences.length - 5} more` : differences.join(\"; \"));\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };"
           }
         ]
+      },
+      {
+        "description": "larger-batch-label-01",
+        "metadata": {
+          "scenario": "larger-batch-label",
+          "case": "larger-batch-label-01",
+          "kind": "edge",
+          "oracle": "fields"
+        },
+        "vars": {
+          "feature": "id: sentiment\npurpose: Label a customer message as positive or negative.\ninputs:\n- name: message\n  kind: text\noutput:\n  kind: label\n  labels:\n  - positive\n  - negative\ninvariants:\n- Answer with exactly one label.\n",
+          "scenario": "id: mixed-tone\nkind: edge\noracle: label\ndescription: A message with praise and a complaint in the same sentence.\n",
+          "n": "5"
+        },
+        "assert": [
+          {
+            "type": "javascript",
+            "value": "const verdict = (() => {\nconst text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nif (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;\nlet obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }\nconst want = {\"within_n\":true,\"input_names\":[\"message\"],\"expected_kinds\":[\"label\"]};\nconst differences = [];\nconst show = (value) => JSON.stringify(value);\nconst hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';\nconst hasDuplicateLabels = (items) => {\n  const seenLabels = new Set();\n  for (const item of items) {\n    if (!hasStringLabel(item)) continue;\n    if (seenLabels.has(item.label)) return true;\n    seenLabels.add(item.label);\n  }\n  return false;\n};\nconst compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);\nconst compareItems = (name, gotItems, wantItems) => {\n  let isFirstPart = true;\n  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };\n  if (!compareByLabel(wantItems, gotItems)) {\n    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);\n    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)\n      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);\n    return;\n  }\n  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));\n  const wantLabels = new Set(wantItems.map((item) => item.label));\n  for (const wantItem of wantItems) {\n    const gotItem = gotByLabel.get(wantItem.label);\n    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }\n    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);\n    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);\n  }\n  for (const gotItem of gotItems) {\n    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);\n    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);\n  }\n};\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);\n  } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);\n}\nif (differences.length === 0) return true;\nreturn \"fields differ: \" + (differences.length > 5 ? differences.slice(0, 5).join(\"; \") + `; and ${differences.length - 5} more` : differences.join(\"; \"));\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };"
+          }
+        ]
+      },
+      {
+        "description": "three-inputs-fields-oracle-01",
+        "metadata": {
+          "scenario": "three-inputs-fields-oracle",
+          "case": "three-inputs-fields-oracle-01",
+          "kind": "edge",
+          "oracle": "fields"
+        },
+        "vars": {
+          "feature": "id: shipping-quote\npurpose: Quote a shipping price from the weight, the distance and the service level.\ninputs:\n- name: weight\n  kind: text\n- name: distance\n  kind: text\n- name: service\n  kind: text\noutput:\n  kind: json\n  fields:\n  - price\n  - currency\ninvariants:\n- Return JSON with exactly the two fields.\n",
+          "scenario": "id: heavy-parcel\nkind: edge\noracle: fields\ndescription: A parcel over the normal weight limit shipped far away.\n",
+          "n": "3"
+        },
+        "assert": [
+          {
+            "type": "javascript",
+            "value": "const verdict = (() => {\nconst text = String(output).replace(/^\\s*```(?:json)?\\s*/i, \"\").replace(/\\s*```\\s*$/, \"\");\nconst start = text.indexOf(\"{\"); const end = text.lastIndexOf(\"}\");\nif (start < 0 || end < start) return `no JSON object in output: ${text.slice(0, 80)}`;\nlet obj; try { obj = JSON.parse(text.slice(start, end + 1)); } catch (e) { return `output is not JSON: ${e.message}`; }\nconst want = {\"within_n\":true,\"input_names\":[\"distance\",\"service\",\"weight\"],\"expected_kinds\":[\"fields\"]};\nconst differences = [];\nconst show = (value) => JSON.stringify(value);\nconst hasStringLabel = (item) => item !== null && typeof item === 'object' && typeof item.label === 'string';\nconst hasDuplicateLabels = (items) => {\n  const seenLabels = new Set();\n  for (const item of items) {\n    if (!hasStringLabel(item)) continue;\n    if (seenLabels.has(item.label)) return true;\n    seenLabels.add(item.label);\n  }\n  return false;\n};\nconst compareByLabel = (wantItems, gotItems) => wantItems.length > 0 && wantItems.every(hasStringLabel) && !hasDuplicateLabels(wantItems) && !hasDuplicateLabels(gotItems);\nconst compareItems = (name, gotItems, wantItems) => {\n  let isFirstPart = true;\n  const pushDifference = (text) => { differences.push(isFirstPart ? `${name}: ${text}` : text); isFirstPart = false; };\n  if (!compareByLabel(wantItems, gotItems)) {\n    if (gotItems.length !== wantItems.length) pushDifference(`${gotItems.length} items (expected ${wantItems.length})`);\n    for (let index = 0; index < Math.min(gotItems.length, wantItems.length); index++)\n      if (show(gotItems[index]) !== show(wantItems[index])) pushDifference(`[${index}]=${show(gotItems[index])} (expected ${show(wantItems[index])})`);\n    return;\n  }\n  const gotByLabel = new Map(gotItems.filter(hasStringLabel).map((item) => [item.label, item]));\n  const wantLabels = new Set(wantItems.map((item) => item.label));\n  for (const wantItem of wantItems) {\n    const gotItem = gotByLabel.get(wantItem.label);\n    if (gotItem === undefined) { pushDifference(`missing ${show(wantItem.label)}`); continue; }\n    const fieldDifferences = Object.keys(wantItem).filter((field) => show(gotItem[field]) !== show(wantItem[field])).map((field) => `${field}=${show(gotItem[field])} (expected ${show(wantItem[field])})`);\n    if (fieldDifferences.length > 0) pushDifference(`${show(wantItem.label)} ${fieldDifferences.join(', ')}`);\n  }\n  for (const gotItem of gotItems) {\n    if (!hasStringLabel(gotItem)) pushDifference(`unexpected item ${show(gotItem)}`);\n    else if (!wantLabels.has(gotItem.label)) pushDifference(`unexpected ${show(gotItem.label)}`);\n  }\n};\nfor (const field of Object.keys(want)) {\n  if (show(obj[field]) === show(want[field])) continue;\n  if (Array.isArray(obj[field]) && Array.isArray(want[field])) {\n    const partsBefore = differences.length;\n    compareItems(field, obj[field], want[field]);\n    if (differences.length === partsBefore) differences.push(`${field}: same items, but in a different order or with keys the expected value does not name`);\n  } else differences.push(`${field}=${show(obj[field])} (expected ${show(want[field])})`);\n}\nif (differences.length === 0) return true;\nreturn \"fields differ: \" + (differences.length > 5 ? differences.slice(0, 5).join(\"; \") + `; and ${differences.length - 5} more` : differences.join(\"; \"));\n})();\nreturn verdict === true ? true : { pass: false, score: 0, reason: String(verdict) };"
+          }
+        ]
       }
     ],
     "env": {},
@@ -4407,8 +4883,8 @@
     "nodeVersion": "v26.12.1",
     "platform": "darwin",
     "arch": "arm64",
-    "exportedAt": "2026-10-31T00:07:42.610Z",
-    "evaluationCreatedAt": "2026-10-31T00:00:59.736Z"
+    "exportedAt": "2026-11-01T17:06:24.556Z",
+    "evaluationCreatedAt": "2026-11-01T16:59:38.365Z"
   },
   "vars": [
     "feature",

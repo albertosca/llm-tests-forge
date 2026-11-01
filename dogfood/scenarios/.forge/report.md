@@ -1,7 +1,7 @@
-# llm-tests-forge report — run 2026-10-31T00:15:54.661Z
-Reported 2026-10-31T00:31:01.798Z.
+# llm-tests-forge report — run 2026-11-01T17:17:18.593Z
+Reported 2026-11-01T17:32:42.411Z.
 
-**Pass rate:** 100.0% (36 of 36 runs, 0 errored) · **failing or errored:** 0 · **flaky:** 0 · **judge disagreements:** 0 · **regressions since baseline:** 0
+**Pass rate:** 100.0% (42 of 42 runs, 0 errored) · **failing or errored:** 0 · **flaky:** 0 · **judge disagreements:** 0 · **regressions since baseline:** 0
 
 ## Regressions since baseline
 
@@ -31,13 +31,15 @@ No disagreement.
 | instruction-inside-the-feature | adversarial | 6 | 6 | 0 | 0 |
 | portuguese-feature | language | 6 | 6 | 0 | 0 |
 | text-feature-out-of-scope | ambiguous | 6 | 6 | 0 | 0 |
+| all-six-kinds-json-feature | edge | 2 | 2 | 0 | 0 |
+| rare-kind-on-a-narrow-feature | ambiguous | 4 | 4 | 0 | 0 |
 
-Coverage: 6 of 6 reviewed scenarios ran.
+Coverage: 8 of 8 reviewed scenarios ran.
 
 ## Cost
 
 | model | role | input | output | real | estimated | error |
 | --- | --- | --- | --- | --- | --- | --- |
-| anthropic/claude-haiku-4-5 | target | 0 | 0 | — | $0.018028–$0.026315 | no recorded tokens |
+| anthropic/claude-haiku-4-5 | target | 0 | 0 | — | $0.021038–$0.030706 | no recorded tokens |
 
 Target usage: not reported by the shim — target rows show 0 tokens; return tokenUsage from forge_target.py to fill this table
