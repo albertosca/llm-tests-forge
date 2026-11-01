@@ -1,0 +1,83 @@
+- id: two-groups-and-a-near-miss-01
+  scenario: two-groups-and-a-near-miss
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: My password reset email never arrives.
+        expected:
+          label: account
+      - id: c2
+        input:
+          message: I want to cancel my subscription today.
+        expected:
+          label: cancellation
+      - id: c3
+        input:
+          message: The password reset link is not showing up in my inbox.
+        expected:
+          label: account
+      - id: c4
+        input:
+          message: How do I change the email address on my account?
+        expected:
+          label: sales
+      - id: c5
+        input:
+          message: I never got the email to reset my password.
+        expected:
+          label: account
+      - id: c6
+        input:
+          message: Please cancel my subscription, I do not want it anymore.
+        expected:
+          label: cancellation
+  expected:
+    fields:
+      duplicates:
+        - id: c3
+          duplicate_of: c1
+        - id: c5
+          duplicate_of: c1
+        - id: c6
+          duplicate_of: c2
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: two-groups-and-a-near-miss-02
+  scenario: two-groups-and-a-near-miss
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: Where is my parcel? It was due on Monday.
+        expected:
+          label: shipping
+      - id: c2
+        input:
+          message: The invoice shows a charge I do not recognise.
+        expected:
+          label: billing
+      - id: c3
+        input:
+          message: My package has not arrived and it was due on Monday.
+        expected:
+          label: shipping
+      - id: c4
+        input:
+          message: I was charged for something I did not buy.
+        expected:
+          label: billing
+      - id: c5
+        input:
+          message: Can I change the delivery address of an order already shipped?
+        expected:
+          label: sales
+  expected:
+    fields:
+      duplicates:
+        - id: c3
+          duplicate_of: c1
+        - id: c4
+          duplicate_of: c2
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

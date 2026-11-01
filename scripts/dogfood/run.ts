@@ -1,15 +1,34 @@
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { messageOf } from "../../src/core/errors";
-import { evalRan, minimumPassRateOf, problemsIn, selectFeatures } from "./plan";
+import {
+	describeUsage,
+	evalRan,
+	minimumPassRateOf,
+	problemsIn,
+	selectFeatures,
+	summariseUsage,
+} from "./plan";
 
 const repository = resolve(import.meta.dir, "../..");
 const forge = join(repository, "node_modules/.bin/llm-tests-forge");
 
 /** Runs a command with its output on this terminal, so the cost lines show; resolves to its exit code. */
-async function run(command: string[], directory: string): Promise<number> {
+async function run(
+	command: string[],
+	directory: string,
+	environment: Record<string, string | undefined> = process.env,
+): Promise<number> {
 	const child = Bun.spawn(command, {
 		cwd: directory,
+		env: environment,
 		stdin: "inherit",
 		stdout: "inherit",
 		stderr: "inherit",
@@ -55,14 +74,30 @@ async function dogfoodFeature(
 			"baseline-report.json",
 		],
 	];
+	// Through claude -p the targets log each call's usage to a file, because
+	// promptfoo's exec provider keeps only stdout and the report shows no cost.
+	const usageDirectory = mkdtempSync(join(tmpdir(), "forge-dogfood-usage-"));
+	const usageFile = join(usageDirectory, "usage.jsonl");
+	const viaClaudeCli = process.env.DOGFOOD_TRANSPORT === "claude-cli";
 	for (const step of steps) {
-		const exitCode = await run(step, directory);
 		const isEval = step.includes("eval");
+		const exitCode = await run(
+			step,
+			directory,
+			isEval && viaClaudeCli
+				? { ...process.env, DOGFOOD_USAGE_FILE: usageFile }
+				: process.env,
+		);
+		if (isEval && viaClaudeCli && existsSync(usageFile))
+			console.log(
+				`${name}: ${describeUsage(summariseUsage(readFileSync(usageFile, "utf8")))}`,
+			);
 		if (isEval ? !evalRan(exitCode) : exitCode !== 0) {
 			console.log(`${name}: ${step.slice(0, 2).join(" ")} failed`);
 			return false;
 		}
 	}
+	rmSync(usageDirectory, { recursive: true, force: true });
 	const problems = problemsIn(
 		readFileSync(join(directory, ".forge/report.json"), "utf8"),
 		minimumPassRate,

@@ -1,4 +1,5 @@
 import { parse } from "yaml";
+import { z } from "zod";
 import { ForgeError } from "../../src/core/errors";
 
 /** The features to run: all of them, or the ones named, refusing a name that is not a feature. */
@@ -65,4 +66,55 @@ export function problemsIn(
  */
 export function evalRan(exitCode: number): boolean {
 	return exitCode === 0 || exitCode === 100;
+}
+
+const UsageLineSchema = z.object({
+	inputTokens: z.number(),
+	outputTokens: z.number(),
+	cacheReadTokens: z.number(),
+	cacheCreationTokens: z.number(),
+	costUsd: z.number(),
+});
+
+export interface UsageSummary {
+	calls: number;
+	inputTokens: number;
+	outputTokens: number;
+	cacheReadTokens: number;
+	cacheCreationTokens: number;
+	costUsd: number;
+}
+
+/** The claude-cli usage log of one suite, added up; a line that is not a usage record is refused by its number. */
+export function summariseUsage(log: string): UsageSummary {
+	const summary: UsageSummary = {
+		calls: 0,
+		inputTokens: 0,
+		outputTokens: 0,
+		cacheReadTokens: 0,
+		cacheCreationTokens: 0,
+		costUsd: 0,
+	};
+	for (const [index, line] of log.split("\n").entries()) {
+		if (line.trim() === "") continue;
+		let record: z.infer<typeof UsageLineSchema>;
+		try {
+			record = UsageLineSchema.parse(JSON.parse(line));
+		} catch {
+			throw new ForgeError(`usage line ${index + 1} is not a usage record`);
+		}
+		summary.calls += 1;
+		summary.inputTokens += record.inputTokens;
+		summary.outputTokens += record.outputTokens;
+		summary.cacheReadTokens += record.cacheReadTokens;
+		summary.cacheCreationTokens += record.cacheCreationTokens;
+		summary.costUsd += record.costUsd;
+	}
+	summary.costUsd = Math.round(summary.costUsd * 1e6) / 1e6;
+	return summary;
+}
+
+/** The usage as one line. The cost is the CLI's list-price figure: a subscription run is not billed per token. */
+export function describeUsage(summary: UsageSummary): string {
+	return `claude-cli: ${summary.calls} calls, ${summary.inputTokens} input + ${summary.outputTokens} output tokens, ${summary.cacheReadTokens} cache-read + ${summary.cacheCreationTokens} cache-write tokens, about $${summary.costUsd.toFixed(2)} at list price (the subscription is not billed per token)`;
 }

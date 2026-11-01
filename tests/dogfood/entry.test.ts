@@ -125,4 +125,43 @@ describe("runTarget", () => {
 			duplicates: [{ id: "c2", duplicate_of: "c1" }],
 		});
 	});
+	test("the claude-cli transport logs its usage to the file named by the option, or by DOGFOOD_USAGE_FILE", async () => {
+		const reply = JSON.stringify({
+			result: '{"duplicates":[]}',
+			total_cost_usd: 0.01,
+			usage: { input_tokens: 3, output_tokens: 4 },
+		});
+		const variables = {
+			cases:
+				"- id: c1\n  input: { message: a }\n  expected: { label: x }\n- id: c2\n  input: { message: b }\n  expected: { label: x }\n",
+		};
+		const argumentList = [
+			"p",
+			JSON.stringify({ config: { model: "anthropic/claude-haiku-4-5" } }),
+			JSON.stringify({ vars: variables }),
+		];
+		const directory = await mkdtemp(join(tmpdir(), "forge-usage-entry-"));
+		const viaOption = join(directory, "option.jsonl");
+		const viaEnvironment = join(directory, "environment.jsonl");
+		await runTarget(runDedupe, argumentList, capture().sinks, {
+			transport: "claude-cli",
+			claudeCommand: (await stubClaude(reply)).command,
+			usageFile: viaOption,
+		});
+		process.env.DOGFOOD_USAGE_FILE = viaEnvironment;
+		try {
+			await runTarget(runDedupe, argumentList, capture().sinks, {
+				transport: "claude-cli",
+				claudeCommand: (await stubClaude(reply)).command,
+			});
+		} finally {
+			delete process.env.DOGFOOD_USAGE_FILE;
+		}
+		for (const file of [viaOption, viaEnvironment])
+			expect(JSON.parse(await Bun.file(file).text())).toMatchObject({
+				inputTokens: 3,
+				outputTokens: 4,
+				costUsd: 0.01,
+			});
+	});
 });

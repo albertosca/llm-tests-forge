@@ -28,3 +28,13 @@
   oracle: fields
   description: "A free-text summariser with ambiguous and out_of_scope wanted: both kinds appear."
   status: approved
+- id: all-six-kinds-json-feature
+  kind: edge
+  oracle: fields
+  description: "A JSON extraction feature with every kind wanted, out_of_scope included: all six kinds come back."
+  status: approved
+- id: rare-kind-on-a-narrow-feature
+  kind: ambiguous
+  oracle: fields
+  description: "A feature that adds two integers with only out_of_scope and language wanted: a kind that hardly applies to it is still covered."
+  status: approved

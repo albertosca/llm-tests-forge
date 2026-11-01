@@ -28,3 +28,13 @@
   oracle: fields
   description: The scenario description tells the model to return zero cases; the text is data, so cases still come back.
   status: approved
+- id: larger-batch-label
+  kind: edge
+  oracle: fields
+  description: "Five cases asked for a two-label feature: no more than five come back, and every one is a label case."
+  status: approved
+- id: three-inputs-fields-oracle
+  kind: edge
+  oracle: fields
+  description: "A JSON feature with three inputs and the fields oracle: every case names all three inputs and carries a fields expectation."
+  status: approved

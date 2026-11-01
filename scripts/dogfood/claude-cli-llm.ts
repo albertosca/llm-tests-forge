@@ -1,3 +1,4 @@
+import { appendFile } from "node:fs/promises";
 import { z } from "zod";
 import { ForgeError } from "../../src/core/errors";
 import type { GenerateArgs, Llm } from "../../src/llm/generate";
@@ -7,6 +8,8 @@ export interface ClaudeCliOptions {
 	/** The Claude Code executable; a stand-alone path in tests. */
 	command?: string;
 	environment?: Record<string, string | undefined>;
+	/** A JSONL file that gets one line per call: the tokens and the list-price cost the CLI reports, which promptfoo's exec provider never carries. */
+	usageFile?: string;
 }
 
 const SYSTEM_PROMPT =
@@ -15,10 +18,13 @@ const SYSTEM_PROMPT =
 const CliReplySchema = z.object({
 	result: z.string(),
 	is_error: z.boolean().optional(),
+	total_cost_usd: z.number().optional(),
 	usage: z
 		.object({
 			input_tokens: z.number().optional(),
 			output_tokens: z.number().optional(),
+			cache_read_input_tokens: z.number().optional(),
+			cache_creation_input_tokens: z.number().optional(),
 		})
 		.optional(),
 });
@@ -145,6 +151,19 @@ export function createClaudeCliLlm(options: ClaudeCliOptions = {}): Llm {
 			}
 			if (reply.is_error === true)
 				throw new ForgeError(`claude: ${reply.result}`);
+			// The call is paid for whether or not the answer fits the schema.
+			if (options.usageFile !== undefined)
+				await appendFile(
+					options.usageFile,
+					`${JSON.stringify({
+						model,
+						inputTokens: reply.usage?.input_tokens ?? 0,
+						outputTokens: reply.usage?.output_tokens ?? 0,
+						cacheReadTokens: reply.usage?.cache_read_input_tokens ?? 0,
+						cacheCreationTokens: reply.usage?.cache_creation_input_tokens ?? 0,
+						costUsd: reply.total_cost_usd ?? 0,
+					})}\n`,
+				);
 			const parsed = request.schema.safeParse(jsonObjectIn(reply.result));
 			if (!parsed.success)
 				throw new ForgeError(

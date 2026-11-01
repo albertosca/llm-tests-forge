@@ -1,0 +1,47 @@
+- id: identifiers-differ-only-01
+  scenario: identifiers-differ-only
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: Order #4412 has not arrived yet.
+        expected:
+          label: shipping
+      - id: c2
+        input:
+          message: Order #5523 arrived damaged.
+        expected:
+          label: shipping
+      - id: c3
+        input:
+          message: Order #9981 has not arrived yet.
+        expected:
+          label: shipping
+  expected:
+    fields:
+      duplicates:
+        - id: c3
+          duplicate_of: c1
+  status: rejected
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: identifiers-differ-only-02
+  scenario: identifiers-differ-only
+  input:
+    cases: |
+      - id: c1
+        input:
+          message: I was charged twice on 3 March.
+        expected:
+          label: billing
+      - id: c2
+        input:
+          message: I was charged twice on 17 June.
+        expected:
+          label: billing
+  expected:
+    fields:
+      duplicates:
+        - id: c2
+          duplicate_of: c1
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

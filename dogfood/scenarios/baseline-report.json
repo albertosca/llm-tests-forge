@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-31T00:31:01.798Z",
-  "ranAt": "2026-10-31T00:15:54.661Z",
+  "generatedAt": "2026-11-01T17:32:42.411Z",
+  "ranAt": "2026-11-01T17:17:18.593Z",
   "promptfooVersion": "0.123.0",
-  "rows": 36,
-  "matched": 36,
+  "rows": 42,
+  "matched": 42,
   "unmatched": [],
   "passRate": 1,
   "cases": [
@@ -204,6 +204,39 @@
       "errored": 0,
       "stability": "stable",
       "reasons": []
+    },
+    {
+      "case": "all-six-kinds-json-feature-01",
+      "scenario": "all-six-kinds-json-feature",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "rare-kind-on-a-narrow-feature-01",
+      "scenario": "rare-kind-on-a-narrow-feature",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
+    },
+    {
+      "case": "rare-kind-on-a-narrow-feature-02",
+      "scenario": "rare-kind-on-a-narrow-feature",
+      "model": "anthropic/claude-haiku-4-5",
+      "runs": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0,
+      "stability": "stable",
+      "reasons": []
     }
   ],
   "failing": [],
@@ -257,11 +290,27 @@
       "passed": 6,
       "failed": 0,
       "errored": 0
+    },
+    {
+      "scenario": "all-six-kinds-json-feature",
+      "kind": "edge",
+      "run": 2,
+      "passed": 2,
+      "failed": 0,
+      "errored": 0
+    },
+    {
+      "scenario": "rare-kind-on-a-narrow-feature",
+      "kind": "ambiguous",
+      "run": 4,
+      "passed": 4,
+      "failed": 0,
+      "errored": 0
     }
   ],
   "coverage": {
-    "reviewedScenarios": 6,
-    "withRuns": 6,
+    "reviewedScenarios": 8,
+    "withRuns": 8,
     "withoutCase": [],
     "withoutRun": [],
     "notSelected": []
@@ -274,9 +323,9 @@
       "inputTokens": 0,
       "outputTokens": 0,
       "realDollars": null,
-      "estimatedDollars": 0.02235,
-      "estimatedLowDollars": 0.018028,
-      "estimatedHighDollars": 0.026315,
+      "estimatedDollars": 0.02608,
+      "estimatedLowDollars": 0.021038,
+      "estimatedHighDollars": 0.030706,
       "errorPercent": null,
       "approximatePrice": false
     }

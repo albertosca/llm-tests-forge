@@ -1,9 +1,9 @@
 {
   "format": 1,
-  "sealedAt": "2026-10-31T00:31:25.313Z",
+  "sealedAt": "2026-11-01T17:51:59.035Z",
   "forgeVersion": "0.1.0",
   "promptfooVersion": "0.123.0",
-  "ranAt": "2026-10-31T00:15:54.661Z",
+  "ranAt": "2026-11-01T17:17:18.593Z",
   "models": {
     "targets": [
       "anthropic/claude-haiku-4-5"
@@ -14,17 +14,19 @@
   },
   "inputs": {
     "../../bun.lock": "sha256:0e8dd1b1179434d7c04ff0e2c9c8537a9add82cfe82c661501e5d997728d2e33",
+    ".forge/cases/all-six-kinds-json-feature.yaml": "sha256:fb1ccbaee977696c5f51e967612acfcdc19dc4cd97da97052bc192197735ab1f",
     ".forge/cases/all-six-kinds-label-feature.yaml": "sha256:5276260ee8902bc5337c16a1af9ee76eb4d68502b954ef0a1a1d6470b7a647d9",
     ".forge/cases/instruction-inside-the-feature.yaml": "sha256:bf38ce421eaa164b595b583cd4773676b073ff4fc627bbd8286f912677df5177",
     ".forge/cases/portuguese-feature.yaml": "sha256:34ecae90215685d6d80ef27b81186a4d4755aae8ce29896da2f086dbd4843b06",
+    ".forge/cases/rare-kind-on-a-narrow-feature.yaml": "sha256:6582a3f3d8431098954b48a62ba6e4ce5d861c5161ba02c762c064937a365d7f",
     ".forge/cases/single-kind-json-feature.yaml": "sha256:ab0c606c824d1148446f52b52e8625fdd8123ef7210a401cdd20673b0afa6be8",
     ".forge/cases/text-feature-out-of-scope.yaml": "sha256:bd587c0fda3a024a6017b90c63bfb0d0a71fb220be6d3d7b1aad322d7af66478",
     ".forge/cases/two-kinds-only.yaml": "sha256:a6cbd31e6b6d6ceeff380753ddfd092daecffbc354dc4abb8d5adc133f7b0b5e",
     ".forge/feature.yaml": "sha256:080ce719fbaab42d10be4896d8201088831a8e9eda7d41666123894e3ad6a69d",
-    ".forge/promptfooconfig.yaml": "sha256:83d2fe58dba2535c8d3a31a2e3b4c768ca3efab0232dec6e9a1b0b00bba00cca",
-    ".forge/scenarios.yaml": "sha256:585d4cc4e47e1a5203a9a3720e21369a87e015adeae70cdc6bb511f83837f7f4",
-    "../../scripts/dogfood/claude-cli-llm.ts": "sha256:bccebc94a1a34860a181dbe1d78031260f481249769266b3821eaed8adbc3312",
-    "../../scripts/dogfood/entry.ts": "sha256:665d9e20a4daee6bb6ba120a614bbd0cdf96c1763bb2af0b3cc6bf4aa251f73e",
+    ".forge/promptfooconfig.yaml": "sha256:eff76b1fbdadebdfca4cde5ddc639829467fb8b9ff56091959cb1d6694cee5d0",
+    ".forge/scenarios.yaml": "sha256:463eb87dc0fb4f3d8d7acefeef9d97c10a227e51072cdb40255ccb7b00ca2db3",
+    "../../scripts/dogfood/claude-cli-llm.ts": "sha256:e15630150f0d320a596fac2af806daf1301539d6231b7e289c0af50a29e59a01",
+    "../../scripts/dogfood/entry.ts": "sha256:cd86cb6f9238cec37e68f02e948ea73f3c0afa6de460f5bd89b9ffc2864e8494",
     "../../scripts/dogfood/exec-arguments.ts": "sha256:41ac466f3deb489789fb3c02922a4ed3f0f23a06dddcb08b5d48c5f8a116613c",
     "../../scripts/dogfood/inputs.ts": "sha256:c0093d1f67f3aff45043c7eef67ecc612be71aecdee165793b9b1aa27932024e",
     "../../scripts/dogfood/scenarios-run.ts": "sha256:c7334f907199d7dfe99c7434ce2fc2a49383f968f804f3e97d7f1092547df938",
@@ -43,8 +45,8 @@
     "../../src/llm/templates.ts": "sha256:e9d9afc31e4d7c2228e7d8b03fb3a2917aaec540c534de6b43ffbc2993e0bb44",
     "../../templates/scenarios.md": "sha256:01abd4dc70171613142a5ccb3b7a2c802f23c7919cfd62e6d8b08433250e7821"
   },
-  "inputsHash": "sha256:c84815cda7cb6f8180a9f065fd0ddf450876c30115074aaecceb31acfff58246",
-  "rows": 36,
+  "inputsHash": "sha256:a1f94a3597b7751557e595879a195faf307b315b032241cf645caddde99c4938",
+  "rows": 42,
   "passRate": 1,
   "minimumPassRate": 0.8,
   "flaky": []

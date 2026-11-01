@@ -1,0 +1,20 @@
+- id: spanish-description-01
+  scenario: spanish-description
+  input:
+    description: Clasifica el mensaje de un cliente como positivo, negativo o neutro.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: label
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: spanish-description-02
+  scenario: spanish-description
+  input:
+    description: Extrae del texto de una factura el número, el total y la fecha de vencimiento y devuélvelos como JSON.
+  expected:
+    fields:
+      input_count: 1
+      output_kind: json
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

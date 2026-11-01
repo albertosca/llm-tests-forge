@@ -1,0 +1,46 @@
+- id: rare-kind-on-a-narrow-feature-01
+  scenario: rare-kind-on-a-narrow-feature
+  input:
+    feature: |
+      id: sum-two-numbers
+      purpose: Add two integers and answer with their sum as text.
+      inputs:
+      - name: first
+        kind: text
+      - name: second
+        kind: text
+      output:
+        kind: text
+      invariants:
+      - Answer with the number only.
+    kinds: out_of_scope,language
+  expected:
+    fields:
+      covered:
+        - language
+        - out_of_scope
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)
+- id: rare-kind-on-a-narrow-feature-02
+  scenario: rare-kind-on-a-narrow-feature
+  input:
+    feature: |
+      id: sum-two-numbers
+      purpose: Add two integers and answer with their sum as text.
+      inputs:
+      - name: first
+        kind: text
+      - name: second
+        kind: text
+      output:
+        kind: text
+      invariants:
+      - Answer with the number only.
+    kinds: adversarial,ambiguous
+  expected:
+    fields:
+      covered:
+        - adversarial
+        - ambiguous
+  status: approved
+  generated_by: claude-sonnet-5-5 (written in a Claude Code session)

@@ -18,6 +18,8 @@ export interface TargetOptions {
 	/** `claude-cli` reaches the model through the Claude Code CLI (subscription quota) instead of the API. */
 	transport?: "api" | "claude-cli";
 	claudeCommand?: string;
+	/** Where the claude-cli transport logs each call's usage; `DOGFOOD_USAGE_FILE` by default. */
+	usageFile?: string;
 	/** Where the throwaway directory is made; the system temp directory by default. */
 	temporaryRoot?: string;
 }
@@ -48,7 +50,10 @@ export async function runTarget(
 		const invocation = parseExecArguments(argumentList);
 		const llm =
 			options.transport === "claude-cli"
-				? createClaudeCliLlm({ command: options.claudeCommand })
+				? createClaudeCliLlm({
+						command: options.claudeCommand,
+						usageFile: options.usageFile ?? process.env.DOGFOOD_USAGE_FILE,
+					})
 				: createLlm({
 						forgeDirectory,
 						beforeResolve: async () => {
