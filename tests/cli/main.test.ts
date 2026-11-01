@@ -4650,10 +4650,9 @@ describe("emit", () => {
 		});
 		const { context, out } = await ctxIn(cwd);
 		expect(await run(["emit"], context)).toBe(0);
-		expect(await readdir(join(forgeDirectory, "forge_target"))).toEqual([
-			"go.mod",
-			"main.go",
-		]);
+		expect(
+			(await readdir(join(forgeDirectory, "forge_target"))).sort(),
+		).toEqual(["go.mod", "main.go"]);
 		expect(
 			await readFile(join(forgeDirectory, "forge_target", "go.mod"), "utf8"),
 		).toContain("// replace example.com/myapp => ../..");
