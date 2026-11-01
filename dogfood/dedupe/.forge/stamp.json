@@ -1,9 +1,9 @@
 {
   "format": 1,
-  "sealedAt": "2026-11-01T18:02:17.077Z",
+  "sealedAt": "2026-11-01T18:46:24.285Z",
   "forgeVersion": "0.1.0",
   "promptfooVersion": "0.123.0",
-  "ranAt": "2026-11-01T17:59:07.874Z",
+  "ranAt": "2026-11-01T18:38:57.897Z",
   "models": {
     "targets": [
       "anthropic/claude-haiku-4-5"
@@ -14,7 +14,7 @@
   },
   "inputs": {
     "../../bun.lock": "sha256:0e8dd1b1179434d7c04ff0e2c9c8537a9add82cfe82c661501e5d997728d2e33",
-    ".forge/cases/identifiers-differ-only.yaml": "sha256:4b3758de95aca8387b2c5e60d8f696ad86cda8fe814c2a80b01666df329660b6",
+    ".forge/cases/identifiers-differ-only.yaml": "sha256:f1da619ccb35a29da6a205dab549c8d0744b949761d885ef48182a9643d8d6c3",
     ".forge/cases/ids-out-of-order.yaml": "sha256:509b827d8cb4e4f4cbc47cd3b08a38f44fe06d84622dcb251c11cf4496ef84df",
     ".forge/cases/instruction-inside-a-ticket.yaml": "sha256:ae9f57819c6952b0e717d3ffcde231a0edb486759af6b089338897be8b243987",
     ".forge/cases/near-miss-same-label.yaml": "sha256:bee153e6fc56d4616e78b8895352be98252a365b5ffdf43af8581a425b7576e5",
@@ -26,7 +26,7 @@
     ".forge/cases/two-groups-and-a-near-miss.yaml": "sha256:066251dbc1fc2ec1d3c761b5f99ee7ebdda6e7bb7d738019cb5d5ea6c9889ecd",
     ".forge/cases/wording-only-pair.yaml": "sha256:85bb6b7e712217d73ac2f7c2b2430f622c1081893a7ededceb200566c7d89909",
     ".forge/feature.yaml": "sha256:3a66117c0446b2e01902e5c90b74818e5f2ccb66de9ae20f4f8e9d18bf733e2f",
-    ".forge/promptfooconfig.yaml": "sha256:a30980e06fdcf023f64a9cdd4969ff707ad37851c3e5183fa18bbc4af04e398b",
+    ".forge/promptfooconfig.yaml": "sha256:f3f8a8ee3b6096e70dac009ec99451201dea96ebe087cdfde762b8ebb97ce517",
     ".forge/scenarios.yaml": "sha256:8e6e4daafc010eeb22698228ac052df38eb89f19b6f736bfa398d0872e527669",
     "../../scripts/dogfood/claude-cli-llm.ts": "sha256:e15630150f0d320a596fac2af806daf1301539d6231b7e289c0af50a29e59a01",
     "../../scripts/dogfood/dedupe-run.ts": "sha256:5df08e14c14106547c6707a6bf5432200ada585a1fa7d5692c11a718318887de",
@@ -45,8 +45,8 @@
     "../../src/llm/templates.ts": "sha256:e9d9afc31e4d7c2228e7d8b03fb3a2917aaec540c534de6b43ffbc2993e0bb44",
     "../../templates/dedupe.md": "sha256:5cff46dc4b9147c9fc675c132e80ab6eb661105ddaed3d1fb0f89d6751685e19"
   },
-  "inputsHash": "sha256:71f7ec26518063b9f38cbbe54a45c9d8891d1c8303a2ba159f942c7bbeac8331",
-  "rows": 58,
+  "inputsHash": "sha256:9939a838297ec6e30ae581f954827b07f95def81762f4f78df7b64142b091e11",
+  "rows": 60,
   "passRate": 1,
   "minimumPassRate": 0.8,
   "flaky": []
